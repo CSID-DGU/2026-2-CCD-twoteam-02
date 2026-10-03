@@ -5,7 +5,7 @@
     python3 -m pip install --no-compile "mediapipe==1.0.0" opencv-python numpy
     (mediapipe 1.0.1은 macOS에서 실행 중 중단되는 버그가 있어 1.0.0으로 고정)
 실행:
-    python3 main.py             (종료: q 또는 ESC)
+    python3 main.py             (종료: q 또는 ESC, 정면 다시 맞추기: 0 또는 c)
     python3 main.py 1           (카메라 번호를 직접 지정)
     python3 main.py camera      (진단용: MediaPipe 없이 웹캠 화면만)
 
@@ -36,6 +36,7 @@ LEFT_EYE = [362, 385, 387, 263, 373, 380]
 EAR_THRESHOLD = 0.20      # 이 값보다 작으면 "감김" (사람마다 다르니 직접 조정)
 CLOSED_SECONDS = 1.0      # 이 시간 이상 감고 있으면 경고
 SMOOTH_ALPHA = 0.4        # 각도 떨림 보정 (작을수록 부드럽지만 반응이 느림, 0~1)
+CALIB_SECONDS = 2.0       # 시작할 때 이 시간 동안의 각도 평균을 "정면"으로 삼음
 
 
 # ---------- 1) 눈 감김: EAR (Eye Aspect Ratio) ----------
@@ -152,6 +153,9 @@ def main():
     closed_since = None
     smoothed = None                                # 보정된 (pitch, yaw, roll)
     history = deque(maxlen=30)                     # 최근 30프레임 (raw, smoothed) - 떨림 수치 비교용
+    zero = None                                    # 정면 기준 각도 (None이면 맞추는 중)
+    calib_start = None
+    calib_samples = []
     start = time.time()
 
     with vision.FaceLandmarker.create_from_options(options) as landmarker:
@@ -206,8 +210,16 @@ def main():
                     smoothed = raw
                 else:
                     smoothed = smoothed * (1 - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA
-                pitch, yaw, roll = smoothed
                 history.append((raw, smoothed))
+
+                # 정면 기준 맞추기: 노트북 화면 기울기·카메라 위치가 사람마다 달라
+                # 화면을 보고 있어도 각도가 0이 아니므로, 처음 CALIB_SECONDS 동안의 평균을 빼 준다
+                if zero is None:
+                    calib_start = calib_start or time.time()
+                    calib_samples.append(raw)
+                    if time.time() - calib_start >= CALIB_SECONDS:
+                        zero = np.mean(calib_samples, axis=0)
+                pitch, yaw, roll = smoothed - zero if zero is not None else smoothed
 
                 # blendshape의 눈 깜빡임 점수 (0=뜸, 1=감음)
                 blink = {c.category_name: c.score for c in result.face_blendshapes[0]}
@@ -231,6 +243,13 @@ def main():
                 for n, text in enumerate(lines):
                     cv2.putText(frame, text, (10, 35 + 35 * n),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+                if zero is None:
+                    left = CALIB_SECONDS - (time.time() - calib_start)
+                    cv2.putText(frame, f"CALIBRATING... look at the screen {left:.1f}s", (10, 160),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+                else:
+                    cv2.putText(frame, "zero  pitch {:+6.1f}  yaw {:+6.1f}  roll {:+6.1f}".format(*zero),
+                                (10, h - 100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
                 if closed_for >= CLOSED_SECONDS:
                     cv2.putText(frame, f"EYES CLOSED {closed_for:.1f}s", (10, 115),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 3)
@@ -238,12 +257,20 @@ def main():
                 closed_since = None
                 smoothed = None                        # 다시 잡히면 새 위치에서 시작
                 history.clear()
+                if zero is None:                       # 맞추는 중에 얼굴이 빠지면 처음부터 다시
+                    calib_start = None
+                    calib_samples = []
                 cv2.putText(frame, "no face", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             cv2.imshow("face monitor", frame)
-            if cv2.waitKey(1) & 0xFF in (ord("q"), 27):     # 27 = ESC (한글 입력 상태에서도 동작)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):                  # 27 = ESC (한글 입력 상태에서도 동작)
                 break
+            if key in (ord("0"), ord("c")):            # 정면 다시 맞추기 (숫자는 한글 입력 상태에서도 동작)
+                zero = None
+                calib_start = None
+                calib_samples = []
 
     cap.release()
     cv2.destroyAllWindows()
