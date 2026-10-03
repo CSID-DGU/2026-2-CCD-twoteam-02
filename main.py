@@ -15,6 +15,7 @@ import os
 import sys
 import time
 import urllib.request
+from collections import deque
 
 import cv2
 import numpy as np
@@ -34,6 +35,7 @@ LEFT_EYE = [362, 385, 387, 263, 373, 380]
 
 EAR_THRESHOLD = 0.20      # 이 값보다 작으면 "감김" (사람마다 다르니 직접 조정)
 CLOSED_SECONDS = 1.0      # 이 시간 이상 감고 있으면 경고
+SMOOTH_ALPHA = 0.4        # 각도 떨림 보정 (작을수록 부드럽지만 반응이 느림, 0~1)
 
 
 # ---------- 1) 눈 감김: EAR (Eye Aspect Ratio) ----------
@@ -148,6 +150,8 @@ def main():
 
     switched = 0
     closed_since = None
+    smoothed = None                                # 보정된 (pitch, yaw, roll)
+    history = deque(maxlen=30)                     # 최근 30프레임 (raw, smoothed) - 떨림 수치 비교용
     start = time.time()
 
     with vision.FaceLandmarker.create_from_options(options) as landmarker:
@@ -195,7 +199,15 @@ def main():
                 closed_for = time.time() - closed_since if closed_since else 0.0
 
                 # 고개 각도
-                pitch, yaw, roll = head_angles(result.facial_transformation_matrixes[0])
+                raw = np.array(head_angles(result.facial_transformation_matrixes[0]))
+
+                # 떨림 보정: 지수이동평균(EMA). 얼굴이 처음 잡히면 그 값에서 시작
+                if smoothed is None:
+                    smoothed = raw
+                else:
+                    smoothed = smoothed * (1 - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA
+                pitch, yaw, roll = smoothed
+                history.append((raw, smoothed))
 
                 # blendshape의 눈 깜빡임 점수 (0=뜸, 1=감음)
                 blink = {c.category_name: c.score for c in result.face_blendshapes[0]}
@@ -205,14 +217,27 @@ def main():
                     f"pitch {pitch:+6.1f}  yaw {yaw:+6.1f}  roll {roll:+6.1f}",
                     f"EAR {ear:.2f}  blink {blink_avg:.2f}  {'CLOSED' if closed else 'open'}",
                 ]
+                # 보정 전 값 (비교용, 회색)
+                cv2.putText(frame, "raw   pitch {:+6.1f}  yaw {:+6.1f}  roll {:+6.1f}".format(*raw),
+                            (10, h - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+
+                # 떨림 수치: 프레임 사이 각도 변화량 평균(도). 가만히 있을 때 작을수록 안정적
+                if len(history) >= 2:
+                    arr = np.array(history)                    # (프레임, raw/smoothed, 각도3)
+                    jitter = np.abs(np.diff(arr, axis=0)).mean(axis=(0, 2))
+                    cv2.putText(frame, f"jitter  raw {jitter[0]:.2f}  smooth {jitter[1]:.2f}",
+                                (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
                 for n, text in enumerate(lines):
-                    cv2.putText(frame, text, (10, 30 + 30 * n),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    cv2.putText(frame, text, (10, 35 + 35 * n),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
                 if closed_for >= CLOSED_SECONDS:
-                    cv2.putText(frame, f"EYES CLOSED {closed_for:.1f}s", (10, 100),
+                    cv2.putText(frame, f"EYES CLOSED {closed_for:.1f}s", (10, 115),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 3)
             else:
                 closed_since = None
+                smoothed = None                        # 다시 잡히면 새 위치에서 시작
+                history.clear()
                 cv2.putText(frame, "no face", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
