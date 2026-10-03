@@ -6,6 +6,8 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import * as THREE from "three";
+import { useFocusState } from "./focus/useFocusState";
+import FocusBadge from "./focus/FocusBadge";
 
 const MODEL_URL = "/models/character-a.glb";
 const BLINK_TEXTURE_URL = "/models/Textures/texture-a-blink.png"; // 눈 감은 스킨
@@ -215,6 +217,7 @@ function Readout({ face }: { face: RefObject<FaceState> }) {
 export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { face, status, message } = useFaceTracking(videoRef);
+  const focus = useFocusState(face); // 집중 상태 판정 (src/focus)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
@@ -240,6 +243,7 @@ export default function HeadTrackingTest() {
         )}
         {status === "error" && <div>오류: {message}</div>}
         {status === "ready" && <Readout face={face} />}
+        {status === "ready" && <FocusBadge state={focus} />}
       </div>
 
       <video
