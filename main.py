@@ -34,7 +34,7 @@ RIGHT_EYE = [33, 160, 158, 133, 153, 144]
 LEFT_EYE = [362, 385, 387, 263, 373, 380]
 
 EAR_THRESHOLD = 0.20      # 이 값보다 작으면 "감김" (사람마다 다르니 직접 조정)
-CLOSED_SECONDS = 1.0      # 이 시간 이상 감고 있으면 경고
+CLOSED_SECONDS = 120.0    # 이 시간 이상 감고 있으면 경고 (잠깐 눈 감고 쉬는 건 허용)
 SMOOTH_ALPHA = 0.4        # 각도 떨림 보정 (작을수록 부드럽지만 반응이 느림, 0~1)
 CALIB_SECONDS = 2.0       # 시작할 때 이 시간 동안의 각도 평균을 "정면"으로 삼음
 
@@ -227,7 +227,7 @@ def main():
 
                 lines = [
                     f"pitch {pitch:+6.1f}  yaw {yaw:+6.1f}  roll {roll:+6.1f}",
-                    f"EAR {ear:.2f}  blink {blink_avg:.2f}  {'CLOSED' if closed else 'open'}",
+                    f"EAR {ear:.2f}  blink {blink_avg:.2f}  {f'CLOSED {closed_for:.0f}s' if closed else 'open'}",
                 ]
                 # 보정 전 값 (비교용, 회색)
                 cv2.putText(frame, "raw   pitch {:+6.1f}  yaw {:+6.1f}  roll {:+6.1f}".format(*raw),
