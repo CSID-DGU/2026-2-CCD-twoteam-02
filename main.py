@@ -5,7 +5,7 @@
     python3 -m pip install --no-compile "mediapipe==1.0.0" opencv-python numpy
     (mediapipe 1.0.1은 macOS에서 실행 중 중단되는 버그가 있어 1.0.0으로 고정)
 실행:
-    python3 main.py             (종료: q)
+    python3 main.py             (종료: q 또는 ESC)
     python3 main.py 1           (카메라 번호를 직접 지정)
     python3 main.py camera      (진단용: MediaPipe 없이 웹캠 화면만)
 
@@ -124,7 +124,7 @@ def camera_only():
         failed = 0
         shown += 1
         cv2.imshow("camera only", cv2.flip(frame, 1))
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        if cv2.waitKey(1) & 0xFF in (ord("q"), 27):     # 27 = ESC (한글 입력 상태에서도 동작)
             print(f"정상 종료 ({shown}장 표시)")
             break
     cap.release()
@@ -242,7 +242,7 @@ def main():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             cv2.imshow("face monitor", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            if cv2.waitKey(1) & 0xFF in (ord("q"), 27):     # 27 = ESC (한글 입력 상태에서도 동작)
                 break
 
     cap.release()
