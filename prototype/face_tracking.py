@@ -2,12 +2,12 @@
 웹캠 -> MediaPipe FaceLandmarker -> 고개 각도(pitch/yaw/roll) + 눈 감김(EAR)
 
 준비:
-    python3 -m pip install --no-compile "mediapipe==1.0.0" opencv-python numpy
+    python3 -m pip install --no-compile -r prototype/requirements.txt
     (mediapipe 1.0.1은 macOS에서 실행 중 중단되는 버그가 있어 1.0.0으로 고정)
 실행:
-    python3 main.py             (종료: q 또는 ESC, 정면 다시 맞추기: 0 또는 c)
-    python3 main.py 1           (카메라 번호를 직접 지정)
-    python3 main.py camera      (진단용: MediaPipe 없이 웹캠 화면만)
+    python3 prototype/face_tracking.py             (종료: q 또는 ESC, 정면 다시 맞추기: 0 또는 c)
+    python3 prototype/face_tracking.py 1           (카메라 번호를 직접 지정)
+    python3 prototype/face_tracking.py camera      (진단용: MediaPipe 없이 웹캠 화면만)
 
 모델 파일(face_landmarker.task)은 첫 실행 때 자동으로 내려받습니다.
 """
@@ -23,7 +23,8 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
-MODEL_PATH = "face_landmarker.task"
+# 어느 폴더에서 실행해도 같은 곳에 받도록 이 파일 옆에 둔다
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face_landmarker.task")
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
     "face_landmarker/float16/1/face_landmarker.task"
@@ -101,7 +102,7 @@ def open_camera(forced=None, skip=None):
 
 
 def forced_index():
-    """python3 main.py 1 처럼 숫자를 주면 그 카메라만 쓴다."""
+    """python3 prototype/face_tracking.py 1 처럼 숫자를 주면 그 카메라만 쓴다."""
     for arg in sys.argv[1:]:
         if arg.isdigit():
             return int(arg)
@@ -109,7 +110,7 @@ def forced_index():
 
 
 def camera_only():
-    """진단용: MediaPipe 없이 웹캠 화면만 띄운다.  실행: python3 main.py camera"""
+    """진단용: MediaPipe 없이 웹캠 화면만 띄운다.  실행: python3 prototype/face_tracking.py camera"""
     cap, _index = open_camera(forced_index())
     shown = 0
     failed = 0
