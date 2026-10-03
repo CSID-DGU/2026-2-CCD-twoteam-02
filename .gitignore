@@ -26,3 +26,6 @@ dist-ssr
 # Office 임시 파일
 ~$*
 *.tmp
+
+# MediaPipe 모델 (main.py가 없으면 자동으로 내려받음)
+face_landmarker.task

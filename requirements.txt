@@ -1,0 +1,4 @@
+# mediapipe 1.0.1은 macOS에서 실행 중 중단되는 버그가 있어 1.0.0으로 고정
+mediapipe==1.0.0
+opencv-python
+numpy
