@@ -156,6 +156,8 @@ def main():
     zero = None                                    # 정면 기준 각도 (None이면 맞추는 중)
     calib_start = None
     calib_samples = []
+    fps = 0.0                                      # 초당 처리 프레임 수 (목표 30 이상)
+    prev_frame = None
     start = time.time()
 
     with vision.FaceLandmarker.create_from_options(options) as landmarker:
@@ -262,6 +264,14 @@ def main():
                     calib_samples = []
                 cv2.putText(frame, "no face", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+            # FPS: 프레임 간격으로 계산, 숫자가 튀지 않게 조금씩 반영
+            now = time.time()
+            if prev_frame is not None:
+                fps = fps * 0.9 + (1.0 / max(now - prev_frame, 1e-6)) * 0.1
+            prev_frame = now
+            cv2.putText(frame, f"fps {fps:.0f}", (w - 120, 35),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
 
             cv2.imshow("face monitor", frame)
             key = cv2.waitKey(1) & 0xFF
