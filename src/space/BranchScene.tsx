@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrthographicCamera } from "@react-three/drei";
 import branch from "./branches/byeol.json";
-import { KIOSK, SEAT, obstaclesOf, roomWalls } from "./layout";
+import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import { Player } from "./Player";
 
 const obstacles = obstaclesOf(branch);
+const spots = spotsOf(branch);
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
 function TopDownCamera() {
@@ -24,7 +26,17 @@ function TopDownCamera() {
 }
 
 export function BranchScene() {
+  const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
+  const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
+  const hint =
+    seat !== null
+      ? `${seat}번 좌석 · E 일어나기`
+      : near !== null
+        ? `${near}번 좌석 · E 앉기`
+        : "";
+
   return (
+    <>
     <Canvas>
       <TopDownCamera />
       <ambientLight intensity={1.2} />
@@ -48,6 +60,15 @@ export function BranchScene() {
         </mesh>
       ))}
 
+      {spots.map((c) => (
+        <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>
+          <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
+          <meshStandardMaterial
+            color={c.no === seat || c.no === near ? "#f59e0b" : "#6b7280"}
+          />
+        </mesh>
+      ))}
+
       {branch.rooms.map((r) => (
         <mesh
           key={r.no}
@@ -64,7 +85,31 @@ export function BranchScene() {
         <meshStandardMaterial color="#22c55e" />
       </mesh>
 
-      <Player obstacles={obstacles} spawn={branch.spawn} />
+      <Player
+        obstacles={obstacles}
+        spawn={branch.spawn}
+        spots={spots}
+        onNear={setNear}
+        onSeat={setSeat}
+      />
     </Canvas>
+    {hint && (
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: 24,
+          transform: "translateX(-50%)",
+          padding: "8px 16px",
+          borderRadius: 8,
+          background: "rgba(32,35,42,.85)",
+          color: "#fff",
+          font: "14px system-ui, sans-serif",
+        }}
+      >
+        {hint}
+      </div>
+    )}
+    </>
   );
 }
