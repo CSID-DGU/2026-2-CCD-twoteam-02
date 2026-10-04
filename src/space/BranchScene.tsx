@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
-import { Euler, Matrix4, Quaternion, Vector3 } from "three";
+import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
 import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
@@ -34,12 +34,19 @@ const TRANSITION = 0.8; // 2D → 3D 전환 시간(초). 목표는 1초 이내�
 const START_HEIGHT = 7; // 전환을 시작하는 카메라 높이
 const START_BACK = 3; // 전환을 시작할 때 자리 뒤로 물러난 거리
 const SEAT_HEIGHT = 0.74; // 책상 높이
+const LOOK_LIMIT = Math.PI / 3; // 좌우로 60도씩, 합쳐서 120도까지 둘러볼 수 있습니다.
+const LOOK_SPEED = 0.005; // 마우스를 1픽셀 끌 때 도는 각도(라디안)
+const LOOK_FOLLOW = 20; // 시점이 마우스를 따라가는 빠르기
+const UP = new Vector3(0, 1, 0);
 
 // 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
 // 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
+// 마우스로 끌면 좌우 120도 범위에서 둘러봅니다.
 function SeatCamera({ spot }: { spot: Spot }) {
   const cam = useRef<PerspectiveCameraImpl>(null!);
   const progress = useRef(0); // 0(시작) → 1(전환 끝)
+  const yaw = useRef(0); // 정면에서 좌우로 돌린 각도
+  const canvas = useThree((s) => s.gl.domElement);
   const pose = useMemo(() => {
     const fx = Math.sin(spot.rot), fz = Math.cos(spot.rot); // 책상 쪽 방향
     const endPos = new Vector3(spot.x, EYE_HEIGHT, spot.z);
@@ -48,17 +55,59 @@ function SeatCamera({ spot }: { spot: Spot }) {
     const startPos = new Vector3(spot.x - fx * START_BACK, START_HEIGHT, spot.z - fz * START_BACK);
     const desk = new Vector3(spot.x + fx, SEAT_HEIGHT, spot.z + fz);
     const startQuat = new Quaternion().setFromRotationMatrix(
-      new Matrix4().lookAt(startPos, desk, new Vector3(0, 1, 0))
+      new Matrix4().lookAt(startPos, desk, UP)
     );
-    return { startPos, startQuat, endPos, endQuat };
+    // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
+    return { startPos, startQuat, endPos, endQuat, turn: new Quaternion(), target: new Quaternion() };
   }, [spot]);
 
+  // 화면을 끌면 끄는 쪽으로 장면이 따라오도록 시점을 돌립니다.
+  useEffect(() => {
+    let dragging = false;
+    const down = (e: PointerEvent) => {
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId); // 화면 밖으로 나가도 끌기가 이어지게
+      canvas.style.setProperty("cursor", "grabbing");
+    };
+    const move = (e: PointerEvent) => {
+      if (!dragging) return;
+      yaw.current = MathUtils.clamp(
+        yaw.current + e.movementX * LOOK_SPEED,
+        -LOOK_LIMIT,
+        LOOK_LIMIT
+      );
+    };
+    const up = () => {
+      dragging = false;
+      canvas.style.setProperty("cursor", "grab");
+    };
+    canvas.style.setProperty("cursor", "grab");
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    return () => {
+      canvas.style.setProperty("cursor", "");
+      canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerup", up);
+      canvas.removeEventListener("pointercancel", up);
+    };
+  }, [canvas]);
+
   useFrame((_, delta) => {
-    if (progress.current >= 1) return;
-    progress.current = Math.min(1, progress.current + delta / TRANSITION);
-    const k = 1 - (1 - progress.current) ** 3; // 처음엔 빠르게, 끝에서 천천히
-    cam.current.position.lerpVectors(pose.startPos, pose.endPos, k);
-    cam.current.quaternion.slerpQuaternions(pose.startQuat, pose.endQuat, k);
+    // 바라볼 방향 = 좌석 정면에서 yaw만큼 좌우로 돌린 방향
+    pose.turn.setFromAxisAngle(UP, yaw.current);
+    pose.target.multiplyQuaternions(pose.turn, pose.endQuat);
+
+    if (progress.current < 1) {
+      progress.current = Math.min(1, progress.current + delta / TRANSITION);
+      const k = 1 - (1 - progress.current) ** 3; // 처음엔 빠르게, 끝에서 천천히
+      cam.current.position.lerpVectors(pose.startPos, pose.endPos, k);
+      cam.current.quaternion.slerpQuaternions(pose.startQuat, pose.target, k);
+    } else {
+      cam.current.quaternion.slerp(pose.target, 1 - Math.exp(-LOOK_FOLLOW * delta));
+    }
   });
 
   return (
@@ -79,7 +128,7 @@ export function BranchScene() {
   const seatSpot = spots.find((c) => c.no === seat);
   const hint =
     seat !== null
-      ? `${seat}번 좌석 · E 일어나기`
+      ? `${seat}번 좌석 · 끌어서 둘러보기 · E 일어나기`
       : near !== null
         ? `${near}번 좌석 · E 앉기`
         : "";
