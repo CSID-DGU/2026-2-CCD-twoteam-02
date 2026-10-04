@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrthographicCamera } from "@react-three/drei";
+import { OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
+import type { Spot } from "./layout";
 import { Player } from "./Player";
 
 const obstacles = obstaclesOf(branch);
@@ -25,9 +26,27 @@ function TopDownCamera() {
   );
 }
 
+const EYE_HEIGHT = 1.1; // 앉았을 때 눈높이
+const SEAT_FOV = 60; // 1인칭 화면의 세로 시야각
+
+// 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라
+function SeatCamera({ spot }: { spot: Spot }) {
+  return (
+    <PerspectiveCamera
+      makeDefault
+      fov={SEAT_FOV}
+      near={0.05}
+      position={[spot.x, EYE_HEIGHT, spot.z]}
+      // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
+      rotation={[0, spot.rot + Math.PI, 0]}
+    />
+  );
+}
+
 export function BranchScene() {
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
+  const seatSpot = spots.find((c) => c.no === seat);
   const hint =
     seat !== null
       ? `${seat}번 좌석 · E 일어나기`
@@ -38,8 +57,10 @@ export function BranchScene() {
   return (
     <>
     <Canvas>
-      <TopDownCamera />
+      {seatSpot ? <SeatCamera spot={seatSpot} /> : <TopDownCamera />}
       <ambientLight intensity={1.2} />
+      {/* 1인칭에서 면이 구분되도록 비스듬한 빛을 더합니다. */}
+      <directionalLight position={[6, 12, 4]} intensity={0.8} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[branch.size.w, branch.size.d]} />
