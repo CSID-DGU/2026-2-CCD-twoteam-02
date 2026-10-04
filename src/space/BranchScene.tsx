@@ -6,11 +6,16 @@ import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
+import { DUMMIES } from "./dummies";
 import { Player } from "./Player";
+import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
 
 const obstacles = obstaclesOf(branch);
 const spots = spotsOf(branch);
+// 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
+const taken = new Set(DUMMIES.map((d) => d.seat));
+const freeSpots = spots.filter((c) => !taken.has(c.no));
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
 function TopDownCamera() {
@@ -186,10 +191,15 @@ export function BranchScene() {
         <meshStandardMaterial color="#22c55e" />
       </mesh>
 
+      {DUMMIES.map((d) => {
+        const spot = spots.find((c) => c.no === d.seat);
+        return spot && <SeatedCharacter key={d.seat} spot={spot} model={d.model} />;
+      })}
+
       <Player
         obstacles={obstacles}
         spawn={branch.spawn}
-        spots={spots}
+        spots={freeSpots}
         onNear={setNear}
         onSeat={setSeat}
       />
