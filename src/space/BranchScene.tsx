@@ -7,11 +7,14 @@ import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
 import { DUMMIES } from "./dummies";
+import { FpsProbe, PerfReadout } from "./PerfReadout";
+import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
 
 const obstacles = obstaclesOf(branch);
+const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const spots = spotsOf(branch);
 // 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
 const taken = new Set(DUMMIES.map((d) => d.seat));
@@ -48,7 +51,7 @@ const UP = new Vector3(0, 1, 0);
 // 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
 // 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
 // 마우스로 끌면 좌우 120도 범위에서 둘러봅니다.
-function SeatCamera({ spot }: { spot: Spot }) {
+function SeatCamera({ spot, onArrive }: { spot: Spot; onArrive: () => void }) {
   const cam = useRef<PerspectiveCameraImpl>(null!);
   const progress = useRef(0); // 0(시작) → 1(전환 끝)
   const yaw = useRef(0); // 정면에서 좌우로 돌린 각도
@@ -108,6 +111,7 @@ function SeatCamera({ spot }: { spot: Spot }) {
 
     if (progress.current < 1) {
       progress.current = Math.min(1, progress.current + delta / TRANSITION);
+      if (progress.current === 1) onArrive(); // 전환이 끝난 순간을 알립니다. (측정용)
       const k = 1 - (1 - progress.current) ** 3; // 처음엔 빠르게, 끝에서 천천히
       cam.current.position.lerpVectors(pose.startPos, pose.endPos, k);
       cam.current.quaternion.slerpQuaternions(pose.startQuat, pose.target, k);
@@ -131,6 +135,24 @@ function SeatCamera({ spot }: { spot: Spot }) {
 export function BranchScene() {
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
+  const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
+  const seatedAt = useRef(0); // 앉기 키를 누른 시각
+
+  const handleSeat = (no: number | null) => {
+    if (no !== null) seatedAt.current = performance.now();
+    setSeat(no);
+  };
+  const handleArrive = () => {
+    const transitionMs = performance.now() - seatedAt.current;
+    setPerf((p) => ({ ...p, transitionMs }));
+  };
+  const handleFps = (fps: number, warm: boolean) => {
+    setPerf((p) => ({
+      ...p,
+      fps,
+      minFps: warm ? Math.min(p.minFps ?? fps, fps) : p.minFps,
+    }));
+  };
   const seatSpot = spots.find((c) => c.no === seat);
   const hint =
     seat !== null
@@ -142,7 +164,12 @@ export function BranchScene() {
   return (
     <>
     <Canvas>
-      {seatSpot ? <SeatCamera key={seatSpot.no} spot={seatSpot} /> : <TopDownCamera />}
+      {seatSpot ? (
+        <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={handleArrive} />
+      ) : (
+        <TopDownCamera />
+      )}
+      <FpsProbe onSample={handleFps} />
       <ambientLight intensity={1.2} />
       {/* 1인칭에서 면이 구분되도록 비스듬한 빛을 더합니다. */}
       <directionalLight position={[6, 12, 4]} intensity={0.8} />
@@ -201,10 +228,11 @@ export function BranchScene() {
         spawn={branch.spawn}
         spots={freeSpots}
         onNear={setNear}
-        onSeat={setSeat}
+        onSeat={handleSeat}
       />
     </Canvas>
     {seat !== null && <SelfView />}
+    <PerfReadout perf={perf} />
     {hint && (
       <div
         style={{
