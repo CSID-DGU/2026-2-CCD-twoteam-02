@@ -83,6 +83,7 @@ export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
     if (seated.current) {
       if (!wantToggle) return
       seated.current = null
+      g.visible = true
       onSeat(null)
       play('idle')
       return
@@ -93,6 +94,7 @@ export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
       p.x = s.x
       p.z = s.z
       g.rotation.y = s.rot
+      g.visible = false // 1인칭 시점에서는 내 캐릭터가 화면을 가리므로 숨깁니다.
       setNear(null)
       onSeat(s.no)
       play('sit')
