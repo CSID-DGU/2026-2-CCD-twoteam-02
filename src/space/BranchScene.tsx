@@ -7,6 +7,7 @@ import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
 import { Player } from "./Player";
+import { SelfView } from "./SelfView";
 
 const obstacles = obstaclesOf(branch);
 const spots = spotsOf(branch);
@@ -193,6 +194,7 @@ export function BranchScene() {
         onSeat={setSeat}
       />
     </Canvas>
+    {seat !== null && <SelfView />}
     {hint && (
       <div
         style={{
