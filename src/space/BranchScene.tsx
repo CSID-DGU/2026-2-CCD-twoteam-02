@@ -1,17 +1,32 @@
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrthographicCamera } from "@react-three/drei";
 import branch from "./branches/byeol.json";
+import { KIOSK, SEAT, obstaclesOf, roomWalls } from "./layout";
 import { Player } from "./Player";
+
+const obstacles = obstaclesOf(branch);
+
+// 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
+function TopDownCamera() {
+  const size = useThree((s) => s.size);
+  const zoom = Math.min(
+    size.width / (branch.size.w + 1),
+    size.height / (branch.size.d + 1)
+  );
+  return (
+    <OrthographicCamera
+      makeDefault
+      position={[0, 20, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      zoom={zoom}
+    />
+  );
+}
 
 export function BranchScene() {
   return (
     <Canvas>
-      <OrthographicCamera
-        makeDefault
-        position={[0, 20, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        zoom={40}
-      />
+      <TopDownCamera />
       <ambientLight intensity={1.2} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
@@ -19,7 +34,7 @@ export function BranchScene() {
         <meshStandardMaterial color="#e8e2d6" />
       </mesh>
 
-      {branch.walls.map((w, i) => (
+      {[...branch.walls, ...branch.rooms.flatMap(roomWalls)].map((w, i) => (
         <mesh key={i} position={[w.x, 1.25, w.z]}>
           <boxGeometry args={[w.w, 2.5, w.d]} />
           <meshStandardMaterial color="#8a8f98" />
@@ -28,7 +43,7 @@ export function BranchScene() {
 
       {branch.seats.map((s) => (
         <mesh key={s.no} position={[s.x, 0.37, s.z]}>
-          <boxGeometry args={[1.2, 0.74, 0.6]} />
+          <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
           <meshStandardMaterial color="#b98a5a" />
         </mesh>
       ))}
@@ -45,17 +60,11 @@ export function BranchScene() {
       ))}
 
       <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
-        <boxGeometry args={[0.6, 1.2, 0.4]} />
+        <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
         <meshStandardMaterial color="#22c55e" />
       </mesh>
 
-      <Player
-        obstacles={[
-          ...branch.walls,
-          ...branch.seats.map((s) => ({ x: s.x, z: s.z, w: 1.2, d: 0.6 })),
-        ]}
-        spawn={branch.spawn}
-      />
+      <Player obstacles={obstacles} spawn={branch.spawn} />
     </Canvas>
   );
 }
