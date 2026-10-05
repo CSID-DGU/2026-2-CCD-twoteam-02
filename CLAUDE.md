@@ -23,11 +23,12 @@
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
 - 캐릭터: GLB 모델(`public/models/character-a~r.glb`)을 drei `useGLTF`로 불러온다. VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈)
+- 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
 
 도입 예정(아직 설치 안 됨):
 
 - MediaPipe Pose Landmarker(카메라 가이드라인), Object Detector(전자기기)
-- Supabase (Auth, PostgreSQL, Realtime Broadcast·Presence, DB 함수)
+- Supabase Realtime(Broadcast·Presence), 좌석 배정용 DB 함수
 - Vercel 배포
 
 위 목록에 없는 라이브러리를 추가해야 하면 먼저 이유를 설명하고 확인을 받는다.
@@ -52,6 +53,9 @@ src/
   focus/               집중 상태 판정·집중 시간 (focusLogic.ts는 React와 무관한 순수 로직)
   space/               지점 공간, 2D 이동, 3D 좌석, 내 모습 화면, 성능 표시
     branches/*.json    지점 배치 데이터 (크기, 벽, 좌석, 회의실, 키오스크, 시작 위치)
+  auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
+  lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
+supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처
 prototype/             초기 Python 트래킹 프로토타입 (참고용)
 docs/                  제안서·주간발표 자료
