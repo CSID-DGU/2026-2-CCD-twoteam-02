@@ -29,3 +29,7 @@ dist-ssr
 
 # MediaPipe 모델 (main.py가 없으면 자동으로 내려받음)
 face_landmarker.task
+
+# 개인용 Claude 설정 (각자 컴퓨터에서만 사용)
+CLAUDE.local.md
+.claude/settings.local.json
