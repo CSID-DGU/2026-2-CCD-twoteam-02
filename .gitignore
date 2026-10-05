@@ -33,3 +33,15 @@ face_landmarker.task
 # 개인용 Claude 설정 (각자 컴퓨터에서만 사용)
 CLAUDE.local.md
 .claude/settings.local.json
+
+# 환경 변수·비밀값 — 견본(.env.example)만 올린다
+# *.local 하나로는 .env, .env.production 같은 파일이 안 막혀서 명시해 둔다
+.env
+.env.*
+!.env.example
+
+# 키·인증서 파일
+*.pem
+*.p12
+*.key
+service-account*.json
