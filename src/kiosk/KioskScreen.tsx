@@ -2,9 +2,10 @@
 //
 // 흐름: 이용 시간 고르기 → 좌석 배치도에서 빈자리 고르기 → "N번 자리를 선택하시겠습니까?" → 예
 //
-// 이용권(passes)은 처음 확인을 누를 때 한 번만 발급한다. 좌석 배정이 실패하면
-// (그 사이 다른 사람이 앉은 경우) 이용권은 그대로 두고 다른 자리를 고르게 한다.
-// 좌석 중복은 DB의 부분 유니크 인덱스가 막으므로, 화면이 먼저 확인했더라도 여기서 한 번 더 걸러진다.
+// 배정은 assign_seat 함수 한 번으로 끝낸다. 이용권 발급과 좌석 배정이 한 덩어리로 묶여 있어
+// 중간에 끊겨도 이용권만 남는 일이 없다. 실패 사유(자리 찼음, 이미 다른 자리 이용 중 등)는
+// 함수가 한국어 메시지로 돌려주므로 그대로 보여 준다.
+// 좌석 중복은 DB가 막으므로, 화면이 먼저 걸러도 여기서 한 번 더 확인된다.
 import { useCallback, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
@@ -15,18 +16,17 @@ import branch from '../space/branches/byeol.json'
 type Step = 'duration' | 'seat' | 'done'
 
 type Props = {
-  userId: string
+  // 누구 것으로 기록할지는 화면이 정하지 않는다. assign_seat 함수가 서버에서 auth.uid() 로 확인한다.
   branchId?: number
   onClose: () => void
   onAssigned?: (seatNumber: number) => void
 }
 
-export default function KioskScreen({ userId, branchId = 1, onClose, onAssigned }: Props) {
+export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props) {
   const [step, setStep] = useState<Step>('duration')
   const [minutes, setMinutes] = useState(60)
   const [occupied, setOccupied] = useState<Set<number>>(new Set())
   const [picked, setPicked] = useState<number | null>(null)
-  const [passId, setPassId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -51,53 +51,16 @@ export default function KioskScreen({ userId, branchId = 1, onClose, onAssigned 
     setBusy(true)
     setError('')
 
-    // 1) 이용권 발급 (처음 한 번만)
-    let pid = passId
-    if (!pid) {
-      const { data, error } = await supabase
-        .from('passes')
-        .insert({ user_id: userId, branch_id: branchId, duration_minutes: minutes })
-        .select('id')
-        .single()
-      if (error) {
-        setBusy(false)
-        setError(`이용권 발급에 실패했습니다: ${error.message}`)
-        return
-      }
-      pid = data.id
-      setPassId(pid)
-    }
-
-    // 2) 좌석 id 찾기
-    const seatRow = await supabase
-      .from('seats')
-      .select('id')
-      .eq('branch_id', branchId)
-      .eq('seat_number', seatNumber)
-      .single()
-    if (seatRow.error) {
-      setBusy(false)
-      setError(`좌석 정보를 찾지 못했습니다: ${seatRow.error.message}`)
-      return
-    }
-
-    // 3) 좌석 배정
-    const expiresAt = new Date(Date.now() + minutes * 60_000).toISOString()
-    const { error } = await supabase.from('seat_sessions').insert({
-      user_id: userId,
-      seat_id: seatRow.data.id,
-      pass_id: pid,
-      expires_at: expiresAt,
+    const { error } = await supabase.rpc('assign_seat', {
+      p_branch_id: branchId,
+      p_seat_number: seatNumber,
+      p_duration_minutes: minutes,
     })
     setBusy(false)
 
     if (error) {
-      // 좌석당 1건 유니크 인덱스에 걸린 경우가 가장 흔하다.
-      setError(
-        error.code === '23505'
-          ? '방금 다른 분이 그 자리를 잡았습니다. 다른 자리를 골라 주세요.'
-          : `자리 배정에 실패했습니다: ${error.message}`
-      )
+      // 함수가 올리는 메시지가 이미 한국어 안내문이다.
+      setError(error.message)
       setPicked(null)
       void loadOccupied()
       return

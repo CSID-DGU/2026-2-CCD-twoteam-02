@@ -117,7 +117,6 @@ export default function AuthPreview() {
 
       {kiosk && session && branch && (
         <KioskScreen
-          userId={session.user.id}
           branchId={branch.id}
           onClose={() => setKiosk(false)}
           onAssigned={(n) => setAssigned(n)}
