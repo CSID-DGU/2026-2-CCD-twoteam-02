@@ -9,11 +9,14 @@ import SignupPage from './SignupPage'
 import RequireAuth from './RequireAuth'
 import LogoutButton from './LogoutButton'
 import DbCheck from './DbCheck'
+import KioskScreen from '../kiosk/KioskScreen'
 import { useSession } from './useSession'
 import { styles } from './authStyles'
 
 export default function AuthPreview() {
   const [screen, setScreen] = useState<'login' | 'signup'>('login')
+  const [kiosk, setKiosk] = useState(false)
+  const [assigned, setAssigned] = useState<number | null>(null)
   const { session } = useSession()
 
   const fallback =
@@ -36,9 +39,29 @@ export default function AuthPreview() {
           <p style={{ ...styles.hint, color: '#fff' }}>DB 연결·권한 확인</p>
           <DbCheck />
           <hr style={{ border: 0, borderTop: '1px solid #4b515c', width: '100%', margin: '4px 0' }} />
+          <button
+            type="button"
+            style={{
+              padding: '10px 14px', borderRadius: 8, border: 'none', background: '#4ade80',
+              color: '#20232a', font: '15px system-ui, sans-serif', fontWeight: 600, cursor: 'pointer',
+            }}
+            onClick={() => setKiosk(true)}
+          >
+            키오스크 열기
+          </button>
+          {assigned !== null && (
+            <p style={{ ...styles.hint, color: '#4ade80' }}>{assigned}번 자리 배정됨</p>
+          )}
           <LogoutButton />
         </div>
       </div>
+      {kiosk && session && (
+        <KioskScreen
+          userId={session.user.id}
+          onClose={() => setKiosk(false)}
+          onAssigned={(n) => setAssigned(n)}
+        />
+      )}
     </RequireAuth>
   )
 }
