@@ -13,6 +13,7 @@ import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
+import { StatusMarker } from "./StatusMarker";
 
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -226,7 +227,13 @@ export function BranchScene() {
 
       {DUMMIES.map((d) => {
         const spot = spots.find((c) => c.no === d.seat);
-        return spot && <SeatedCharacter key={d.seat} spot={spot} model={d.model} />;
+        if (!spot) return null;
+        return (
+          <group key={d.seat}>
+            <SeatedCharacter spot={spot} model={d.model} />
+            <StatusMarker x={spot.x} z={spot.z} status={d.status} />
+          </group>
+        );
       })}
 
       <Player
