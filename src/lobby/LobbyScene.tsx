@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
+const NO_KIOSK = { x: 1000, z: 1000 } // 로비에는 키오스크가 없다. 아래 Player 주석 참고
 
 const COLOR = {
   floor: '#dfe6ee',
@@ -118,6 +119,12 @@ export default function LobbyScene({ onEnter }: Props) {
           obstacles={obstacles}
           spawn={lobby.spawn}
           spots={doorSpots}
+          // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
+          // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
+          kiosk={NO_KIOSK}
+          frozen={false}
+          onNearKiosk={() => {}}
+          onKiosk={() => {}}
           onNear={setNear}
           onSeat={(no) => void tryEnter(no)}
         />
