@@ -54,6 +54,8 @@ src/
   space/               지점 공간, 2D 이동, 3D 좌석, 내 모습 화면, 성능 표시
     branches/*.json    지점 배치 데이터 (크기, 벽, 좌석, 회의실, 키오스크, 시작 위치)
   auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
+  lobby/               로비 (지점 문 앞에서 E로 입장, lobby.json에 배치)
+  kiosk/               키오스크 (이용 시간 선택, 좌석 배치도, 자리 배정)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처
