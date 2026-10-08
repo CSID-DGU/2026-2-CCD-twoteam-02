@@ -8,10 +8,12 @@ import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
 import { DUMMIES } from "./dummies";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
+import { KioskPlaceholder } from "./KioskPlaceholder";
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
+import { StatusMarker } from "./StatusMarker";
 
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -135,6 +137,8 @@ function SeatCamera({ spot, onArrive }: { spot: Spot; onArrive: () => void }) {
 export function BranchScene() {
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
+  const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
+  const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
@@ -154,12 +158,15 @@ export function BranchScene() {
     }));
   };
   const seatSpot = spots.find((c) => c.no === seat);
-  const hint =
-    seat !== null
+  const hint = kioskOpen
+    ? ""
+    : seat !== null
       ? `${seat}번 좌석 · 끌어서 둘러보기 · E 일어나기`
       : near !== null
         ? `${near}번 좌석 · E 앉기`
-        : "";
+        : nearKiosk
+          ? "키오스크 · E 사용하기"
+          : "";
 
   return (
     <>
@@ -220,19 +227,30 @@ export function BranchScene() {
 
       {DUMMIES.map((d) => {
         const spot = spots.find((c) => c.no === d.seat);
-        return spot && <SeatedCharacter key={d.seat} spot={spot} model={d.model} />;
+        if (!spot) return null;
+        return (
+          <group key={d.seat}>
+            <SeatedCharacter spot={spot} model={d.model} />
+            <StatusMarker x={spot.x} z={spot.z} status={d.status} />
+          </group>
+        );
       })}
 
       <Player
         obstacles={obstacles}
         spawn={branch.spawn}
         spots={freeSpots}
+        kiosk={branch.kiosk}
+        frozen={kioskOpen}
         onNear={setNear}
         onSeat={handleSeat}
+        onNearKiosk={setNearKiosk}
+        onKiosk={() => setKioskOpen(true)}
       />
     </Canvas>
     {seat !== null && <SelfView />}
     <PerfReadout perf={perf} />
+    {kioskOpen && <KioskPlaceholder onClose={() => setKioskOpen(false)} />}
     {hint && (
       <div
         style={{
