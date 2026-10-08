@@ -12,7 +12,8 @@ const TURN = 12 // 방향 전환 빠르기
 const FADE = 0.15 // 동작 전환 시간(초)
 const MAX_DT = 0.05 // 탭을 잠깐 떠났다 돌아왔을 때 벽을 뚫지 않도록 한 프레임 이동량을 제한합니다.
 const SIT_RANGE = 0.9 // 의자에서 이 거리 안에 있으면 앉을 수 있습니다.
-const SIT_KEY = 'KeyE'
+const SIT_KEY = 'KeyE' // 앉기·일어나기, 키오스크 사용
+const KIOSK_RANGE = 1.0 // 키오스크 중심에서 이 거리 안에 있으면 사용할 수 있습니다.
 
 const hit = (x: number, z: number, o: Box) =>
   Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R
@@ -21,16 +22,21 @@ type Props = {
   obstacles: Box[]
   spawn: { x: number; z: number }
   spots: Spot[]
+  kiosk: { x: number; z: number }
+  frozen: boolean // 키오스크 화면처럼 다른 창이 떠 있으면 움직이지 않습니다.
   onNear: (no: number | null) => void // 앉을 수 있는 좌석이 바뀔 때
   onSeat: (no: number | null) => void // 앉거나 일어날 때
+  onNearKiosk: (near: boolean) => void // 키오스크를 쓸 수 있는 거리에 들어오거나 벗어날 때
+  onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
 }
 
-export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
+export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
   const anim = useRef('idle')
   const near = useRef<Spot | null>(null)
+  const nearKiosk = useRef(false)
   const seated = useRef<Spot | null>(null)
   const { scene, animations } = useGLTF(MODEL_URL)
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
@@ -76,6 +82,18 @@ export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
       near.current = spot
       onNear(spot?.no ?? null)
     }
+    const setNearKiosk = (v: boolean) => {
+      if (nearKiosk.current === v) return
+      nearKiosk.current = v
+      onNearKiosk(v)
+    }
+
+    // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
+    if (frozen) {
+      toggle.current = false
+      play('idle')
+      return
+    }
 
     // 앉기/일어나기
     const wantToggle = toggle.current
@@ -98,6 +116,11 @@ export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
       setNear(null)
       onSeat(s.no)
       play('sit')
+      return
+    }
+    if (wantToggle && nearKiosk.current) {
+      play('idle')
+      onKiosk()
       return
     }
 
@@ -126,6 +149,8 @@ export function Player({ obstacles, spawn, spots, onNear, onSeat }: Props) {
       if (d < bestDist) { best = s; bestDist = d }
     }
     setNear(best)
+    // 의자가 가까우면 앉기가 먼저이고, 아닐 때만 키오스크를 쓸 수 있습니다.
+    setNearKiosk(!best && Math.hypot(kiosk.x - p.x, kiosk.z - p.z) < KIOSK_RANGE)
   })
 
   return (
