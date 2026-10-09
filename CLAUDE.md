@@ -19,7 +19,7 @@
 
 현재 쓰는 것:
 
-- 언어·프론트: TypeScript, React 19, Vite
+- 언어·프론트: TypeScript, React 19, Vite, react-router(주소별 화면 전환)
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
 - 캐릭터: GLB 모델(`public/models/character-a~r.glb`)을 drei `useGLTF`로 불러온다. VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈)
@@ -47,13 +47,15 @@
 
 ```
 src/
-  App.tsx              주소의 #space 여부로 화면 전환 (트래킹 검증 / 지점 공간)
+  App.tsx              주소별 화면 표 (/login, /signup, /, /space, /tracking)와 출입 통제
   HeadTrackingTest.tsx 트래킹 검증 화면
   tracking/            얼굴 트래킹 훅, 트래킹이 반영되는 캐릭터
   focus/               집중 상태 판정·집중 시간 (focusLogic.ts는 React와 무관한 순수 로직)
   space/               지점 공간, 2D 이동, 3D 좌석, 내 모습 화면, 성능 표시
     branches/*.json    지점 배치 데이터 (크기, 벽, 좌석, 회의실, 키오스크, 시작 위치)
   auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
+  lobby/               로비 (지점 문 앞에서 E로 입장, lobby.json에 배치)
+  kiosk/               키오스크 (이용 시간 선택, 좌석 배치도, 자리 배정)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처

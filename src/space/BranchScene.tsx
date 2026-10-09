@@ -8,7 +8,7 @@ import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
 import { DUMMIES } from "./dummies";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
-import { KioskPlaceholder } from "./KioskPlaceholder";
+import KioskScreen from "../kiosk/KioskScreen";
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { SeatedCharacter } from "./SeatedCharacter";
@@ -250,7 +250,8 @@ export function BranchScene() {
     </Canvas>
     {seat !== null && <SelfView />}
     <PerfReadout perf={perf} />
-    {kioskOpen && <KioskPlaceholder onClose={() => setKioskOpen(false)} />}
+    {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
+    {kioskOpen && <KioskScreen onClose={() => setKioskOpen(false)} />}
     {hint && (
       <div
         style={{
