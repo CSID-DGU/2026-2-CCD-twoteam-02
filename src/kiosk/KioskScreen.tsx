@@ -1,29 +1,41 @@
 // 키오스크 화면. 지점 공간에서 키오스크 앞에 서면 열리는 덮개 화면이다.
 //
-// 흐름: 이용 시간 고르기 → 좌석 배치도에서 빈자리 고르기 → "N번 자리를 선택하시겠습니까?" → 예
+// 흐름: (이미 쓰는 자리가 있으면 반납 안내) → 이용 시간 고르기 → 좌석 배치도에서 빈자리 고르기
+//       → "N번 자리를 선택하시겠습니까?" → 예
+//
+// 한 사람은 한 자리만 쓸 수 있으므로, 쓰던 자리가 있으면 먼저 반납해야 새로 고를 수 있다.
+// 이용 시간이 끝난 자리는 배정 함수가 알아서 치우므로 여기서 신경 쓰지 않는다. (0009)
 //
 // 배정은 assign_seat 함수 한 번으로 끝낸다. 이용권 발급과 좌석 배정이 한 덩어리로 묶여 있어
 // 중간에 끊겨도 이용권만 남는 일이 없다. 실패 사유(자리 찼음, 이미 다른 자리 이용 중 등)는
 // 함수가 한국어 메시지로 돌려주므로 그대로 보여 준다.
 // 좌석 중복은 DB가 막으므로, 화면이 먼저 걸러도 여기서 한 번 더 확인된다.
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
 import SeatMap from './SeatMap'
 import { formatMinutes } from './duration'
 import branch from '../space/branches/byeol.json'
 
-type Step = 'duration' | 'seat' | 'done'
+type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done'
+
+// my_current_place() 가 돌려주는 한 행
+type MyPlace = { kind: string; number: number; expires_at: string }
+
+// '14:30 까지' 처럼 보여 준다.
+const untilText = (iso: string) =>
+  new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 
 type Props = {
   // 누구 것으로 기록할지는 화면이 정하지 않는다. assign_seat 함수가 서버에서 auth.uid() 로 확인한다.
   branchId?: number
   onClose: () => void
-  onAssigned?: (seatNumber: number) => void
+  onAssigned?: (seatNumber: number | null) => void // 반납하면 null 을 넘긴다
 }
 
 export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props) {
-  const [step, setStep] = useState<Step>('duration')
+  const [step, setStep] = useState<Step>('loading')
+  const [mine, setMine] = useState<MyPlace | null>(null)
   const [minutes, setMinutes] = useState(60)
   const [occupied, setOccupied] = useState<Set<number>>(new Set())
   const [picked, setPicked] = useState<number | null>(null)
@@ -39,6 +51,39 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
     }
     setOccupied(new Set((data ?? []) as number[]))
   }, [branchId])
+
+  // 화면이 열릴 때 지금 쓰고 있는 자리가 있는지 먼저 확인한다.
+  useEffect(() => {
+    let cancelled = false
+    supabase.rpc('my_current_place').then(({ data, error }) => {
+      if (cancelled) return
+      if (error) {
+        setError(`이용 중인 자리를 확인하지 못했습니다: ${error.message}`)
+        setStep('duration')
+        return
+      }
+      const row = (data as MyPlace[] | null)?.[0] ?? null
+      setMine(row)
+      setStep(row ? 'current' : 'duration')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function release() {
+    setBusy(true)
+    setError('')
+    const { error } = await supabase.rpc('release_my_place')
+    setBusy(false)
+    if (error) {
+      setError(`반납하지 못했습니다: ${error.message}`)
+      return
+    }
+    setMine(null)
+    onAssigned?.(null)
+    setStep('duration')
+  }
 
   // 좌석 현황은 화면을 열 때와 배정에 실패했을 때 불러온다.
   async function goToSeatStep() {
@@ -79,6 +124,24 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
             ✕
           </button>
         </div>
+
+        {step === 'loading' && <p style={styles.sub}>이용 상태를 확인하는 중…</p>}
+
+        {step === 'current' && mine && (
+          <>
+            <p style={styles.title}>
+              이미 {mine.kind === 'room' ? '회의실' : ''} {mine.number}번{' '}
+              {mine.kind === 'room' ? '을' : '자리를'} 이용 중입니다
+            </p>
+            <p style={styles.sub}>{untilText(mine.expires_at)}까지 · 한 번에 한 자리만 쓸 수 있습니다</p>
+            <button type="button" style={styles.primary} disabled={busy} onClick={() => void release()}>
+              {busy ? '반납 중…' : '반납하기'}
+            </button>
+            <button type="button" style={styles.secondary} onClick={onClose}>
+              그대로 두고 닫기
+            </button>
+          </>
+        )}
 
         {step === 'duration' && (
           <>
