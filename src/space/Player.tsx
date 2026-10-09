@@ -28,9 +28,10 @@ type Props = {
   onSeat: (no: number | null) => void // 앉거나 일어날 때
   onNearKiosk: (near: boolean) => void // 키오스크를 쓸 수 있는 거리에 들어오거나 벗어날 때
   onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
+  canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
 }
 
-export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk }: Props) {
+export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -106,7 +107,8 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
       play('idle')
       return
     }
-    if (wantToggle && near.current) {
+    // 가까이 가면 안내는 뜨지만, 앉아도 되는 자리일 때만 앉습니다. (예: 키오스크에서 배정받은 내 자리)
+    if (wantToggle && near.current && (canSit?.(near.current.no) ?? true)) {
       const s = near.current
       seated.current = s
       p.x = s.x
