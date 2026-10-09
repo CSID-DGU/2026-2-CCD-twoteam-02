@@ -14,13 +14,13 @@ import { Player } from "./Player";
 import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
 import { StatusMarker } from "./StatusMarker";
+import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
+import { useMySeat } from "./useMySeat";
 
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const spots = spotsOf(branch);
-// 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
-const taken = new Set(DUMMIES.map((d) => d.seat));
-const freeSpots = spots.filter((c) => !taken.has(c.no));
+const BRANCH_ID = 1; // DB의 별다방 지점 번호. 지점이 늘어나면 바깥에서 받습니다.
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
 function TopDownCamera() {
@@ -139,6 +139,12 @@ export function BranchScene() {
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
+  const { mySeat, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
+  // 임시 참여자는 DB에 없으므로, 내가 배정받은 자리에 앉아 있으면 비켜 줍니다.
+  const dummies = DUMMIES.filter((d) => d.seat !== mySeat);
+  // 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
+  const taken = new Set(dummies.map((d) => d.seat));
+  const freeSpots = spots.filter((c) => !taken.has(c.no));
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
@@ -163,10 +169,16 @@ export function BranchScene() {
     : seat !== null
       ? `${seat}번 좌석 · 끌어서 둘러보기 · E 일어나기`
       : near !== null
-        ? `${near}번 좌석 · E 앉기`
+        ? near === mySeat
+          ? `${near}번 좌석 (내 자리) · E 앉기`
+          : mySeat === null
+            ? `${near}번 좌석 · 키오스크에서 자리를 먼저 지정하세요`
+            : `${near}번 좌석 · 내 자리(${mySeat}번)가 아니에요`
         : nearKiosk
           ? "키오스크 · E 사용하기"
-          : "";
+          : mySeat === null
+            ? "키오스크에서 자리를 지정하세요"
+            : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
 
   return (
     <>
@@ -204,7 +216,13 @@ export function BranchScene() {
         <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>
           <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
           <meshStandardMaterial
-            color={c.no === seat || c.no === near ? "#f59e0b" : "#6b7280"}
+            color={
+              c.no === seat || c.no === near
+                ? "#f59e0b"
+                : c.no === mySeat
+                  ? MY_SEAT_COLOR
+                  : "#6b7280"
+            }
           />
         </mesh>
       ))}
@@ -225,7 +243,13 @@ export function BranchScene() {
         <meshStandardMaterial color="#22c55e" />
       </mesh>
 
-      {DUMMIES.map((d) => {
+      {/* 앉아 있을 때는 내 자리 표시가 시야를 가리므로 숨깁니다. */}
+      {mySeat !== null && seat === null && (() => {
+        const desk = branch.seats.find((s) => s.no === mySeat);
+        return desk && <MySeatMarker x={desk.x} z={desk.z} />;
+      })()}
+
+      {dummies.map((d) => {
         const spot = spots.find((c) => c.no === d.seat);
         if (!spot) return null;
         return (
@@ -246,12 +270,19 @@ export function BranchScene() {
         onSeat={handleSeat}
         onNearKiosk={setNearKiosk}
         onKiosk={() => setKioskOpen(true)}
+        canSit={(no) => no === mySeat}
       />
     </Canvas>
     {seat !== null && <SelfView />}
     <PerfReadout perf={perf} />
     {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
-    {kioskOpen && <KioskScreen onClose={() => setKioskOpen(false)} />}
+    {kioskOpen && (
+      <KioskScreen
+        branchId={BRANCH_ID}
+        onClose={() => setKioskOpen(false)}
+        onAssigned={setMySeat}
+      />
+    )}
     {hint && (
       <div
         style={{
