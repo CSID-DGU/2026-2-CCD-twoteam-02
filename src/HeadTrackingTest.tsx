@@ -10,6 +10,7 @@ import FocusBadge from "./focus/FocusBadge";
 import { useFaceTracking } from "./tracking/useFaceTracking";
 import type { FaceState } from "./tracking/useFaceTracking";
 import { BLINK_THRESHOLD, TrackedCharacter } from "./tracking/TrackedCharacter";
+import { usePoseTracking } from "./tracking/usePoseTracking";
 
 function Readout({ face }: { face: RefObject<FaceState> }) {
   const [text, setText] = useState("");
@@ -38,13 +39,14 @@ export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { face, status, message } = useFaceTracking(videoRef);
   const focus = useFocusState(face); // 집중 상태 판정 (src/focus)
+  const { pose, status: poseStatus } = usePoseTracking(videoRef); // 팔 트래킹 (같은 웹캠 영상)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
       <Canvas camera={{ position: [0, 2.2, 5], fov: 35 }}>
         <ambientLight intensity={1.5} />
         <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        <TrackedCharacter face={face} />
+        <TrackedCharacter face={face} pose={pose} />
         <OrbitControls target={[0, 1.6, 0]} />
       </Canvas>
 
@@ -64,6 +66,8 @@ export default function HeadTrackingTest() {
         {status === "error" && <div>오류: {message}</div>}
         {status === "ready" && <Readout face={face} />}
         {status === "ready" && <FocusBadge state={focus} />}
+        {poseStatus === "loading" && <div>팔 인식 모델을 불러오는 중…</div>}
+        {poseStatus === "error" && <div>팔 인식을 시작하지 못했어요. (고개·눈은 그대로 동작)</div>}
       </div>
 
       <video
