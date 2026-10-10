@@ -22,12 +22,12 @@
 - 언어·프론트: TypeScript, React 19, Vite, react-router(주소별 화면 전환)
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
 - 캐릭터: GLB 모델(`public/models/character-a~r.glb`)을 drei `useGLTF`로 불러온다. VRM·three-vrm은 쓰지 않는다.
-- 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈)
+- 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
 
 도입 예정(아직 설치 안 됨):
 
-- MediaPipe Pose Landmarker(카메라 가이드라인), Object Detector(전자기기)
+- 카메라 가이드라인(Pose 결과 재사용), MediaPipe Object Detector(전자기기)
 - Supabase Realtime(Broadcast·Presence), 좌석 배정용 DB 함수
 - Vercel 배포
 
@@ -49,7 +49,7 @@
 src/
   App.tsx              주소별 화면 표 (/login, /signup, /, /space, /tracking)와 출입 통제
   HeadTrackingTest.tsx 트래킹 검증 화면
-  tracking/            얼굴 트래킹 훅, 트래킹이 반영되는 캐릭터
+  tracking/            얼굴·팔(Pose) 트래킹 훅, 트래킹이 반영되는 캐릭터 (armLogic.ts는 순수 로직)
   focus/               집중 상태 판정·집중 시간 (focusLogic.ts는 React와 무관한 순수 로직)
   space/               지점 공간, 2D 이동, 3D 좌석, 내 모습 화면, 성능 표시
     branches/*.json    지점 배치 데이터 (크기, 벽, 좌석, 회의실, 키오스크, 시작 위치)
@@ -116,4 +116,4 @@ docs/                  제안서·주간발표 자료
 - 2D·3D 모두 일반 노트북에서 30FPS 이상
 - 2D → 3D 전환 1초 이내
 - 좌석 동시 지정 시 중복 배정 0건
-- 물체 인식과 Pose 확인은 초당 1~2회로 제한해 연산 부담을 줄인다
+- 물체 인식과 가이드라인용 Pose 확인은 초당 1~2회, 팔 트래킹용 Pose 인식은 초당 15회로 제한해 연산 부담을 줄인다
