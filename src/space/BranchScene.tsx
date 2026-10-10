@@ -10,6 +10,7 @@ import { FpsProbe, PerfReadout } from "./PerfReadout";
 import KioskScreen from "../kiosk/KioskScreen";
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
+import { WalkCamera } from "./WalkCamera";
 import { SelfView } from "./SelfView";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
@@ -21,6 +22,7 @@ import type { PresenceState } from "../realtime/participants";
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const spots = spotsOf(branch);
+const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
 const BRANCH_ID = 1; // DB의 별다방 지점 번호. 지점이 늘어나면 바깥에서 받습니다.
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
@@ -140,6 +142,10 @@ export function BranchScene() {
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
+  // 걸어 다닐 때의 시점. 처음에는 제안서대로 위에서 내려다봅니다.
+  const [view, setView] = useState<"top" | "first">("top");
+  const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
+  const heading = useRef(Math.PI); // 1인칭에서 바라보는 방향. 처음에는 입구에서 안쪽(-Z)을 봅니다.
   const { mySeat, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
   const { session } = useSession();
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
@@ -156,6 +162,8 @@ export function BranchScene() {
   // Player 가 매 프레임 알려 주는 위치로 내 상태를 갱신합니다. 보내는 주기는 훅이 알아서 늦춥니다.
   // 집중 상태는 트래킹을 지점 화면에 붙일 때 실제 판정으로 바꿉니다. 지금은 앉았는지로만 나눕니다.
   const handleMove = (x: number, z: number) => {
+    pos.current.x = x;
+    pos.current.z = z;
     const id = session?.user.id;
     if (!id) return;
     me.current = {
@@ -182,10 +190,21 @@ export function BranchScene() {
       minFps: warm ? Math.min(p.minFps ?? fps, fps) : p.minFps,
     }));
   };
+  // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== VIEW_KEY || e.repeat || kioskOpen) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      setView((v) => (v === "top" ? "first" : "top"));
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [kioskOpen]);
+
   const seatSpot = spots.find((c) => c.no === seat);
-  const hint = kioskOpen
-    ? ""
-    : seat !== null
+  const viewHint = view === "top" ? "V 1인칭으로" : "끌어서 돌기 · V 위에서 보기";
+  const walkHint =
+    seat !== null
       ? `${seat}번 좌석 · 끌어서 둘러보기 · E 일어나기`
       : near !== null
         ? near === mySeat
@@ -198,12 +217,15 @@ export function BranchScene() {
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
+  const hint = kioskOpen ? "" : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
 
   return (
     <>
     <Canvas>
       {seatSpot ? (
         <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={handleArrive} />
+      ) : view === "first" ? (
+        <WalkCamera posRef={pos} headingRef={heading} />
       ) : (
         <TopDownCamera />
       )}
@@ -282,6 +304,7 @@ export function BranchScene() {
         onKiosk={() => setKioskOpen(true)}
         canSit={(no) => no === mySeat}
         onMove={handleMove}
+        headingRef={view === "first" ? heading : undefined}
       />
     </Canvas>
     {seat !== null && <SelfView />}

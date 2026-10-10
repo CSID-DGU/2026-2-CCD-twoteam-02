@@ -1,10 +1,14 @@
-// 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 눈 감은 스킨
+// 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 눈 감은 스킨,
+// (pose 를 넘기면) 팔 방향 → 팔 회전
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { FaceState } from "./useFaceTracking";
+import type { PoseState } from "./usePoseTracking";
+import { armDirection, pickTarget } from "./armLogic";
+import type { ArmJoints, ArmTarget } from "./armLogic";
 
 const MODEL_URL = "/models/character-a.glb";
 const BLINK_TEXTURE_URL = "/models/Textures/texture-a-blink.png"; // 눈 감은 스킨
@@ -16,6 +20,13 @@ const PITCH_SIGN = 1; // 위아래
 const ROLL_SIGN = -1; // 갸웃
 export const BLINK_THRESHOLD = 0.5; // 이 값보다 크면 눈을 감은 것으로 봅니다.
 const BLINK_OPEN_THRESHOLD = 0.35; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
+const ARM_FOLLOW = 12; // 팔이 목표 방향을 따라가는 빠르기. 머리와 같은 값
+const ARM_REST = new THREE.Vector3(0, -1, 0); // 팔 막대의 기본 방향 (아래로 늘어짐)
+// 거울처럼 움직이도록 사용자 오른팔을 캐릭터 왼팔(화면 오른쪽)에 붙입니다.
+const ARMS = [
+  { node: "arm-left", side: "right" },
+  { node: "arm-right", side: "left" },
+] as const;
 
 type EyeTextures = {
   material: THREE.MeshBasicMaterial;
@@ -23,10 +34,19 @@ type EyeTextures = {
   closed: THREE.Texture;
 };
 
-export function TrackedCharacter({ face }: { face: RefObject<FaceState> }) {
+type Props = {
+  face: RefObject<FaceState>;
+  pose?: RefObject<PoseState>; // 없으면 팔은 움직이지 않습니다.
+};
+
+export function TrackedCharacter({ face, pose }: Props) {
   const { scene } = useGLTF(MODEL_URL);
   const eyes = useRef<EyeTextures | null>(null);
   const eyesClosed = useRef(false);
+  // 팔마다 직전에 고른 기준 관절(손목/팔꿈치). 기준이 떨리지 않게 기억합니다.
+  const armTargets = useRef<Record<string, ArmTarget>>({});
+  // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
+  const armCalc = useRef({ dir: new THREE.Vector3(), goal: new THREE.Quaternion() });
 
   // 눈 감은 스킨을 불러옵니다. 캐릭터 전체가 스킨 한 장을 같이 쓰므로 통째로 바꿔 끼웁니다.
   useEffect(() => {
@@ -78,6 +98,22 @@ export function TrackedCharacter({ face }: { face: RefObject<FaceState> }) {
     head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, yaw, follow);
     head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, pitch, follow);
     head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, roll, follow);
+
+    // 팔: 어깨에서 손목(안 보이면 팔꿈치) 쪽으로 팔 막대를 돌립니다. 둘 다 안 보이면 천천히 내립니다.
+    if (!pose) return;
+    const armFollow = 1 - Math.exp(-ARM_FOLLOW * delta);
+    const { dir, goal } = armCalc.current;
+    for (const { node, side } of ARMS) {
+      const arm = scene.getObjectByName(node);
+      if (!arm) continue;
+      const joints: ArmJoints | null = pose.current[side];
+      const target = pickTarget(joints, armTargets.current[node] ?? null);
+      armTargets.current[node] = target;
+      const d = armDirection(joints, target);
+      if (d) goal.setFromUnitVectors(ARM_REST, dir.set(d.x, d.y, d.z));
+      else goal.identity();
+      arm.quaternion.slerp(goal, armFollow);
+    }
   });
 
   return <primitive object={scene} />;
