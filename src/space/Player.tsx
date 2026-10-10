@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
@@ -14,6 +15,7 @@ const MAX_DT = 0.05 // 탭을 잠깐 떠났다 돌아왔을 때 벽을 뚫지 �
 const SIT_RANGE = 0.9 // 의자에서 이 거리 안에 있으면 앉을 수 있습니다.
 const SIT_KEY = 'KeyE' // 앉기·일어나기, 키오스크 사용
 const KIOSK_RANGE = 1.0 // 키오스크 중심에서 이 거리 안에 있으면 사용할 수 있습니다.
+const KEY_TURN_SPEED = 2.2 // 1인칭에서 방향키 ←→ 로 도는 빠르기(초당 라디안)
 
 const hit = (x: number, z: number, o: Box) =>
   Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R
@@ -30,9 +32,12 @@ type Props = {
   onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
   onMove?: (x: number, z: number) => void // 매 프레임 현재 위치. 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
+  // 1인칭으로 걸을 때 바라보는 방향(라디안). 넘기면 W 가 보는 쪽 앞, A·D 가 옆걸음, ←→ 가 회전이 됩니다.
+  // 넘기지 않으면 위에서 내려다보는 조작(W 가 화면 위쪽)입니다.
+  headingRef?: RefObject<number>
 }
 
-export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove }: Props) {
+export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -118,6 +123,7 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
       p.x = s.x
       p.z = s.z
       g.rotation.y = s.rot
+      if (headingRef) headingRef.current = s.rot // 일어났을 때 책상 쪽을 보고 있도록 맞춥니다.
       g.visible = false // 1인칭 시점에서는 내 캐릭터가 화면을 가리므로 숨깁니다.
       setNear(null)
       onSeat(s.no)
@@ -130,22 +136,42 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
       return
     }
 
-    const ix = +(k.has('KeyD') || k.has('ArrowRight')) - +(k.has('KeyA') || k.has('ArrowLeft'))
-    const iz = +(k.has('KeyS') || k.has('ArrowDown')) - +(k.has('KeyW') || k.has('ArrowUp'))
-    const moving = ix !== 0 || iz !== 0
+    let dx = 0, dz = 0
+    if (headingRef) {
+      // 1인칭: 보는 방향 기준으로 움직입니다. 내 캐릭터는 카메라를 가리므로 숨깁니다.
+      g.visible = false
+      const turn = +k.has('ArrowRight') - +k.has('ArrowLeft')
+      headingRef.current -= turn * KEY_TURN_SPEED * dt // 오른쪽 방향키 = 오른쪽으로 돌기
+      const h = headingRef.current
+      g.rotation.y = h
+      const f = +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')) // 앞뒤
+      const r = +k.has('KeyD') - +k.has('KeyA') // 옆걸음
+      if (f || r) {
+        const step = (SPEED * dt) / Math.hypot(f, r)
+        // 앞 = (sin h, cos h), 오른쪽 = (-cos h, sin h)
+        dx = (f * Math.sin(h) - r * Math.cos(h)) * step
+        dz = (f * Math.cos(h) + r * Math.sin(h)) * step
+      }
+    } else {
+      g.visible = true
+      const ix = +(k.has('KeyD') || k.has('ArrowRight')) - +(k.has('KeyA') || k.has('ArrowLeft'))
+      const iz = +(k.has('KeyS') || k.has('ArrowDown')) - +(k.has('KeyW') || k.has('ArrowUp'))
+      if (ix || iz) {
+        // 대각선도 같은 속도가 되도록 방향을 정규화합니다.
+        const step = (SPEED * dt) / Math.hypot(ix, iz)
+        dx = ix * step
+        dz = iz * step
+        // 가는 방향을 바라보도록 가까운 쪽으로 부드럽게 돕니다. (모델 정면은 +Z)
+        const diff = Math.atan2(ix, iz) - g.rotation.y
+        g.rotation.y += Math.atan2(Math.sin(diff), Math.cos(diff)) * (1 - Math.exp(-TURN * dt))
+      }
+    }
+    const moving = dx !== 0 || dz !== 0
     play(moving ? 'walk' : 'idle')
-
     if (moving) {
-      // 대각선도 같은 속도가 되도록 방향을 정규화합니다.
-      const step = (SPEED * dt) / Math.hypot(ix, iz)
-      const dx = ix * step, dz = iz * step
       // 축별로 따로 판정해서 벽에 비스듬히 닿으면 미끄러지듯 움직입니다.
       if (!obstacles.some((o) => hit(p.x + dx, p.z, o))) p.x += dx
       if (!obstacles.some((o) => hit(p.x, p.z + dz, o))) p.z += dz
-
-      // 가는 방향을 바라보도록 가까운 쪽으로 부드럽게 돕니다. (모델 정면은 +Z)
-      const diff = Math.atan2(ix, iz) - g.rotation.y
-      g.rotation.y += Math.atan2(Math.sin(diff), Math.cos(diff)) * (1 - Math.exp(-TURN * dt))
     }
 
     // 가장 가까운 의자를 찾아 앉을 수 있는지 알려 줍니다.
