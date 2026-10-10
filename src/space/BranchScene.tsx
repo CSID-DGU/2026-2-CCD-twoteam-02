@@ -6,16 +6,17 @@ import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import branch from "./branches/byeol.json";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { Spot } from "./layout";
-import { DUMMIES } from "./dummies";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import KioskScreen from "../kiosk/KioskScreen";
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
-import { SeatedCharacter } from "./SeatedCharacter";
 import { SelfView } from "./SelfView";
-import { StatusMarker } from "./StatusMarker";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
+import { useSession } from "../auth/useSession";
+import { useParticipants } from "../realtime/useParticipants";
+import { OtherParticipants } from "../realtime/OtherParticipants";
+import type { PresenceState } from "../realtime/participants";
 
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -140,13 +141,31 @@ export function BranchScene() {
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const { mySeat, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
-  // 임시 참여자는 DB에 없으므로, 내가 배정받은 자리에 앉아 있으면 비켜 줍니다.
-  const dummies = DUMMIES.filter((d) => d.seat !== mySeat);
+  const { session } = useSession();
+  // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
+  const me = useRef<PresenceState | null>(null);
+  const others = useParticipants(BRANCH_ID, me); // 같은 지점의 다른 참여자 (실시간)
   // 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
-  const taken = new Set(dummies.map((d) => d.seat));
+  const taken = new Set(
+    others.map((p) => p.seat).filter((no): no is number => no !== null),
+  );
   const freeSpots = spots.filter((c) => !taken.has(c.no));
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
+
+  // Player 가 매 프레임 알려 주는 위치로 내 상태를 갱신합니다. 보내는 주기는 훅이 알아서 늦춥니다.
+  // 집중 상태는 트래킹을 지점 화면에 붙일 때 실제 판정으로 바꿉니다. 지금은 앉았는지로만 나눕니다.
+  const handleMove = (x: number, z: number) => {
+    const id = session?.user.id;
+    if (!id) return;
+    me.current = {
+      userId: id,
+      x,
+      z,
+      seat,
+      status: seat === null ? "away" : "focus",
+    };
+  };
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
@@ -249,16 +268,7 @@ export function BranchScene() {
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      {dummies.map((d) => {
-        const spot = spots.find((c) => c.no === d.seat);
-        if (!spot) return null;
-        return (
-          <group key={d.seat}>
-            <SeatedCharacter spot={spot} model={d.model} />
-            <StatusMarker x={spot.x} z={spot.z} status={d.status} />
-          </group>
-        );
-      })}
+      <OtherParticipants others={others} spots={spots} />
 
       <Player
         obstacles={obstacles}
@@ -271,6 +281,7 @@ export function BranchScene() {
         onNearKiosk={setNearKiosk}
         onKiosk={() => setKioskOpen(true)}
         canSit={(no) => no === mySeat}
+        onMove={handleMove}
       />
     </Canvas>
     {seat !== null && <SelfView />}

@@ -29,9 +29,10 @@ type Props = {
   onNearKiosk: (near: boolean) => void // 키오스크를 쓸 수 있는 거리에 들어오거나 벗어날 때
   onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
+  onMove?: (x: number, z: number) => void // 매 프레임 현재 위치. 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
 }
 
-export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit }: Props) {
+export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -71,6 +72,9 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
   useFrame((_, delta) => {
     const k = keys.current, g = ref.current, p = g.position
     const dt = Math.min(delta, MAX_DT)
+
+    // 앉아 있든 멈춰 있든 위치는 알려 줍니다. 다른 참여자 화면에 내가 그려지는 데 씁니다.
+    onMove?.(p.x, p.z)
 
     const play = (name: string) => {
       if (anim.current === name) return
