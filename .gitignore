@@ -45,3 +45,6 @@ CLAUDE.local.md
 *.p12
 *.key
 service-account*.json
+
+# Vercel CLI 가 만드는 프로젝트 연결 정보 (각자 컴퓨터에서만 씀)
+.vercel
