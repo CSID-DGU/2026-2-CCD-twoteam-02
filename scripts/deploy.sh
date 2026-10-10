@@ -56,6 +56,8 @@ ok "브랜치: $BRANCH"
 ok "작업 트리 깨끗함"
 
 git fetch origin --quiet
+git rev-parse --verify --quiet "origin/$BRANCH" >/dev/null \
+  || fail "원격에 '$BRANCH' 브랜치가 없습니다. 먼저 push 하세요."
 behind=$(git rev-list --count "HEAD..origin/$BRANCH")
 ahead=$(git rev-list --count "origin/$BRANCH..HEAD")
 [ "$behind" = "0" ] || fail "원격 $BRANCH 보다 ${behind}개 뒤처져 있습니다. 'git pull && npm install' 후 다시 실행하세요."
