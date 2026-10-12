@@ -47,7 +47,7 @@
 
 ```
 src/
-  App.tsx              주소별 화면 표 (/login, /signup, /, /space, /tracking)와 출입 통제
+  App.tsx              주소별 화면 표 (/login, /signup, /, /space, /tracking, /records)와 출입 통제
   HeadTrackingTest.tsx 트래킹 검증 화면
   tracking/            얼굴·팔(Pose) 트래킹 훅, 트래킹이 반영되는 캐릭터 (armLogic.ts는 순수 로직)
   focus/               집중 상태 판정·집중 시간 (focusLogic.ts는 React와 무관한 순수 로직)
@@ -56,7 +56,7 @@ src/
   auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
   lobby/               로비 (지점 문 앞에서 E로 입장, lobby.json에 배치)
   kiosk/               키오스크 (이용 시간 선택, 좌석 배치도, 자리 배정)
-  study/               공부 시작(과목·학습기기 선택), 집중 타이머, 공부 기록 저장 (studyLogic.ts는 순수 로직)
+  study/               공부 시작(과목·학습기기 선택), 집중 타이머, 공부 기록 저장, 내 기록 화면 (studyLogic.ts·recordsLogic.ts는 순수 로직)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처
