@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
+import { Billboard, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
 import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
-import branch from "./branches/byeol.json";
+import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
 import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
-import type { Spot } from "./layout";
+import type { BranchLayout, Spot } from "./layout";
+import { useBranchInfo } from "./useBranchInfo";
+import type { BranchInfo } from "./useBranchInfo";
+import { supabase } from "../lib/supabase";
+import { LABEL_PX, labelTexture } from "./labelTexture";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import KioskScreen from "../kiosk/KioskScreen";
 import type { Perf } from "./PerfReadout";
@@ -25,18 +29,17 @@ import type { PanelView } from "../menu/panelTypes";
 import type { PresenceState } from "../realtime/participants";
 import type { PresenceStatus } from "./status";
 
-const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
-const spots = spotsOf(branch);
 const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
-const BRANCH_ID = 1; // DB의 별다방 지점 번호. 지점이 늘어나면 바깥에서 받습니다.
+const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
+const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
-function TopDownCamera() {
+function TopDownCamera({ area }: { area: { w: number; d: number } }) {
   const size = useThree((s) => s.size);
   const zoom = Math.min(
-    size.width / (branch.size.w + 1),
-    size.height / (branch.size.d + 1)
+    size.width / (area.w + 1),
+    size.height / (area.d + 1)
   );
   return (
     <OrthographicCamera
@@ -176,7 +179,34 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
   );
 }
 
+// 지점 화면: 주소의 ?branch= 값(별다방 byeol, 솔카페 sol)으로 배치와 DB 지점 정보를 찾아 그립니다. (#44)
 export function BranchScene() {
+  const { search } = useLocation();
+  const slug = new URLSearchParams(search).get("branch") ?? DEFAULT_BRANCH;
+  const layout = BRANCH_LAYOUTS[slug];
+  const { info, loading, error } = useBranchInfo(slug);
+
+  if (!layout || (!loading && !info)) {
+    return <Notice text={!layout ? "없는 지점이에요." : error} />;
+  }
+  if (!info) return <Notice text="지점에 들어가는 중…" />;
+  // key: 지점이 바뀌면 화면을 새로 그립니다(위치·자리·실시간 연결을 지점마다 따로).
+  return <BranchSpace key={slug} branch={layout} info={info} />;
+}
+
+function Notice({ text }: { text: string }) {
+  return (
+    <div style={{ display: "grid", placeItems: "center", height: "100%", background: "#16181d", color: "#fff", font: "15px system-ui, sans-serif" }}>
+      {text}
+    </div>
+  );
+}
+
+function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo }) {
+  const BRANCH_ID = info.id;
+  const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
+  const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
+  const spots = useMemo(() => spotsOf(branch), [branch]);
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
@@ -227,8 +257,64 @@ export function BranchScene() {
     };
   };
 
+  // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44) ──
+  // 앉기 전에 DB에 자리를 잡아 봅니다(sit_cafe_seat, 0014). 두 사람이 동시에 눌러도 DB가 한 명만 통과시킵니다.
+  // 잡히면 Player 에게 앉으라고 알리고(sitRequest), 실패하면 안내를 띄웁니다.
+  const sitRequest = useRef<number | null>(null);
+  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
+  const [conflict, setConflict] = useState<{ message: string; seatNo: number } | null>(null); // 다른 자리를 쓰는 중
+  const claimSeat = async (no: number) => {
+    const { error } = await supabase.rpc("sit_cafe_seat", { p_branch_id: BRANCH_ID, p_seat_number: no });
+    if (error) {
+      // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
+      if (error.code === "DT001") setConflict({ message: error.message, seatNo: no });
+      else setCafeMessage(error.message);
+      return;
+    }
+    setCafeMessage("");
+    setMySeat(no);
+    sitRequest.current = no;
+  };
+  const releaseAndSit = async () => {
+    if (!conflict) return;
+    const no = conflict.seatNo;
+    setConflict(null);
+    const { error } = await supabase.rpc("release_my_place"); // 0008: 쓰고 있던 자리 반납
+    if (error) {
+      setCafeMessage(`반납하지 못했어요: ${error.message}`);
+      return;
+    }
+    await claimSeat(no);
+  };
+  useEffect(() => {
+    if (!cafeMessage) return;
+    const t = setTimeout(() => setCafeMessage(""), 4000);
+    return () => clearTimeout(t);
+  }, [cafeMessage]);
+
+  // 카페 자리는 앉아 있는 동안만 내 것입니다. 지점을 나가거나 창을 닫으면 놓고,
+  // 들어올 때는 지난번에 놓지 못한 자리가 남아 있으면 정리합니다.
+  const seatedRef = useRef(false);
+  useEffect(() => {
+    seatedRef.current = seat !== null;
+  }, [seat]);
+  useEffect(() => {
+    if (!isCafe) return;
+    void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
+    const leave = () => {
+      if (seatedRef.current) void supabase.rpc("leave_cafe_seat");
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [isCafe, setMySeat]);
+
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
+    // 카페에서 일어나면 자리를 놓습니다.
+    if (no === null && isCafe) void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
     setSeat(no);
   };
   const handleArrive = () => {
@@ -259,6 +345,10 @@ export function BranchScene() {
   const walkHint =
     seat !== null
       ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · E 일어나기`
+      : isCafe
+        ? near !== null
+          ? `${near}번 좌석 · E 앉기`
+          : "빈자리에서 E로 앉기"
       : near !== null
         ? near === mySeat
           ? `${near}번 좌석 (내 자리) · E 앉기`
@@ -270,7 +360,7 @@ export function BranchScene() {
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen ? "" : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
 
   return (
     <>
@@ -286,11 +376,11 @@ export function BranchScene() {
         <WalkCamera
           posRef={pos}
           headingRef={heading}
-          paused={kioskOpen || panelOpen}
+          paused={kioskOpen || panelOpen || conflict !== null}
           onLockChange={setLocked}
         />
       ) : (
-        <TopDownCamera />
+        <TopDownCamera area={branch.size} />
       )}
       <FpsProbe onSample={handleFps} />
       <ambientLight intensity={1.2} />
@@ -342,13 +432,31 @@ export function BranchScene() {
         </mesh>
       ))}
 
-      <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
-        <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
-        <meshStandardMaterial color="#22c55e" />
-      </mesh>
+      {branch.kiosk && (
+        <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
+          <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
+          <meshStandardMaterial color="#22c55e" />
+        </mesh>
+      )}
 
-      {/* 앉아 있을 때는 내 자리 표시가 시야를 가리므로 숨깁니다. */}
-      {mySeat !== null && seat === null && (() => {
+      {/* 커피 바(카페): 보이고 부딪히기만 하고 기능은 아직 없습니다. */}
+      {branch.bar && (
+        <group>
+          <mesh position={[branch.bar.x, BAR_HEIGHT / 2, branch.bar.z]}>
+            <boxGeometry args={[branch.bar.w, BAR_HEIGHT, branch.bar.d]} />
+            <meshStandardMaterial color="#7c5a3a" />
+          </mesh>
+          <Billboard position={[branch.bar.x, BAR_HEIGHT + 0.6, branch.bar.z]}>
+            <mesh>
+              <planeGeometry args={[1.4, (1.4 * LABEL_PX.h) / LABEL_PX.w]} />
+              <meshBasicMaterial map={labelTexture("커피 바", "#5b3d22")} transparent />
+            </mesh>
+          </Billboard>
+        </group>
+      )}
+
+      {/* 앉아 있을 때는 내 자리 표시가 시야를 가리므로 숨깁니다. 카페는 앉아 있는 동안만 내 자리라 표시하지 않습니다. */}
+      {!isCafe && mySeat !== null && seat === null && (() => {
         const desk = branch.seats.find((s) => s.no === mySeat);
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
@@ -359,13 +467,15 @@ export function BranchScene() {
         obstacles={obstacles}
         spawn={branch.spawn}
         spots={freeSpots}
-        kiosk={branch.kiosk}
-        frozen={kioskOpen || panelOpen || (seat !== null && studyDialogOpen)}
+        kiosk={branch.kiosk ?? NO_KIOSK}
+        frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
         onNear={setNear}
         onSeat={handleSeat}
         onNearKiosk={setNearKiosk}
         onKiosk={() => setKioskOpen(true)}
         canSit={(no) => no === mySeat}
+        onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
+        sitRef={sitRequest}
         onMove={handleMove}
         headingRef={view === "first" ? heading : undefined}
       />
@@ -415,9 +525,20 @@ export function BranchScene() {
         이 지점 접속 인원 {others.length + 1}명
       </div>
     )}
-    {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
+    {conflict && (
+      // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
+      <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
+        <div style={{ width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 12, background: "#20232a", color: "#fff", font: "14px/1.6 system-ui, sans-serif" }}>
+          <p style={{ margin: "0 0 16px" }}>{conflict.message}</p>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button type="button" style={dialogButton} onClick={() => setConflict(null)}>닫기</button>
+            <button type="button" style={{ ...dialogButton, ...dialogPrimary }} onClick={() => void releaseAndSit()}>반납하고 앉기</button>
+          </div>
+        </div>
+      </div>
+    )}
     {kioskOpen && (
       <KioskScreen
         branchId={BRANCH_ID}
@@ -445,3 +566,9 @@ export function BranchScene() {
     </>
   );
 }
+
+const dialogButton: React.CSSProperties = {
+  padding: "6px 12px", borderRadius: 6, border: "1px solid #4b5563", background: "transparent",
+  color: "#fff", cursor: "pointer", font: "inherit",
+};
+const dialogPrimary: React.CSSProperties = { border: "none", background: "#22c55e", color: "#0b1a10", fontWeight: 600 };
