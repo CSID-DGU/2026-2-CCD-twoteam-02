@@ -19,7 +19,9 @@ import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation } from "react-router";
 import { currentCondition } from "../study/condition";
-import { ProfileModal } from "../profile/ProfileModal";
+import { InfoPanel } from "../menu/InfoPanel";
+import { SceneMenu } from "../menu/SceneMenu";
+import type { PanelView } from "../menu/panelTypes";
 import type { PresenceState } from "../realtime/participants";
 import type { PresenceStatus } from "./status";
 
@@ -187,7 +189,9 @@ export function BranchScene() {
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지
-  const [profileId, setProfileId] = useState<string | null>(null); // 캐릭터를 눌러 연 프로필 (계정 번호)
+  // 지점 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 자리·타이머가 그대로입니다. (#70)
+  const [panel, setPanel] = useState<PanelView | null>(null);
+  const panelOpen = panel !== null;
   const { session } = useSession();
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
@@ -241,13 +245,13 @@ export function BranchScene() {
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat || kioskOpen || profileId) return;
+      if (e.code !== VIEW_KEY || e.repeat || kioskOpen || panelOpen) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, profileId]);
+  }, [kioskOpen, panelOpen]);
 
   const seatSpot = spots.find((c) => c.no === seat);
   const viewHint =
@@ -266,7 +270,7 @@ export function BranchScene() {
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || profileId ? "" : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
+  const hint = kioskOpen || panelOpen ? "" : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
 
   return (
     <>
@@ -276,13 +280,13 @@ export function BranchScene() {
           key={seatSpot.no}
           spot={seatSpot}
           onArrive={handleArrive}
-          paused={studyDialogOpen || profileId !== null}
+          paused={studyDialogOpen || panelOpen}
         />
       ) : view === "first" ? (
         <WalkCamera
           posRef={pos}
           headingRef={heading}
-          paused={kioskOpen || profileId !== null}
+          paused={kioskOpen || panelOpen}
           onLockChange={setLocked}
         />
       ) : (
@@ -349,14 +353,14 @@ export function BranchScene() {
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      {condition === "visible" && <OtherParticipants others={others} spots={spots} onSelect={setProfileId} />}
+      {condition === "visible" && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
 
       <Player
         obstacles={obstacles}
         spawn={branch.spawn}
         spots={freeSpots}
         kiosk={branch.kiosk}
-        frozen={kioskOpen || profileId !== null || (seat !== null && studyDialogOpen)}
+        frozen={kioskOpen || panelOpen || (seat !== null && studyDialogOpen)}
         onNear={setNear}
         onSeat={handleSeat}
         onNearKiosk={setNearKiosk}
@@ -412,9 +416,8 @@ export function BranchScene() {
       </div>
     )}
     {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
-    {profileId && session && (
-      <ProfileModal userId={profileId} myId={session.user.id} onClose={() => setProfileId(null)} />
-    )}
+    {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
+    {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     {kioskOpen && (
       <KioskScreen
         branchId={BRANCH_ID}

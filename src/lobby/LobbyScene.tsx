@@ -16,6 +16,10 @@ import { useThree } from '@react-three/fiber'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
+import { useSession } from '../auth/useSession'
+import { InfoPanel } from '../menu/InfoPanel'
+import { SceneMenu } from '../menu/SceneMenu'
+import type { PanelView } from '../menu/panelTypes'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import lobby from './lobby.json'
@@ -66,11 +70,18 @@ export default function LobbyScene({ onEnter }: Props) {
   const pos = useRef({ x: lobby.spawn.x, z: lobby.spawn.z }) // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(Math.PI) // 처음엔 지점 문들이 있는 쪽(-Z)을 봅니다.
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
+  // 로비 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
+  const [panel, setPanel] = useState<PanelView | null>(null)
+  const { session } = useSession()
+  const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
+  useEffect(() => {
+    panelRef.current = panel
+  }, [panel])
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat) return
+      if (e.code !== VIEW_KEY || e.repeat || panelRef.current) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       setView((v) => (v === 'top' ? 'first' : 'top'))
     }
@@ -106,12 +117,12 @@ export default function LobbyScene({ onEnter }: Props) {
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
   const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
-  const hint = nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · ${viewHint}`
+  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · ${viewHint}`
 
   return (
     <>
       <Canvas>
-        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} onLockChange={setLocked} /> : <FitCamera />}
+        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} /> : <FitCamera />}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
@@ -152,7 +163,7 @@ export default function LobbyScene({ onEnter }: Props) {
           // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
           // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
           kiosk={NO_KIOSK}
-          frozen={false}
+          frozen={panel !== null}
           onNearKiosk={() => {}}
           onKiosk={() => {}}
           onNear={setNear}
@@ -165,7 +176,9 @@ export default function LobbyScene({ onEnter }: Props) {
         />
       </Canvas>
 
-      <div style={hintBox}>{message || hint}</div>
+      {(message || hint) && <div style={hintBox}>{message || hint}</div>}
+      {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
+      {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
 }

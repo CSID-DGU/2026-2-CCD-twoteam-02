@@ -12,14 +12,8 @@ import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
 import { rememberCondition } from './study/condition'
+import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
 
-// 우측 상단 버튼 공통 모양
-const cornerButton = {
-  position: 'fixed', right: 16, zIndex: 10, padding: '6px 12px',
-  borderRadius: 8, background: '#fff', color: '#20232a',
-  font: '14px system-ui, sans-serif', textDecoration: 'none',
-  boxShadow: '0 1px 4px rgba(0,0,0,.3)',
-} as const
 
 // 로그인한 사람만 통과시키고, 아니면 /login 으로 보냅니다.
 function Protected({ children }: { children: ReactNode }) {
@@ -61,9 +55,7 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}>
               <LobbyScene onEnter={(branch) => navigate(`/space?branch=${branch.slug}`)} />
             </div>
-            <CornerLink to="/records" label="내 기록" top={16} />
-            <CornerLink to="/friends" label="친구" top={56} />
-            <CornerLink to="/profile" label="내 프로필" top={96} />
+            {/* 내 기록·친구·내 프로필(16~96)은 LobbyScene 이 창으로 엽니다. (#70) */}
             <LogoutButton style={{ ...cornerButton, top: 136 }} />
           </Protected>
         }
@@ -75,8 +67,8 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
             <CornerLink to="/tracking" label="트래킹 검증으로" top={16} />
             <CornerLink to="/" label="로비로" top={56} />
-            <CornerLink to="/records" label="내 기록" top={96} />
-            <LogoutButton style={{ ...cornerButton, top: 136 }} />
+            {/* 내 기록·친구·내 프로필(96~176)은 BranchScene 이 창으로 엽니다. (#70) */}
+            <LogoutButton style={{ ...cornerButton, top: 216 }} />
           </Protected>
         }
       />
