@@ -66,7 +66,7 @@ fi
 
 # ---------------------------------------------------------------
 # 3. 주소별 화면이 뜨는가 (vercel.json rewrite 동작 확인)
-for p in /login /signup / /space /tracking; do
+for p in /login /signup / /space /tracking /records /friends /profile; do
   c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$SITE$p" || echo 000)
   [ "$c" = "200" ] && ok "경로 $p (HTTP $c)" \
     || bad "경로 $p 가 HTTP $c 입니다 → vercel.json 의 rewrite 설정을 확인하세요"
