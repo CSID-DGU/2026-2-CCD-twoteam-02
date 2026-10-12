@@ -2,8 +2,20 @@
 export type Box = { x: number; z: number; w: number; d: number }
 
 type Seat = { no: number; x: number; z: number; rot: number }
-type Room = Box
-type Branch = { walls: Box[]; seats: Seat[]; rooms: Room[]; kiosk: { x: number; z: number } }
+type Room = Box & { no: number; capacity?: number }
+// 지점 배치. 스터디카페는 키오스크(kiosk), 카페는 커피 바(bar)가 있습니다. (#44)
+export type BranchLayout = {
+  id: string
+  name: string
+  size: { w: number; d: number }
+  spawn: { x: number; z: number }
+  walls: Box[]
+  seats: Seat[]
+  rooms: Room[]
+  kiosk?: { x: number; z: number }
+  bar?: Box
+}
+type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'rooms' | 'kiosk' | 'bar'>
 
 export const SEAT = { w: 1.2, d: 0.6 }
 export const KIOSK = { w: 0.6, d: 0.4 }
@@ -29,7 +41,8 @@ export function obstaclesOf(b: Branch): Box[] {
     ...b.walls,
     ...b.rooms.flatMap(roomWalls),
     ...b.seats.map((s) => ({ x: s.x, z: s.z, ...SEAT })),
-    { x: b.kiosk.x, z: b.kiosk.z, ...KIOSK },
+    ...(b.kiosk ? [{ x: b.kiosk.x, z: b.kiosk.z, ...KIOSK }] : []),
+    ...(b.bar ? [b.bar] : []),
   ]
 }
 
