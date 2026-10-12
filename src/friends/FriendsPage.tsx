@@ -78,7 +78,7 @@ export default function FriendsPage() {
               results.map((u) => {
                 const relation = relationOf(list, myId, u.id)
                 return (
-                  <Item key={u.id} name={displayName(u.nickname, u.id)}>
+                  <Item key={u.id} name={displayName(u.nickname, u.id)} userId={u.id}>
                     {relation === 'friend' && <span style={styles.muted}>친구</span>}
                     {relation === 'sent' && <span style={styles.muted}>요청 보냄</span>}
                     {relation === 'received' && <span style={styles.muted}>받은 요청에서 수락해 주세요</span>}
@@ -98,7 +98,7 @@ export default function FriendsPage() {
             <p style={styles.muted}>받은 요청이 없어요.</p>
           ) : (
             received.map((f) => (
-              <Item key={f.id} name={nameOf(otherOf(f, myId))}>
+              <Item key={f.id} name={nameOf(otherOf(f, myId))} userId={otherOf(f, myId)}>
                 <button type="button" style={styles.primary} disabled={busy} onClick={() => run(() => accept(f.id))}>수락</button>
                 <button type="button" style={styles.ghost} disabled={busy} onClick={() => run(() => remove(f.id))}>거절</button>
               </Item>
@@ -111,7 +111,7 @@ export default function FriendsPage() {
             <p style={styles.muted}>보낸 요청이 없어요.</p>
           ) : (
             sent.map((f) => (
-              <Item key={f.id} name={nameOf(otherOf(f, myId))}>
+              <Item key={f.id} name={nameOf(otherOf(f, myId))} userId={otherOf(f, myId)}>
                 <span style={styles.muted}>수락 기다리는 중</span>
                 <button type="button" style={styles.ghost} disabled={busy} onClick={() => run(() => remove(f.id))}>취소</button>
               </Item>
@@ -126,7 +126,7 @@ export default function FriendsPage() {
             <p style={styles.muted}>아직 친구가 없어요. 위에서 찾아 요청해 보세요.</p>
           ) : (
             friends.map((f) => (
-              <Item key={f.id} name={nameOf(otherOf(f, myId))}>
+              <Item key={f.id} name={nameOf(otherOf(f, myId))} userId={otherOf(f, myId)}>
                 <button
                   type="button"
                   style={styles.ghost}
@@ -155,10 +155,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Item({ name, children }: { name: string; children: ReactNode }) {
+// 이름을 누르면 그 사람의 프로필로 갑니다.
+function Item({ name, userId, children }: { name: string; userId: string; children: ReactNode }) {
   return (
     <div style={styles.item}>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      <Link to={`/profile/${userId}`} style={styles.nameLink}>{name}</Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>{children}</div>
     </div>
   )
@@ -177,5 +178,6 @@ const styles: Record<string, CSSProperties> = {
   primary: { padding: '4px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10', fontWeight: 600, cursor: 'pointer', font: 'inherit' },
   ghost: { padding: '4px 10px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent', color: '#fff', cursor: 'pointer', font: 'inherit', textDecoration: 'none' },
   muted: { color: '#aab0bb', margin: 0, fontSize: 13 },
+  nameLink: { color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,.3)' },
   error: { color: '#f87171', margin: 0 },
 }
