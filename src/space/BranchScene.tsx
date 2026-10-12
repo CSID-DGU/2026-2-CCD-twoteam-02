@@ -146,8 +146,8 @@ export function BranchScene() {
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
-  // 걸어 다닐 때의 시점. 처음에는 제안서대로 위에서 내려다봅니다.
-  const [view, setView] = useState<"top" | "first">("top");
+  // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
+  const [view, setView] = useState<"top" | "first">("first");
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(Math.PI); // 1인칭에서 바라보는 방향. 처음에는 입구에서 안쪽(-Z)을 봅니다.
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
