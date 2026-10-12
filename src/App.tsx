@@ -10,6 +10,7 @@ import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
+import ProfilePage from './profile/ProfilePage'
 import { rememberCondition } from './study/condition'
 
 // 우측 상단 버튼 공통 모양
@@ -62,7 +63,8 @@ function AppRoutes() {
             </div>
             <CornerLink to="/records" label="내 기록" top={16} />
             <CornerLink to="/friends" label="친구" top={56} />
-            <LogoutButton style={{ ...cornerButton, top: 96 }} />
+            <CornerLink to="/profile" label="내 프로필" top={96} />
+            <LogoutButton style={{ ...cornerButton, top: 136 }} />
           </Protected>
         }
       />
@@ -103,6 +105,9 @@ function AppRoutes() {
           </Protected>
         }
       />
+      {/* /profile 은 내 프로필, /profile/:id 는 그 사람의 프로필 */}
+      <Route path="/profile" element={<Protected><ProfilePage /></Protected>} />
+      <Route path="/profile/:id" element={<Protected><ProfilePage /></Protected>} />
       {/* 없는 주소는 첫 화면으로 */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
