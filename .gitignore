@@ -46,5 +46,8 @@ CLAUDE.local.md
 *.key
 service-account*.json
 
+# 개인용 Claude 스킬 (각자 컴퓨터에서만 씀)
+.claude/skills/
+
 # Vercel CLI 가 만드는 프로젝트 연결 정보 (각자 컴퓨터에서만 씀)
 .vercel
