@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
 import type { StudyChoice } from './StartStudyDialog'
+import type { StudyCondition } from './condition'
 
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   focus: { color: '#4ade80', text: '🟢 공부 중' },
@@ -21,11 +22,12 @@ type Props = {
   choice: StudyChoice
   userId: string
   sessionId: string // 지금 앉아 있는 좌석 이용 기록(seat_sessions.id)
+  condition: StudyCondition // 사용자 실험 조건 (기록에 같이 남김)
   onStatus: (status: FocusStatus) => void // 집중 상태가 바뀔 때 (다른 참여자에게 보내는 표시등용)
   onChangeSubject: () => void
 }
 
-export function StudyRunner({ face, choice, userId, sessionId, onStatus, onChangeSubject }: Props) {
+export function StudyRunner({ face, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
   const focus = useFocusState(face, choice.allowDevices)
   const [saveError, setSaveError] = useState('')
 
@@ -47,20 +49,23 @@ export function StudyRunner({ face, choice, userId, sessionId, onStatus, onChang
       subject_id: choice.subject.id,
       devices: devicesOf(choice.allowDevices),
     }
-    const save = (row: ChunkRow) =>
-      supabase
-        .from('study_logs')
-        .insert({
-          ...base,
-          started_at: new Date(row.startedAt).toISOString(),
-          ended_at: new Date(row.endedAt).toISOString(),
-          focused_seconds: row.focusedSeconds,
-        })
-        .then(({ error }) => {
-          if (!error) return
-          console.error('공부 기록을 저장하지 못했습니다:', error.message)
-          setSaveError('기록 저장 실패')
-        })
+    const save = async (row: ChunkRow) => {
+      const values = {
+        ...base,
+        started_at: new Date(row.startedAt).toISOString(),
+        ended_at: new Date(row.endedAt).toISOString(),
+        focused_seconds: row.focusedSeconds,
+      }
+      let { error } = await supabase.from('study_logs').insert({ ...values, condition })
+      // PGRST204: DB에 condition 칸이 아직 없음(0011 실행 전). 조건 없이 다시 저장해서 기록은 지킵니다.
+      if (error?.code === 'PGRST204') {
+        console.warn('study_logs.condition 칸이 없어 실험 조건 없이 저장합니다. 0011 마이그레이션을 실행해 주세요.')
+        ;({ error } = await supabase.from('study_logs').insert(values))
+      }
+      if (!error) return
+      console.error('공부 기록을 저장하지 못했습니다:', error.message)
+      setSaveError('기록 저장 실패')
+    }
     // 지금까지의 구간을 잘라 저장합니다.
     const flush = () => {
       const { row, next } = takeChunk(chunk, studyMs.current, Date.now())
@@ -76,7 +81,7 @@ export function StudyRunner({ face, choice, userId, sessionId, onStatus, onChang
       window.removeEventListener('pagehide', flush)
       flush() // 일어나기, 과목 바꾸기, 지점 나가기
     }
-  }, [userId, sessionId, choice])
+  }, [userId, sessionId, choice, condition])
 
   const { color, text } = LABEL[focus.status]
   return (
