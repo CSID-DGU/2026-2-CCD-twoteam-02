@@ -12,15 +12,17 @@ import { useSubjects } from './useSubjects'
 import { StartStudyDialog } from './StartStudyDialog'
 import type { StudyChoice } from './StartStudyDialog'
 import { StudyRunner } from './StudyRunner'
+import type { StudyCondition } from './condition'
 
 type Props = {
   userId: string
   sessionId: string | null // 좌석 이용 기록. 아직 못 읽었으면 null
+  condition: StudyCondition // 사용자 실험 조건
   onStatus: (status: PresenceStatus) => void // 다른 참여자에게 보낼 내 상태
   onDialogChange: (open: boolean) => void // 창이 떠 있는 동안 캐릭터 조작을 막기 위해 알립니다.
 }
 
-export function SeatedStudy({ userId, sessionId, onStatus, onDialogChange }: Props) {
+export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { face, status, message } = useFaceTracking(videoRef)
   const { pose } = usePoseTracking(videoRef) // 같은 웹캠 영상으로 팔도 추적합니다.
@@ -51,6 +53,7 @@ export function SeatedStudy({ userId, sessionId, onStatus, onDialogChange }: Pro
           choice={choice}
           userId={userId}
           sessionId={sessionId}
+          condition={condition}
           onStatus={onStatus}
           onChangeSubject={() => {
             setChoice(null)

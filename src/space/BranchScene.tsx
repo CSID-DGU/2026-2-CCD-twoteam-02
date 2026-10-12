@@ -17,6 +17,8 @@ import { useMySeat } from "./useMySeat";
 import { useSession } from "../auth/useSession";
 import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
+import { useLocation } from "react-router";
+import { currentCondition } from "../study/condition";
 import type { PresenceState } from "../realtime/participants";
 import type { PresenceStatus } from "./status";
 
@@ -154,6 +156,13 @@ export function BranchScene() {
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
   const others = useParticipants(BRANCH_ID, me); // 같은 지점의 다른 참여자 (실시간)
+  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
+  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
+  const { search } = useLocation();
+  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
+  useEffect(() => {
+    console.info(`[실험 조건] ${condition === "hidden" ? "hidden (캐릭터 숨김 모드)" : "visible (캐릭터 보임)"}`);
+  }, [condition]);
   // 다른 참여자가 앉아 있는 자리에는 앉을 수 없습니다.
   const taken = new Set(
     others.map((p) => p.seat).filter((no): no is number => no !== null),
@@ -293,7 +302,7 @@ export function BranchScene() {
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      <OtherParticipants others={others} spots={spots} />
+      {condition === "visible" && <OtherParticipants others={others} spots={spots} />}
 
       <Player
         obstacles={obstacles}
@@ -314,11 +323,29 @@ export function BranchScene() {
       <SeatedStudy
         userId={session.user.id}
         sessionId={sessionId}
+        condition={condition}
         onStatus={setStudyStatus}
         onDialogChange={setStudyDialogOpen}
       />
     )}
     <PerfReadout perf={perf} />
+    {condition === "hidden" && (
+      // 숨김 모드: 다른 사람은 안 보이고 몇 명이 있는지만 알 수 있습니다. (나 포함)
+      <div
+        style={{
+          position: "fixed",
+          top: 76,
+          left: 16,
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: "rgba(32,35,42,.85)",
+          color: "#fff",
+          font: "13px system-ui, sans-serif",
+        }}
+      >
+        이 지점 접속 인원 {others.length + 1}명
+      </div>
+    )}
     {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
     {kioskOpen && (
       <KioskScreen

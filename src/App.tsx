@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
@@ -8,6 +9,7 @@ import RequireAuth from './auth/RequireAuth'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
+import { rememberCondition } from './study/condition'
 
 // 우측 상단 버튼 공통 모양
 const cornerButton = {
@@ -29,7 +31,12 @@ function CornerLink({ to, label, top }: { to: string; label: string; top: number
 
 function AppRoutes() {
   const navigate = useNavigate()
-  const { hash } = useLocation()
+  const { hash, search } = useLocation()
+
+  // 실험 진행자가 준 링크(?condition=hidden|visible)로 들어오면 그 조건을 이 브라우저에 기억합니다.
+  useEffect(() => {
+    rememberCondition(search)
+  }, [search])
 
   // 예전 주소(#space)로 들어오면 /space 로 넘깁니다. 북마크가 깨지지 않게 하려는 것입니다.
   if (hash === '#space') return <Navigate to="/space" replace />
