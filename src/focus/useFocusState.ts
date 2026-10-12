@@ -9,10 +9,10 @@ export type FocusView = FocusState & {
   setAllowDevices: (value: boolean) => void;
 };
 
-export function useFocusState(face: RefObject<FocusInput>): FocusView {
+// initialAllowDevices: 공부 시작 창에서 고른 학습기기 사용 여부. 트래킹 검증 화면은 체크박스로 바꿉니다.
+export function useFocusState(face: RefObject<FocusInput>, initialAllowDevices = false): FocusView {
   const [state, setState] = useState<FocusState>(initialFocusState);
-  // 학습기기 사용 여부. 모드 선택 창이 생기기 전까지는 화면의 체크박스로 바꿉니다.
-  const [allowDevices, setAllowDevices] = useState(false);
+  const [allowDevices, setAllowDevices] = useState(initialAllowDevices);
 
   useEffect(() => {
     const id = setInterval(() => {
