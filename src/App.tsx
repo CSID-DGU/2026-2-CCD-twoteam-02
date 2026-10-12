@@ -9,6 +9,7 @@ import RequireAuth from './auth/RequireAuth'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
+import FriendsPage from './friends/FriendsPage'
 import { rememberCondition } from './study/condition'
 
 // 우측 상단 버튼 공통 모양
@@ -60,7 +61,8 @@ function AppRoutes() {
               <LobbyScene onEnter={(branch) => navigate(`/space?branch=${branch.slug}`)} />
             </div>
             <CornerLink to="/records" label="내 기록" top={16} />
-            <LogoutButton style={{ ...cornerButton, top: 56 }} />
+            <CornerLink to="/friends" label="친구" top={56} />
+            <LogoutButton style={{ ...cornerButton, top: 96 }} />
           </Protected>
         }
       />
@@ -90,6 +92,14 @@ function AppRoutes() {
         element={
           <Protected>
             <RecordsPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/friends"
+        element={
+          <Protected>
+            <FriendsPage />
           </Protected>
         }
       />
