@@ -2,7 +2,7 @@
 // 저장된 기록은 초록불(집중)일 때 쌓인 시간만 담고 있습니다. (src/study/StudyRunner)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Link } from 'react-router'
+import { BackLink } from '../menu/BackLink'
 import { useSession } from '../auth/useSession'
 import { useSubjects } from './useSubjects'
 import { useStudyLogs } from './useStudyLogs'
@@ -19,7 +19,8 @@ const TABS: { key: Period; label: string }[] = [
   { key: 'year', label: '년' },
 ]
 
-export default function RecordsPage() {
+// 기록 본문. 페이지(/records)와 로비·지점 위 창이 같이 씁니다.
+export function RecordsView() {
   const { session } = useSession()
   const { subjects } = useSubjects(session?.user.id)
   const [period, setPeriod] = useState<Period>('day')
@@ -45,104 +46,113 @@ export default function RecordsPage() {
         : byMonthOfYear(filtered).map((s, i) => ({ label: `${i + 1}월`, seconds: s }))
 
   return (
+    <div style={styles.body}>
+      <div style={styles.row}>
+        <div style={styles.tabs} role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={period === t.key}
+              style={{ ...styles.tab, ...(period === t.key ? styles.tabOn : null) }}
+              onClick={() => setPeriod(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div style={styles.nav}>
+          <button type="button" style={styles.navButton} onClick={() => setAnchor(shiftAnchor(period, anchor, -1))} aria-label="이전">◀</button>
+          <span style={{ minWidth: 140, textAlign: 'center' }}>{periodLabel(period, anchor)}</span>
+          <button type="button" style={{ ...styles.navButton, opacity: isFuture ? 0.3 : 1 }} disabled={isFuture} onClick={() => setAnchor(shiftAnchor(period, anchor, 1))} aria-label="다음">▶</button>
+        </div>
+      </div>
+
+      {/* 과목별로 나눠 보기: 일 단위는 이미 과목별로 보여 주므로 월·년에서만 씁니다. */}
+      {period !== 'day' && subjects.length > 0 && (
+        <div style={styles.chips}>
+          {[{ id: null, name: '전체' }, ...subjects].map((s) => (
+            <button
+              key={s.id ?? 'all'}
+              type="button"
+              style={{ ...styles.chip, ...(subjectId === s.id ? styles.chipOn : null) }}
+              onClick={() => setSubjectId(s.id)}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <section style={styles.card}>
+        <div style={styles.totalLabel}>
+          {period === 'day' ? '이날' : period === 'month' ? '이번 달' : '올해'} 공부 시간
+          {period !== 'day' && subjectId !== null && ` · ${nameOf(subjectId)}`}
+        </div>
+        <div style={styles.total}>{rows ? formatHM(total) : '…'}</div>
+
+        {error ? (
+          <p style={styles.error}>{error}</p>
+        ) : rows === null ? (
+          <p style={styles.muted}>기록을 불러오는 중…</p>
+        ) : total === 0 ? (
+          <p style={styles.muted}>이 기간에는 공부 기록이 없어요.</p>
+        ) : period === 'day' ? (
+          <SubjectBars items={table.map((t) => ({ name: t.label, seconds: t.seconds }))} />
+        ) : (
+          <ColumnChart
+            values={table.map((t) => t.seconds)}
+            // 월: 1·5·10·15·20·25·30일만 글자를 달아 겹치지 않게 합니다.
+            tickLabel={(i) => (period === 'year' ? `${i + 1}월` : [0, 4, 9, 14, 19, 24, 29].includes(i) ? String(i + 1) : '')}
+            tooltipLabel={(i) => table[i].label}
+          />
+        )}
+
+        {rows && total > 0 && (
+          <label style={styles.tableToggle}>
+            <input type="checkbox" checked={showTable} onChange={(e) => setShowTable(e.target.checked)} /> 표로 보기
+          </label>
+        )}
+        {rows && total > 0 && showTable && (
+          <table style={styles.table}>
+            <tbody>
+              {table.filter((t) => t.seconds > 0).map((t) => (
+                <tr key={t.label}>
+                  <td style={styles.td}>{t.label}</td>
+                  <td style={{ ...styles.td, textAlign: 'right' }}>{formatHM(t.seconds)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  )
+}
+
+// 주소로 직접 들어왔을 때의 페이지. 로비·지점에서는 창(src/menu/InfoPanel)으로 엽니다.
+export default function RecordsPage() {
+  return (
     <div style={styles.page}>
       <div style={styles.container}>
         <header style={styles.header}>
           <h1 style={styles.title}>내 기록</h1>
-          <Link to="/" style={styles.link}>로비로</Link>
+          <BackLink style={styles.link} />
         </header>
-
-        <div style={styles.row}>
-          <div style={styles.tabs} role="tablist">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={period === t.key}
-                style={{ ...styles.tab, ...(period === t.key ? styles.tabOn : null) }}
-                onClick={() => setPeriod(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div style={styles.nav}>
-            <button type="button" style={styles.navButton} onClick={() => setAnchor(shiftAnchor(period, anchor, -1))} aria-label="이전">◀</button>
-            <span style={{ minWidth: 140, textAlign: 'center' }}>{periodLabel(period, anchor)}</span>
-            <button type="button" style={{ ...styles.navButton, opacity: isFuture ? 0.3 : 1 }} disabled={isFuture} onClick={() => setAnchor(shiftAnchor(period, anchor, 1))} aria-label="다음">▶</button>
-          </div>
-        </div>
-
-        {/* 과목별로 나눠 보기: 일 단위는 이미 과목별로 보여 주므로 월·년에서만 씁니다. */}
-        {period !== 'day' && subjects.length > 0 && (
-          <div style={styles.chips}>
-            {[{ id: null, name: '전체' }, ...subjects].map((s) => (
-              <button
-                key={s.id ?? 'all'}
-                type="button"
-                style={{ ...styles.chip, ...(subjectId === s.id ? styles.chipOn : null) }}
-                onClick={() => setSubjectId(s.id)}
-              >
-                {s.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <section style={styles.card}>
-          <div style={styles.totalLabel}>
-            {period === 'day' ? '이날' : period === 'month' ? '이번 달' : '올해'} 공부 시간
-            {period !== 'day' && subjectId !== null && ` · ${nameOf(subjectId)}`}
-          </div>
-          <div style={styles.total}>{rows ? formatHM(total) : '…'}</div>
-
-          {error ? (
-            <p style={styles.error}>{error}</p>
-          ) : rows === null ? (
-            <p style={styles.muted}>기록을 불러오는 중…</p>
-          ) : total === 0 ? (
-            <p style={styles.muted}>이 기간에는 공부 기록이 없어요.</p>
-          ) : period === 'day' ? (
-            <SubjectBars items={table.map((t) => ({ name: t.label, seconds: t.seconds }))} />
-          ) : (
-            <ColumnChart
-              values={table.map((t) => t.seconds)}
-              // 월: 1·5·10·15·20·25·30일만 글자를 달아 겹치지 않게 합니다.
-              tickLabel={(i) => (period === 'year' ? `${i + 1}월` : [0, 4, 9, 14, 19, 24, 29].includes(i) ? String(i + 1) : '')}
-              tooltipLabel={(i) => table[i].label}
-            />
-          )}
-
-          {rows && total > 0 && (
-            <label style={styles.tableToggle}>
-              <input type="checkbox" checked={showTable} onChange={(e) => setShowTable(e.target.checked)} /> 표로 보기
-            </label>
-          )}
-          {rows && total > 0 && showTable && (
-            <table style={styles.table}>
-              <tbody>
-                {table.filter((t) => t.seconds > 0).map((t) => (
-                  <tr key={t.label}>
-                    <td style={styles.td}>{t.label}</td>
-                    <td style={{ ...styles.td, textAlign: 'right' }}>{formatHM(t.seconds)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+        <RecordsView />
       </div>
     </div>
   )
 }
 
 const styles: Record<string, CSSProperties> = {
+  body: { display: 'flex', flexDirection: 'column', gap: 12 },
   page: { minHeight: '100vh', background: '#16181d', color: '#fff', font: '14px/1.6 system-ui, sans-serif' },
   container: { maxWidth: 720, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   title: { margin: 0, fontSize: 22 },
-  link: { color: '#fff', padding: '6px 12px', borderRadius: 8, background: 'rgba(255,255,255,.08)', textDecoration: 'none' },
+  link: { color: '#fff', padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,.08)', cursor: 'pointer', font: 'inherit' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   tabs: { display: 'flex', gap: 4, padding: 3, borderRadius: 8, background: '#20232a' },
   tab: { padding: '4px 14px', borderRadius: 6, border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: 'inherit' },
