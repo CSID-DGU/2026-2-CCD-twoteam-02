@@ -24,6 +24,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BRANCH="${DEPLOY_BRANCH:-develop}"   # 배포 기준 브랜치. main 으로 옮길 때는 DEPLOY_BRANCH=main 으로 실행한다.
+# 어느 계정으로 배포할지. 붙이지 않으면 "Not authorized" 로 실패한다.
+# 로그인은 돼 있어도 CLI 가 기본 범위를 다르게 잡는 경우가 있어 명시한다.
+SCOPE="${VERCEL_SCOPE:-6aimho}"
 ENV_FILE=".env.local"
 SYNC_ENV=0
 DRY_RUN=0
@@ -85,8 +88,8 @@ if [ "$SYNC_ENV" = "1" ]; then
     value=${line#*=}
     [ -n "$value" ] || { printf '  ⚠️  %s 값이 비어 있어 건너뜁니다\n' "$name"; continue; }
     # 이미 있으면 지우고 다시 올린다. 없으면 그냥 실패하므로 무시한다.
-    vercel env rm "$name" production --yes >/dev/null 2>&1 || true
-    printf '%s' "$value" | vercel env add "$name" production >/dev/null
+    vercel env rm "$name" production --yes --scope "$SCOPE" >/dev/null 2>&1 || true
+    printf '%s' "$value" | vercel env add "$name" production --scope "$SCOPE" >/dev/null
     printf '  ✅ %s (%d자)\n' "$name" "${#value}"
   done < <(grep -E '^VITE_[A-Z_]+=' "$ENV_FILE" || true)
 else
@@ -102,7 +105,7 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-vercel --prod
+vercel --prod --scope "$SCOPE"
 
 printf '\n\033[1m끝났습니다.\033[0m 위에 찍힌 주소로 접속해 확인하세요.\n'
 printf '화면이 하얗게 뜨면 환경 변수 문제입니다. ./scripts/deploy.sh --env 로 다시 실행하세요.\n'
