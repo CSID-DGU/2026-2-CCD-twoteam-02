@@ -7,6 +7,7 @@ import SignupPage from './auth/SignupPage'
 import RequireAuth from './auth/RequireAuth'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
+import RecordsPage from './study/RecordsPage'
 
 // 우측 상단 버튼 공통 모양
 const cornerButton = {
@@ -51,7 +52,8 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}>
               <LobbyScene onEnter={(branch) => navigate(`/space?branch=${branch.slug}`)} />
             </div>
-            <LogoutButton style={{ ...cornerButton, top: 16 }} />
+            <CornerLink to="/records" label="내 기록" top={16} />
+            <LogoutButton style={{ ...cornerButton, top: 56 }} />
           </Protected>
         }
       />
@@ -62,7 +64,8 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
             <CornerLink to="/tracking" label="트래킹 검증으로" top={16} />
             <CornerLink to="/" label="로비로" top={56} />
-            <LogoutButton style={{ ...cornerButton, top: 96 }} />
+            <CornerLink to="/records" label="내 기록" top={96} />
+            <LogoutButton style={{ ...cornerButton, top: 136 }} />
           </Protected>
         }
       />
@@ -72,6 +75,14 @@ function AppRoutes() {
           <Protected>
             <HeadTrackingTest />
             <CornerLink to="/space" label="지점 공간으로" top={16} />
+          </Protected>
+        }
+      />
+      <Route
+        path="/records"
+        element={
+          <Protected>
+            <RecordsPage />
           </Protected>
         }
       />
