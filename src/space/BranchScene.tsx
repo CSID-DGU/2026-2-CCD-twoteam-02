@@ -53,30 +53,38 @@ const START_HEIGHT = 7; // 전환을 시작하는 카메라 높이
 const START_BACK = 3; // 전환을 시작할 때 자리 뒤로 물러난 거리
 const SEAT_HEIGHT = 0.74; // 책상 높이
 const LOOK_LIMIT = Math.PI / 3; // 좌우로 60도씩, 합쳐서 120도까지 둘러볼 수 있습니다.
+const PITCH_UP = MathUtils.degToRad(15); // 앉아서 위로 볼 수 있는 각도
+const PITCH_DOWN = MathUtils.degToRad(30); // 아래로 볼 수 있는 각도 (책상을 내려다보기 좋게 더 넓게)
 const LOOK_SPEED = 0.005; // 마우스를 1픽셀 끌 때 도는 각도(라디안)
+const KEY_LOOK_SPEED = 1.2; // WASD·방향키로 둘러볼 때 도는 빠르기(초당 라디안)
 const LOOK_FOLLOW = 20; // 시점이 마우스를 따라가는 빠르기
 const UP = new Vector3(0, 1, 0);
 
 // 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
 // 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
-// 마우스로 끌면 좌우 120도 범위에서 둘러봅니다.
-function SeatCamera({ spot, onArrive }: { spot: Spot; onArrive: () => void }) {
+// WASD·방향키나 마우스 끌기로 좌우 120도, 위 15도·아래 30도 범위에서 둘러봅니다. (#73)
+// 앉아 있을 때는 몸이 움직이지 않으니 WASD 를 시점에 씁니다. 마우스는 잠그지 않습니다(타이머 버튼 등을 눌러야 해서).
+function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => void; paused: boolean }) {
   const cam = useRef<PerspectiveCameraImpl>(null!);
   const progress = useRef(0); // 0(시작) → 1(전환 끝)
-  const yaw = useRef(0); // 정면에서 좌우로 돌린 각도
+  const yaw = useRef(0); // 정면에서 좌우로 돌린 각도 (+ 가 왼쪽)
+  const pitch = useRef(0); // 위(+)·아래(-)로 기울인 각도
+  const keys = useRef(new Set<string>());
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
   const canvas = useThree((s) => s.gl.domElement);
   const pose = useMemo(() => {
     const fx = Math.sin(spot.rot), fz = Math.cos(spot.rot); // 책상 쪽 방향
     const endPos = new Vector3(spot.x, EYE_HEIGHT, spot.z);
-    // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
-    const endQuat = new Quaternion().setFromEuler(new Euler(0, spot.rot + Math.PI, 0));
     const startPos = new Vector3(spot.x - fx * START_BACK, START_HEIGHT, spot.z - fz * START_BACK);
     const desk = new Vector3(spot.x + fx, SEAT_HEIGHT, spot.z + fz);
     const startQuat = new Quaternion().setFromRotationMatrix(
       new Matrix4().lookAt(startPos, desk, UP)
     );
     // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
-    return { startPos, startQuat, endPos, endQuat, turn: new Quaternion(), target: new Quaternion() };
+    return { startPos, startQuat, endPos, target: new Quaternion(), euler: new Euler(0, 0, 0, "YXZ") };
   }, [spot]);
 
   // 화면을 끌면 끄는 쪽으로 장면이 따라오도록 시점을 돌립니다.
@@ -89,11 +97,8 @@ function SeatCamera({ spot, onArrive }: { spot: Spot; onArrive: () => void }) {
     };
     const move = (e: PointerEvent) => {
       if (!dragging) return;
-      yaw.current = MathUtils.clamp(
-        yaw.current + e.movementX * LOOK_SPEED,
-        -LOOK_LIMIT,
-        LOOK_LIMIT
-      );
+      yaw.current = MathUtils.clamp(yaw.current + e.movementX * LOOK_SPEED, -LOOK_LIMIT, LOOK_LIMIT);
+      pitch.current = MathUtils.clamp(pitch.current + e.movementY * LOOK_SPEED, -PITCH_DOWN, PITCH_UP);
     };
     const up = () => {
       dragging = false;
@@ -113,10 +118,38 @@ function SeatCamera({ spot, onArrive }: { spot: Spot; onArrive: () => void }) {
     };
   }, [canvas]);
 
+  // WASD·방향키로 둘러보기. 글자를 입력하는 중이면 무시하고, 창이 떠 있으면 돌지 않습니다.
+  useEffect(() => {
+    const pressed = keys.current;
+    const down = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      pressed.add(e.code);
+    };
+    const up = (e: KeyboardEvent) => pressed.delete(e.code);
+    const clear = () => pressed.clear();
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", clear);
+    };
+  }, []);
+
   useFrame((_, delta) => {
-    // 바라볼 방향 = 좌석 정면에서 yaw만큼 좌우로 돌린 방향
-    pose.turn.setFromAxisAngle(UP, yaw.current);
-    pose.target.multiplyQuaternions(pose.turn, pose.endQuat);
+    const k = keys.current;
+    if (!pausedRef.current) {
+      const dt = Math.min(delta, 0.05);
+      const turn = +(k.has("KeyA") || k.has("ArrowLeft")) - +(k.has("KeyD") || k.has("ArrowRight")); // 왼쪽 +
+      const tilt = +(k.has("KeyW") || k.has("ArrowUp")) - +(k.has("KeyS") || k.has("ArrowDown")); // 위 +
+      yaw.current = MathUtils.clamp(yaw.current + turn * KEY_LOOK_SPEED * dt, -LOOK_LIMIT, LOOK_LIMIT);
+      pitch.current = MathUtils.clamp(pitch.current + tilt * KEY_LOOK_SPEED * dt, -PITCH_DOWN, PITCH_UP);
+    }
+    // 바라볼 방향 = 좌석 정면에서 좌우(yaw)로 돌리고 위아래(pitch)로 기울인 방향.
+    // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
+    pose.euler.set(pitch.current, spot.rot + Math.PI + yaw.current, 0);
+    pose.target.setFromEuler(pose.euler);
 
     if (progress.current < 1) {
       progress.current = Math.min(1, progress.current + delta / TRANSITION);
@@ -150,6 +183,7 @@ export function BranchScene() {
   const [view, setView] = useState<"top" | "first">("first");
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(Math.PI); // 1인칭에서 바라보는 방향. 처음에는 입구에서 안쪽(-Z)을 봅니다.
+  const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지
@@ -216,10 +250,11 @@ export function BranchScene() {
   }, [kioskOpen, profileId]);
 
   const seatSpot = spots.find((c) => c.no === seat);
-  const viewHint = view === "top" ? "V 1인칭으로" : "끌어서 돌기 · V 위에서 보기";
+  const viewHint =
+    view === "top" ? "V 1인칭으로" : locked ? "Esc 커서 보이기 · V 위에서 보기" : "클릭해서 둘러보기 · V 위에서 보기";
   const walkHint =
     seat !== null
-      ? `${seat}번 좌석 · 끌어서 둘러보기 · E 일어나기`
+      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · E 일어나기`
       : near !== null
         ? near === mySeat
           ? `${near}번 좌석 (내 자리) · E 앉기`
@@ -237,9 +272,19 @@ export function BranchScene() {
     <>
     <Canvas>
       {seatSpot ? (
-        <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={handleArrive} />
+        <SeatCamera
+          key={seatSpot.no}
+          spot={seatSpot}
+          onArrive={handleArrive}
+          paused={studyDialogOpen || profileId !== null}
+        />
       ) : view === "first" ? (
-        <WalkCamera posRef={pos} headingRef={heading} />
+        <WalkCamera
+          posRef={pos}
+          headingRef={heading}
+          paused={kioskOpen || profileId !== null}
+          onLockChange={setLocked}
+        />
       ) : (
         <TopDownCamera />
       )}
@@ -331,6 +376,24 @@ export function BranchScene() {
       />
     )}
     <PerfReadout perf={perf} />
+    {locked && seat === null && (
+      // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필)
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          top: "50%",
+          width: 6,
+          height: 6,
+          marginLeft: -3,
+          marginTop: -3,
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 0 0 1.5px rgba(0,0,0,.6)",
+          pointerEvents: "none",
+        }}
+      />
+    )}
     {condition === "hidden" && (
       // 숨김 모드: 다른 사람은 안 보이고 몇 명이 있는지만 알 수 있습니다. (나 포함)
       <div
