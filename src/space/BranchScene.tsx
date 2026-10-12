@@ -11,13 +11,14 @@ import KioskScreen from "../kiosk/KioskScreen";
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { WalkCamera } from "./WalkCamera";
-import { SelfView } from "./SelfView";
+import { SeatedStudy } from "../study/SeatedStudy";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
 import { useSession } from "../auth/useSession";
 import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import type { PresenceState } from "../realtime/participants";
+import type { PresenceStatus } from "./status";
 
 const obstacles = obstaclesOf(branch);
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -146,7 +147,9 @@ export function BranchScene() {
   const [view, setView] = useState<"top" | "first">("top");
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(Math.PI); // 1인칭에서 바라보는 방향. 처음에는 입구에서 안쪽(-Z)을 봅니다.
-  const { mySeat, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
+  const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
+  const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
+  const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지
   const { session } = useSession();
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
@@ -160,7 +163,7 @@ export function BranchScene() {
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
   // Player 가 매 프레임 알려 주는 위치로 내 상태를 갱신합니다. 보내는 주기는 훅이 알아서 늦춥니다.
-  // 집중 상태는 트래킹을 지점 화면에 붙일 때 실제 판정으로 바꿉니다. 지금은 앉았는지로만 나눕니다.
+  // 상태: 돌아다니면 idle(노란불), 앉아 있으면 집중 판정 결과(공부 시작 전에는 idle).
   const handleMove = (x: number, z: number) => {
     pos.current.x = x;
     pos.current.z = z;
@@ -171,7 +174,7 @@ export function BranchScene() {
       x,
       z,
       seat,
-      status: seat === null ? "away" : "focus",
+      status: seat === null ? "idle" : studyStatus,
     };
   };
 
@@ -297,7 +300,7 @@ export function BranchScene() {
         spawn={branch.spawn}
         spots={freeSpots}
         kiosk={branch.kiosk}
-        frozen={kioskOpen}
+        frozen={kioskOpen || (seat !== null && studyDialogOpen)}
         onNear={setNear}
         onSeat={handleSeat}
         onNearKiosk={setNearKiosk}
@@ -307,7 +310,14 @@ export function BranchScene() {
         headingRef={view === "first" ? heading : undefined}
       />
     </Canvas>
-    {seat !== null && <SelfView />}
+    {seat !== null && session && (
+      <SeatedStudy
+        userId={session.user.id}
+        sessionId={sessionId}
+        onStatus={setStudyStatus}
+        onDialogChange={setStudyDialogOpen}
+      />
+    )}
     <PerfReadout perf={perf} />
     {/* 지점이 지금은 별다방 하나라 KioskScreen 의 기본 지점(branchId 1)을 씁니다. */}
     {kioskOpen && (

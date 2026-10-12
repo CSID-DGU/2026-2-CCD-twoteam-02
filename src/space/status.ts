@@ -1,8 +1,10 @@
 // 참여자 상태와 표시등 색. 화면과 무관한 순수 로직이라 다른 파일에서 그대로 가져다 씁니다.
 import type { FocusStatus } from '../focus/focusLogic'
 
-// 집중 판정 상태(focus·away·drowsy·offscreen)에 미접속(offline)을 더한 것
-export type PresenceStatus = FocusStatus | 'offline'
+// 집중 판정 상태(focus·away·drowsy·offscreen)에 두 가지를 더한 것
+//   idle: 접속했지만 공부하지 않음 (돌아다니는 중, 앉았지만 공부 시작 전). 노란불, 아이콘 없음
+//   offline: 미접속 (좌석 반납 전까지)
+export type PresenceStatus = FocusStatus | 'idle' | 'offline'
 
 export type Light = 'green' | 'yellow' | 'red'
 

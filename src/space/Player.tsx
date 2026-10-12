@@ -101,7 +101,7 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
       toggle.current = false
-      play('idle')
+      if (!seated.current) play('idle') // 앉아 있을 때는 앉은 자세를 그대로 둡니다.
       return
     }
 
