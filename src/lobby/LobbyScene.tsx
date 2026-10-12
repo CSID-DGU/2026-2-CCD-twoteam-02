@@ -65,6 +65,7 @@ export default function LobbyScene({ onEnter }: Props) {
   const [view, setView] = useState<'top' | 'first'>('first') // 처음엔 1인칭
   const pos = useRef({ x: lobby.spawn.x, z: lobby.spawn.z }) // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(Math.PI) // 처음엔 지점 문들이 있는 쪽(-Z)을 봅니다.
+  const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
@@ -104,13 +105,13 @@ export default function LobbyScene({ onEnter }: Props) {
   }
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
-  const viewHint = view === 'top' ? 'V 1인칭으로' : '끌어서 돌기 · V 위에서 보기'
+  const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
   const hint = nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · ${viewHint}`
 
   return (
     <>
       <Canvas>
-        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} /> : <FitCamera />}
+        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} onLockChange={setLocked} /> : <FitCamera />}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
