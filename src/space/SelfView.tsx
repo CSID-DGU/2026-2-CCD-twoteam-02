@@ -1,20 +1,26 @@
 // 3D 좌석 모드의 "내 모습 화면": 웹캠 트래킹(고개·눈·팔)이 반영된 내 캐릭터를 구석에 작게 보여 줍니다.
 // 웹캠 영상 자체는 화면에 나오지 않고, 이 브라우저 밖으로 전송되지도 않습니다.
-import { useRef } from "react";
+//
+// 트래킹은 바깥(src/study/SeatedStudy)에서 켜서 넘겨받습니다. 집중 타이머도 같은 결과를 쓰기 때문입니다.
 import { Canvas } from "@react-three/fiber";
-import { useFaceTracking } from "../tracking/useFaceTracking";
+import type { RefObject } from "react";
 import { TrackedCharacter } from "../tracking/TrackedCharacter";
-import { usePoseTracking } from "../tracking/usePoseTracking";
+import type { FaceState, TrackingStatus } from "../tracking/useFaceTracking";
+import type { PoseState } from "../tracking/usePoseTracking";
 
 const SIZE = 200; // 화면 크기(픽셀)
 const LOOK_AT_Y = 2.0; // 카메라가 바라보는 높이 (가슴과 머리 사이)
 const CAMERA_DISTANCE = 4.5; // 팔을 옆으로 벌리거나 들어도 화면 안에 들어오는 거리
 
-export function SelfView() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const { face, status, message } = useFaceTracking(videoRef);
-  const { pose } = usePoseTracking(videoRef); // 같은 웹캠 영상으로 팔도 추적합니다.
+type Props = {
+  videoRef: RefObject<HTMLVideoElement | null>; // 트래킹이 읽는 웹캠 영상을 붙일 곳
+  face: RefObject<FaceState>;
+  pose: RefObject<PoseState>;
+  status: TrackingStatus;
+  message: string;
+};
 
+export function SelfView({ videoRef, face, pose, status, message }: Props) {
   return (
     <div
       style={{

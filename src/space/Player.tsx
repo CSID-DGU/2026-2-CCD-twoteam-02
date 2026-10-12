@@ -35,9 +35,13 @@ type Props = {
   // 1인칭으로 걸을 때 바라보는 방향(라디안). 넘기면 W 가 보는 쪽 앞, A·D 가 옆걸음, ←→ 가 회전이 됩니다.
   // 넘기지 않으면 위에서 내려다보는 조작(W 가 화면 위쪽)입니다.
   headingRef?: RefObject<number>
+  // 앉을 수 없는 자리(canSit 이 false)에서 E 를 눌렀을 때. 카페는 여기서 DB에 자리를 잡아 봅니다. (#44)
+  onSitBlocked?: (no: number) => void
+  // 바깥에서 "이 번호 자리에 앉아라" 요청. 그 자리 앞에 서 있으면 다음 프레임에 앉습니다. (카페: 자리를 잡은 뒤)
+  sitRef?: RefObject<number | null>
 }
 
-export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef }: Props) {
+export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -101,7 +105,7 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
       toggle.current = false
-      play('idle')
+      if (!seated.current) play('idle') // 앉아 있을 때는 앉은 자세를 그대로 둡니다.
       return
     }
 
@@ -117,7 +121,15 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
       return
     }
     // 가까이 가면 안내는 뜨지만, 앉아도 되는 자리일 때만 앉습니다. (예: 키오스크에서 배정받은 내 자리)
-    if (wantToggle && near.current && (canSit?.(near.current.no) ?? true)) {
+    // 바깥에서 앉으라고 요청한 자리(sitRef) 앞이면 E 없이 앉습니다.
+    const requested = sitRef?.current ?? null
+    const forced = requested !== null && near.current?.no === requested
+    if (forced && sitRef) sitRef.current = null
+    if (wantToggle && near.current && !forced && !(canSit?.(near.current.no) ?? true)) {
+      onSitBlocked?.(near.current.no)
+      return
+    }
+    if (near.current && (forced || (wantToggle && (canSit?.(near.current.no) ?? true)))) {
       const s = near.current
       seated.current = s
       p.x = s.x

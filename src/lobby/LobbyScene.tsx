@@ -6,17 +6,28 @@
 // (Player 는 "앉으면" 캐릭터를 숨기지만, 문을 열면 곧바로 장면이 바뀌므로 보이지 않는다)
 //
 // 어느 문이 실제로 열리는지는 DB의 branches 를 보고 정한다. slug 가 없는 문은 준비 중이다.
-import { useCallback, useState } from 'react'
+//
+// 시점은 지점과 같다: 처음엔 1인칭으로 걸어 다니고, V 로 위에서 보기와 바꾼다. (#71)
+// 1인칭에서는 어느 문이 어느 지점인지 보이도록 문마다 이름 간판을 단다.
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import { Player } from '../space/Player'
+import { WalkCamera } from '../space/WalkCamera'
+import { LABEL_PX, labelTexture } from '../space/labelTexture'
+import { useSession } from '../auth/useSession'
+import { InfoPanel } from '../menu/InfoPanel'
+import { SceneMenu } from '../menu/SceneMenu'
+import type { PanelView } from '../menu/panelTypes'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
 const NO_KIOSK = { x: 1000, z: 1000 } // 로비에는 키오스크가 없다. 아래 Player 주석 참고
+const VIEW_KEY = 'KeyV' // 1인칭 ↔ 위에서 보기
+const SIGN = { width: 2.4, y: 1.75 } // 문 간판 크기와 높이 (문 높이 2.2)
 
 const COLOR = {
   floor: '#dfe6ee',
@@ -55,6 +66,28 @@ export default function LobbyScene({ onEnter }: Props) {
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
+  const [view, setView] = useState<'top' | 'first'>('first') // 처음엔 1인칭
+  const pos = useRef({ x: lobby.spawn.x, z: lobby.spawn.z }) // 1인칭 카메라가 따라갈 내 위치
+  const heading = useRef(Math.PI) // 처음엔 지점 문들이 있는 쪽(-Z)을 봅니다.
+  const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
+  // 로비 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
+  const [panel, setPanel] = useState<PanelView | null>(null)
+  const { session } = useSession()
+  const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
+  useEffect(() => {
+    panelRef.current = panel
+  }, [panel])
+
+  // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== VIEW_KEY || e.repeat || panelRef.current) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      setView((v) => (v === 'top' ? 'first' : 'top'))
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [])
 
   const loadBranches = useCallback(async () => {
     const { data, error } = await supabase.from('branches').select('id, slug, name').eq('is_open', true)
@@ -83,12 +116,13 @@ export default function LobbyScene({ onEnter }: Props) {
   }
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
-  const hint = nearDoor ? `${nearDoor.label} · E 입장` : '방향키나 WASD로 움직여 문 앞으로 가세요'
+  const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
+  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · ${viewHint}`
 
   return (
     <>
       <Canvas>
-        <FitCamera />
+        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} /> : <FitCamera />}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
@@ -108,10 +142,17 @@ export default function LobbyScene({ onEnter }: Props) {
           const open = branches === null || branches.some((b) => b.slug === d.slug)
           const color = d.no === near ? COLOR.near : open ? COLOR.doorOpen : COLOR.doorSoon
           return (
-            <mesh key={d.no} position={[d.x, 1.1, d.z]}>
-              <boxGeometry args={[d.w, 2.2, d.d]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
+            <group key={d.no}>
+              <mesh position={[d.x, 1.1, d.z]}>
+                <boxGeometry args={[d.w, 2.2, d.d]} />
+                <meshStandardMaterial color={color} />
+              </mesh>
+              {/* 간판: 문 앞면(로비 쪽)에 붙입니다. 준비 중인 문은 회색 간판 */}
+              <mesh position={[d.x, SIGN.y, d.z + d.d / 2 + 0.01]}>
+                <planeGeometry args={[SIGN.width, (SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+                <meshBasicMaterial map={labelTexture(d.label, open ? '#14532d' : '#374151')} transparent />
+              </mesh>
+            </group>
           )
         })}
 
@@ -122,15 +163,22 @@ export default function LobbyScene({ onEnter }: Props) {
           // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
           // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
           kiosk={NO_KIOSK}
-          frozen={false}
+          frozen={panel !== null}
           onNearKiosk={() => {}}
           onKiosk={() => {}}
           onNear={setNear}
           onSeat={(no) => void tryEnter(no)}
+          onMove={(x, z) => {
+            pos.current.x = x
+            pos.current.z = z
+          }}
+          headingRef={view === 'first' ? heading : undefined}
         />
       </Canvas>
 
-      <div style={hintBox}>{message || hint}</div>
+      {(message || hint) && <div style={hintBox}>{message || hint}</div>}
+      {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
+      {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
 }

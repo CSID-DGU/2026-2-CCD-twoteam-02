@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
@@ -7,14 +8,12 @@ import SignupPage from './auth/SignupPage'
 import RequireAuth from './auth/RequireAuth'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
+import RecordsPage from './study/RecordsPage'
+import FriendsPage from './friends/FriendsPage'
+import ProfilePage from './profile/ProfilePage'
+import { rememberCondition } from './study/condition'
+import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
 
-// 우측 상단 버튼 공통 모양
-const cornerButton = {
-  position: 'fixed', right: 16, zIndex: 10, padding: '6px 12px',
-  borderRadius: 8, background: '#fff', color: '#20232a',
-  font: '14px system-ui, sans-serif', textDecoration: 'none',
-  boxShadow: '0 1px 4px rgba(0,0,0,.3)',
-} as const
 
 // 로그인한 사람만 통과시키고, 아니면 /login 으로 보냅니다.
 function Protected({ children }: { children: ReactNode }) {
@@ -28,7 +27,12 @@ function CornerLink({ to, label, top }: { to: string; label: string; top: number
 
 function AppRoutes() {
   const navigate = useNavigate()
-  const { hash } = useLocation()
+  const { hash, search } = useLocation()
+
+  // 실험 진행자가 준 링크(?condition=hidden|visible)로 들어오면 그 조건을 이 브라우저에 기억합니다.
+  useEffect(() => {
+    rememberCondition(search)
+  }, [search])
 
   // 예전 주소(#space)로 들어오면 /space 로 넘깁니다. 북마크가 깨지지 않게 하려는 것입니다.
   if (hash === '#space') return <Navigate to="/space" replace />
@@ -51,7 +55,8 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}>
               <LobbyScene onEnter={(branch) => navigate(`/space?branch=${branch.slug}`)} />
             </div>
-            <LogoutButton style={{ ...cornerButton, top: 16 }} />
+            {/* 내 기록·친구·내 프로필(16~96)은 LobbyScene 이 창으로 엽니다. (#70) */}
+            <LogoutButton style={{ ...cornerButton, top: 136 }} />
           </Protected>
         }
       />
@@ -62,7 +67,8 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
             <CornerLink to="/tracking" label="트래킹 검증으로" top={16} />
             <CornerLink to="/" label="로비로" top={56} />
-            <LogoutButton style={{ ...cornerButton, top: 96 }} />
+            {/* 내 기록·친구·내 프로필(96~176)은 BranchScene 이 창으로 엽니다. (#70) */}
+            <LogoutButton style={{ ...cornerButton, top: 216 }} />
           </Protected>
         }
       />
@@ -75,6 +81,25 @@ function AppRoutes() {
           </Protected>
         }
       />
+      <Route
+        path="/records"
+        element={
+          <Protected>
+            <RecordsPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/friends"
+        element={
+          <Protected>
+            <FriendsPage />
+          </Protected>
+        }
+      />
+      {/* /profile 은 내 프로필, /profile/:id 는 그 사람의 프로필 */}
+      <Route path="/profile" element={<Protected><ProfilePage /></Protected>} />
+      <Route path="/profile/:id" element={<Protected><ProfilePage /></Protected>} />
       {/* 없는 주소는 첫 화면으로 */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
