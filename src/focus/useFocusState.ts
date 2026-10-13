@@ -21,14 +21,14 @@ export function useFocusState(
 
   useEffect(() => {
     const id = setInterval(() => {
-      const { found, blink } = face.current;
+      const { found, blink, pitch } = face.current;
       const framed = pose?.current.framed ?? null;
       const screen = {
         pageHidden: document.hidden,
         windowFocused: document.hasFocus(),
         allowDevices,
       };
-      setState((prev) => nextFocusState(prev, { found, blink, framed }, Date.now(), screen));
+      setState((prev) => nextFocusState(prev, { found, blink, pitch, framed }, Date.now(), screen));
     }, 100);
     return () => clearInterval(id);
   }, [face, pose, allowDevices]);

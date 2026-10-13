@@ -1,5 +1,12 @@
 // 집중 상태 표시 (초록/노랑) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
-import { AWAY_SECONDS, DROWSY_SECONDS, OUTFRAME_SECONDS } from "./focusLogic";
+import {
+  AWAY_SECONDS,
+  DROWSY_SECONDS,
+  OUTFRAME_SECONDS,
+  HOLD_LABEL,
+  holdReason,
+  shownStudyMs,
+} from "./focusLogic";
 import type { FocusView } from "./useFocusState";
 
 const LABEL = {
@@ -24,7 +31,10 @@ export default function FocusBadge({
   state: FocusView;
   guide?: "loading" | "ready" | "error"; // 가이드라인(Pose) 상태. 안 넘기면 표시 안 함
 }) {
-  const { color, text } = LABEL[state.status];
+  const hold = holdReason(state);
+  const { color, text } = hold
+    ? { color: "#facc15", text: HOLD_LABEL[hold] }
+    : LABEL[state.status];
   const detail =
     state.awaySeconds > 0
       ? `얼굴 안 보임 ${Math.floor(state.awaySeconds)}초 / ${AWAY_SECONDS}초`
@@ -40,7 +50,7 @@ export default function FocusBadge({
         {text}
         {detail && <span style={{ fontWeight: 400 }}> · {detail}</span>}
       </div>
-      <div>집중 시간 {formatTime(state.studyMs)}</div>
+      <div>집중 시간 {formatTime(shownStudyMs(state))}</div>
       {guide === "loading" && <div style={{ opacity: 0.7 }}>가이드라인 모델 불러오는 중…</div>}
       {guide === "error" && <div style={{ opacity: 0.7 }}>가이드라인 확인 불가 (다른 판정은 계속)</div>}
       {/* 임시: 모드 선택 창이 생기면 그쪽으로 옮깁니다. */}
