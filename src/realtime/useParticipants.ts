@@ -26,29 +26,38 @@
 //  on('presence' join) 으로 남이 들어온 걸 알면
 //  sendNow() 로 내 위치를 한 번 더 보낸다
 //
-// ── 지금 알려진 문제 ─────────────────────────────────────────────────
+// ── 들어올 때 서로를 바로 보는 방법 ──────────────────────────────────
 //
-//  먼저 들어온 A, 나중에 들어온 B 가 있을 때
+//  예전에는 나중에 들어온 사람이 남을 최대 2초 동안 못 봤다.
+//  들어온 쪽이 "네 위치 좀 보내 줘" 하고 조르지 않아서, 남이 알아서 보내 줄 때까지
+//  기다려야 했기 때문이다. 가만히 선 사람은 RESEND_IDLE_MS(2초)마다만 보낸다.
 //
-//    A 가 B 를 보는 속도 : 빠르다
-//      → B 는 subscribe 직후 sendNow() 를 하므로 A 가 바로 받는다
+//  그래서 들어오면서 HELLO_EVENT 를 한 번 보내고, 그걸 받은 사람들이 즉시
+//  자기 위치로 답하게 했다. 이러면 양쪽이 대칭이 된다.
 //
-//    B 가 A 를 보는 속도 : 느릴 수 있다 (최대 RESEND_IDLE_MS = 2초)
-//      → B 는 "내 위치 좀 보내 줘" 하고 조르지 않는다. A 가 알아서 보내 줄 때까지 기다린다.
-//      → A 가 가만히 서 있으면 값이 안 바뀌므로 2초에 한 번만 보낸다.
-//      → 아래 presence join 에서 sendNow() 를 하긴 하는데, 그 순간 B 가
-//         아직 받을 준비가 안 됐으면 놓친다. 그러면 다시 2초를 기다린다.
+//    B 가 들어옴 ──hello──▶ A 가 받고 즉시 sendNow()
+//               ◀──위치───  B 가 바로 A 를 본다
 //
-//  고치는 방향은 세 가지가 있다.
-//    ① RESEND_IDLE_MS 를 줄인다 (2000 → 500). 가장 간단하지만 메시지가 4배로 는다.
-//    ② 들어온 사람이 "나 왔어" 를 한 번 보내고, 받은 사람들이 즉시 자기 위치를 답한다.
-//       정확한 해법. 메시지도 거의 안 는다.
-//    ③ presence join 을 받으면 sendNow() 를 한 번이 아니라 짧은 간격으로 두세 번 보낸다.
-//       ②보다 거칠지만 코드가 적게 바뀐다.
+//  presence 의 join 에서도 같은 일을 한다. 둘 중 하나가 늦거나 유실돼도
+//  나머지가 받쳐 주도록 일부러 두 군데에 둔다. 들어올 때 한 번씩이라 부담은 없다.
+//
+// ── 지연에 대해 ──────────────────────────────────────────────────────
+//
+//  메시지가 상대에게 닿는 데 약 100ms 가 걸린다. 이건 얼마나 자주 보내든 같다.
+//  재어 보니 250ms 로 보낼 때와 16ms 로 보낼 때의 지연이 똑같았다(평균 95ms).
+//  자주 보내면 위치가 촘촘해질 뿐, 더 최신이 되지는 않는다.
+//
+//  화면에 반영되기까지의 지연은 세 단계로 쌓인다.
+//    보낼 차례 기다림 125ms(평균) + 네트워크 95ms + 보간 따라붙기 100ms ≈ 0.32초
+//
+//  그리고 메시지 수는 사람 수의 제곱으로 는다. Supabase 는 보낸 것 1건에
+//  받은 사람마다 1건을 더 센다. 그래서 (사람 수)² × (초당 전송 횟수) 가 된다.
+//  SEND_INTERVAL_MS 를 줄일 때는 이걸 먼저 계산해야 한다.
+//  자세한 내용은 docs/실시간-동기화-방식-비교.md 참고.
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
-import { MOVE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
+import { HELLO_EVENT, MOVE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
 import type { Participant, PresenceState } from './participants'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
@@ -154,20 +163,29 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
       void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: packed })
     }
 
+    // 들어왔다고 알린다. 받은 사람들이 자기 위치로 답해 준다.
+    function sayHello() {
+      const id = me.current?.userId
+      if (!subscribed || !id) return
+      void channel.send({ type: 'broadcast', event: HELLO_EVENT, payload: { userId: id } })
+    }
+
     channel
       .on('presence', { event: 'sync' }, readMembers)
       .on('presence', { event: 'join' }, () => {
         readMembers()
         // 새로 들어온 사람이 나를 바로 볼 수 있도록 지금 위치를 한 번 보낸다.
-        //
-        // ⚠️ 여기가 "나중에 들어온 사람이 나를 늦게 본다" 의 핵심이다.
-        //    이 한 번을 상대가 놓치면, 내가 가만히 서 있는 한 다음 전송은
-        //    RESEND_IDLE_MS(2초) 뒤다. 머리말의 ①②③ 참고.
         sendNow()
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         for (const p of leftPresences as { userId?: string }[]) dropGone(p.userId)
         readMembers()
+      })
+      .on('broadcast', { event: HELLO_EVENT }, ({ payload }) => {
+        // 누가 막 들어왔다. 기다리게 하지 않고 내 위치를 바로 알려 준다.
+        const who = (payload as { userId?: string })?.userId
+        if (!who || who === me.current?.userId) return
+        sendNow()
       })
       .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
         const state = payload as PresenceState
@@ -183,6 +201,7 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
         // presence 는 "누가 있는지"만 담는다. 들어올 때 한 번이면 된다.
         if (id) void channel.track({ userId: id })
         sendNow()
+        sayHello()
       })
 
     // 값이 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
@@ -208,6 +227,7 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
       const id = me.current?.userId
       if (!subscribed || !id || members.has(id)) return
       void channel.track({ userId: id })
+      sayHello()
     }, SEND_INTERVAL_MS)
 
     // 소식이 끊긴 사람을 치운다.
