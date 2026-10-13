@@ -1,5 +1,5 @@
 // 집중 상태 표시 (초록/노랑) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
-import { AWAY_SECONDS, DROWSY_SECONDS } from "./focusLogic";
+import { AWAY_SECONDS, DROWSY_SECONDS, OUTFRAME_SECONDS } from "./focusLogic";
 import type { FocusView } from "./useFocusState";
 
 const LABEL = {
@@ -7,6 +7,7 @@ const LABEL = {
   away: { color: "#facc15", text: "🟡 자리 이탈 의심" },
   drowsy: { color: "#facc15", text: "🟡 졸음 의심" },
   offscreen: { color: "#facc15", text: "🟡 다른 화면 사용 중" },
+  outframe: { color: "#facc15", text: "🟡 가이드라인 이탈 의심" },
 };
 
 // 밀리초 → "01:02:03"
@@ -16,14 +17,22 @@ function formatTime(ms: number) {
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
 }
 
-export default function FocusBadge({ state }: { state: FocusView }) {
+export default function FocusBadge({
+  state,
+  guide,
+}: {
+  state: FocusView;
+  guide?: "loading" | "ready" | "error"; // 가이드라인(Pose) 상태. 안 넘기면 표시 안 함
+}) {
   const { color, text } = LABEL[state.status];
   const detail =
     state.awaySeconds > 0
       ? `얼굴 안 보임 ${Math.floor(state.awaySeconds)}초 / ${AWAY_SECONDS}초`
       : state.closedSeconds > 0
         ? `눈 감음 ${Math.floor(state.closedSeconds)}초 / ${DROWSY_SECONDS}초`
-        : "";
+        : state.outframeSeconds > 0
+          ? `머리~가슴 화면 밖 ${Math.floor(state.outframeSeconds)}초 / ${OUTFRAME_SECONDS}초`
+          : "";
 
   return (
     <>
@@ -32,6 +41,8 @@ export default function FocusBadge({ state }: { state: FocusView }) {
         {detail && <span style={{ fontWeight: 400 }}> · {detail}</span>}
       </div>
       <div>집중 시간 {formatTime(state.studyMs)}</div>
+      {guide === "loading" && <div style={{ opacity: 0.7 }}>가이드라인 모델 불러오는 중…</div>}
+      {guide === "error" && <div style={{ opacity: 0.7 }}>가이드라인 확인 불가 (다른 판정은 계속)</div>}
       {/* 임시: 모드 선택 창이 생기면 그쪽으로 옮깁니다. */}
       <label style={{ cursor: "pointer" }}>
         <input

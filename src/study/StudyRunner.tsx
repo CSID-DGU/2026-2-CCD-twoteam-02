@@ -15,6 +15,7 @@ const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   away: { color: '#facc15', text: '🟡 자리 이탈 의심' },
   drowsy: { color: '#facc15', text: '🟡 졸음 의심' },
   offscreen: { color: '#facc15', text: '🟡 다른 화면 사용 중' },
+  outframe: { color: '#facc15', text: '🟡 가이드라인 이탈 의심' },
 }
 
 type Props = {
