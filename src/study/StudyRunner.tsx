@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { useFocusState } from '../focus/useFocusState'
+import { HOLD_LABEL, holdReason, shownStudyMs } from '../focus/focusLogic'
 import type { FocusInput, FocusStatus } from '../focus/focusLogic'
 import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
@@ -84,11 +85,13 @@ export function StudyRunner({ face, choice, userId, sessionId, condition, onStat
     }
   }, [userId, sessionId, choice, condition])
 
-  const { color, text } = LABEL[focus.status]
+  // 보류 중이면 내 화면에만 노란 표시. 다른 참여자에게는 onStatus 로 focus(초록)가 그대로 갑니다.
+  const hold = holdReason(focus)
+  const { color, text } = hold ? { color: '#facc15', text: HOLD_LABEL[hold] } : LABEL[focus.status]
   return (
     <div style={styles.bar}>
       <span>📘 {choice.subject.name}</span>
-      <span style={styles.time}>{formatDuration(focus.studyMs)}</span>
+      <span style={styles.time}>{formatDuration(shownStudyMs(focus))}</span>
       <span style={{ color }}>{text}</span>
       {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
       <button type="button" style={styles.button} onClick={onChangeSubject}>

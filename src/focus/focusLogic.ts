@@ -1,9 +1,15 @@
 // 집중 상태 판정 + 집중 시간 기록 (화면·React와 무관한 순수 로직)
 // 얼굴 인식 결과를 매번 넣어 주면, 얼굴이 안 보인 시간·눈 감은 시간을 재서 상태를 돌려줍니다.
 //
+// 기준값의 근거는 docs/판정-기준-근거.md 에 있습니다. 원칙: 확실한 경우만 잡고, 애매하면 공부로 인정합니다.
+//
 // 집중 시간: 얼굴이 보이고 눈을 뜬 동안만 쌓입니다.
 // 잠깐 안 보이거나 눈을 감은 시간은 "보류"해 두었다가, 기준 시간 안에 돌아오면 더해 주고
 // 이탈·졸음으로 바뀌면 버립니다. (잠깐 고개 돌린 시간은 인정, 자리 비운 시간은 빼기 위해)
+// 화면에는 확정 시간 + 보류 시간(shownStudyMs)을 보여 줘서 타이머가 멈췄다 튀지 않게 합니다.
+//
+// 졸음: 정면을 볼 때만, 눈을 DROWSY_SECONDS 넘게 계속 감으면 졸음입니다.
+// 고개를 숙이면(필기·읽기) 눈이 감긴 것처럼 잡혀서 조는 것과 구분할 수 없으므로 공부로 칩니다.
 //
 // 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "학습기기 사용함"을 고른 경우에만 공부로 인정합니다.
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
@@ -14,12 +20,13 @@
 // 기준 시간 안에 돌아오면 그동안은 보류했다가 인정하고, 넘기면 "가이드라인 이탈"이 되어 시간이 멈춥니다.
 // 학습기기 사용 여부와 상관없이 적용합니다. (Pose 결과가 없으면 무시)
 
-// 기준값은 아직 임시입니다. 팀에서 확정되면 여기만 고치면 됩니다.
-export const AWAY_SECONDS = 30; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심
-export const DROWSY_SECONDS = 120; // 눈을 이 시간 이상 감고 있으면 졸음 의심 (잠깐 눈 감고 쉬는 건 허용)
-export const OUTFRAME_SECONDS = 5; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈
-export const EYE_CLOSED_SCORE = 0.5; // eyeBlink 평균이 이 값보다 크면 감은 것으로 봅니다.
-export const EYE_OPEN_SCORE = 0.35; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
+// 기준값 (근거: docs/판정-기준-근거.md)
+export const AWAY_SECONDS = 60; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심 (Dell 자리 비움 잠금 60초)
+export const DROWSY_SECONDS = 21; // 눈을 이 시간 이상 계속 감으면 졸음 의심 (OSLER 검사의 잠든 판정 21초)
+export const OUTFRAME_SECONDS = 5; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (임시, 가이드라인 개편 때 정함)
+export const EYE_CLOSED_SCORE = 0.4; // eyeBlink 평균이 이 값보다 크면 감은 것으로 봅니다. (측정: 뜸 11~19%, 감음 50~52%)
+export const EYE_OPEN_SCORE = 0.3; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
+export const HEAD_DOWN_DEGREES = 0; // 고개 위아래 각도가 이보다 크면 숙인 것 (측정: 정면 -4~-7°, 숙임 +9~+13°)
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
 // 다른 탭에 있으면 브라우저가 계산 주기를 최대 1분까지 늦추므로, 그때는 더 길게 허용합니다.
 const HIDDEN_MAX_STEP_MS = 90_000;
@@ -29,6 +36,7 @@ export type FocusStatus = "focus" | "away" | "drowsy" | "offscreen" | "outframe"
 export type FocusInput = {
   found: boolean; // 얼굴이 잡혔는지
   blink: number; // eyeBlinkLeft/Right 평균 (0=뜸, 1=감음)
+  pitch?: number; // 고개 위아래 각도(라디안, 숙이면 +). 생략하면 정면으로 봅니다.
   framed?: boolean | null; // 머리~가슴이 화면 안인지 (null·생략 = 확인 못 함 → 무시)
 };
 
@@ -63,6 +71,26 @@ export const initialFocusState: FocusState = {
   closedSince: null,
   outframeSince: null,
   lastMs: null,
+};
+
+// 화면에 보여 줄 집중 시간: 확정 시간 + 보류 시간. 기준을 넘겨 보류가 버려지면 그만큼 줄어듭니다.
+// 저장은 확정 시간(studyMs)만 합니다.
+export const shownStudyMs = (state: FocusState) => state.studyMs + state.pendingMs;
+
+// 보류 중인 이유 (내 화면에만 노란 표시용). 다른 참여자에게 보내는 상태(status)는 그대로 focus 입니다.
+export function holdReason(state: FocusState): "face" | "eyes" | "frame" | null {
+  if (state.status !== "focus") return null;
+  if (state.awaySeconds > 0) return "face";
+  if (state.closedSeconds > 0) return "eyes";
+  if (state.outframeSeconds > 0) return "frame";
+  return null;
+}
+
+// 보류 중일 때 내 화면에 보여 줄 노란 표시. 시간은 계속 올라갑니다.
+export const HOLD_LABEL = {
+  face: "🟡 얼굴을 찾는 중",
+  eyes: "🟡 눈 감음 확인 중",
+  frame: "🟡 자세 확인 중",
 };
 
 export function nextFocusState(
@@ -113,10 +141,12 @@ export function nextFocusState(
   }
 
   // 얼굴이 보이면 눈 감김을 봅니다. 이미 감은 상태면 더 크게 떠야 뜬 것으로 칩니다.
+  // 고개를 숙였으면 눈을 뜬 것으로 칩니다. (필기·읽기와 졸음을 구분할 수 없어 공부로 인정)
+  const headDown = ((input.pitch ?? 0) * 180) / Math.PI > HEAD_DOWN_DEGREES;
   const wasClosed = prev.closedSince !== null;
-  const closed = wasClosed
-    ? input.blink > EYE_OPEN_SCORE
-    : input.blink > EYE_CLOSED_SCORE;
+  const closed =
+    !headDown &&
+    (wasClosed ? input.blink > EYE_OPEN_SCORE : input.blink > EYE_CLOSED_SCORE);
   const closedSince = closed ? prev.closedSince ?? nowMs : null;
   const closedSeconds = closedSince === null ? 0 : (nowMs - closedSince) / 1000;
 
