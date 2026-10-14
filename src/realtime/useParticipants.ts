@@ -7,6 +7,44 @@
 // 두 가지를 나눠 쓴다. 이유는 participants.ts 머리말 참고.
 //   presence  — 누가 있는지. 들어올 때 한 번만 track 한다.
 //   broadcast — 어디에 있는지. 0.25초마다 보낸다.
+//
+// ── 전체 흐름 ────────────────────────────────────────────────────────
+//
+//  내 쪽                                   남의 쪽
+//  ─────                                   ─────
+//  BranchScene 의 Player 가 매 프레임
+//  handleMove 로 내 위치를 me.current 에 적는다
+//            │
+//            ▼
+//  timer(0.25초) 가 me.current 를 읽어
+//  sendNow() 로 broadcast 전송  ───────────▶  on('broadcast') 가 받아
+//                                             moves 에 넣고 rebuild()
+//                                                    │
+//  subscribe 되면 track({userId}) 한 번             ▼
+//            │                              others 배열이 바뀌고
+//            ▼                              OtherParticipants 가 그린다
+//  on('presence' join) 으로 남이 들어온 걸 알면
+//  sendNow() 로 내 위치를 한 번 더 보낸다
+//
+// ── 지금 알려진 문제 ─────────────────────────────────────────────────
+//
+//  먼저 들어온 A, 나중에 들어온 B 가 있을 때
+//
+//    A 가 B 를 보는 속도 : 빠르다
+//      → B 는 subscribe 직후 sendNow() 를 하므로 A 가 바로 받는다
+//
+//    B 가 A 를 보는 속도 : 느릴 수 있다 (최대 RESEND_IDLE_MS = 2초)
+//      → B 는 "내 위치 좀 보내 줘" 하고 조르지 않는다. A 가 알아서 보내 줄 때까지 기다린다.
+//      → A 가 가만히 서 있으면 값이 안 바뀌므로 2초에 한 번만 보낸다.
+//      → 아래 presence join 에서 sendNow() 를 하긴 하는데, 그 순간 B 가
+//         아직 받을 준비가 안 됐으면 놓친다. 그러면 다시 2초를 기다린다.
+//
+//  고치는 방향은 세 가지가 있다.
+//    ① RESEND_IDLE_MS 를 줄인다 (2000 → 500). 가장 간단하지만 메시지가 4배로 는다.
+//    ② 들어온 사람이 "나 왔어" 를 한 번 보내고, 받은 사람들이 즉시 자기 위치를 답한다.
+//       정확한 해법. 메시지도 거의 안 는다.
+//    ③ presence join 을 받으면 sendNow() 를 한 번이 아니라 짧은 간격으로 두세 번 보낸다.
+//       ②보다 거칠지만 코드가 적게 바뀐다.
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
@@ -121,6 +159,10 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
       .on('presence', { event: 'join' }, () => {
         readMembers()
         // 새로 들어온 사람이 나를 바로 볼 수 있도록 지금 위치를 한 번 보낸다.
+        //
+        // ⚠️ 여기가 "나중에 들어온 사람이 나를 늦게 본다" 의 핵심이다.
+        //    이 한 번을 상대가 놓치면, 내가 가만히 서 있는 한 다음 전송은
+        //    RESEND_IDLE_MS(2초) 뒤다. 머리말의 ①②③ 참고.
         sendNow()
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
@@ -144,6 +186,9 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
       })
 
     // 값이 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
+    //
+    // "값이 그대로면 안 보낸다" 가 트래픽을 아끼는 대신, 가만히 선 사람이
+    // 남에게 늦게 보이는 원인이 된다. RESEND_IDLE_MS 가 그 최대 지연이다.
     const timer = setInterval(() => {
       const state = me.current
       if (!subscribed || !state) return
