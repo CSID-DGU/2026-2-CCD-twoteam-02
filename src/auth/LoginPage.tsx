@@ -7,6 +7,7 @@ import type { FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
+import { EMAIL_MAX, PASSWORD_MAX } from './authLimits'
 
 type Props = {
   onSuccess?: () => void
@@ -48,6 +49,7 @@ export default function LoginPage({ onSuccess, onGoSignup }: Props) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            maxLength={EMAIL_MAX}
             required
           />
         </label>
@@ -60,6 +62,7 @@ export default function LoginPage({ onSuccess, onGoSignup }: Props) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            maxLength={PASSWORD_MAX}
             required
           />
         </label>
