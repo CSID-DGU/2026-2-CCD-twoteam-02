@@ -4,8 +4,7 @@
 // 앉으면 공부 시작 창이 뜨고, 과목을 고르면 그때부터 타이머가 돌며 기록이 저장됩니다.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useFaceTracking } from '../tracking/useFaceTracking'
-import { usePoseTracking } from '../tracking/usePoseTracking'
+import { useTracking } from '../tracking/useTracking'
 import { SelfView } from '../space/SelfView'
 import type { PresenceStatus } from '../space/status'
 import { useSubjects } from './useSubjects'
@@ -24,8 +23,7 @@ type Props = {
 
 export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { face, status, message } = useFaceTracking(videoRef)
-  const { pose } = usePoseTracking(videoRef) // 같은 웹캠 영상으로 팔도 추적합니다.
+  const { face, pose, status, message } = useTracking(videoRef) // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다.
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전

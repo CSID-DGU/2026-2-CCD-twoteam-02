@@ -7,12 +7,10 @@ import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useFocusState } from "./focus/useFocusState";
 import FocusBadge from "./focus/FocusBadge";
-import { useFaceTracking } from "./tracking/useFaceTracking";
-import { usePoseGuide } from "./tracking/usePoseGuide";
+import { useTracking } from "./tracking/useTracking";
 import PoseReadout from "./tracking/PoseReadout";
-import type { FaceState } from "./tracking/useFaceTracking";
+import type { FaceState } from "./tracking/useTracking";
 import { BLINK_THRESHOLD, TrackedCharacter } from "./tracking/TrackedCharacter";
-import { usePoseTracking } from "./tracking/usePoseTracking";
 
 function Readout({ face }: { face: RefObject<FaceState> }) {
   const [text, setText] = useState("");
@@ -39,10 +37,8 @@ function Readout({ face }: { face: RefObject<FaceState> }) {
 
 export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { face, status, message } = useFaceTracking(videoRef);
-  const { pose: guide, status: guideStatus } = usePoseGuide(videoRef); // 카메라 가이드라인 (src/tracking)
-  const focus = useFocusState(face, false, guide); // 집중 상태 판정 (src/focus)
-  const { pose, status: poseStatus } = usePoseTracking(videoRef); // 팔 트래킹 (같은 웹캠 영상)
+  const { face, pose, status, message, poseStatus } = useTracking(videoRef); // 얼굴·팔·가이드라인 (src/tracking)
+  const focus = useFocusState(face, false, pose); // 집중 상태 판정 (src/focus)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
@@ -68,8 +64,8 @@ export default function HeadTrackingTest() {
         )}
         {status === "error" && <div>오류: {message}</div>}
         {status === "ready" && <Readout face={face} />}
-        {status === "ready" && <FocusBadge state={focus} guide={guideStatus} />}
-        {status === "ready" && <PoseReadout pose={guide} />}
+        {status === "ready" && <FocusBadge state={focus} guide={poseStatus} />}
+        {status === "ready" && <PoseReadout pose={pose} />}
         {poseStatus === "loading" && <div>팔 인식 모델을 불러오는 중…</div>}
         {poseStatus === "error" && <div>팔 인식을 시작하지 못했어요. (고개·눈은 그대로 동작)</div>}
       </div>

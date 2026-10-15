@@ -5,8 +5,7 @@ import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import type { FaceState } from "./useFaceTracking";
-import type { PoseState } from "./usePoseTracking";
+import type { FaceState, PoseState } from "./useTracking";
 import { armDirection, pickTarget } from "./armLogic";
 import type { ArmJoints, ArmTarget } from "./armLogic";
 
