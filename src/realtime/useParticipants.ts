@@ -57,11 +57,24 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
-import { HELLO_EVENT, MOVE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
+import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
 import type { Participant, PresenceState } from './participants'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
 type Profile = { nickname: string; model: string }
+
+// toFixed 로 0.30000000000000004 같은 소수 오차를 지워 메시지를 짧게 둔다.
+const round = (value: number, step: number) => Number((Math.round(value / step) * step).toFixed(3))
+
+// 보낼 값을 정한 단위로 줄인다. 아주 작은 흔들림으로 값이 바뀌어 매번 보내는 일을 막는다.
+function pack(state: PresenceState): PresenceState {
+  return {
+    ...state,
+    x: round(state.x, POSITION_STEP),
+    z: round(state.z, POSITION_STEP),
+    ...(state.h === undefined ? {} : { h: round(state.h, HEADING_STEP) }),
+  }
+}
 
 export function useParticipants(branchId: number, me: RefObject<PresenceState | null>) {
   const [others, setOthers] = useState<Participant[]>([])
@@ -152,12 +165,7 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
     function sendNow() {
       const state = me.current
       if (!subscribed || !state) return
-      // 위치는 소수점 둘째 자리까지면 충분하다. 쓸데없는 전송을 줄인다.
-      const packed: PresenceState = {
-        ...state,
-        x: Math.round(state.x * 100) / 100,
-        z: Math.round(state.z * 100) / 100,
-      }
+      const packed = pack(state)
       lastSentKey = JSON.stringify(packed)
       lastSentAt = Date.now()
       void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: packed })
@@ -211,12 +219,7 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
     const timer = setInterval(() => {
       const state = me.current
       if (!subscribed || !state) return
-      const packed = {
-        ...state,
-        x: Math.round(state.x * 100) / 100,
-        z: Math.round(state.z * 100) / 100,
-      }
-      const key = JSON.stringify(packed)
+      const key = JSON.stringify(pack(state))
       if (key === lastSentKey && Date.now() - lastSentAt < RESEND_IDLE_MS) return
       sendNow()
     }, SEND_INTERVAL_MS)

@@ -31,7 +31,8 @@ type Props = {
   onNearKiosk: (near: boolean) => void // 키오스크를 쓸 수 있는 거리에 들어오거나 벗어날 때
   onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
-  onMove?: (x: number, z: number) => void // 매 프레임 현재 위치. 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
+  // 매 프레임 현재 위치와 몸이 바라보는 방향(라디안). 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
+  onMove?: (x: number, z: number, heading: number) => void
   // 1인칭으로 걸을 때 바라보는 방향(라디안). 넘기면 W 가 보는 쪽 앞, A·D 가 옆걸음, ←→ 가 회전이 됩니다.
   // 넘기지 않으면 위에서 내려다보는 조작(W 가 화면 위쪽)입니다.
   headingRef?: RefObject<number>
@@ -82,8 +83,9 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
     const k = keys.current, g = ref.current, p = g.position
     const dt = Math.min(delta, MAX_DT)
 
-    // 앉아 있든 멈춰 있든 위치는 알려 줍니다. 다른 참여자 화면에 내가 그려지는 데 씁니다.
-    onMove?.(p.x, p.z)
+    // 앉아 있든 멈춰 있든 위치와 방향은 알려 줍니다. 다른 참여자 화면에 내가 그려지는 데 씁니다.
+    // 방향은 지난 프레임에 정해진 몸 방향입니다. 1인칭이면 보는 방향, 위에서 볼 때는 가는 방향입니다. (#122)
+    onMove?.(p.x, p.z, g.rotation.y)
 
     const play = (name: string) => {
       if (anim.current === name) return

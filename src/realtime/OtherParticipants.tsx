@@ -94,12 +94,18 @@ export function OtherParticipants({
             onPointerOut={onSelect ? hoverOut : undefined}
           >
             {spot ? (
-              <SeatedCharacter spot={spot} model={p.model} />
+              <>
+                <SeatedCharacter spot={spot} model={p.model} />
+                <NameTag x={x} z={z} name={p.nickname} />
+                <StatusMarker x={x} z={z} status={p.status} />
+              </>
             ) : (
-              <WalkingCharacter x={p.x} z={p.z} model={p.model} />
+              // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
+              <WalkingCharacter x={p.x} z={p.z} h={p.h} model={p.model}>
+                <NameTag x={0} z={0} name={p.nickname} />
+                <StatusMarker x={0} z={0} status={p.status} />
+              </WalkingCharacter>
             )}
-            <NameTag x={x} z={z} name={p.nickname} />
-            <StatusMarker x={x} z={z} status={p.status} />
           </group>
         )
       })}
