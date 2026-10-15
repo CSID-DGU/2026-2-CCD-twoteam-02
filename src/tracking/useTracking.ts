@@ -135,7 +135,9 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       poseState.bgScore = result.score;
       poseState.bgSpread = result.spread;
       poseState.bgCells = result.cells;
-      if (poseState.framed) {
+      // 기준은 Pose와 얼굴 인식이 둘 다 사람을 볼 때만 바꿉니다.
+      // Pose만 보면 벽 무늬를 사람으로 착각한 순간에 벽이 기준이 되어, 카메라가 돌아간 것을 놓칠 수 있습니다. (2026-10-15 측정)
+      if (poseState.framed && faceState.found) {
         bgRef = cells;
         bgRefSkip = skip;
       }
