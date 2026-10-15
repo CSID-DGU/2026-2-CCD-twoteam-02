@@ -18,7 +18,7 @@ export default function PoseReadout({ pose }: { pose: RefObject<PoseState> }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      const { found, framed, guidePoints, bgSame, bgScore, bgSpread } = pose.current;
+      const { found, framed, guidePoints, bgSame, bgScore, bgSpread, bgCells } = pose.current;
       const frame = framed === null ? "확인 못 함" : framed ? "들어옴" : "벗어남";
       const points = guidePoints
         ? guidePoints.map((p, i) => describe(NAMES[i], p)).join(" ")
@@ -26,7 +26,7 @@ export default function PoseReadout({ pose }: { pose: RefObject<PoseState> }) {
       const bg = bgSame === null ? "모름" : bgSame ? "같음" : "바뀜";
       setText(
         `가이드라인: ${frame} · 사람 ${found ? "있음" : "없음"} · ${points} · ` +
-          `배경 ${bg} (닮음 ${f(bgScore)}, 무늬 ${f(bgSpread)})`
+          `배경 ${bg} (닮음 ${f(bgScore)}, 무늬 ${f(bgSpread)}, 비교 ${bgCells}칸)`
       );
     }, 100);
     return () => clearInterval(id);

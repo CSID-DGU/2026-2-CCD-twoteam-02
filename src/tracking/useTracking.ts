@@ -45,6 +45,7 @@ export type PoseState = {
   bgSame: boolean | null; // 배경이 기준과 같은지. null = 믿을 수 없음(기준 없음·무늬 없음)
   bgScore: number | null; // 확인용: 기준 배경과 닮은 정도(상관계수)
   bgSpread: number | null; // 확인용: 기준 배경 무늬의 퍼짐(밝기 표준편차)
+  bgCells: number; // 확인용: 사람 칸을 빼고 실제로 비교한 칸 수
 };
 
 export type TrackingStatus = "loading" | "ready" | "error";
@@ -53,7 +54,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
   const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0 });
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
-    bgSame: null, bgScore: null, bgSpread: null,
+    bgSame: null, bgScore: null, bgSpread: null, bgCells: 0,
   });
   const [status, setStatus] = useState<TrackingStatus>("loading");
   const [message, setMessage] = useState("");
@@ -133,6 +134,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       poseState.bgSame = result.same;
       poseState.bgScore = result.score;
       poseState.bgSpread = result.spread;
+      poseState.bgCells = result.cells;
       if (poseState.framed) {
         bgRef = cells;
         bgRefSkip = skip;
