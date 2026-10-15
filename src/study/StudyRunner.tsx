@@ -10,6 +10,8 @@ import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } fr
 import type { ChunkRow, ChunkState } from './studyLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
+import type { Baseline } from '../focus/calibration'
+import type { PoseState } from '../tracking/useTracking'
 
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   focus: { color: '#4ade80', text: '🟢 공부 중' },
@@ -21,6 +23,9 @@ const LABEL: Record<FocusStatus, { color: string; text: string }> = {
 
 type Props = {
   face: RefObject<FocusInput>
+  pose: RefObject<PoseState> // 몸 인식 (얼굴을 놓쳐도 자리에 있는지)
+  baseline: Baseline | null // 보정 기준 (건너뛰면 null)
+  onRecalibrate: () => void
   choice: StudyChoice
   userId: string
   sessionId: string // 지금 앉아 있는 좌석 이용 기록(seat_sessions.id)
@@ -29,8 +34,8 @@ type Props = {
   onChangeSubject: () => void
 }
 
-export function StudyRunner({ face, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
-  const focus = useFocusState(face, choice.allowDevices)
+export function StudyRunner({ face, pose, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
+  const focus = useFocusState(face, choice.allowDevices, undefined, { body: pose, baseline })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.
@@ -94,6 +99,9 @@ export function StudyRunner({ face, choice, userId, sessionId, condition, onStat
       <span style={styles.time}>{formatDuration(shownStudyMs(focus))}</span>
       <span style={{ color }}>{text}</span>
       {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
+      <button type="button" style={styles.button} onClick={onRecalibrate}>
+        다시 맞추기
+      </button>
       <button type="button" style={styles.button} onClick={onChangeSubject}>
         과목 바꾸기
       </button>

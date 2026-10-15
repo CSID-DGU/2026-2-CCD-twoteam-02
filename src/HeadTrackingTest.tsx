@@ -9,6 +9,8 @@ import { useFocusState } from "./focus/useFocusState";
 import FocusBadge from "./focus/FocusBadge";
 import { useTracking } from "./tracking/useTracking";
 import { CameraGuideNotice } from "./tracking/CameraGuideNotice";
+import { CalibrationDialog } from "./study/CalibrationDialog";
+import type { Baseline } from "./focus/calibration";
 import { MeasureRecorder } from "./tracking/MeasureRecorder";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
@@ -40,7 +42,9 @@ function Readout({ face }: { face: RefObject<FaceState> }) {
 export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { face, pose, status, message, poseStatus } = useTracking(videoRef); // 얼굴·팔·가이드라인 (src/tracking)
-  const focus = useFocusState(face, false, pose); // 집중 상태 판정 (src/focus)
+  const [baseline, setBaseline] = useState<Baseline | null>(null); // 보정 기준 (확인용)
+  const [calibrating, setCalibrating] = useState(false);
+  const focus = useFocusState(face, false, pose, { body: pose, baseline }); // 집중 상태 판정 (src/focus)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
@@ -67,12 +71,28 @@ export default function HeadTrackingTest() {
         {status === "error" && <div>오류: {message}</div>}
         {status === "ready" && <Readout face={face} />}
         {status === "ready" && <FocusBadge state={focus} guide={poseStatus} />}
+        {status === "ready" && (
+          <button type="button" onClick={() => setCalibrating(true)}>
+            {baseline ? "다시 맞추기" : "보정하기 (눈 감음 판정 켜기)"}
+          </button>
+        )}
         {status === "ready" && <PoseReadout pose={pose} />}
         {poseStatus === "loading" && <div>팔 인식 모델을 불러오는 중…</div>}
         {poseStatus === "error" && <div>팔 인식을 시작하지 못했어요. (고개·눈은 그대로 동작)</div>}
       </div>
 
       <CameraGuideNotice pose={pose} />
+      {calibrating && (
+        <CalibrationDialog
+          face={face}
+          pose={pose}
+          onDone={(b) => {
+            setBaseline(b);
+            setCalibrating(false);
+          }}
+          onSkip={() => setCalibrating(false)}
+        />
+      )}
       {status === "ready" && <MeasureRecorder pose={pose} />}
 
       <video
