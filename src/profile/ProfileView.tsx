@@ -1,6 +1,6 @@
 // 프로필 본문: 이름, 공부 기록 요약(누적·이번 주·최근 7일·이번 주 과목별).
 // 프로필 페이지(/profile/:id)와 지점 안 프로필 창이 같이 씁니다.
-// 내 프로필이면 공개 범위를 바꾸는 칸과 "정보 변경" 탭이 붙습니다.
+// 내 프로필이면 공개 범위를 바꾸는 칸과 "캐릭터"(#131)·"정보 변경" 탭이 붙습니다.
 //
 // 탭을 페이지가 아니라 여기에 둔 이유: 로비·지점에서는 페이지로 가지 않고 창으로 열기
 // 때문입니다(#70). 페이지 쪽에만 두면 실제로 쓰는 경로에서는 보이지 않습니다.
@@ -13,12 +13,13 @@ import { useProfile, VISIBILITY_LABEL } from './useProfile'
 import type { Visibility } from './useProfile'
 import { dayLabel } from './profileLogic'
 import { AccountTab } from './AccountTab'
+import { CharacterTab } from './CharacterTab'
 
 export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean }) {
   const { summary, loading, error, setVisibility } = useProfile(userId)
   const [message, setMessage] = useState('')
   // 내 프로필에서만 탭이 보입니다. 남의 프로필에는 공부 기록만 나옵니다.
-  const [tab, setTab] = useState<'records' | 'account'>('records')
+  const [tab, setTab] = useState<'records' | 'character' | 'account'>('records')
 
   if (loading) return <p style={styles.muted}>프로필을 불러오는 중…</p>
   if (error || !summary) return <p style={styles.error}>{error || '프로필을 찾지 못했어요.'}</p>
@@ -30,7 +31,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
 
       {isMe && (
         <nav style={styles.tabs} role="tablist">
-          {([['records', '공부 기록'], ['account', '정보 변경']] as const).map(([key, label]) => (
+          {([['records', '공부 기록'], ['character', '캐릭터'], ['account', '정보 변경']] as const).map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -45,6 +46,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
         </nav>
       )}
 
+      {isMe && tab === 'character' && <CharacterTab />}
       {isMe && tab === 'account' && <AccountTab />}
 
       {tab === 'records' && isMe && (
