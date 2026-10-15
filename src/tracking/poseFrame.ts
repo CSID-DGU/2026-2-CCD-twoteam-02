@@ -23,3 +23,45 @@ export function isFramed(landmarks: PosePoint[] | undefined): boolean {
     return between(point.x, EDGE_MARGIN, 1 - EDGE_MARGIN) && between(point.y, EDGE_MARGIN, maxY);
   });
 }
+
+// ---- 카메라 문제 팝업 규칙 ----
+// 정상일 때는 아무 알림도 없고, "카메라 문제"가 GUIDE_ALERT_SECONDS 넘게 이어질 때만 팝업을 띄웁니다.
+// 사람이 자리를 떠난 것(배경 그대로)은 카메라 문제가 아니므로 팝업을 띄우지 않습니다.
+export const GUIDE_ALERT_SECONDS = 10; // 카메라 문제가 이 시간 넘게 이어지면 팝업
+export const INPUT_RECENT_SECONDS = 10; // 이 시간 안에 키보드·마우스 입력이 있었으면 사람이 자리에 있는 것으로 봄
+
+// cropped: 사람은 보이는데 머리~가슴이 잘림 / moved: 사람이 없고 배경이 바뀜(카메라 돌아감)
+// noPersonActive: 사람이 없고 배경 비교를 못 믿지만(흰 벽 등) 최근 입력이 있음 → 사람은 있는데 카메라가 못 봄
+export type GuideReason = "cropped" | "moved" | "noPersonActive";
+
+export type CameraCheck = {
+  found: boolean; // Pose가 사람을 찾았는지
+  framed: boolean | null; // null = Pose 준비 전·오류
+  bgSame: boolean | null; // 배경이 기준과 같은지, null = 믿을 수 없음
+  lastInputMs: number | null; // 마지막 키보드·마우스 입력 시각 (없으면 null)
+};
+
+export type GuideAlert = {
+  problemSince: number | null; // 카메라 문제가 시작된 시각
+  reason: GuideReason | null;
+  show: boolean; // 팝업을 띄울지
+};
+
+export const initialGuideAlert: GuideAlert = { problemSince: null, reason: null, show: false };
+
+export function cameraProblem(check: CameraCheck, nowMs: number): GuideReason | null {
+  if (check.framed === null || check.framed) return null; // 모르거나 정상
+  if (check.found) return "cropped";
+  if (check.bgSame === false) return "moved";
+  const recentInput =
+    check.lastInputMs !== null && nowMs - check.lastInputMs <= INPUT_RECENT_SECONDS * 1000;
+  if (check.bgSame === null && recentInput) return "noPersonActive";
+  return null; // 배경 그대로 → 자리 이탈 (자리 이탈 판정이 따로 처리)
+}
+
+export function nextGuideAlert(prev: GuideAlert, check: CameraCheck, nowMs: number): GuideAlert {
+  const reason = cameraProblem(check, nowMs);
+  if (!reason) return initialGuideAlert; // 돌아오면 바로 내림
+  const problemSince = prev.problemSince ?? nowMs;
+  return { problemSince, reason, show: nowMs - problemSince >= GUIDE_ALERT_SECONDS * 1000 };
+}
