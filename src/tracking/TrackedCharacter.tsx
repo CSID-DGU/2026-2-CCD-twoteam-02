@@ -9,8 +9,9 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { FaceState, PoseState } from "./useTracking";
-import { armDirection, pickTarget } from "./armLogic";
-import type { ArmJoints, ArmTarget } from "./armLogic";
+import { characterArms } from "./armLogic";
+import { applyArms } from "./armPose";
+import { useArmDirections } from "./useArmDirections";
 import { headAngles, nextEyesClosed } from "./faceSync";
 import { showEyes, useEyeSkin } from "./useEyeSkin";
 
@@ -18,13 +19,7 @@ const MODEL = "a"; // 내 캐릭터 모델 (public/models/character-a.glb)
 const MODEL_URL = `/models/character-${MODEL}.glb`;
 const HEAD_NODE = "head";
 const HEAD_FOLLOW = 12; // 머리가 목표 각도를 따라가는 빠르기
-const ARM_FOLLOW = 12; // 팔이 목표 방향을 따라가는 빠르기. 머리와 같은 값
-const ARM_REST = new THREE.Vector3(0, -1, 0); // 팔 막대의 기본 방향 (아래로 늘어짐)
-// 거울처럼 움직이도록 사용자 오른팔을 캐릭터 왼팔(화면 오른쪽)에 붙입니다.
-const ARMS = [
-  { node: "arm-left", side: "right" },
-  { node: "arm-right", side: "left" },
-] as const;
+const ARM_FOLLOW = 8; // 팔이 목표 방향을 따라가는 빠르기. 떨림을 줄이려고 머리보다 느리게 둡니다. (#139)
 
 type Props = {
   face: RefObject<FaceState>;
@@ -37,10 +32,8 @@ export function TrackedCharacter({ face, pose }: Props) {
   const model = useMemo(() => scene.clone(true), [scene]);
   const eyes = useEyeSkin(model, MODEL);
   const eyesClosed = useRef(false);
-  // 팔마다 직전에 고른 기준 관절(손목/팔꿈치). 기준이 떨리지 않게 기억합니다.
-  const armTargets = useRef<Record<string, ArmTarget>>({});
-  // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
-  const armCalc = useRef({ dir: new THREE.Vector3(), goal: new THREE.Quaternion() });
+  // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)
+  const arms = useArmDirections(pose);
 
   useFrame((_, delta) => {
     const head = model.getObjectByName(HEAD_NODE);
@@ -60,21 +53,9 @@ export function TrackedCharacter({ face, pose }: Props) {
     head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, angles?.pitch ?? 0, follow);
     head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, angles?.roll ?? 0, follow);
 
-    // 팔: 어깨에서 손목(안 보이면 팔꿈치) 쪽으로 팔 막대를 돌립니다. 둘 다 안 보이면 천천히 내립니다.
+    // 팔: 어깨에서 손목(안 보이면 팔꿈치) 쪽으로 팔 막대를 돌립니다. 거울처럼 붙입니다.
     if (!pose) return;
-    const armFollow = 1 - Math.exp(-ARM_FOLLOW * delta);
-    const { dir, goal } = armCalc.current;
-    for (const { node, side } of ARMS) {
-      const arm = model.getObjectByName(node);
-      if (!arm) continue;
-      const joints: ArmJoints | null = pose.current[side];
-      const target = pickTarget(joints, armTargets.current[node] ?? null);
-      armTargets.current[node] = target;
-      const d = armDirection(joints, target);
-      if (d) goal.setFromUnitVectors(ARM_REST, dir.set(d.x, d.y, d.z));
-      else goal.identity();
-      arm.quaternion.slerp(goal, armFollow);
-    }
+    applyArms(model, characterArms(arms.current, true), 1 - Math.exp(-ARM_FOLLOW * delta));
   });
 
   return <primitive object={model} />;
