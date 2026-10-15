@@ -39,7 +39,7 @@ export function CameraGuideNotice({ pose }: { pose: RefObject<PoseState> }) {
   }, [pose]);
 
   if (!alert.show) return null;
-  return <div style={style}>📷 카메라에 머리와 어깨가 보이도록 맞춰 주세요</div>;
+  return <div style={style}>(가이드라인) 📷 카메라에 머리와 어깨가 보이도록 맞춰 주세요</div>;
 }
 
 // 공부 막대(top 16) 바로 아래, 공부 시작 창(zIndex 20)보다 위
