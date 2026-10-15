@@ -12,7 +12,8 @@ import { CameraGuideNotice } from "./tracking/CameraGuideNotice";
 import { MeasureRecorder } from "./tracking/MeasureRecorder";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
-import { BLINK_THRESHOLD, TrackedCharacter } from "./tracking/TrackedCharacter";
+import { TrackedCharacter } from "./tracking/TrackedCharacter";
+import { BLINK_THRESHOLD } from "./tracking/faceSync";
 
 function Readout({ face }: { face: RefObject<FaceState> }) {
   const [text, setText] = useState("");

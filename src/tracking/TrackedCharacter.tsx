@@ -1,6 +1,9 @@
 // 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 눈 감은 스킨,
 // (pose 를 넘기면) 팔 방향 → 팔 회전
-import { useEffect, useRef } from "react";
+//
+// 캐릭터는 복사본에 이 캐릭터만 쓰는 재질을 입혀 그립니다. 원본을 그대로 쓰면 눈을 감을 때
+// 같은 모델(a)을 쓰는 다른 참여자 캐릭터까지 같이 눈을 감습니다. (#113, useEyeSkin.ts)
+import { useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
@@ -8,17 +11,13 @@ import * as THREE from "three";
 import type { FaceState, PoseState } from "./useTracking";
 import { armDirection, pickTarget } from "./armLogic";
 import type { ArmJoints, ArmTarget } from "./armLogic";
+import { headAngles, nextEyesClosed } from "./faceSync";
+import { showEyes, useEyeSkin } from "./useEyeSkin";
 
-const MODEL_URL = "/models/character-a.glb";
-const BLINK_TEXTURE_URL = "/models/Textures/texture-a-blink.png"; // 눈 감은 스킨
+const MODEL = "a"; // 내 캐릭터 모델 (public/models/character-a.glb)
+const MODEL_URL = `/models/character-${MODEL}.glb`;
 const HEAD_NODE = "head";
-
-// 거울처럼 움직이게 하는 부호입니다. 방향이 반대로 보이면 1과 -1을 바꾸세요.
-const YAW_SIGN = -1; // 좌우
-const PITCH_SIGN = 1; // 위아래
-const ROLL_SIGN = -1; // 갸웃
-export const BLINK_THRESHOLD = 0.5; // 이 값보다 크면 눈을 감은 것으로 봅니다.
-const BLINK_OPEN_THRESHOLD = 0.35; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
+const HEAD_FOLLOW = 12; // 머리가 목표 각도를 따라가는 빠르기
 const ARM_FOLLOW = 12; // 팔이 목표 방향을 따라가는 빠르기. 머리와 같은 값
 const ARM_REST = new THREE.Vector3(0, -1, 0); // 팔 막대의 기본 방향 (아래로 늘어짐)
 // 거울처럼 움직이도록 사용자 오른팔을 캐릭터 왼팔(화면 오른쪽)에 붙입니다.
@@ -27,12 +26,6 @@ const ARMS = [
   { node: "arm-right", side: "left" },
 ] as const;
 
-type EyeTextures = {
-  material: THREE.MeshBasicMaterial;
-  open: THREE.Texture;
-  closed: THREE.Texture;
-};
-
 type Props = {
   face: RefObject<FaceState>;
   pose?: RefObject<PoseState>; // 없으면 팔은 움직이지 않습니다.
@@ -40,70 +33,39 @@ type Props = {
 
 export function TrackedCharacter({ face, pose }: Props) {
   const { scene } = useGLTF(MODEL_URL);
-  const eyes = useRef<EyeTextures | null>(null);
+  // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
+  const model = useMemo(() => scene.clone(true), [scene]);
+  const eyes = useEyeSkin(model, MODEL);
   const eyesClosed = useRef(false);
   // 팔마다 직전에 고른 기준 관절(손목/팔꿈치). 기준이 떨리지 않게 기억합니다.
   const armTargets = useRef<Record<string, ArmTarget>>({});
   // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
   const armCalc = useRef({ dir: new THREE.Vector3(), goal: new THREE.Quaternion() });
 
-  // 눈 감은 스킨을 불러옵니다. 캐릭터 전체가 스킨 한 장을 같이 쓰므로 통째로 바꿔 끼웁니다.
-  useEffect(() => {
-    const head = scene.getObjectByName(HEAD_NODE);
-    if (!(head instanceof THREE.Mesh)) return;
-    const material = head.material as THREE.MeshBasicMaterial;
-    const open = material.map;
-    if (!open) return;
-
-    const closed = new THREE.TextureLoader().load(BLINK_TEXTURE_URL, () => {
-      eyes.current = { material, open, closed };
-    });
-    // 원래 스킨과 같은 방식으로 입혀지도록 설정을 그대로 맞춥니다.
-    closed.flipY = open.flipY;
-    closed.colorSpace = open.colorSpace;
-    closed.wrapS = open.wrapS;
-    closed.wrapT = open.wrapT;
-    closed.minFilter = open.minFilter;
-    closed.magFilter = open.magFilter;
-
-    return () => {
-      eyes.current = null;
-      material.map = open;
-      closed.dispose();
-    };
-  }, [scene]);
-
   useFrame((_, delta) => {
-    const head = scene.getObjectByName(HEAD_NODE);
+    const head = model.getObjectByName(HEAD_NODE);
     if (!head) return;
     const state = face.current;
 
     // 눈: 감긴 정도에 따라 뜬 스킨과 감은 스킨을 바꿉니다.
-    const limit = eyesClosed.current ? BLINK_OPEN_THRESHOLD : BLINK_THRESHOLD;
-    eyesClosed.current = state.found && state.blink > limit;
-    if (eyes.current) {
-      const { material, open, closed } = eyes.current;
-      const wanted = eyesClosed.current ? closed : open;
-      if (material.map !== wanted) material.map = wanted;
-    }
+    eyesClosed.current = nextEyesClosed(eyesClosed.current, state);
+    showEyes(eyes.current, eyesClosed.current);
 
-    // 얼굴을 놓치면 정면으로 천천히 돌아옵니다.
-    const yaw = state.found ? state.yaw * YAW_SIGN : 0;
-    const pitch = state.found ? state.pitch * PITCH_SIGN : 0;
-    const roll = state.found ? state.roll * ROLL_SIGN : 0;
+    // 내 모습 화면은 거울처럼 움직입니다. 얼굴을 놓치면 정면으로 천천히 돌아옵니다.
+    const angles = headAngles(state, true);
     // 떨림을 줄이기 위해 목표 각도로 부드럽게 따라갑니다.
-    const follow = 1 - Math.exp(-12 * delta);
+    const follow = 1 - Math.exp(-HEAD_FOLLOW * delta);
     head.rotation.order = "YXZ";
-    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, yaw, follow);
-    head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, pitch, follow);
-    head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, roll, follow);
+    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, angles?.yaw ?? 0, follow);
+    head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, angles?.pitch ?? 0, follow);
+    head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, angles?.roll ?? 0, follow);
 
     // 팔: 어깨에서 손목(안 보이면 팔꿈치) 쪽으로 팔 막대를 돌립니다. 둘 다 안 보이면 천천히 내립니다.
     if (!pose) return;
     const armFollow = 1 - Math.exp(-ARM_FOLLOW * delta);
     const { dir, goal } = armCalc.current;
     for (const { node, side } of ARMS) {
-      const arm = scene.getObjectByName(node);
+      const arm = model.getObjectByName(node);
       if (!arm) continue;
       const joints: ArmJoints | null = pose.current[side];
       const target = pickTarget(joints, armTargets.current[node] ?? null);
@@ -115,7 +77,7 @@ export function TrackedCharacter({ face, pose }: Props) {
     }
   });
 
-  return <primitive object={scene} />;
+  return <primitive object={model} />;
 }
 
 useGLTF.preload(MODEL_URL);
