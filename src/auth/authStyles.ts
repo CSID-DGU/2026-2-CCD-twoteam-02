@@ -54,4 +54,5 @@ export const styles = {
   error: { color: '#f87171', margin: 0 },
   notice: { color: '#4ade80', margin: 0 },
   hint: { color: '#9aa1ab', margin: 0, fontSize: 13 },
+  check: { display: 'flex', alignItems: 'center', gap: 8, color: '#e5e7eb', fontSize: 14, cursor: 'pointer' },
 } satisfies Record<string, CSSProperties>

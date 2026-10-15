@@ -9,6 +9,7 @@ import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
 import { EMAIL_MAX, PASSWORD_MAX } from './authLimits'
 import { signupRedirectTo } from './authRedirect'
+import { setKeepSignedIn } from './sessionStorageChoice'
 
 type Props = {
   onGoForgot?: () => void
@@ -24,6 +25,8 @@ export default function LoginPage({ onSuccess, onGoSignup, onGoForgot }: Props) 
   // 아직 가입 확인을 안 한 계정이면 "확인 메일 다시 받기"를 띄웁니다.
   // 메일이 스팸함에 묻히거나 링크가 만료되면 달리 들어올 방법이 없기 때문입니다.
   const [needsConfirm, setNeedsConfirm] = useState(false)
+  // 기본은 꺼짐. 로그아웃하면 지워지므로 다시 올 때도 항상 꺼진 상태입니다. (#128)
+  const [keepSignedIn, setKeep] = useState(false)
   const [busy, setBusy] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
@@ -33,6 +36,10 @@ export default function LoginPage({ onSuccess, onGoSignup, onGoForgot }: Props) 
     setNotice('')
     setNeedsConfirm(false)
     setBusy(true)
+
+    // 로그인 정보를 어디에 둘지 먼저 정합니다. 로그인이 끝나면 바로 저장되므로
+    // 이 줄이 signInWithPassword 보다 앞에 있어야 합니다. (#128)
+    setKeepSignedIn(keepSignedIn)
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -96,6 +103,14 @@ export default function LoginPage({ onSuccess, onGoSignup, onGoForgot }: Props) 
             required
           />
         </label>
+
+        <label style={styles.check}>
+          <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeep(e.target.checked)} />
+          로그인 유지
+        </label>
+        <p style={styles.hint}>
+          켜지 않으면 브라우저를 닫을 때 로그아웃됩니다. 공용 컴퓨터에서는 끄고 쓰세요.
+        </p>
 
         {error && <p style={styles.error}>{error}</p>}
         {notice && <p style={styles.notice}>{notice}</p>}

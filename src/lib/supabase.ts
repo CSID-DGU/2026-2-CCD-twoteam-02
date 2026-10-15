@@ -6,6 +6,7 @@
 // 넣는 키는 Publishable key(= anon key)다. 브라우저에 그대로 노출되는 값이라
 // 테이블 접근은 RLS 정책이 막는다. Secret key(service_role)는 절대 넣지 않는다.
 import { createClient } from '@supabase/supabase-js'
+import { choosingStorage } from '../auth/sessionStorageChoice'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -17,4 +18,11 @@ if (!url || !publishableKey) {
   )
 }
 
-export const supabase = createClient(url, publishableKey)
+// 로그인 정보를 어디에 둘지는 choosingStorage 가 그때그때 고릅니다. (#128)
+// 기본은 창을 닫으면 사라지는 곳이고, "로그인 유지"를 고른 사람만 남깁니다.
+//
+// autoRefreshToken 은 끄지 않습니다. 끄면 토큰이 만료되는 1시간 뒤에 로그아웃되어
+// 2시간짜리 공부 중에 좌석과 기록이 끊깁니다.
+export const supabase = createClient(url, publishableKey, {
+  auth: { storage: choosingStorage },
+})
