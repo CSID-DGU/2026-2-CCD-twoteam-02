@@ -23,7 +23,7 @@
 // 기준값 (근거: docs/판정-기준-근거.md)
 export const AWAY_SECONDS = 60; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심 (Dell 자리 비움 잠금 60초)
 export const DROWSY_SECONDS = 21; // 눈을 이 시간 이상 계속 감으면 졸음 의심 (OSLER 검사의 잠든 판정 21초)
-export const OUTFRAME_SECONDS = 5; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (임시, 가이드라인 개편 때 정함)
+export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (카메라 팝업 기준 GUIDE_ALERT_SECONDS와 같게)
 export const EYE_CLOSED_SCORE = 0.4; // eyeBlink 평균이 이 값보다 크면 감은 것으로 봅니다. (측정: 뜸 11~19%, 감음 50~52%)
 export const EYE_OPEN_SCORE = 0.3; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
 export const HEAD_DOWN_DEGREES = 0; // 고개 위아래 각도가 이보다 크면 숙인 것 (측정: 정면 -4~-7°, 숙임 +9~+13°)

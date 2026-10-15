@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { useFocusState } from "./focus/useFocusState";
 import FocusBadge from "./focus/FocusBadge";
 import { useTracking } from "./tracking/useTracking";
+import { CameraGuideNotice } from "./tracking/CameraGuideNotice";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
 import { BLINK_THRESHOLD, TrackedCharacter } from "./tracking/TrackedCharacter";
@@ -69,6 +70,8 @@ export default function HeadTrackingTest() {
         {poseStatus === "loading" && <div>팔 인식 모델을 불러오는 중…</div>}
         {poseStatus === "error" && <div>팔 인식을 시작하지 못했어요. (고개·눈은 그대로 동작)</div>}
       </div>
+
+      <CameraGuideNotice pose={pose} />
 
       <video
         ref={videoRef}

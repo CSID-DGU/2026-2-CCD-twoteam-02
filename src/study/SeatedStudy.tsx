@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useTracking } from '../tracking/useTracking'
+import { CameraGuideNotice } from '../tracking/CameraGuideNotice'
 import { SelfView } from '../space/SelfView'
 import type { PresenceStatus } from '../space/status'
 import { useSubjects } from './useSubjects'
@@ -42,6 +43,8 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   return (
     <>
       <SelfView videoRef={videoRef} face={face} pose={pose} status={status} message={message} />
+      {/* 앉는 순간부터 카메라 구도를 확인합니다. (공부 시작 전·공부 중 모두) */}
+      <CameraGuideNotice pose={pose} />
 
       {choice && sessionId ? (
         // key: 과목을 바꾸면 새 타이머로 다시 시작하고, 이전 타이머는 사라지면서 남은 기록을 저장합니다.
