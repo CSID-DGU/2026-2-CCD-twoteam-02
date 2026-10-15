@@ -2,6 +2,7 @@
 // 웹캠은 한 번만 켜고, 반복 하나에서 얼굴은 새 프레임마다, Pose는 초당 POSE_HZ번 인식합니다.
 // 결과는 매 프레임 바뀌므로 state가 아니라 ref에 담고, 쓰는 곳(캐릭터·집중 판정·가이드라인)이 필요한 값만 가져갑니다.
 // 웹캠 영상은 이 브라우저 안에서만 처리되고 어디로도 전송되지 않습니다.
+// 배경 확인(카메라가 돌아갔는지)은 1초마다 영상을 작게 줄여 칸별 평균 밝기 숫자로만 읽고, 그림은 남기지 않습니다.
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { FaceLandmarker, FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -10,6 +11,7 @@ import * as THREE from "three";
 import { POSE_HZ } from "./armLogic";
 import type { ArmJoints, Joint } from "./armLogic";
 import { GUIDE_POINTS, isFramed } from "./poseFrame";
+import { BG_SAMPLE_HEIGHT, BG_SAMPLE_WIDTH, cellMeans, compareBackground, personCells } from "./background";
 import type { PosePoint } from "./poseFrame";
 
 // package.json에 설치된 @mediapipe/tasks-vision 버전과 맞춰야 합니다.
@@ -24,6 +26,7 @@ const POSE_MODEL_URL =
 // MediaPipe Pose 관절 번호 (사용자 기준 왼쪽·오른쪽)
 const LEFT = { shoulder: 11, elbow: 13, wrist: 15 };
 const RIGHT = { shoulder: 12, elbow: 14, wrist: 16 };
+const BG_INTERVAL_MS = 1000; // 배경 확인 간격 (제안서: 가이드라인 확인은 초당 1~2회)
 
 export type FaceState = {
   found: boolean;
@@ -39,13 +42,19 @@ export type PoseState = {
   right: ArmJoints | null; // 사용자 오른팔
   framed: boolean | null; // 머리~가슴(코·양 어깨)이 화면 안인지. null = Pose 준비 전·오류 → 판정에서 무시
   guidePoints: (PosePoint | undefined)[] | null; // 확인용: 코·양 어깨 화면 좌표 (GUIDE_POINTS 순서)
+  bgSame: boolean | null; // 배경이 기준과 같은지. null = 믿을 수 없음(기준 없음·무늬 없음)
+  bgScore: number | null; // 확인용: 기준 배경과 닮은 정도(상관계수)
+  bgSpread: number | null; // 확인용: 기준 배경 무늬의 퍼짐(밝기 표준편차)
 };
 
 export type TrackingStatus = "loading" | "ready" | "error";
 
 export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
   const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0 });
-  const pose = useRef<PoseState>({ found: false, left: null, right: null, framed: null, guidePoints: null });
+  const pose = useRef<PoseState>({
+    found: false, left: null, right: null, framed: null, guidePoints: null,
+    bgSame: null, bgScore: null, bgSpread: null,
+  });
   const [status, setStatus] = useState<TrackingStatus>("loading");
   const [message, setMessage] = useState("");
   const [poseStatus, setPoseStatus] = useState<TrackingStatus>("loading");
@@ -105,6 +114,31 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       poseState.guidePoints = image ? GUIDE_POINTS.map((i) => image[i]) : null;
     }
 
+    // 배경: 영상을 작게 줄여 칸별 밝기만 읽고, 머리~가슴이 화면 안인 동안은 그 배경을 기준으로 삼습니다.
+    // (사용자가 카메라를 옮긴 뒤 다시 제대로 앉으면 새 배경이 기준이 됨)
+    const canvas = document.createElement("canvas");
+    canvas.width = BG_SAMPLE_WIDTH;
+    canvas.height = BG_SAMPLE_HEIGHT;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    let bgRef: number[] | null = null;
+    let bgRefSkip: boolean[] | null = null;
+
+    function readBackground(video: HTMLVideoElement) {
+      if (!context) return;
+      context.drawImage(video, 0, 0, BG_SAMPLE_WIDTH, BG_SAMPLE_HEIGHT);
+      const { data } = context.getImageData(0, 0, BG_SAMPLE_WIDTH, BG_SAMPLE_HEIGHT);
+      const cells = cellMeans(data, BG_SAMPLE_WIDTH, BG_SAMPLE_HEIGHT);
+      const skip = personCells(poseState.found ? poseState.guidePoints : null);
+      const result = compareBackground(bgRef, bgRefSkip, cells, skip);
+      poseState.bgSame = result.same;
+      poseState.bgScore = result.score;
+      poseState.bgSpread = result.spread;
+      if (poseState.framed) {
+        bgRef = cells;
+        bgRefSkip = skip;
+      }
+    }
+
     async function start() {
       const video = videoRef.current;
       if (!video) return;
@@ -150,6 +184,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
 
       let lastVideoTime = -1;
       let lastPose = 0;
+      let lastBackground = 0;
       const loop = () => {
         if (cancelled || !faceLandmarker) return;
         if (video.readyState >= 2) {
@@ -162,6 +197,11 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
           if (poseLandmarker && now - lastPose >= 1000 / POSE_HZ) {
             lastPose = now;
             readPose(poseLandmarker, video, now);
+          }
+          // 배경은 Pose 결과(사람 위치)가 있어야 비교할 수 있어 Pose가 준비된 뒤에만 봅니다.
+          if (poseLandmarker && now - lastBackground >= BG_INTERVAL_MS) {
+            lastBackground = now;
+            readBackground(video);
           }
         }
         frameId = requestAnimationFrame(loop);
@@ -183,6 +223,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       poseLandmarker?.close();
       poseState.framed = null; // 꺼진 뒤 남은 값으로 판정하지 않게
       poseState.guidePoints = null;
+      poseState.bgSame = null;
     };
   }, [videoRef]);
 
