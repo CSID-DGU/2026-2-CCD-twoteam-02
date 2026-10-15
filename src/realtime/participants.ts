@@ -26,6 +26,9 @@ export type PresenceState = {
   z: number
   seat: number | null // 앉아 있으면 좌석 번호, 아니면 null
   status: PresenceStatus
+  // 몸이 바라보는 방향(라디안, 0이면 +Z). 1인칭에서 옆걸음·뒷걸음을 하면 가는 방향과 보는 방향이 달라서
+  // 위치만으로는 알 수 없다. (#122) 이 값이 없는 예전 버전이 보낸 메시지는 가는 방향을 보게 그린다.
+  h?: number
 }
 
 // 화면에 그릴 때 쓰는 값. Presence 와 DB 에서 읽은 것을 합친 결과다.
@@ -40,6 +43,10 @@ export const SEND_INTERVAL_MS = 250
 // 값이 그대로여도 이만큼 지나면 한 번 더 보낸다.
 // 가만히 선 사람도 나중에 들어온 사람에게 보여야 한다.
 export const RESEND_IDLE_MS = 2000
+
+// 보내기 전에 값을 줄이는 단위. 이보다 작은 변화는 보내지 않는다(쓸데없는 전송 줄이기).
+export const POSITION_STEP = 0.01 // 위치: 1cm
+export const HEADING_STEP = 0.05 // 방향: 약 3도. 받는 쪽이 부드럽게 돌리므로 충분하다.
 
 // 위치를 실어 보내는 메시지 이름
 export const MOVE_EVENT = 'move'
