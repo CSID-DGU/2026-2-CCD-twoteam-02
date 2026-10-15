@@ -146,7 +146,9 @@ export function nextFocusState(
     const body = input.bodyFound === true;
     let missingSince = prev.missingSince ?? nowMs;
     const lastInput = screen.lastInputMs ?? null;
-    if (body && lastInput !== null && lastInput > missingSince) missingSince = Math.min(lastInput, nowMs);
+    // 입력이 있어 깨어 있음이 확인되면 처음부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
+    const typed = body && lastInput !== null && lastInput > missingSince;
+    if (typed) missingSince = Math.min(lastInput, nowMs);
     const awaySeconds = (nowMs - missingSince) / 1000;
     const status: FocusStatus = awaySeconds >= AWAY_SECONDS ? (body ? "drowsy" : "away") : "focus";
     return {
@@ -154,8 +156,8 @@ export function nextFocusState(
       awaySeconds,
       closedSeconds: 0,
       outframeSeconds: 0,
-      studyMs: prev.studyMs,
-      pendingMs: status === "focus" ? prev.pendingMs + step : 0,
+      studyMs: typed ? prev.studyMs + prev.pendingMs + step : prev.studyMs,
+      pendingMs: typed ? 0 : status === "focus" ? prev.pendingMs + step : 0,
       missingSince,
       closedSince: null,
       outframeSince: null,
