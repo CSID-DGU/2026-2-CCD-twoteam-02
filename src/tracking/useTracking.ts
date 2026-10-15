@@ -9,6 +9,7 @@ import { FaceLandmarker, FilesetResolver, PoseLandmarker } from "@mediapipe/task
 import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
 import * as THREE from "three";
 import { POSE_HZ } from "./armLogic";
+import { earOf } from "./eyeMetrics";
 import type { ArmJoints, Joint } from "./armLogic";
 import { GUIDE_POINTS, isFramed } from "./poseFrame";
 import { BG_SAMPLE_HEIGHT, BG_SAMPLE_WIDTH, cellMeans, compareBackground, personCells } from "./background";
@@ -34,6 +35,7 @@ export type FaceState = {
   pitch: number;
   roll: number;
   blink: number;
+  ear: number | null; // 눈 크기(EAR). 보정·눈 감음 판정용
 };
 
 export type PoseState = {
@@ -46,15 +48,16 @@ export type PoseState = {
   bgScore: number | null; // 확인용: 기준 배경과 닮은 정도(상관계수)
   bgSpread: number | null; // 확인용: 기준 배경 무늬의 퍼짐(밝기 표준편차)
   bgCells: number; // 확인용: 사람 칸을 빼고 실제로 비교한 칸 수
+  wristsInView: boolean; // 손목이 화면 아래쪽 안에 보이는지 (책상이 보이는 구도인지)
 };
 
 export type TrackingStatus = "loading" | "ready" | "error";
 
 export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
-  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0 });
+  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, ear: null });
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
-    bgSame: null, bgScore: null, bgSpread: null, bgCells: 0,
+    bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false,
   });
   const [status, setStatus] = useState<TrackingStatus>("loading");
   const [message, setMessage] = useState("");
@@ -77,6 +80,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       const transform = result.facialTransformationMatrixes?.[0];
       if (!transform) {
         faceState.found = false;
+        faceState.ear = null;
         return;
       }
       matrix.fromArray(transform.data);
@@ -89,6 +93,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       const left = shapes.find((c) => c.categoryName === "eyeBlinkLeft")?.score ?? 0;
       const right = shapes.find((c) => c.categoryName === "eyeBlinkRight")?.score ?? 0;
       faceState.blink = (left + right) / 2;
+      faceState.ear = earOf(result.faceLandmarks?.[0], video.videoWidth || 640, video.videoHeight || 480);
     }
 
     // Pose: 팔 관절(3D 위치) + 가이드라인(코·양 어깨 화면 좌표)
@@ -111,6 +116,9 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
         poseState.left = null;
         poseState.right = null;
       }
+      // 손목(15·16)이 화면 아래쪽 안에 있으면 책상이 보이는 구도 (보정 때 기록만 함)
+      poseState.wristsInView =
+        !!image && [image[15], image[16]].some((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0.5 && p.y <= 1);
       poseState.framed = isFramed(image);
       poseState.guidePoints = image ? GUIDE_POINTS.map((i) => image[i]) : null;
     }
