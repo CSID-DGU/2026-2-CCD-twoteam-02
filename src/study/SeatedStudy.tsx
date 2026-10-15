@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { useTracking } from '../tracking/useTracking'
 import type { FaceState } from '../tracking/useTracking'
+import { useArmDirections } from '../tracking/useArmDirections'
+import type { UserArms } from '../tracking/armLogic'
 import { CameraGuideNotice } from '../tracking/CameraGuideNotice'
 import { SelfView } from '../space/SelfView'
 import type { PresenceStatus } from '../space/status'
@@ -15,19 +17,23 @@ import type { StudyChoice } from './StartStudyDialog'
 import { StudyRunner } from './StudyRunner'
 import type { StudyCondition } from './condition'
 
+// 다른 참여자에게 보낼 내 트래킹 결과. 지점 화면이 읽어 고개·눈·팔을 보냅니다.
+export type MyTracking = { face: RefObject<FaceState>; arms: RefObject<UserArms> }
+
 type Props = {
   userId: string
   sessionId: string | null // 좌석 이용 기록. 아직 못 읽었으면 null
   condition: StudyCondition // 사용자 실험 조건
   onStatus: (status: PresenceStatus) => void // 다른 참여자에게 보낼 내 상태
   onDialogChange: (open: boolean) => void // 창이 떠 있는 동안 캐릭터 조작을 막기 위해 알립니다.
-  // 내 얼굴 트래킹 결과를 알립니다. 지점 화면이 다른 참여자에게 내 고개·눈을 보내는 데 씁니다. (#129) 일어나면 null
-  onFace?: (face: RefObject<FaceState> | null) => void
+  // 내 트래킹 결과를 알립니다. 지점 화면이 다른 참여자에게 내 고개·눈·팔을 보내는 데 씁니다. (#129) 일어나면 null
+  onTracking?: (tracking: MyTracking | null) => void
 }
 
-export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onFace }: Props) {
+export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onTracking }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { face, pose, status, message } = useTracking(videoRef) // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다.
+  const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
@@ -41,9 +47,9 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
     if (!choice) onStatus('idle')
   }, [choice, onStatus])
   useEffect(() => {
-    onFace?.(face)
-    return () => onFace?.(null)
-  }, [face, onFace])
+    onTracking?.({ face, arms })
+    return () => onTracking?.(null)
+  }, [face, arms, onTracking])
   // 일어나서 이 화면이 사라지면 창도 닫힌 것으로 알립니다.
   useEffect(() => () => onDialogChange(false), [onDialogChange])
 
