@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN, PASSWORD_MAX } from './authLimits'
+import { signupRedirectTo } from './authRedirect'
 
 
 type Props = {
@@ -46,7 +47,7 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { nickname: name } },
+      options: { data: { nickname: name }, emailRedirectTo: signupRedirectTo() },
     })
     setBusy(false)
 

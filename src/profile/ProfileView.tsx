@@ -1,6 +1,9 @@
 // 프로필 본문: 이름, 공부 기록 요약(누적·이번 주·최근 7일·이번 주 과목별).
 // 프로필 페이지(/profile/:id)와 지점 안 프로필 창이 같이 씁니다.
-// 내 프로필이면 공개 범위를 바꾸는 칸이 위에 붙습니다.
+// 내 프로필이면 공개 범위를 바꾸는 칸과 "정보 변경" 탭이 붙습니다.
+//
+// 탭을 페이지가 아니라 여기에 둔 이유: 로비·지점에서는 페이지로 가지 않고 창으로 열기
+// 때문입니다(#70). 페이지 쪽에만 두면 실제로 쓰는 경로에서는 보이지 않습니다.
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { displayName } from '../friends/friendsLogic'
@@ -9,10 +12,13 @@ import { ColumnChart, SubjectBars } from '../study/RecordCharts'
 import { useProfile, VISIBILITY_LABEL } from './useProfile'
 import type { Visibility } from './useProfile'
 import { dayLabel } from './profileLogic'
+import { AccountTab } from './AccountTab'
 
 export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean }) {
   const { summary, loading, error, setVisibility } = useProfile(userId)
   const [message, setMessage] = useState('')
+  // 내 프로필에서만 탭이 보입니다. 남의 프로필에는 공부 기록만 나옵니다.
+  const [tab, setTab] = useState<'records' | 'account'>('records')
 
   if (loading) return <p style={styles.muted}>프로필을 불러오는 중…</p>
   if (error || !summary) return <p style={styles.error}>{error || '프로필을 찾지 못했어요.'}</p>
@@ -23,6 +29,25 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
       <div style={styles.name}>{displayName(summary.nickname, summary.id)}</div>
 
       {isMe && (
+        <nav style={styles.tabs} role="tablist">
+          {([['records', '공부 기록'], ['account', '정보 변경']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              style={{ ...styles.tab, ...(tab === key ? styles.tabOn : null) }}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {isMe && tab === 'account' && <AccountTab />}
+
+      {tab === 'records' && isMe && (
         <div style={styles.row}>
           <span style={styles.muted}>공부 기록 공개</span>
           <div style={styles.segment} role="radiogroup" aria-label="공부 기록 공개 범위">
@@ -41,9 +66,9 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
           </div>
         </div>
       )}
-      {message && <p style={styles.error}>{message}</p>}
+      {tab === 'records' && message && <p style={styles.error}>{message}</p>}
 
-      {!summary.allowed ? (
+      {tab === 'records' && (!summary.allowed ? (
         <p style={styles.muted}>공부 기록을 공개하지 않은 사용자예요.</p>
       ) : (
         <>
@@ -74,7 +99,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
             )}
           </div>
         </>
-      )}
+      ))}
     </div>
   )
 }
@@ -98,6 +123,9 @@ const styles: Record<string, CSSProperties> = {
   stat: { padding: 12, borderRadius: 10, background: '#16181d' },
   statValue: { fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   sectionTitle: { fontWeight: 600, marginBottom: 6 },
+  tabs: { display: 'flex', gap: 2, padding: 3, borderRadius: 8, background: '#16181d' },
+  tab: { flex: 1, padding: '6px 12px', borderRadius: 6, border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: 'inherit' },
+  tabOn: { background: '#3a3f4b', color: '#fff', fontWeight: 700 },
   muted: { color: '#aab0bb', margin: 0, fontSize: 13 },
   error: { color: '#f87171', margin: 0 },
 }

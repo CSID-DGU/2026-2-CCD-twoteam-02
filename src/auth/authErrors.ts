@@ -9,6 +9,13 @@ const TABLE: [RegExp, string][] = [
   [/unable to validate email address|invalid format/i, '이메일 형식이 올바르지 않습니다.'],
   [/for security purposes|rate limit|too many requests/i, '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.'],
   [/failed to fetch|network/i, '서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.'],
+  // 비밀번호 재설정·이메일 변경에서 나오는 것들
+  [/new password should be different|should be different from the old/i, '지금 쓰는 비밀번호와 다른 비밀번호를 입력해 주세요.'],
+  [/email address .* is invalid|email_address_invalid/i, '이메일 형식이 올바르지 않습니다.'],
+  [/a user with this email address has already been registered|email_exists/i, '이미 다른 계정이 쓰는 이메일입니다.'],
+  [/token has expired or is invalid|otp_expired/i, '링크가 만료되었거나 이미 사용되었습니다. 재설정 메일을 다시 받아 주세요.'],
+  [/auth session missing|session_not_found/i, '로그인 정보가 없습니다. 메일의 링크를 다시 눌러 주세요.'],
+  [/same as the existing|email address is the same/i, '지금 쓰는 이메일과 같습니다.'],
 ]
 
 export function toKoreanMessage(message: string): string {
