@@ -14,6 +14,7 @@ export const CALIB_STEPS: readonly { key: CalibStepKey; seconds: number; text: s
 export const MIN_FACE_RATIO = 0.8; // 얼굴이 기록의 이 비율 이상에서 보여야 함
 export const MAX_PITCH_RANGE_DEGREES = 15; // 그동안 고개 각도가 이만큼 넘게 흔들리면 다시
 export const MAX_CLOSED_RATIO = 0.8; // 감은 눈이 숙인 눈의 이 비율보다 작아야 진짜 감은 것
+export const MIN_BOW_DEGREES = 8; // 필기 자세가 정면보다 이만큼 이상 숙여야 함 (측정이 제대로 됐는지 거르는 값, 판정 기준 아님)
 
 export type CalibSample = {
   found: boolean;
@@ -65,9 +66,12 @@ export function makeBaseline(
   front: StepOk,
   down: StepOk,
   closed: StepOk
-): { ok: true; baseline: Baseline } | { ok: false; reason: string } {
+): { ok: true; baseline: Baseline } | { ok: false; reason: string; redo: CalibStepKey } {
+  // 덜 숙이면 필기 자세가 정면으로 분류돼 필기 중 눈 감음 판정이 어긋나므로 필기 자세부터 다시 잽니다.
+  if (((down.pitch - front.pitch) * 180) / Math.PI < MIN_BOW_DEGREES)
+    return { ok: false, reason: "필기할 때처럼 조금 더 숙여 주세요.", redo: "down" };
   if (closed.ear >= down.ear * MAX_CLOSED_RATIO)
-    return { ok: false, reason: "눈을 완전히 감은 채로 다시 해 주세요." };
+    return { ok: false, reason: "눈을 완전히 감은 채로 다시 해 주세요.", redo: "closed" };
   return {
     ok: true,
     baseline: {

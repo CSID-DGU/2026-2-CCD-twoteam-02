@@ -37,6 +37,7 @@ export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
   const [phase, setPhase] = useState<"prep" | "record" | "failed">("prep");
   const [left, setLeft] = useState(PREP_SECONDS); // 남은 초
   const [reason, setReason] = useState("");
+  const [redoIndex, setRedoIndex] = useState(0); // 실패 뒤 "다시 하기"로 돌아갈 단계
   const results = useRef<StepOk[]>([]);
   const step = CALIB_STEPS[index];
   // 부모가 다시 그려질 때마다 onDone이 새 함수가 되므로, ref에 담아 측정 반복이 처음부터 다시 시작되지 않게 합니다.
@@ -69,6 +70,7 @@ export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
       const result = summarizeStep(step.key, samples);
       if (!result.ok) {
         setReason(result.reason);
+        setRedoIndex(index);
         setPhase("failed");
         return;
       }
@@ -84,6 +86,7 @@ export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
       if (made.ok) onDoneRef.current(made.baseline);
       else {
         setReason(made.reason);
+        setRedoIndex(CALIB_STEPS.findIndex((s) => s.key === made.redo)); // 문제가 난 단계부터 다시
         setPhase("failed");
       }
     }, SAMPLE_MS);
@@ -102,10 +105,15 @@ export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
         {phase === "failed" && (
           <>
             <div style={{ color: "#facc15" }}>{reason}</div>
-            <button type="button" style={styles.button} onClick={() => {
+            <button
+              type="button"
+              style={styles.button}
+              onClick={() => {
+                setIndex(redoIndex);
                 setLeft(PREP_SECONDS);
                 setPhase("prep");
-              }}>
+              }}
+            >
               다시 하기
             </button>
           </>
