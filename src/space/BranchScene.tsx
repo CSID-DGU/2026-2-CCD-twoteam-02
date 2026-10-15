@@ -19,6 +19,7 @@ import { SeatedStudy } from "../study/SeatedStudy";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
 import { useSession } from "../auth/useSession";
+import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation } from "react-router";
@@ -227,6 +228,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [panel, setPanel] = useState<PanelView | null>(null);
   const panelOpen = panel !== null;
   const { session } = useSession();
+  const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
   const others = useParticipants(BRANCH_ID, me); // 같은 지점의 다른 참여자 (실시간)
@@ -484,22 +486,26 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       {condition === "visible" && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
 
-      <Player
-        obstacles={obstacles}
-        spawn={branch.spawn}
-        spots={freeSpots}
-        kiosk={branch.kiosk ?? NO_KIOSK}
-        frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
-        onNear={setNear}
-        onSeat={handleSeat}
-        onNearKiosk={setNearKiosk}
-        onKiosk={() => setKioskOpen(true)}
-        canSit={(no) => no === mySeat}
-        onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
-        sitRef={sitRequest}
-        onMove={handleMove}
-        headingRef={view === "first" ? heading : undefined}
-      />
+      {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
+      {myModel && (
+        <Player
+          model={myModel}
+          obstacles={obstacles}
+          spawn={branch.spawn}
+          spots={freeSpots}
+          kiosk={branch.kiosk ?? NO_KIOSK}
+          frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
+          onNear={setNear}
+          onSeat={handleSeat}
+          onNearKiosk={setNearKiosk}
+          onKiosk={() => setKioskOpen(true)}
+          canSit={(no) => no === mySeat}
+          onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
+          sitRef={sitRequest}
+          onMove={handleMove}
+          headingRef={view === "first" ? heading : undefined}
+        />
+      )}
     </Canvas>
     {seat !== null && session && (
       <SeatedStudy

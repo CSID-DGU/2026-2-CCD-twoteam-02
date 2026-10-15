@@ -5,6 +5,7 @@
 import { Canvas } from "@react-three/fiber";
 import type { RefObject } from "react";
 import { TrackedCharacter } from "../tracking/TrackedCharacter";
+import { useMyAvatar } from "../profile/useMyAvatar";
 import type { FaceState, PoseState, TrackingStatus } from "../tracking/useTracking";
 
 const SIZE = 200; // 화면 크기(픽셀)
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function SelfView({ videoRef, face, pose, status, message }: Props) {
+  const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   return (
     <div
       style={{
@@ -43,7 +45,7 @@ export function SelfView({ videoRef, face, pose, status, message }: Props) {
       >
         <ambientLight intensity={1.5} />
         <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        <TrackedCharacter face={face} pose={pose} />
+        {model && <TrackedCharacter face={face} pose={pose} model={model} />}
       </Canvas>
 
       <div style={{ position: "absolute", top: 6, left: 10 }}>내 모습</div>

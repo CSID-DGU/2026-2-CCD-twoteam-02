@@ -4,8 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import type { Box, Spot } from './layout'
-
-const MODEL_URL = '/models/character-a.glb'
+import { DEFAULT_MODEL, modelUrl } from '../profile/characters'
 const R = 0.3 // 충돌 반경
 const SPEED = 3 // 초당 이동 거리
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
@@ -21,6 +20,7 @@ const hit = (x: number, z: number, o: Box) =>
   Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R
 
 type Props = {
+  model: string // 내 캐릭터 종류 (a~r, 내 프로필에서 고름 #131)
   obstacles: Box[]
   spawn: { x: number; z: number }
   spots: Spot[]
@@ -42,7 +42,7 @@ type Props = {
   sitRef?: RefObject<number | null>
 }
 
-export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -50,7 +50,7 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
   const near = useRef<Spot | null>(null)
   const nearKiosk = useRef(false)
   const seated = useRef<Spot | null>(null)
-  const { scene, animations } = useGLTF(MODEL_URL)
+  const { scene, animations } = useGLTF(modelUrl(character))
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
   const model = useMemo(() => scene.clone(true), [scene])
   const { actions } = useAnimations(animations, ref)
@@ -206,4 +206,4 @@ export function Player({ obstacles, spawn, spots, kiosk, frozen, onNear, onSeat,
   )
 }
 
-useGLTF.preload(MODEL_URL)
+useGLTF.preload(modelUrl(DEFAULT_MODEL))

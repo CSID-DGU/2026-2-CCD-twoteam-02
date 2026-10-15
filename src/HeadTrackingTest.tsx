@@ -15,6 +15,7 @@ import { MeasureRecorder } from "./tracking/MeasureRecorder";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
 import { TrackedCharacter } from "./tracking/TrackedCharacter";
+import { useMyAvatar } from "./profile/useMyAvatar";
 import { BLINK_THRESHOLD } from "./tracking/faceSync";
 
 function Readout({ face }: { face: RefObject<FaceState> }) {
@@ -43,6 +44,7 @@ function Readout({ face }: { face: RefObject<FaceState> }) {
 export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { face, pose, status, message, poseStatus } = useTracking(videoRef); // 얼굴·팔·가이드라인 (src/tracking)
+  const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   const [baseline, setBaseline] = useState<Baseline | null>(null); // 보정 기준 (확인용)
   const [calibrating, setCalibrating] = useState(false);
   const focus = useFocusState(face, false, pose, { body: pose, baseline }); // 집중 상태 판정 (src/focus)
@@ -52,7 +54,7 @@ export default function HeadTrackingTest() {
       <Canvas camera={{ position: [0, 2.2, 5], fov: 35 }}>
         <ambientLight intensity={1.5} />
         <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        <TrackedCharacter face={face} pose={pose} />
+        {model && <TrackedCharacter face={face} pose={pose} model={model} />}
         <OrbitControls target={[0, 1.6, 0]} />
       </Canvas>
 
