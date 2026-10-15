@@ -30,9 +30,10 @@ type Props = {
   pose: RefObject<PoseState>;
   onDone: (baseline: Baseline) => void;
   onSkip: () => void;
+  skipLabel?: string; // 건너뛰기 버튼 문구 (다시 맞추기 때는 기존 기준을 유지한다고 알림)
 };
 
-export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
+export function CalibrationDialog({ face, pose, onDone, onSkip, skipLabel = "건너뛰기 (눈 감음 판정 없이 공부)" }: Props) {
   const [index, setIndex] = useState(0); // 지금 단계
   const [phase, setPhase] = useState<"prep" | "record" | "failed">("prep");
   const [left, setLeft] = useState(PREP_SECONDS); // 남은 초
@@ -119,7 +120,7 @@ export function CalibrationDialog({ face, pose, onDone, onSkip }: Props) {
           </>
         )}
         <button type="button" style={styles.skip} onClick={onSkip}>
-          건너뛰기 (눈 감음 판정 없이 공부)
+          {skipLabel}
         </button>
       </div>
     </div>

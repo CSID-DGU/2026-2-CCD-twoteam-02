@@ -91,6 +91,7 @@ export default function HeadTrackingTest() {
             setCalibrating(false);
           }}
           onSkip={() => setCalibrating(false)}
+          skipLabel={baseline !== null ? "취소 (기존 기준 유지)" : undefined}
         />
       )}
       {status === "ready" && <MeasureRecorder pose={pose} />}

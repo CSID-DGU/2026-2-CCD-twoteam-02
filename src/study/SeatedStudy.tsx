@@ -108,6 +108,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
             setCalibrated(true)
             setCalibrating(false)
           }}
+          skipLabel={calibrated && baseline !== null ? '취소 (기존 기준 유지)' : undefined}
         />
       )}
     </>
