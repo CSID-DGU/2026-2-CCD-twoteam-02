@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '../auth/useSession'
+import { useMyNickname } from '../auth/useMyNickname'
 import { BackLink } from '../menu/BackLink'
 import { useFriends } from './useFriends'
 import type { UserCard } from './useFriends'
@@ -14,7 +15,7 @@ import { displayName, matchUsers, otherOf, relationOf, splitFriendships } from '
 export function FriendsView({ onOpenProfile }: { onOpenProfile?: (userId: string) => void }) {
   const { session } = useSession()
   const myId = session?.user.id ?? ''
-  const myNickname = String(session?.user.user_metadata?.nickname ?? '나')
+  const { nickname: myNickname } = useMyNickname() // 닉네임 원본은 profiles 다
   const { list, names, loading, error, reload, search, request, accept, remove } = useFriends(myId || undefined)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<UserCard[] | null>(null)

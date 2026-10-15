@@ -6,6 +6,9 @@ import { BranchScene } from './space/BranchScene'
 import LoginPage from './auth/LoginPage'
 import SignupPage from './auth/SignupPage'
 import RequireAuth from './auth/RequireAuth'
+import ForgotPasswordPage from './auth/ForgotPasswordPage'
+import ResetPasswordPage from './auth/ResetPasswordPage'
+import EmailChangedPage from './auth/EmailChangedPage'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
@@ -41,12 +44,31 @@ function AppRoutes() {
     <Routes>
       <Route
         path="/login"
-        element={<LoginPage onSuccess={() => navigate('/')} onGoSignup={() => navigate('/signup')} />}
+        element={
+          <LoginPage
+            onSuccess={() => navigate('/')}
+            onGoSignup={() => navigate('/signup')}
+            onGoForgot={() => navigate('/forgot-password')}
+          />
+        }
       />
       <Route
         path="/signup"
         element={<SignupPage onSuccess={() => navigate('/login')} onGoLogin={() => navigate('/login')} />}
       />
+      {/* 비밀번호를 잊은 사람은 로그인을 못 하므로 아래 두 주소는 울타리 밖에 둡니다. */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage onGoLogin={() => navigate('/login')} />} />
+      <Route
+        path="/reset-password"
+        element={
+          <ResetPasswordPage
+            onDone={() => navigate('/login')}
+            onGoForgot={() => navigate('/forgot-password')}
+          />
+        }
+      />
+      {/* 이메일 변경 확인 메일의 링크가 돌아오는 곳. 로그인 상태가 애매할 수 있어 울타리 밖에 둡니다. */}
+      <Route path="/email-changed" element={<EmailChangedPage onGoLogin={() => navigate('/login')} />} />
       {/* 첫 화면은 로비입니다. 지점 문으로 들어가면 그 지점 공간으로 갑니다. */}
       <Route
         path="/"
