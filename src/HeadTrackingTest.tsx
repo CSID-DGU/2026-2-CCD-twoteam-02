@@ -9,6 +9,7 @@ import { useFocusState } from "./focus/useFocusState";
 import FocusBadge from "./focus/FocusBadge";
 import { useTracking } from "./tracking/useTracking";
 import { CameraGuideNotice } from "./tracking/CameraGuideNotice";
+import { MeasureRecorder } from "./tracking/MeasureRecorder";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
 import { BLINK_THRESHOLD, TrackedCharacter } from "./tracking/TrackedCharacter";
@@ -72,6 +73,7 @@ export default function HeadTrackingTest() {
       </div>
 
       <CameraGuideNotice pose={pose} />
+      {status === "ready" && <MeasureRecorder pose={pose} />}
 
       <video
         ref={videoRef}
