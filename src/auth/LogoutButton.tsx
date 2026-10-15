@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearStoredSession } from './sessionStorageChoice'
 
 const base: CSSProperties = {
   padding: '6px 12px',
@@ -25,6 +26,9 @@ export default function LogoutButton({ style }: { style?: CSSProperties }) {
       onClick={async () => {
         setBusy(true)
         await supabase.auth.signOut()
+        // 양쪽 저장소를 비우고 "로그인 유지"도 해제합니다.
+        // 다음에 로그인 화면에 왔을 때 항상 꺼진 상태로 시작하게 하려는 것입니다. (#128)
+        clearStoredSession()
         setBusy(false)
       }}
     >
