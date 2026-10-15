@@ -34,7 +34,12 @@ export type PresenceState = {
   // 앉은 사람은 고개가 조금만 움직여도 매번 보내게 된다. 보내는 횟수 줄이기는 보간과 함께 나중에 정한다.
   head?: [number, number, number]
   eyes?: boolean // true 면 눈을 감고 있음
+  // 앉아서 공부하는 동안의 팔 방향 [캐릭터 왼팔, 캐릭터 오른팔]. 어깨에서 손 쪽을 가리키는 [x, y, z] (캐릭터 기준).
+  // 팔을 못 찾으면 그 팔은 null (받는 쪽은 팔을 내림). 떨림은 보내는 쪽에서 미리 거른다(armLogic.ts). (#139)
+  arms?: [ArmVector | null, ArmVector | null]
 }
+
+export type ArmVector = [number, number, number]
 
 // 화면에 그릴 때 쓰는 값. Presence 와 DB 에서 읽은 것을 합친 결과다.
 export type Participant = PresenceState & {

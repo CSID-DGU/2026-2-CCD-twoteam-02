@@ -58,7 +58,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
-import type { Participant, PresenceState } from './participants'
+import type { ArmVector, Participant, PresenceState } from './participants'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
 type Profile = { nickname: string; model: string }
@@ -74,6 +74,7 @@ function pack(state: PresenceState): PresenceState {
     z: round(state.z, POSITION_STEP),
     ...(state.h === undefined ? {} : { h: round(state.h, HEADING_STEP) }),
     ...(state.head === undefined ? {} : { head: state.head.map((a) => round(a, HEADING_STEP)) as [number, number, number] }),
+    ...(state.arms === undefined ? {} : { arms: state.arms.map((v) => v && (v.map((a) => round(a, HEADING_STEP)) as ArmVector)) as PresenceState['arms'] }),
   }
 }
 
