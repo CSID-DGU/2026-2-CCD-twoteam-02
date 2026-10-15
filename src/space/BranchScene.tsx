@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Billboard, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
@@ -27,6 +28,8 @@ import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
 import type { PanelView } from "../menu/panelTypes";
 import type { PresenceState } from "../realtime/participants";
+import { headAngles, nextEyesClosed } from "../tracking/faceSync";
+import type { FaceState } from "../tracking/useTracking";
 import type { PresenceStatus } from "./status";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -241,19 +244,32 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
+  // 앉아 있는 동안 내 얼굴 트래킹 결과. 고개 각도·눈 감김을 다른 참여자에게 보내는 데 씁니다. (#129)
+  const myFace = useRef<RefObject<FaceState> | null>(null);
+  const myEyesClosed = useRef(false);
+  const handleFace = useCallback((face: RefObject<FaceState> | null) => {
+    myFace.current = face;
+  }, []);
+
   // Player 가 매 프레임 알려 주는 위치로 내 상태를 갱신합니다. 보내는 주기는 훅이 알아서 늦춥니다.
   // 상태: 돌아다니면 idle(노란불), 앉아 있으면 집중 판정 결과(공부 시작 전에는 idle).
-  const handleMove = (x: number, z: number) => {
+  const handleMove = (x: number, z: number, h: number) => {
     pos.current.x = x;
     pos.current.z = z;
     const id = session?.user.id;
     if (!id) return;
+    // 앉아 있고 얼굴을 찾았을 때만 고개·눈을 싣습니다. 다른 사람 화면에서는 거울이 아니라 실제 방향입니다.
+    const face = seat === null ? null : (myFace.current?.current ?? null);
+    const angles = face ? headAngles(face, false) : null;
+    myEyesClosed.current = face ? nextEyesClosed(myEyesClosed.current, face) : false;
     me.current = {
       userId: id,
       x,
       z,
+      h,
       seat,
       status: seat === null ? "idle" : studyStatus,
+      ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
     };
   };
 
@@ -487,6 +503,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         condition={condition}
         onStatus={setStudyStatus}
         onDialogChange={setStudyDialogOpen}
+        onFace={handleFace}
       />
     )}
     <PerfReadout perf={perf} />

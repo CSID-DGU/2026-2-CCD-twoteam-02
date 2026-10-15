@@ -3,8 +3,9 @@
 // 트래킹(얼굴·팔)을 여기서 한 번만 켜고, 내 모습 화면과 집중 타이머가 같은 결과를 같이 씁니다.
 // 앉으면 공부 시작 창이 뜨고, 과목을 고르면 그때부터 타이머가 돌며 기록이 저장됩니다.
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { useTracking } from '../tracking/useTracking'
+import type { FaceState } from '../tracking/useTracking'
 import { CameraGuideNotice } from '../tracking/CameraGuideNotice'
 import { SelfView } from '../space/SelfView'
 import type { PresenceStatus } from '../space/status'
@@ -22,9 +23,11 @@ type Props = {
   condition: StudyCondition // 사용자 실험 조건
   onStatus: (status: PresenceStatus) => void // 다른 참여자에게 보낼 내 상태
   onDialogChange: (open: boolean) => void // 창이 떠 있는 동안 캐릭터 조작을 막기 위해 알립니다.
+  // 내 얼굴 트래킹 결과를 알립니다. 지점 화면이 다른 참여자에게 내 고개·눈을 보내는 데 씁니다. (#129) 일어나면 null
+  onFace?: (face: RefObject<FaceState> | null) => void
 }
 
-export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange }: Props) {
+export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onFace }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { face, pose, status, message } = useTracking(videoRef) // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다.
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
@@ -43,6 +46,10 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   useEffect(() => {
     if (!choice || !calibrated) onStatus('idle')
   }, [choice, calibrated, onStatus])
+  useEffect(() => {
+    onFace?.(face)
+    return () => onFace?.(null)
+  }, [face, onFace])
   // 일어나서 이 화면이 사라지면 창도 닫힌 것으로 알립니다.
   useEffect(() => () => onDialogChange(false), [onDialogChange])
 
