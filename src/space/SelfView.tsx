@@ -5,8 +5,7 @@
 import { Canvas } from "@react-three/fiber";
 import type { RefObject } from "react";
 import { TrackedCharacter } from "../tracking/TrackedCharacter";
-import type { FaceState, TrackingStatus } from "../tracking/useFaceTracking";
-import type { PoseState } from "../tracking/usePoseTracking";
+import type { FaceState, PoseState, TrackingStatus } from "../tracking/useTracking";
 
 const SIZE = 200; // 화면 크기(픽셀)
 const LOOK_AT_Y = 2.0; // 카메라가 바라보는 높이 (가슴과 머리 사이)
