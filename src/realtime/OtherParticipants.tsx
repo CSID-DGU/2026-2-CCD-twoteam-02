@@ -95,7 +95,7 @@ export function OtherParticipants({
           >
             {spot ? (
               <>
-                <SeatedCharacter spot={spot} model={p.model} />
+                <SeatedCharacter spot={spot} model={p.model} head={p.head} eyes={p.eyes} />
                 <NameTag x={x} z={z} name={p.nickname} />
                 <StatusMarker x={x} z={z} status={p.status} />
               </>

@@ -73,6 +73,7 @@ function pack(state: PresenceState): PresenceState {
     x: round(state.x, POSITION_STEP),
     z: round(state.z, POSITION_STEP),
     ...(state.h === undefined ? {} : { h: round(state.h, HEADING_STEP) }),
+    ...(state.head === undefined ? {} : { head: state.head.map((a) => round(a, HEADING_STEP)) as [number, number, number] }),
   }
 }
 
