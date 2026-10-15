@@ -18,6 +18,7 @@ import { useMyNickname } from '../auth/useMyNickname'
 import { toKoreanMessage } from '../auth/authErrors'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN } from '../auth/authLimits'
 import { emailChangedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
+import { announceMyProfileChanged } from './characters'
 
 export function AccountTab() {
   const { session, loading } = useSession()
@@ -66,6 +67,7 @@ export function AccountTab() {
     }
     setDraft(null) // 다시 읽어 온 값을 쓰도록 되돌립니다
     reloadNickname()
+    announceMyProfileChanged() // 지점 안에 있으면 다른 사람 화면의 이름표도 바로 바뀝니다 (#131)
     setNotice('닉네임을 바꿨습니다.')
   }
 

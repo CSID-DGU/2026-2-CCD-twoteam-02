@@ -57,7 +57,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
-import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
+import { onMyProfileChanged } from '../profile/characters'
+import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
 import type { ArmVector, Participant, PresenceState } from './participants'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
@@ -197,6 +198,13 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
         if (!who || who === me.current?.userId) return
         sendNow()
       })
+      .on('broadcast', { event: PROFILE_EVENT }, ({ payload }) => {
+        // 누가 캐릭터·닉네임을 바꿨다. 들고 있던 값을 버리고 DB 에서 다시 읽는다.
+        const who = (payload as { userId?: string })?.userId
+        if (!who || who === me.current?.userId) return
+        profiles.current.delete(who)
+        rebuild()
+      })
       .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
@@ -238,11 +246,19 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
     // 소식이 끊긴 사람을 치운다.
     const sweepTimer = setInterval(() => dropGone(), STALE_MS)
 
+    // 내 프로필(캐릭터·닉네임)을 바꾸면 같은 지점 사람들에게 다시 읽어 달라고 알린다.
+    const stopProfileListen = onMyProfileChanged(() => {
+      const id = me.current?.userId
+      if (!subscribed || !id) return
+      void channel.send({ type: 'broadcast', event: PROFILE_EVENT, payload: { userId: id } })
+    })
+
     return () => {
       alive = false
       clearInterval(timer)
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
+      stopProfileListen()
       void channel.unsubscribe()
     }
   }, [branchId, me])
