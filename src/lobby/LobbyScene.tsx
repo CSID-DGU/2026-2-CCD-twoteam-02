@@ -22,6 +22,7 @@ import { SceneMenu } from '../menu/SceneMenu'
 import type { PanelView } from '../menu/panelTypes'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
+import { useMyAvatar } from '../profile/useMyAvatar'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
@@ -73,6 +74,7 @@ export default function LobbyScene({ onEnter }: Props) {
   // 로비 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null)
   const { session } = useSession()
+  const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
     panelRef.current = panel
@@ -156,24 +158,28 @@ export default function LobbyScene({ onEnter }: Props) {
           )
         })}
 
-        <Player
-          obstacles={obstacles}
-          spawn={lobby.spawn}
-          spots={doorSpots}
-          // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
-          // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
-          kiosk={NO_KIOSK}
-          frozen={panel !== null}
-          onNearKiosk={() => {}}
-          onKiosk={() => {}}
-          onNear={setNear}
-          onSeat={(no) => void tryEnter(no)}
-          onMove={(x, z) => {
-            pos.current.x = x
-            pos.current.z = z
-          }}
-          headingRef={view === 'first' ? heading : undefined}
-        />
+        {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
+        {myModel && (
+          <Player
+            model={myModel}
+            obstacles={obstacles}
+            spawn={lobby.spawn}
+            spots={doorSpots}
+            // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
+            // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
+            kiosk={NO_KIOSK}
+            frozen={panel !== null}
+            onNearKiosk={() => {}}
+            onKiosk={() => {}}
+            onNear={setNear}
+            onSeat={(no) => void tryEnter(no)}
+            onMove={(x, z) => {
+              pos.current.x = x
+              pos.current.z = z
+            }}
+            headingRef={view === 'first' ? heading : undefined}
+          />
+        )}
       </Canvas>
 
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}

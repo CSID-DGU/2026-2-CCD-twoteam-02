@@ -14,9 +14,8 @@ import { applyArms } from "./armPose";
 import { useArmDirections } from "./useArmDirections";
 import { headAngles, nextEyesClosed } from "./faceSync";
 import { showEyes, useEyeSkin } from "./useEyeSkin";
+import { DEFAULT_MODEL, modelUrl } from "../profile/characters";
 
-const MODEL = "a"; // 내 캐릭터 모델 (public/models/character-a.glb)
-const MODEL_URL = `/models/character-${MODEL}.glb`;
 const HEAD_NODE = "head";
 const HEAD_FOLLOW = 12; // 머리가 목표 각도를 따라가는 빠르기
 const ARM_FOLLOW = 8; // 팔이 목표 방향을 따라가는 빠르기. 떨림을 줄이려고 머리보다 느리게 둡니다. (#139)
@@ -24,19 +23,20 @@ const ARM_FOLLOW = 8; // 팔이 목표 방향을 따라가는 빠르기. 떨림�
 type Props = {
   face: RefObject<FaceState>;
   pose?: RefObject<PoseState>; // 없으면 팔은 움직이지 않습니다.
+  model?: string; // 캐릭터 종류 (a~r). 내 프로필에서 고른 캐릭터 (#131)
 };
 
-export function TrackedCharacter({ face, pose }: Props) {
-  const { scene } = useGLTF(MODEL_URL);
+export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL }: Props) {
+  const { scene } = useGLTF(modelUrl(model));
   // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
-  const model = useMemo(() => scene.clone(true), [scene]);
-  const eyes = useEyeSkin(model, MODEL);
+  const character = useMemo(() => scene.clone(true), [scene]);
+  const eyes = useEyeSkin(character, model);
   const eyesClosed = useRef(false);
   // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)
   const arms = useArmDirections(pose);
 
   useFrame((_, delta) => {
-    const head = model.getObjectByName(HEAD_NODE);
+    const head = character.getObjectByName(HEAD_NODE);
     if (!head) return;
     const state = face.current;
 
@@ -55,10 +55,10 @@ export function TrackedCharacter({ face, pose }: Props) {
 
     // 팔: 어깨에서 손목(안 보이면 팔꿈치) 쪽으로 팔 막대를 돌립니다. 거울처럼 붙입니다.
     if (!pose) return;
-    applyArms(model, characterArms(arms.current, true), 1 - Math.exp(-ARM_FOLLOW * delta));
+    applyArms(character, characterArms(arms.current, true), 1 - Math.exp(-ARM_FOLLOW * delta));
   });
 
-  return <primitive object={model} />;
+  return <primitive object={character} />;
 }
 
-useGLTF.preload(MODEL_URL);
+useGLTF.preload(modelUrl(DEFAULT_MODEL));
