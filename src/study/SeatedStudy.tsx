@@ -15,6 +15,8 @@ import { useSubjects } from './useSubjects'
 import { StartStudyDialog } from './StartStudyDialog'
 import type { StudyChoice } from './StartStudyDialog'
 import { StudyRunner } from './StudyRunner'
+import { CalibrationDialog } from './CalibrationDialog'
+import type { Baseline } from '../focus/calibration'
 import type { StudyCondition } from './condition'
 
 // 다른 참여자에게 보낼 내 트래킹 결과. 지점 화면이 읽어 고개·눈·팔을 보냅니다.
@@ -37,15 +39,19 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
+  // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
+  const [calibrating, setCalibrating] = useState(false)
+  const [calibrated, setCalibrated] = useState(false) // 보정을 마쳤거나 건너뛰었는지
+  const [baseline, setBaseline] = useState<Baseline | null>(null) // 건너뛰면 null (눈 감음 판정 없음)
 
   useEffect(() => {
-    onDialogChange(dialogOpen)
-  }, [dialogOpen, onDialogChange])
+    onDialogChange(dialogOpen || calibrating)
+  }, [dialogOpen, calibrating, onDialogChange])
 
   // 공부를 시작하기 전에는 앉아 있어도 노란불(공부하지 않음)입니다.
   useEffect(() => {
-    if (!choice) onStatus('idle')
-  }, [choice, onStatus])
+    if (!choice || !calibrated) onStatus('idle')
+  }, [choice, calibrated, onStatus])
   useEffect(() => {
     onTracking?.({ face, arms })
     return () => onTracking?.(null)
@@ -59,11 +65,14 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
       {/* 앉는 순간부터 카메라 구도를 확인합니다. (공부 시작 전·공부 중 모두) */}
       <CameraGuideNotice pose={pose} />
 
-      {choice && sessionId ? (
+      {choice && sessionId && calibrated ? (
         // key: 과목을 바꾸면 새 타이머로 다시 시작하고, 이전 타이머는 사라지면서 남은 기록을 저장합니다.
         <StudyRunner
           key={`${choice.subject.id}-${choice.allowDevices}`}
           face={face}
+          pose={pose}
+          baseline={baseline}
+          onRecalibrate={() => setCalibrating(true)}
           choice={choice}
           userId={userId}
           sessionId={sessionId}
@@ -74,7 +83,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
             setDialogOpen(true)
           }}
         />
-      ) : choice ? (
+      ) : choice && calibrated ? (
         <div style={{ ...startButton, background: 'rgba(32,35,42,.9)', color: '#fff' }}>자리 정보를 확인하는 중…</div>
       ) : (
         !dialogOpen && (
@@ -93,8 +102,26 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           onStart={(c) => {
             setChoice(c)
             setDialogOpen(false)
+            if (!calibrated) setCalibrating(true)
           }}
           onCancel={() => setDialogOpen(false)}
+        />
+      )}
+
+      {calibrating && (
+        <CalibrationDialog
+          face={face}
+          pose={pose}
+          onDone={(b) => {
+            setBaseline(b)
+            setCalibrated(true)
+            setCalibrating(false)
+          }}
+          onSkip={() => {
+            setCalibrated(true)
+            setCalibrating(false)
+          }}
+          skipLabel={calibrated && baseline !== null ? '취소 (기존 기준 유지)' : undefined}
         />
       )}
     </>

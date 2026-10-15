@@ -1,12 +1,20 @@
-// 얼굴 인식 결과(ref)와 가이드라인 결과(선택)를 0.1초마다 읽어 집중 상태를 계산하는 훅
-import { useEffect, useState } from "react";
+// 얼굴 인식 결과(ref)와 가이드라인·몸·보정 기준(선택)을 0.1초마다 읽어 집중 상태를 계산하는 훅
+import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { initialFocusState, nextFocusState } from "./focusLogic";
 import type { FocusInput, FocusState } from "./focusLogic";
+import type { Baseline } from "./calibration";
 
 export type FocusView = FocusState & {
   allowDevices: boolean;
   setAllowDevices: (value: boolean) => void;
+};
+
+// body: 몸(Pose) 결과 — framed가 null이면 Pose 준비 전·오류라 "모름"으로 넘깁니다.
+// baseline: 보정 기준 (없으면 눈 감음 판정 안 함)
+export type FocusExtras = {
+  body?: RefObject<{ found: boolean; framed: boolean | null }>;
+  baseline?: Baseline | null;
 };
 
 // initialAllowDevices: 공부 시작 창에서 고른 학습기기 사용 여부. 트래킹 검증 화면은 체크박스로 바꿉니다.
@@ -14,24 +22,41 @@ export type FocusView = FocusState & {
 export function useFocusState(
   face: RefObject<FocusInput>,
   initialAllowDevices = false,
-  pose?: RefObject<{ framed: boolean | null }>
+  pose?: RefObject<{ framed: boolean | null }>,
+  extras: FocusExtras = {}
 ): FocusView {
   const [state, setState] = useState<FocusState>(initialFocusState);
   const [allowDevices, setAllowDevices] = useState(initialAllowDevices);
+  const lastInputMs = useRef<number | null>(null);
+  const { body, baseline = null } = extras;
+
+  // 키보드·마우스 입력 시각만 기억합니다. (무엇을 눌렀는지는 보지 않음)
+  useEffect(() => {
+    const mark = () => {
+      lastInputMs.current = Date.now();
+    };
+    const events = ["keydown", "pointerdown", "pointermove", "wheel"] as const;
+    events.forEach((name) => window.addEventListener(name, mark, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, mark));
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
-      const { found, blink, pitch } = face.current;
+      const { found, ear, pitch } = face.current;
       const framed = pose?.current.framed ?? null;
+      const bodyFound = body ? (body.current.framed === null ? null : body.current.found) : null;
       const screen = {
         pageHidden: document.hidden,
         windowFocused: document.hasFocus(),
         allowDevices,
+        lastInputMs: lastInputMs.current,
       };
-      setState((prev) => nextFocusState(prev, { found, blink, pitch, framed }, Date.now(), screen));
+      setState((prev) =>
+        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline }, Date.now(), screen)
+      );
     }, 100);
     return () => clearInterval(id);
-  }, [face, pose, allowDevices]);
+  }, [face, pose, body, baseline, allowDevices]);
 
   return { ...state, allowDevices, setAllowDevices };
 }

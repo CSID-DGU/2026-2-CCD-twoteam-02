@@ -8,8 +8,10 @@
 // 이탈·졸음으로 바뀌면 버립니다. (잠깐 고개 돌린 시간은 인정, 자리 비운 시간은 빼기 위해)
 // 화면에는 확정 시간 + 보류 시간(shownStudyMs)을 보여 줘서 타이머가 멈췄다 튀지 않게 합니다.
 //
-// 졸음: 정면을 볼 때만, 눈을 DROWSY_SECONDS 넘게 계속 감으면 졸음입니다.
-// 고개를 숙이면(필기·읽기) 눈이 감긴 것처럼 잡혀서 조는 것과 구분할 수 없으므로 공부로 칩니다.
+// 졸음: 공부 시작 때 보정(정면·필기 자세·눈 감기)을 했을 때만, 눈 크기(EAR)가 그 자세의 뜬 눈과 감은 눈의 중간보다
+// 작은 채로 DROWSY_SECONDS 넘게 이어지면 졸음입니다. 정면이든 숙였든 같습니다. 보정을 안 했으면 눈은 보지 않습니다.
+// 얼굴이 안 보여도 몸(Pose)이 자리에 있으면 자리 이탈이 아니라 엎드림으로 보고, AWAY_SECONDS 넘게 이어지면 졸음입니다.
+// 그동안 키보드·마우스 입력이 있으면 깨어 있는 것이므로 처음부터 다시 셉니다.
 //
 // 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "학습기기 사용함"을 고른 경우에만 공부로 인정합니다.
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
@@ -20,13 +22,12 @@
 // 기준 시간 안에 돌아오면 그동안은 보류했다가 인정하고, 넘기면 "가이드라인 이탈"이 되어 시간이 멈춥니다.
 // 학습기기 사용 여부와 상관없이 적용합니다. (Pose 결과가 없으면 무시)
 
+import type { Baseline } from "./calibration";
+
 // 기준값 (근거: docs/판정-기준-근거.md)
 export const AWAY_SECONDS = 60; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심 (Dell 자리 비움 잠금 60초)
 export const DROWSY_SECONDS = 21; // 눈을 이 시간 이상 계속 감으면 졸음 의심 (OSLER 검사의 잠든 판정 21초)
 export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (카메라 팝업 기준 GUIDE_ALERT_SECONDS와 같게)
-export const EYE_CLOSED_SCORE = 0.4; // eyeBlink 평균이 이 값보다 크면 감은 것으로 봅니다. (측정: 뜸 11~19%, 감음 50~52%)
-export const EYE_OPEN_SCORE = 0.3; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
-export const HEAD_DOWN_DEGREES = 0; // 고개 위아래 각도가 이보다 크면 숙인 것 (측정: 정면 -4~-7°, 숙임 +9~+13°)
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
 // 다른 탭에 있으면 브라우저가 계산 주기를 최대 1분까지 늦추므로, 그때는 더 길게 허용합니다.
 const HIDDEN_MAX_STEP_MS = 90_000;
@@ -35,15 +36,18 @@ export type FocusStatus = "focus" | "away" | "drowsy" | "offscreen" | "outframe"
 
 export type FocusInput = {
   found: boolean; // 얼굴이 잡혔는지
-  blink: number; // eyeBlinkLeft/Right 평균 (0=뜸, 1=감음)
+  ear?: number | null; // 눈 크기(EAR). 보정이 있을 때만 눈 감음 판정에 씀
   pitch?: number; // 고개 위아래 각도(라디안, 숙이면 +). 생략하면 정면으로 봅니다.
   framed?: boolean | null; // 머리~가슴이 화면 안인지 (null·생략 = 확인 못 함 → 무시)
+  bodyFound?: boolean | null; // 몸(Pose)이 자리에 있는지 (null·생략 = 모름 → 몸 없음과 같이 처리)
+  baseline?: Baseline | null; // 보정으로 잰 개인 기준 (없으면 눈 판정 안 함)
 };
 
 export type ScreenInput = {
   pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식도 멈춤)
   windowFocused: boolean; // 이 브라우저 창이 선택돼 있음 (다른 앱을 누르면 false)
   allowDevices: boolean; // "학습기기 사용함"을 골랐는지
+  lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (엎드림 판정에서 깨어 있음의 근거)
 };
 
 export type FocusState = {
@@ -58,6 +62,7 @@ export type FocusState = {
   closedSince: number | null;
   outframeSince: number | null;
   lastMs: number | null;
+  bodyWhileMissing: boolean; // 얼굴이 안 보이는 동안 몸은 자리에 있었는지 (엎드림)
 };
 
 export const initialFocusState: FocusState = {
@@ -71,6 +76,7 @@ export const initialFocusState: FocusState = {
   closedSince: null,
   outframeSince: null,
   lastMs: null,
+  bodyWhileMissing: false,
 };
 
 // 화면에 보여 줄 집중 시간: 확정 시간 + 보류 시간. 기준을 넘겨 보류가 버려지면 그만큼 줄어듭니다.
@@ -80,7 +86,8 @@ export const shownStudyMs = (state: FocusState) => state.studyMs + state.pending
 // 보류 중인 이유 (내 화면에만 노란 표시용). 다른 참여자에게 보내는 상태(status)는 그대로 focus 입니다.
 export function holdReason(state: FocusState): "face" | "eyes" | "frame" | null {
   if (state.status !== "focus") return null;
-  if (state.awaySeconds > 0) return "face";
+  // 몸이 자리에 있으면 숙여 필기하며 얼굴이 띄엄띄엄 끊기는 경우가 많아 노란 표시를 하지 않습니다. (#119)
+  if (state.awaySeconds > 0) return state.bodyWhileMissing ? null : "face";
   if (state.closedSeconds > 0) return "eyes";
   if (state.outframeSeconds > 0) return "frame";
   return null;
@@ -92,6 +99,18 @@ export const HOLD_LABEL = {
   eyes: "🟡 눈 감음 확인 중",
   frame: "🟡 자세 확인 중",
 };
+
+// 보정 기준으로 눈을 감았는지. 자세(정면/숙임)는 정면 각도와 숙인 각도의 중간으로 가릅니다.
+// 감음 기준 = 그 자세의 뜬 눈과 감은 눈의 중간, 다시 뜸 = 거기서 뜬 눈 쪽으로 1/4 (깜빡거림 방지)
+export function eyeClosed(input: FocusInput, wasClosed: boolean): boolean {
+  const b = input.baseline;
+  if (!b || input.ear === null || input.ear === undefined) return false;
+  const down = (input.pitch ?? b.frontPitch) > (b.frontPitch + b.downPitch) / 2;
+  const open = down ? b.downEar : b.frontEar;
+  const closeAt = (open + b.closedEar) / 2;
+  const reopenAt = closeAt + (open - closeAt) / 4;
+  return input.ear < (wasClosed ? reopenAt : closeAt);
+}
 
 export function nextFocusState(
   prev: FocusState,
@@ -118,35 +137,38 @@ export function nextFocusState(
       closedSince: null,
       outframeSince: null,
       lastMs: nowMs,
+      bodyWhileMissing: false,
     };
   }
 
-  // 얼굴이 안 보이면 이탈 시간을 재고, 눈 감김 기록은 지웁니다.
+  // 얼굴이 안 보이면 안 보인 시간을 잽니다. 몸이 자리에 있으면 엎드림(→ 졸음), 없으면 자리 이탈입니다.
   if (!input.found) {
-    const missingSince = prev.missingSince ?? nowMs;
+    const body = input.bodyFound === true;
+    let missingSince = prev.missingSince ?? nowMs;
+    const lastInput = screen.lastInputMs ?? null;
+    // 입력이 있어 깨어 있음이 확인되면 처음부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
+    const typed = body && lastInput !== null && lastInput > missingSince;
+    if (typed) missingSince = Math.min(lastInput, nowMs);
     const awaySeconds = (nowMs - missingSince) / 1000;
-    const status = awaySeconds >= AWAY_SECONDS ? "away" : "focus";
+    const status: FocusStatus = awaySeconds >= AWAY_SECONDS ? (body ? "drowsy" : "away") : "focus";
     return {
       status,
       awaySeconds,
       closedSeconds: 0,
       outframeSeconds: 0,
-      studyMs: prev.studyMs,
-      pendingMs: status === "focus" ? prev.pendingMs + step : 0,
+      studyMs: typed ? prev.studyMs + prev.pendingMs + step : prev.studyMs,
+      pendingMs: typed ? 0 : status === "focus" ? prev.pendingMs + step : 0,
       missingSince,
       closedSince: null,
       outframeSince: null,
       lastMs: nowMs,
+      bodyWhileMissing: body,
     };
   }
 
-  // 얼굴이 보이면 눈 감김을 봅니다. 이미 감은 상태면 더 크게 떠야 뜬 것으로 칩니다.
-  // 고개를 숙였으면 눈을 뜬 것으로 칩니다. (필기·읽기와 졸음을 구분할 수 없어 공부로 인정)
-  const headDown = ((input.pitch ?? 0) * 180) / Math.PI > HEAD_DOWN_DEGREES;
+  // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄)
   const wasClosed = prev.closedSince !== null;
-  const closed =
-    !headDown &&
-    (wasClosed ? input.blink > EYE_OPEN_SCORE : input.blink > EYE_CLOSED_SCORE);
+  const closed = eyeClosed(input, wasClosed);
   const closedSince = closed ? prev.closedSince ?? nowMs : null;
   const closedSeconds = closedSince === null ? 0 : (nowMs - closedSince) / 1000;
 
@@ -185,5 +207,6 @@ export function nextFocusState(
     closedSince,
     outframeSince,
     lastMs: nowMs,
+    bodyWhileMissing: false,
   };
 }
