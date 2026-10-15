@@ -195,15 +195,29 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
             lastVideoTime = video.currentTime;
             readFace(faceLandmarker, video, now);
           }
-          // Pose는 초당 POSE_HZ번만 인식합니다.
-          if (poseLandmarker && now - lastPose >= 1000 / POSE_HZ) {
-            lastPose = now;
-            readPose(poseLandmarker, video, now);
-          }
-          // 배경은 Pose 결과(사람 위치)가 있어야 비교할 수 있어 Pose가 준비된 뒤에만 봅니다.
-          if (poseLandmarker && now - lastBackground >= BG_INTERVAL_MS) {
-            lastBackground = now;
-            readBackground(video);
+          // Pose·배경은 오류가 나도 얼굴 트래킹(같은 반복)이 멈추지 않게 따로 잡아서 Pose만 끕니다.
+          try {
+            // Pose는 초당 POSE_HZ번만 인식합니다.
+            if (poseLandmarker && now - lastPose >= 1000 / POSE_HZ) {
+              lastPose = now;
+              readPose(poseLandmarker, video, now);
+            }
+            // 배경은 Pose 결과(사람 위치)가 있어야 비교할 수 있어 Pose가 준비된 뒤에만 봅니다.
+            if (poseLandmarker && now - lastBackground >= BG_INTERVAL_MS) {
+              lastBackground = now;
+              readBackground(video);
+            }
+          } catch (error: unknown) {
+            console.warn("Pose(팔·가이드라인)가 멈췄습니다. 얼굴 트래킹은 계속합니다:", error);
+            poseLandmarker?.close();
+            poseLandmarker = undefined;
+            poseState.found = false;
+            poseState.left = null;
+            poseState.right = null;
+            poseState.framed = null; // 판정·팝업에서 빼기
+            poseState.guidePoints = null;
+            poseState.bgSame = null;
+            setPoseStatus("error");
           }
         }
         frameId = requestAnimationFrame(loop);
