@@ -22,7 +22,7 @@ export function useMySeat(branchId: number) {
       // seats!inner: 연결된 좌석 정보를 같이 받고, 아래 지점 조건에 맞는 것만 남깁니다.
       .select('id, seats!inner(seat_number, branch_id)')
       .is('ended_at', null)
-      .gt('expires_at', new Date().toISOString())
+      // 시간이 지나도 자리는 유지됩니다(#38). 끝났는지(ended_at)로만 판단합니다.
       .eq('seats.branch_id', branchId)
       .maybeSingle()
       .then(({ data, error }) => {
