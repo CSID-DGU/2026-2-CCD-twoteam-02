@@ -15,8 +15,11 @@
 //
 // 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "학습기기 사용함"을 고른 경우에만 공부로 인정합니다.
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
-// - 사용함: 다른 앱을 눌러도 이 페이지가 보이면 평소처럼 얼굴로 판정하고,
-//   다른 탭으로 가서 얼굴 인식이 멈추면 그동안은 공부한 것으로 칩니다.
+// - 사용함: 다른 앱·다른 탭에 있어도 평소처럼 얼굴로 판정합니다.
+//   (다른 탭이면 useTracking이 1초마다 인식을 계속하므로 자리 이탈·졸음을 그대로 봅니다)
+//
+// 인식 결과가 STALE_SECONDS 넘게 갱신되지 않으면(인식 오류·카메라 멈춤 등) 마지막 값을 믿지 않고
+// 얼굴·몸 모두 안 보임으로 봅니다. 멈추기 직전 "얼굴 보임"이 남아 시간이 계속 쌓이는 것을 막기 위해서입니다.
 //
 // 카메라 가이드라인: 얼굴이 보일 때만, 머리~가슴(코·양 어깨)이 화면 밖으로 나간 시간을 잽니다.
 // 기준 시간 안에 돌아오면 그동안은 보류했다가 인정하고, 넘기면 "가이드라인 이탈"이 되어 시간이 멈춥니다.
@@ -28,9 +31,9 @@ import type { Baseline } from "./calibration";
 export const AWAY_SECONDS = 60; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심 (Dell 자리 비움 잠금 60초)
 export const DROWSY_SECONDS = 21; // 눈을 이 시간 이상 계속 감으면 졸음 의심 (OSLER 검사의 잠든 판정 21초)
 export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (카메라 팝업 기준 GUIDE_ALERT_SECONDS와 같게)
+// 인식 결과가 이 시간 넘게 갱신되지 않으면 안 보임으로 봅니다. 숨긴 탭의 인식 주기(1초)를 세 번 놓친 정도입니다.
+export const STALE_SECONDS = 3;
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
-// 다른 탭에 있으면 브라우저가 계산 주기를 최대 1분까지 늦추므로, 그때는 더 길게 허용합니다.
-const HIDDEN_MAX_STEP_MS = 90_000;
 
 export type FocusStatus = "focus" | "away" | "drowsy" | "offscreen" | "outframe";
 
@@ -41,10 +44,11 @@ export type FocusInput = {
   framed?: boolean | null; // 머리~가슴이 화면 안인지 (null·생략 = 확인 못 함 → 무시)
   bodyFound?: boolean | null; // 몸(Pose)이 자리에 있는지 (null·생략 = 모름 → 몸 없음과 같이 처리)
   baseline?: Baseline | null; // 보정으로 잰 개인 기준 (없으면 눈 판정 안 함)
+  updatedAt?: number | null; // 인식 결과의 시각(ms). 오래되면 안 보임으로 처리 (null·생략 = 확인 안 함)
 };
 
 export type ScreenInput = {
-  pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식도 멈춤)
+  pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식은 1초마다 계속)
   windowFocused: boolean; // 이 브라우저 창이 선택돼 있음 (다른 앱을 누르면 false)
   allowDevices: boolean; // "학습기기 사용함"을 골랐는지
   lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (엎드림 판정에서 깨어 있음의 근거)
@@ -114,24 +118,27 @@ export function eyeClosed(input: FocusInput, wasClosed: boolean): boolean {
 
 export function nextFocusState(
   prev: FocusState,
-  input: FocusInput,
+  given: FocusInput,
   nowMs: number,
   screen: ScreenInput = { pageHidden: false, windowFocused: true, allowDevices: false }
 ): FocusState {
   const elapsed = prev.lastMs === null ? 0 : Math.max(nowMs - prev.lastMs, 0);
   const step = Math.min(elapsed, MAX_STEP_MS);
 
-  // 다른 화면 사용: 얼굴 기록은 지우고, 학습기기 허용 여부에 따라 멈추거나 인정합니다.
+  // 인식이 멈춰 값이 오래됐으면 얼굴·몸 모두 안 보임으로 봅니다. (몸 null = 모름 → 자리 이탈 쪽)
+  const stale = given.updatedAt != null && nowMs - given.updatedAt > STALE_SECONDS * 1000;
+  const input: FocusInput = stale ? { ...given, found: false, bodyFound: null } : given;
+
+  // 다른 화면 사용: 학습기기 사용 안 함이면 얼굴 기록은 지우고 바로 멈춥니다.
+  // 사용함이면 다른 탭·다른 앱이어도 아래에서 평소처럼 얼굴로 판정합니다.
   const offScreen = screen.pageHidden || !screen.windowFocused;
-  if (offScreen && (!screen.allowDevices || screen.pageHidden)) {
-    const counted = screen.allowDevices; // 여기 왔다면 허용 시엔 다른 탭에 있는 경우
+  if (offScreen && !screen.allowDevices) {
     return {
-      status: counted ? "focus" : "offscreen",
+      status: "offscreen",
       awaySeconds: 0,
       closedSeconds: 0,
       outframeSeconds: 0,
-      studyMs:
-        prev.studyMs + (counted ? prev.pendingMs + Math.min(elapsed, HIDDEN_MAX_STEP_MS) : 0),
+      studyMs: prev.studyMs,
       pendingMs: 0,
       missingSince: null,
       closedSince: null,
