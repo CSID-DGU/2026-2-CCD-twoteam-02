@@ -1,6 +1,7 @@
 // 프로필 본문: 이름, 공부 기록 요약(누적·이번 주·최근 7일·이번 주 과목별).
 // 프로필 페이지(/profile/:id)와 지점 안 프로필 창이 같이 씁니다.
 // 내 프로필이면 공개 범위를 바꾸는 칸과 "캐릭터"(#131)·"정보 변경" 탭이 붙습니다.
+// 남의 프로필이면 이름 옆에 친구 버튼이 붙습니다(#153).
 //
 // 탭을 페이지가 아니라 여기에 둔 이유: 로비·지점에서는 페이지로 가지 않고 창으로 열기
 // 때문입니다(#70). 페이지 쪽에만 두면 실제로 쓰는 경로에서는 보이지 않습니다.
@@ -13,6 +14,7 @@ import { useProfile, VISIBILITY_LABEL } from './useProfile'
 import type { Visibility } from './useProfile'
 import { dayLabel } from './profileLogic'
 import { AccountTab } from './AccountTab'
+import { FriendButton } from '../friends/FriendButton'
 import { CharacterTab } from './CharacterTab'
 
 export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean }) {
@@ -27,7 +29,10 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
   const daily = summary.daily ?? []
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={styles.name}>{displayName(summary.nickname, summary.id)}</div>
+      <div style={styles.nameRow}>
+        <div style={styles.name}>{displayName(summary.nickname, summary.id)}</div>
+        {!isMe && <FriendButton otherId={summary.id} />}
+      </div>
 
       {isMe && (
         <nav style={styles.tabs} role="tablist">
@@ -116,7 +121,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  name: { fontSize: 20, fontWeight: 700 },
+  nameRow: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  name: { fontSize: 20, fontWeight: 700, minWidth: 0, overflowWrap: 'anywhere' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   segment: { display: 'flex', gap: 2, padding: 3, borderRadius: 8, background: '#16181d' },
   segButton: { padding: '3px 12px', borderRadius: 6, border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: 'inherit' },
