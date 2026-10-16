@@ -8,7 +8,7 @@
 //
 // 참고: 남은 시간을 영수증 모양으로 보여 주는 작업(#39)이 따로 있습니다.
 //       그 화면이 들어오면 이 창은 거기에 합치거나 지워도 됩니다.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
@@ -21,24 +21,44 @@ type MyPlace = { kind: string; number: number; expires_at: string; expired: bool
 
 // 공부 타이머처럼 초 단위로 셉니다. 시계만 다시 그리는 것이라 부담이 없습니다.
 const TICK_MS = 1000
-// 자리 정보는 자주 바뀌지 않으므로 1분에 한 번만 다시 읽습니다.
-// (다른 창에서 연장·반납했을 수 있어 아예 안 읽을 수는 없습니다)
+// 1분마다 heartbeat 로 "아직 접속해 있다"를 알리면서 자리 정보도 같이 받습니다. (#155)
+// 신호를 따로 보내면 통신이 두 번이 되므로 한 번에 합쳤습니다.
+// 이 신호가 5분 넘게 끊기면 DB 가 자리를 반납합니다.
 const RELOAD_MS = 60 * 1000
 
-export default function SeatTimeCorner() {
+// onLost: 접속이 끊겨 자리를 잃었을 때 부릅니다. 지점 화면이 들고 있던 내 자리도
+// 같이 비워야 "화면에는 내 자리, DB 에는 없음"으로 어긋나지 않습니다. (#135 와 같은 문제)
+export default function SeatTimeCorner({ onLost }: { onLost?: () => void }) {
+  // 쓰는 쪽에서 onLost={() => ...} 로 넘기면 매 렌더마다 다른 함수가 됩니다.
+  // 그대로 의존성에 넣으면 아래 타이머가 계속 지워졌다 다시 걸립니다. ref 에 담아 둡니다.
+  const lostRef = useRef(onLost)
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [open, setOpen] = useState(false)
   const [minutes, setMinutes] = useState(30)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
+  // 접속이 끊겨 자리를 잃었을 때 한 번 알립니다. (#155)
+  const [lost, setLost] = useState(false)
 
   const load = useCallback(() => {
-    supabase.rpc('my_current_place').then(({ data }) => {
+    supabase.rpc('heartbeat').then(({ data }) => {
       const row = Array.isArray(data) ? data[0] : data
-      setMine((row as MyPlace) ?? null)
+      const next = (row as MyPlace) ?? null
+      setMine((before) => {
+        // 자리가 있었는데 사라졌다면 접속이 끊겨 반납된 것입니다. 이유를 알려 줍니다. (#155)
+        if (before && !next) {
+          setLost(true)
+          lostRef.current?.()
+        }
+        return next
+      })
     })
   }, [])
+
+  useEffect(() => {
+    lostRef.current = onLost
+  }, [onLost])
 
   useEffect(() => {
     load()
@@ -64,7 +84,21 @@ export default function SeatTimeCorner() {
     load()
   }
 
-  if (!mine) return null
+  if (!mine) {
+    if (!lost) return null
+    return (
+      <div style={styles.panel}>
+        <p style={styles.line}>
+          접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.
+        </p>
+        <div style={styles.row}>
+          <button type="button" style={styles.primary} onClick={() => setLost(false)}>
+            확인
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const leftMs = new Date(mine.expires_at).getTime() - now
   const over = leftMs <= 0
