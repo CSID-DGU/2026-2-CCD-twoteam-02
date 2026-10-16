@@ -555,7 +555,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       </div>
     )}
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
-    {session && <SeatTimeCorner />}
+    {session && <SeatTimeCorner onLost={() => setMySeat(null)} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
