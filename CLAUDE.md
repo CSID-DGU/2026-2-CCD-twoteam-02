@@ -22,12 +22,11 @@
 - 언어·프론트: TypeScript, React 19, Vite, react-router(주소별 화면 전환)
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
 - 캐릭터: GLB 모델(`public/models/character-a~r.glb`)을 drei `useGLTF`로 불러온다. VRM·three-vrm은 쓰지 않는다.
-- 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔)
+- 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
 
 도입 예정(아직 설치 안 됨):
 
-- 카메라 가이드라인(Pose 결과 재사용), MediaPipe Object Detector(전자기기)
 - Supabase Realtime(Broadcast·Presence), 좌석 배정용 DB 함수
 - Vercel 배포
 
@@ -108,7 +107,7 @@ docs/                  제안서·주간발표 자료
 - 2D 이동 모드: 위에서 내려다보는 시점으로 캐릭터를 움직이는 상태.
 - 3D 좌석 모드: 착석 후 1인칭 시점으로 공부하는 상태. 좌우 60도씩, 합쳐 120도까지 둘러볼 수 있다.
 - 초록불: 공부 중. 이때만 타이머가 올라간다. 코드의 `focus`.
-- 노란불: 접속했지만 공부하지 않는 상태. 코드의 `away`(자리 이탈), `drowsy`(졸음), `offscreen`(다른 화면 사용)과 가이드라인 이탈, 전자기기 감지, 2D 이동 중.
+- 노란불: 접속했지만 공부하지 않는 상태. 코드의 `away`(자리 이탈), `drowsy`(졸음), `offscreen`(다른 화면 사용), `phone`(휴대폰 사용 — 전자기기 감지)과 가이드라인 이탈, 2D 이동 중.
 - 빨간불: 미접속. 접속이 끊긴 뒤 좌석이 반납되기 전까지(3분) 해당 좌석에 표시된다.
 - 학습기기 사용함: 공부를 시작할 때 고르는 설정. 끄면(기본) 다른 탭이나 다른 앱으로 가는 즉시 `offscreen`이 되고, 전자기기가 감지되면 타이머가 멈춘다. 켜면 전자기기가 감지되거나 다른 탭에 가 있어도 공부로 인정한다. 켜도 자리 이탈·졸음 판정은 그대로 적용한다.
 - 캐릭터 숨김 모드: 다른 참여자의 캐릭터와 표시등을 숨기고 접속 인원 수만 보여 주는 실험용 모드. 트래킹과 타이머는 그대로 동작한다.
