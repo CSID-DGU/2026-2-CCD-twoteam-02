@@ -24,6 +24,10 @@
 // 카메라 가이드라인: 얼굴이 보일 때만, 머리~가슴(코·양 어깨)이 화면 밖으로 나간 시간을 잽니다.
 // 기준 시간 안에 돌아오면 그동안은 보류했다가 인정하고, 넘기면 "가이드라인 이탈"이 되어 시간이 멈춥니다.
 // 학습기기 사용 여부와 상관없이 적용합니다. (Pose 결과가 없으면 무시)
+//
+// 휴대폰: "학습기기 사용 안 함"일 때만, 휴대폰이 화면에 PHONE_SECONDS 넘게 연속으로 잡히면 "휴대폰 사용"이 되고 시간이 멈춥니다.
+// 한 번 잡혔다고 바로 멈추지 않는 것은 비슷한 물건을 순간적으로 휴대폰으로 착각하는 경우를 거르기 위해서입니다.
+// 화면 밖(책상 아래 등)에서 쓰는 휴대폰은 잡지 못합니다. (docs/판정-기준-근거.md 8절)
 
 import type { Baseline } from "./calibration";
 
@@ -35,7 +39,10 @@ export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면
 export const STALE_SECONDS = 3;
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
 
-export type FocusStatus = "focus" | "away" | "drowsy" | "offscreen" | "outframe";
+// 휴대폰이 이 시간 이상 연속으로 잡히면 휴대폰 사용. 휴대폰이 없을 때 잘못 잡힌 것은 가장 길어도 1초였습니다(측정 2026-10-16, 1명).
+export const PHONE_SECONDS = 3;
+
+export type FocusStatus = "focus" | "away" | "drowsy" | "offscreen" | "outframe" | "phone";
 
 export type FocusInput = {
   found: boolean; // 얼굴이 잡혔는지
@@ -43,6 +50,7 @@ export type FocusInput = {
   pitch?: number; // 고개 위아래 각도(라디안, 숙이면 +). 생략하면 정면으로 봅니다.
   framed?: boolean | null; // 머리~가슴이 화면 안인지 (null·생략 = 확인 못 함 → 무시)
   bodyFound?: boolean | null; // 몸(Pose)이 자리에 있는지 (null·생략 = 모름 → 몸 없음과 같이 처리)
+  phone?: boolean | null; // 휴대폰이 화면에 잡혔는지 (null·생략 = 확인 못 함 → 무시)
   baseline?: Baseline | null; // 보정으로 잰 개인 기준 (없으면 눈 판정 안 함)
   updatedAt?: number | null; // 인식 결과의 시각(ms). 오래되면 안 보임으로 처리 (null·생략 = 확인 안 함)
 };
@@ -67,6 +75,8 @@ export type FocusState = {
   outframeSince: number | null;
   lastMs: number | null;
   bodyWhileMissing: boolean; // 얼굴이 안 보이는 동안 몸은 자리에 있었는지 (엎드림)
+  phoneSince: number | null; // 휴대폰이 연속으로 잡히기 시작한 시각
+  phoneSeconds: number; // 휴대폰이 연속으로 잡힌 시간
 };
 
 export const initialFocusState: FocusState = {
@@ -81,6 +91,8 @@ export const initialFocusState: FocusState = {
   outframeSince: null,
   lastMs: null,
   bodyWhileMissing: false,
+  phoneSince: null,
+  phoneSeconds: 0,
 };
 
 // 화면에 보여 줄 집중 시간: 확정 시간 + 보류 시간. 기준을 넘겨 보류가 버려지면 그만큼 줄어듭니다.
@@ -88,12 +100,13 @@ export const initialFocusState: FocusState = {
 export const shownStudyMs = (state: FocusState) => state.studyMs + state.pendingMs;
 
 // 보류 중인 이유 (내 화면에만 노란 표시용). 다른 참여자에게 보내는 상태(status)는 그대로 focus 입니다.
-export function holdReason(state: FocusState): "face" | "eyes" | "frame" | null {
+export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phone" | null {
   if (state.status !== "focus") return null;
   // 몸이 자리에 있으면 숙여 필기하며 얼굴이 띄엄띄엄 끊기는 경우가 많아 노란 표시를 하지 않습니다. (#119)
   if (state.awaySeconds > 0) return state.bodyWhileMissing ? null : "face";
   if (state.closedSeconds > 0) return "eyes";
   if (state.outframeSeconds > 0) return "frame";
+  if (state.phoneSeconds > 0) return "phone";
   return null;
 }
 
@@ -102,6 +115,7 @@ export const HOLD_LABEL = {
   face: "🟡 얼굴을 찾는 중",
   eyes: "🟡 눈 감음 확인 중",
   frame: "🟡 자세 확인 중",
+  phone: "🟡 휴대폰 확인 중",
 };
 
 // 보정 기준으로 눈을 감았는지. 자세(정면/숙임)는 정면 각도와 숙인 각도의 중간으로 가릅니다.
@@ -122,12 +136,47 @@ export function nextFocusState(
   nowMs: number,
   screen: ScreenInput = { pageHidden: false, windowFocused: true, allowDevices: false }
 ): FocusState {
+  // 인식이 멈춰 값이 오래됐으면 얼굴·몸 모두 안 보임으로 보고, 휴대폰 값도 믿지 않습니다. (몸 null = 모름 → 자리 이탈 쪽)
+  const stale = given.updatedAt != null && nowMs - given.updatedAt > STALE_SECONDS * 1000;
+  const input: FocusInput = stale ? { ...given, found: false, bodyFound: null, phone: null } : given;
+
+  // 휴대폰: 학습기기 사용 안 함일 때만 연속으로 잡힌 시간을 잽니다. 한 번이라도 안 잡히면 0부터 다시.
+  const phoneSince = !screen.allowDevices && input.phone === true ? prev.phoneSince ?? nowMs : null;
+  const phoneSeconds = phoneSince === null ? 0 : (nowMs - phoneSince) / 1000;
+  const offScreenStop = (screen.pageHidden || !screen.windowFocused) && !screen.allowDevices;
+
+  // 다른 화면 다음으로 우선합니다. 휴대폰을 보느라 얼굴이 안 보여도 자리 이탈보다 휴대폰이 맞는 설명이라서입니다.
+  if (!offScreenStop && phoneSeconds >= PHONE_SECONDS) {
+    return {
+      status: "phone",
+      awaySeconds: 0,
+      closedSeconds: 0,
+      outframeSeconds: 0,
+      studyMs: prev.studyMs,
+      pendingMs: 0, // 다른 노란불처럼 보류해 둔 시간은 버립니다.
+      missingSince: null,
+      closedSince: null,
+      outframeSince: null,
+      lastMs: nowMs,
+      bodyWhileMissing: false,
+      phoneSince,
+      phoneSeconds,
+    };
+  }
+  // 휴대폰이 잡히는 동안은 다른 보류처럼 시간을 보류합니다. 기준 전에 치우면 인정, 넘기면 버림.
+  return { ...judgeFace(prev, input, nowMs, screen, phoneSince !== null), phoneSince, phoneSeconds };
+}
+
+// 다른 화면·얼굴·눈·가이드라인으로 판정합니다. (휴대폰은 위 nextFocusState에서 먼저 봄)
+function judgeFace(
+  prev: FocusState,
+  input: FocusInput,
+  nowMs: number,
+  screen: ScreenInput,
+  holdPhone = false // 휴대폰이 잡히는 중이라 시간을 보류할지
+): Omit<FocusState, "phoneSince" | "phoneSeconds"> {
   const elapsed = prev.lastMs === null ? 0 : Math.max(nowMs - prev.lastMs, 0);
   const step = Math.min(elapsed, MAX_STEP_MS);
-
-  // 인식이 멈춰 값이 오래됐으면 얼굴·몸 모두 안 보임으로 봅니다. (몸 null = 모름 → 자리 이탈 쪽)
-  const stale = given.updatedAt != null && nowMs - given.updatedAt > STALE_SECONDS * 1000;
-  const input: FocusInput = stale ? { ...given, found: false, bodyFound: null } : given;
 
   // 다른 화면 사용: 학습기기 사용 안 함이면 얼굴 기록은 지우고 바로 멈춥니다.
   // 사용함이면 다른 탭·다른 앱이어도 아래에서 평소처럼 얼굴로 판정합니다.
@@ -197,7 +246,7 @@ export function nextFocusState(
   let pendingMs = prev.pendingMs;
   if (status !== "focus") {
     pendingMs = 0;
-  } else if (closed || out) {
+  } else if (closed || out || holdPhone) {
     pendingMs += step;
   } else {
     studyMs += pendingMs + step;

@@ -11,7 +11,7 @@ import type { ChunkRow, ChunkState } from './studyLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
-import type { PoseState } from '../tracking/useTracking'
+import type { PhoneState, PoseState } from '../tracking/useTracking'
 
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   focus: { color: '#4ade80', text: '🟢 공부 중' },
@@ -19,11 +19,13 @@ const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   drowsy: { color: '#facc15', text: '🟡 졸음 의심' },
   offscreen: { color: '#facc15', text: '🟡 다른 화면 사용 중' },
   outframe: { color: '#facc15', text: '🟡 가이드라인 이탈 의심' },
+  phone: { color: '#facc15', text: '🟡 휴대폰 사용 의심' },
 }
 
 type Props = {
   face: RefObject<FocusInput>
   pose: RefObject<PoseState> // 몸 인식 (얼굴을 놓쳐도 자리에 있는지)
+  phone: RefObject<PhoneState> // 휴대폰 감지 (학습기기 사용 안 함일 때만 판정에 씀)
   baseline: Baseline | null // 보정 기준 (건너뛰면 null)
   onRecalibrate: () => void
   choice: StudyChoice
@@ -34,8 +36,8 @@ type Props = {
   onChangeSubject: () => void
 }
 
-export function StudyRunner({ face, pose, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
-  const focus = useFocusState(face, choice.allowDevices, undefined, { body: pose, baseline })
+export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
+  const focus = useFocusState(face, choice.allowDevices, undefined, { body: pose, baseline, phone })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.

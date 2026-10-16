@@ -15,6 +15,7 @@ const LABEL = {
   drowsy: { color: "#facc15", text: "🟡 졸음 의심" },
   offscreen: { color: "#facc15", text: "🟡 다른 화면 사용 중" },
   outframe: { color: "#facc15", text: "🟡 가이드라인 이탈 의심" },
+  phone: { color: "#facc15", text: "🟡 휴대폰 사용 의심" },
 };
 
 // 밀리초 → "01:02:03"

@@ -2,12 +2,13 @@
 // 웹캠은 한 번만 켜고, 반복 하나에서 얼굴은 새 프레임마다, Pose는 초당 POSE_HZ번 인식합니다.
 // 다른 탭으로 가서 페이지가 숨겨지면 화면 반복(requestAnimationFrame)이 멈추므로, 그동안은 워커 신호로
 // HIDDEN_TICK_MS마다 한 번씩 인식합니다. (학습기기 사용함 + 다른 탭에서도 자리 이탈·졸음을 판정하기 위해)
+// 휴대폰 감지(물체 감지)는 options.phone이 켜져 있을 때만 초당 PHONE_HZ번 합니다. (학습기기 사용 안 함일 때만 필요)
 // 결과는 매 프레임 바뀌므로 state가 아니라 ref에 담고, 쓰는 곳(캐릭터·집중 판정·가이드라인)이 필요한 값만 가져갑니다.
 // 웹캠 영상은 이 브라우저 안에서만 처리되고 어디로도 전송되지 않습니다.
 // 배경 확인(카메라가 돌아갔는지)은 1초마다 영상을 작게 줄여 칸별 평균 밝기 숫자로만 읽고, 그림은 남기지 않습니다.
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { FaceLandmarker, FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { FaceLandmarker, FilesetResolver, ObjectDetector, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
 import * as THREE from "three";
 import { POSE_HZ } from "./armLogic";
@@ -33,6 +34,12 @@ const RIGHT = { shoulder: 12, elbow: 14, wrist: 16 };
 const BG_INTERVAL_MS = 1000; // 배경 확인 간격 (제안서: 가이드라인 확인은 초당 1~2회)
 // 숨긴 탭에서 인식하는 간격. 자리 이탈(60초)·졸음(21초)을 재기엔 1초면 충분하고, 한 번에 15~19ms라 부담이 적습니다. (시험 2026-10-16)
 const HIDDEN_TICK_MS = 1000;
+// 휴대폰 감지: MediaPipe 물체 감지 EfficientDet-Lite0 (COCO의 "cell phone"). 근거: docs/판정-기준-근거.md 8절, 측정 2026-10-16
+// Lite0은 화면에 보이게 든 휴대폰을 96% 잡았고 Lite2(95%)와 비슷한데 더 가벼워서 골랐습니다.
+const PHONE_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite";
+const PHONE_HZ = 1; // 제안서: 물체 인식은 초당 1~2회
+const PHONE_MIN_SCORE = 0.3; // 보이게 든 휴대폰 96% 잡음, 휴대폰이 없을 때 잘못 잡은 것은 가장 길어도 1초 (0.5면 82%로 떨어짐)
 
 export type FaceState = {
   found: boolean;
@@ -57,10 +64,21 @@ export type PoseState = {
   wristsInView: boolean; // 손목이 화면 아래쪽 안에 보이는지 (책상이 보이는 구도인지)
 };
 
+export type PhoneState = {
+  found: boolean | null; // 휴대폰이 화면에 잡혔는지. null = 감지를 안 함(꺼짐·준비 전·오류) → 판정에서 무시
+};
+
 export type TrackingStatus = "loading" | "ready" | "error";
 
-export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
+// options.phone: 휴대폰 감지를 켤지. 바꿔도 웹캠을 다시 켜지 않습니다(ref로 읽음).
+export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, options: { phone?: boolean } = {}) {
   const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, ear: null, updatedAt: null });
+  const phone = useRef<PhoneState>({ found: null });
+  const phoneWanted = useRef(false);
+  const wantPhone = options.phone ?? false;
+  useEffect(() => {
+    phoneWanted.current = wantPhone;
+  }, [wantPhone]);
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
     bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false,
@@ -72,7 +90,10 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
   useEffect(() => {
     const faceState = face.current;
     const poseState = pose.current;
+    const phoneState = phone.current;
     let cancelled = false;
+    let phoneDetector: ObjectDetector | undefined;
+    let phoneLoading = false; // 모델을 불러오는 중이거나 실패해서 다시 시도하지 않음
     let frameId = 0;
     let stopHidden: (() => void) | undefined;
     let stream: MediaStream | undefined;
@@ -238,6 +259,47 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
             poseState.bgSame = null;
             setPoseStatus("error");
           }
+          readPhone(video, now);
+        }
+      };
+
+      // 휴대폰: 켜져 있을 때만 초당 PHONE_HZ번. 모델은 처음 켜질 때 불러오고, 실패해도 다른 트래킹은 그대로 둡니다.
+      let lastPhone = 0;
+      const readPhone = (video: HTMLVideoElement, now: number) => {
+        if (!phoneWanted.current) {
+          phoneState.found = null;
+          return;
+        }
+        if (!phoneDetector) {
+          if (phoneLoading) return;
+          phoneLoading = true;
+          ObjectDetector.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath: PHONE_MODEL_URL, delegate: "GPU" },
+            runningMode: "VIDEO",
+            categoryAllowlist: ["cell phone"],
+            scoreThreshold: PHONE_MIN_SCORE,
+            maxResults: 1,
+          })
+            .then((created) => {
+              if (cancelled) created.close();
+              else {
+                phoneDetector = created;
+                phoneLoading = false;
+              }
+            })
+            .catch((error: unknown) => console.warn("휴대폰 감지를 시작하지 못했습니다. 다른 트래킹은 계속합니다:", error));
+          return;
+        }
+        if (now - lastPhone < 1000 / PHONE_HZ) return;
+        lastPhone = now;
+        try {
+          phoneState.found = phoneDetector.detectForVideo(video, now).detections.length > 0;
+        } catch (error: unknown) {
+          console.warn("휴대폰 감지가 멈췄습니다. 다른 트래킹은 계속합니다:", error);
+          phoneDetector.close();
+          phoneDetector = undefined; // phoneLoading은 true로 남겨 다시 시도하지 않습니다.
+          phoneLoading = true;
+          phoneState.found = null;
         }
       };
       const loop = () => {
@@ -264,13 +326,15 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       stream?.getTracks().forEach((track) => track.stop());
       faceLandmarker?.close();
       poseLandmarker?.close();
+      phoneDetector?.close();
+      phoneState.found = null;
       poseState.framed = null; // 꺼진 뒤 남은 값으로 판정하지 않게
       poseState.guidePoints = null;
       poseState.bgSame = null;
     };
   }, [videoRef]);
 
-  return { face, pose, status, message, poseStatus };
+  return { face, pose, phone, status, message, poseStatus };
 }
 
 function toJoint(world: Landmark, image: NormalizedLandmark): Joint {
