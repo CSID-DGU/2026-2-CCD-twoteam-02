@@ -28,10 +28,11 @@ export type ChunkRow = {
 export const startChunk = (now: number, studyMs = 0): ChunkState => ({ startedAt: now, savedStudyMs: studyMs })
 
 // 지금까지의 구간을 한 줄로 잘라 냅니다. 너무 짧으면 row 는 null 이고 상태도 그대로입니다.
-// 초 단위로 내림하고 남은 밀리초는 다음 조각으로 넘겨서, 여러 조각을 합쳐도 시간이 빠지지 않게 합니다.
+// 초 단위로 반올림하고 남거나 모자란 밀리초는 다음 조각으로 넘겨서, 여러 조각을 합쳐도 시간이 빠지거나 늘지 않게 합니다.
+// (내림이면 마지막 조각에서 최대 1초가 항상 빠지지만, 반올림이면 오차가 ±0.5초 안에서 어느 쪽으로도 치우치지 않습니다.)
 export function takeChunk(state: ChunkState, studyMs: number, now: number): { row: ChunkRow | null; next: ChunkState } {
   if (now - state.startedAt < MIN_CHUNK_MS) return { row: null, next: state }
-  const focusedSeconds = Math.max(0, Math.floor((studyMs - state.savedStudyMs) / 1000))
+  const focusedSeconds = Math.max(0, Math.round((studyMs - state.savedStudyMs) / 1000))
   return {
     row: { startedAt: state.startedAt, endedAt: now, focusedSeconds },
     next: { startedAt: now, savedStudyMs: state.savedStudyMs + focusedSeconds * 1000 },
