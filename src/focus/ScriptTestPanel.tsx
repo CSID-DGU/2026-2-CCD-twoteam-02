@@ -20,6 +20,8 @@ import { workerInterval } from "../lib/workerInterval";
 const SAMPLE_MS = 100; // 기록 간격
 const STORAGE_KEY = "scriptTest:v1";
 const BEEP_HZ = 880;
+// 카메라에 잘 잡히게 행동하면 실제보다 높은 정확도가 나오므로, 평소처럼 하도록 안내합니다.
+const NATURAL_NOTE = "평소 하던 대로 하세요. 카메라를 의식해서 잘 보이게 하지 마세요.";
 
 type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number };
 type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cueDone: boolean };
@@ -233,7 +235,8 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
           <div style={{ fontSize: 32, fontVariantNumeric: "tabular-nums" }}>
             {Math.max(0, Math.ceil((running.startMs + running.behavior.seconds * 1000 - now) / 1000))}초
           </div>
-          <div style={{ opacity: 0.7 }}>지금 판정: 없이 {plain.status} / 가이드 {guide.status}</div>
+          {/* 행동 중에는 판정을 보여 주지 않습니다. 보면서 무의식적으로 맞추면 정확도가 부풀려집니다. */}
+          <div style={{ opacity: 0.7 }}>{NATURAL_NOTE}</div>
         </div>
       )}
 
@@ -242,6 +245,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
           <div>다음: <b>#{next.id} {next.name}</b> ({next.seconds}초{next.expect === "focus" ? ", 초록 유지가 정답" : `, ${next.expect}가 정답`})</div>
           {next.hint && <div>{next.hint}</div>}
           <div><b>준비되면 스페이스바</b> — 끝나면 삐 소리가 납니다</div>
+          <div style={{ opacity: 0.7 }}>{NATURAL_NOTE}</div>
         </div>
       )}
 
