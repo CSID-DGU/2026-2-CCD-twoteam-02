@@ -12,7 +12,9 @@
 
 export const WALK_START_GAP = 0.05 // 목표까지 이보다 멀어지면 걷기 시작 (m)
 export const WALK_STOP_GAP = 0.02 // 이보다 가까워져야 멈춤. 두 값을 달리 둬서 경계에서 깜빡이지 않게 합니다.
-export const TELEPORT_GAP = 3 // 이보다 멀면 걸어가지 않고 바로 옮깁니다. (처음 나타날 때, 자리에서 일어날 때 등)
+// 이보다 멀면 걸어가지 않고 바로 옮깁니다. (처음 나타날 때, 자리에서 일어날 때 등)
+// 달리면(RUN_SPEED 6.5) 0.25초에 약 1.6m 를 가므로, 메시지 하나가 늦게 와도 걸어가 보이도록 넉넉히 둡니다. (#118)
+export const TELEPORT_GAP = 5
 export const BACKWARD_DOT = -0.3 // 가는 방향과 보는 방향의 cos 값이 이보다 작으면 뒷걸음 (약 107도 이상 뒤쪽)
 
 export type Gait = 'idle' | 'forward' | 'backward'

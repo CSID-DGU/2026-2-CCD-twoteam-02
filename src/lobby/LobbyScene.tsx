@@ -119,7 +119,7 @@ export default function LobbyScene({ onEnter }: Props) {
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
   const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
-  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · ${viewHint}`
+  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · ${viewHint}`
 
   return (
     <>

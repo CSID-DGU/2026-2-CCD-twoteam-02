@@ -5,8 +5,8 @@ import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import type { Box, Spot } from './layout'
 import { DEFAULT_MODEL, modelUrl } from '../profile/characters'
+import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
 const R = 0.3 // 충돌 반경
-const SPEED = 3 // 초당 이동 거리
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
 const FADE = 0.15 // 동작 전환 시간(초)
@@ -82,6 +82,9 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
   useFrame((_, delta) => {
     const k = keys.current, g = ref.current, p = g.position
     const dt = Math.min(delta, MAX_DT)
+    // Shift 를 누르고 있으면 달립니다. (#118)
+    const running = RUN_KEYS.some((key) => k.has(key))
+    const speed = running ? RUN_SPEED : WALK_SPEED
 
     // 앉아 있든 멈춰 있든 위치와 방향은 알려 줍니다. 다른 참여자 화면에 내가 그려지는 데 씁니다.
     // 방향은 지난 프레임에 정해진 몸 방향입니다. 1인칭이면 보는 방향, 위에서 볼 때는 가는 방향입니다. (#122)
@@ -161,7 +164,7 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
       const f = +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')) // 앞뒤
       const r = +k.has('KeyD') - +k.has('KeyA') // 옆걸음
       if (f || r) {
-        const step = (SPEED * dt) / Math.hypot(f, r)
+        const step = (speed * dt) / Math.hypot(f, r)
         // 앞 = (sin h, cos h), 오른쪽 = (-cos h, sin h)
         dx = (f * Math.sin(h) - r * Math.cos(h)) * step
         dz = (f * Math.cos(h) + r * Math.sin(h)) * step
@@ -172,7 +175,7 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
       const iz = +(k.has('KeyS') || k.has('ArrowDown')) - +(k.has('KeyW') || k.has('ArrowUp'))
       if (ix || iz) {
         // 대각선도 같은 속도가 되도록 방향을 정규화합니다.
-        const step = (SPEED * dt) / Math.hypot(ix, iz)
+        const step = (speed * dt) / Math.hypot(ix, iz)
         dx = ix * step
         dz = iz * step
         // 가는 방향을 바라보도록 가까운 쪽으로 부드럽게 돕니다. (모델 정면은 +Z)
@@ -182,6 +185,8 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
     }
     const moving = dx !== 0 || dz !== 0
     play(moving ? 'walk' : 'idle')
+    // 달릴 때는 걷기 동작을 빠르기에 맞춰 빨리 재생합니다. (다리가 미끄러져 보이지 않게)
+    actions.walk?.setEffectiveTimeScale(speed / WALK_SPEED)
     if (moving) {
       // 축별로 따로 판정해서 벽에 비스듬히 닿으면 미끄러지듯 움직입니다.
       if (!obstacles.some((o) => hit(p.x + dx, p.z, o))) p.x += dx

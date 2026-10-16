@@ -384,7 +384,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${viewHint}`;
 
   return (
     <>
