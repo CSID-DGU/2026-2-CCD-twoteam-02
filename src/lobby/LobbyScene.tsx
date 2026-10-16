@@ -25,6 +25,7 @@ import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { passageOf } from '../space/passage'
+import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import { LOBBY_CHANNEL } from '../realtime/participants'
@@ -78,7 +79,8 @@ export default function LobbyScene({ onEnter }: Props) {
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
-  const [view, setView] = useState<'top' | 'first'>('first') // 처음엔 1인칭
+  // 처음엔 1인칭. V 로 바꾸면 지점에 다녀와도 유지합니다. (useWalkView)
+  const [view, setView] = useWalkView()
   // 지점에서 문으로 나왔으면 그 지점 문 앞에서 보던 방향 그대로 섭니다(#150).
   // "로비로" 버튼으로 나왔으면 문을 등지고(+Z) 서고, 주소로 바로 들어오면 가운데에서 문들 쪽(-Z)을 봅니다.
   const location = useLocation()
