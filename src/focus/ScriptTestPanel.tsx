@@ -1,0 +1,315 @@
+// 각본 시험 패널 (/tracking 전용 측정 도구). 순수 로직·행동 표는 scriptTest.ts
+// 빠른 점검판 / 정식판을 고르고, 스페이스바로 행동을 하나씩 시작합니다. 행동이 끝나면 삐 소리가 나고 자동으로 채점합니다.
+// (눈 감기·자리 비우기 중에는 화면을 못 보므로 소리로 알립니다. 소리는 Web Audio로 만들고 라이브러리는 쓰지 않습니다)
+//
+// 판정 두 가지를 이 패널에서 직접 계산합니다: 가이드라인 없이(실제 공부 화면과 같음) / 가이드라인 켬.
+// 0.1초 기록은 워커 신호로 남겨 다른 탭에 가 있어도 끊기지 않습니다(9·13번 행동).
+// 채점 결과와 순서는 브라우저 저장소에 저장해서, 새로고침하거나 정식판을 2~3번에 나눠 해도 이어서 할 수 있습니다.
+// 0.1초 기록은 양이 많아 메모리에만 두고, 시험이 끝나거나 중단할 때 CSV로 내려받습니다(새로고침하면 그 전 기록은 사라짐).
+// 영상은 남기지 않고 숫자만 남기며, 서버로 보내지 않습니다.
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, RefObject } from "react";
+import { useFocusState } from "./useFocusState";
+import type { FocusView } from "./useFocusState";
+import type { FocusInput } from "./focusLogic";
+import type { Baseline } from "./calibration";
+import { BEHAVIORS, behaviorOf, byBehavior, expectedStudyMs, logCsv, makePlan, resultsCsv, scoreTrial, summarize } from "./scriptTest";
+import type { Behavior, Judgement, LogRow, Summary, TestMode, TrialResult, TrialSample } from "./scriptTest";
+import { workerInterval } from "../lib/workerInterval";
+
+const SAMPLE_MS = 100; // 기록 간격
+const STORAGE_KEY = "scriptTest:v1";
+const BEEP_HZ = 880;
+
+type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number };
+type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cueDone: boolean };
+
+function loadSaved(): Saved | null {
+  try {
+    const text = localStorage.getItem(STORAGE_KEY);
+    return text ? (JSON.parse(text) as Saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+function store(saved: Saved | null) {
+  try {
+    if (saved) localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // 저장소를 못 쓰면 이어 하기만 안 됩니다. 시험은 그대로 진행합니다.
+  }
+}
+
+function download(text: string, name: string) {
+  const blob = new Blob(["﻿" + text], { type: "text/csv" }); // 엑셀에서 한글이 깨지지 않게 BOM
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${name}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+const judgementOf = (v: FocusView): Judgement => ({ status: v.status, studyMs: v.studyMs });
+const pct = (v: number | null) => (v === null ? "-" : `${Math.round(v * 100)}%`);
+const sec = (ms: number | null) => (ms === null ? "-" : `${(ms / 1000).toFixed(1)}초`);
+const minutesOf = (ids: number[]) => Math.round(ids.reduce((sum, id) => sum + behaviorOf(id).seconds, 0) / 60);
+
+type Props = {
+  face: RefObject<FocusInput>;
+  pose: RefObject<{ found: boolean; framed: boolean | null }>;
+  baseline: Baseline | null; // 보정 기준. 없으면 시작할 수 없습니다(졸음 판정이 보정했을 때만 동작하므로).
+};
+
+export function ScriptTestPanel({ face, pose, baseline }: Props) {
+  const plain = useFocusState(face, false, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, false, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+  const [open, setOpen] = useState(() => loadSaved() !== null);
+  const [saved, setSaved] = useState<Saved | null>(loadSaved);
+  const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  const runRef = useRef<Running | null>(null);
+  const rows = useRef<LogRow[]>([]);
+  const testStart = useRef<number | null>(null);
+  const audio = useRef<AudioContext | null>(null);
+  // 워커 신호·키 입력에서 최신 값을 읽기 위한 ref (그리는 중에는 읽지 않음)
+  const latest = useRef({ plain, guide, saved, baseline });
+  useEffect(() => {
+    latest.current = { plain, guide, saved, baseline };
+  });
+
+  const inProgress = saved !== null && saved.results.length < saved.plan.length;
+
+  function beep(times: number) {
+    const ctx = audio.current;
+    if (!ctx) return;
+    for (let i = 0; i < times; i++) {
+      const at = ctx.currentTime + i * 0.35;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = BEEP_HZ;
+      gain.gain.value = 0.2;
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.25);
+    }
+  }
+
+  // 행동을 끝내고 채점합니다.
+  function finishTrial(run: Running) {
+    const { plain, guide, saved } = latest.current;
+    if (!saved) return;
+    runRef.current = null;
+    setRunning(null);
+    if (run.behavior.allowDevices) {
+      plain.setAllowDevices(false);
+      guide.setAllowDevices(false);
+    }
+    const next: Saved = { ...saved, results: [...saved.results, scoreTrial(run.trial, run.behavior, run.samples)] };
+    latest.current.saved = next;
+    store(next);
+    setSaved(next);
+    const done = next.results.length >= next.plan.length;
+    beep(done ? 3 : 1);
+    if (done) download(logCsv(rows.current), "script-test-log");
+  }
+
+  // 0.1초 기록: 시험이 진행 중인 동안 워커 신호로 돕니다.
+  useEffect(() => {
+    if (!inProgress) return;
+    return workerInterval(SAMPLE_MS, () => {
+      const n = Date.now();
+      testStart.current ??= n;
+      const { plain, guide } = latest.current;
+      const run = runRef.current;
+      const elapsedMs = run ? n - run.startMs : null;
+      const f = face.current;
+      rows.current.push({
+        t: n - testStart.current, trial: run?.trial ?? null, behaviorId: run?.behavior.id ?? null, elapsedMs,
+        plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, ear: f.ear ?? null, pitch: f.pitch ?? 0,
+        framed: pose.current.framed, body: pose.current.framed === null ? null : pose.current.found,
+        hidden: document.hidden, focused: document.hasFocus(), allowDevices: plain.allowDevices,
+      });
+      if (run && elapsedMs !== null) {
+        run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide) });
+        if (run.behavior.cue && !run.cueDone && elapsedMs >= run.behavior.cue.atSeconds * 1000) {
+          run.cueDone = true;
+          beep(2);
+        }
+        if (elapsedMs >= run.behavior.seconds * 1000) finishTrial(run);
+      }
+      setNow(n);
+    });
+    // finishTrial·beep은 ref만 읽으므로 의존성에 넣지 않습니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inProgress, face, pose]);
+
+  // 스페이스바: 다음 행동 시작
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const { saved, baseline, plain, guide } = latest.current;
+      if (e.code !== "Space" || !saved || saved.results.length >= saved.plan.length) return;
+      e.preventDefault(); // 버튼에 초점이 있어도 눌리지 않게
+      if (runRef.current || !baseline) return;
+      audio.current ??= new AudioContext(); // 사용자가 누른 순간에 만들어야 소리가 납니다
+      void audio.current.resume();
+      const behavior = behaviorOf(saved.plan[saved.results.length]);
+      if (behavior.allowDevices) {
+        plain.setAllowDevices(true);
+        guide.setAllowDevices(true);
+      }
+      const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cueDone: false };
+      runRef.current = run;
+      setRunning({ trial: run.trial, behavior, startMs: run.startMs });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const start = (mode: TestMode) => {
+    const next: Saved = { mode, plan: makePlan(mode), results: [], startedAt: Date.now() };
+    rows.current = [];
+    testStart.current = null;
+    store(next);
+    setSaved(next);
+  };
+
+  const stop = () => {
+    if (rows.current.length > 0) download(logCsv(rows.current), "script-test-log");
+    rows.current = [];
+    testStart.current = null;
+  };
+
+  const reset = () => {
+    if (!window.confirm("각본 시험 결과를 지우고 처음부터 할까요? (필요하면 먼저 결과 CSV를 내려받으세요)")) return;
+    runRef.current = null;
+    setRunning(null);
+    rows.current = [];
+    testStart.current = null;
+    store(null);
+    setSaved(null);
+  };
+
+  if (!open) {
+    return (
+      <div style={styles.panel}>
+        <button type="button" onClick={() => setOpen(true)}>각본 시험 열기</button>
+      </div>
+    );
+  }
+
+  const results = saved?.results ?? [];
+  const next = saved && inProgress ? behaviorOf(saved.plan[saved.results.length]) : null;
+  const quickIds = BEHAVIORS.map((b) => b.id);
+
+  return (
+    <div style={styles.panel}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <b>각본 시험{saved ? ` · ${saved.mode === "quick" ? "빠른 점검판" : "정식판"} ${results.length}/${saved.plan.length}` : ""}</b>
+        <button type="button" onClick={() => setOpen(false)}>접기</button>
+      </div>
+
+      {!baseline && <div style={styles.warn}>먼저 왼쪽 위 "보정하기"로 보정하세요. 졸음 판정은 보정했을 때만 동작합니다.</div>}
+
+      {!saved && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" disabled={!baseline} onClick={() => start("quick")}>
+            빠른 점검판 ({quickIds.length}개, 약 {minutesOf(quickIds)}분 + 쉬는 시간)
+          </button>
+          <button type="button" disabled={!baseline} onClick={() => start("full")}>
+            정식판 ({quickIds.length * 5}회, 약 {minutesOf(quickIds) * 5}분 + 쉬는 시간, 나눠서 가능)
+          </button>
+        </div>
+      )}
+
+      {running && (
+        <div style={styles.big}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>#{running.behavior.id} {running.behavior.name}</div>
+          {running.behavior.hint && <div>{running.behavior.hint}</div>}
+          {running.behavior.cue && <div>{running.behavior.cue.atSeconds}초에 소리 두 번: {running.behavior.cue.text}</div>}
+          <div style={{ fontSize: 32, fontVariantNumeric: "tabular-nums" }}>
+            {Math.max(0, Math.ceil((running.startMs + running.behavior.seconds * 1000 - now) / 1000))}초
+          </div>
+          <div style={{ opacity: 0.7 }}>지금 판정: 없이 {plain.status} / 가이드 {guide.status}</div>
+        </div>
+      )}
+
+      {!running && next && (
+        <div style={styles.big}>
+          <div>다음: <b>#{next.id} {next.name}</b> ({next.seconds}초{next.expect === "focus" ? ", 초록 유지가 정답" : `, ${next.expect}가 정답`})</div>
+          {next.hint && <div>{next.hint}</div>}
+          <div><b>준비되면 스페이스바</b> — 끝나면 삐 소리가 납니다</div>
+        </div>
+      )}
+
+      {saved && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {inProgress && <button type="button" onClick={stop} disabled={running !== null}>여기서 멈추고 기록 내려받기</button>}
+          {results.length > 0 && <button type="button" onClick={() => download(resultsCsv(results), "script-test-results")}>결과 CSV</button>}
+          <button type="button" onClick={reset} disabled={running !== null}>처음부터 다시</button>
+        </div>
+      )}
+
+      {results.length > 0 && <ResultTable results={results} />}
+    </div>
+  );
+}
+
+function SummaryLine({ label, s }: { label: string; s: Summary }) {
+  return (
+    <div>
+      {label}: 정확도 <b>{pct(s.accuracy)}</b> ({s.correct}/{s.trials}) · 필기 오판율 {pct(s.writingWrongRate)} · 공부 시간 오차{" "}
+      {s.timeError === null ? "-" : `${s.timeError >= 0 ? "+" : ""}${(s.timeError * 100).toFixed(1)}%`}
+    </div>
+  );
+}
+
+function ResultTable({ results }: { results: TrialResult[] }) {
+  const rows = byBehavior(results);
+  return (
+    <>
+      <SummaryLine label="가이드라인 없이" s={summarize(results, "plain")} />
+      <SummaryLine label="가이드라인 켬" s={summarize(results, "guide")} />
+      <div style={{ opacity: 0.7 }}>목표: 정확도 80% 이상 · 필기 오판율 10% 이하 · 시간 오차 ±10%</div>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            {["#", "행동", "정답", "맞음(없이)", "맞음(가이드)", "처음 노란불(없이)", "노란불까지(없이)", "들어간 시간(없이)", "들어가야 할 시간"].map((h) => (
+              <th key={h} style={styles.cell}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.behavior.id}>
+              <td style={styles.cell}>{r.behavior.id}</td>
+              <td style={styles.cell}>{r.behavior.name}</td>
+              <td style={styles.cell}>{r.behavior.expect === "focus" ? "초록" : r.behavior.expect}</td>
+              <td style={{ ...styles.cell, color: r.plainCorrect < r.n ? "#fbbf24" : undefined }}>{r.plainCorrect}/{r.n}</td>
+              <td style={styles.cell}>{r.guideCorrect}/{r.n}</td>
+              <td style={styles.cell}>{r.plainFirstYellow.map((s) => s ?? "없음").join(", ")}</td>
+              <td style={styles.cell}>{sec(r.plainYellowMs)}</td>
+              <td style={styles.cell}>{sec(r.plainGainedMs)}</td>
+              <td style={styles.cell}>{sec(expectedStudyMs(r.behavior))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+const styles: Record<string, CSSProperties> = {
+  panel: {
+    position: "absolute", left: 16, top: 220, maxWidth: "min(720px, calc(100% - 32px))", maxHeight: "50vh", overflow: "auto",
+    padding: "8px 12px", borderRadius: 8, background: "rgba(0,0,0,.7)", color: "#fff",
+    font: "12px/1.5 system-ui, sans-serif", display: "grid", gap: 6, textAlign: "left", zIndex: 5,
+  },
+  big: { font: "15px/1.6 system-ui, sans-serif", padding: "6px 0" },
+  warn: { color: "#fbbf24" },
+  table: { borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" },
+  cell: { padding: "2px 6px", borderBottom: "1px solid rgba(255,255,255,.15)", whiteSpace: "nowrap" },
+};
