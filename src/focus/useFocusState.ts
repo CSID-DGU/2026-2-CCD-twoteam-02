@@ -13,9 +13,11 @@ export type FocusView = FocusState & {
 
 // body: 몸(Pose) 결과 — framed가 null이면 Pose 준비 전·오류라 "모름"으로 넘깁니다.
 // baseline: 보정 기준 (없으면 눈 감음 판정 안 함)
+// phone: 휴대폰 감지 결과 (없거나 null이면 휴대폰은 보지 않음)
 export type FocusExtras = {
   body?: RefObject<{ found: boolean; framed: boolean | null }>;
   baseline?: Baseline | null;
+  phone?: RefObject<{ found: boolean | null }>;
 };
 
 // initialAllowDevices: 공부 시작 창에서 고른 학습기기 사용 여부. 트래킹 검증 화면은 체크박스로 바꿉니다.
@@ -29,7 +31,7 @@ export function useFocusState(
   const [state, setState] = useState<FocusState>(initialFocusState);
   const [allowDevices, setAllowDevices] = useState(initialAllowDevices);
   const lastInputMs = useRef<number | null>(null);
-  const { body, baseline = null } = extras;
+  const { body, baseline = null, phone } = extras;
 
   // 키보드·마우스 입력 시각만 기억합니다. (무엇을 눌렀는지는 보지 않음)
   useEffect(() => {
@@ -47,6 +49,7 @@ export function useFocusState(
       const { found, ear, pitch, updatedAt } = face.current;
       const framed = pose?.current.framed ?? null;
       const bodyFound = body ? (body.current.framed === null ? null : body.current.found) : null;
+      const phoneFound = phone?.current.found ?? null;
       const screen = {
         pageHidden: document.hidden,
         windowFocused: document.hasFocus(),
@@ -54,11 +57,11 @@ export function useFocusState(
         lastInputMs: lastInputMs.current,
       };
       setState((prev) =>
-        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline, updatedAt }, Date.now(), screen)
+        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline, updatedAt, phone: phoneFound }, Date.now(), screen)
       );
     });
     return stop;
-  }, [face, pose, body, baseline, allowDevices]);
+  }, [face, pose, body, baseline, phone, allowDevices]);
 
   return { ...state, allowDevices, setAllowDevices };
 }
