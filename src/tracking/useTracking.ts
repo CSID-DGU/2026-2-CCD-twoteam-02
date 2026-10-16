@@ -1,5 +1,7 @@
 // 웹캠 트래킹을 한 곳에서 합니다: 얼굴(고개·눈)과 몸(Pose: 팔·카메라 가이드라인).
 // 웹캠은 한 번만 켜고, 반복 하나에서 얼굴은 새 프레임마다, Pose는 초당 POSE_HZ번 인식합니다.
+// 다른 탭으로 가서 페이지가 숨겨지면 화면 반복(requestAnimationFrame)이 멈추므로, 그동안은 워커 신호로
+// HIDDEN_TICK_MS마다 한 번씩 인식합니다. (학습기기 사용함 + 다른 탭에서도 자리 이탈·졸음을 판정하기 위해)
 // 결과는 매 프레임 바뀌므로 state가 아니라 ref에 담고, 쓰는 곳(캐릭터·집중 판정·가이드라인)이 필요한 값만 가져갑니다.
 // 웹캠 영상은 이 브라우저 안에서만 처리되고 어디로도 전송되지 않습니다.
 // 배경 확인(카메라가 돌아갔는지)은 1초마다 영상을 작게 줄여 칸별 평균 밝기 숫자로만 읽고, 그림은 남기지 않습니다.
@@ -14,6 +16,7 @@ import type { ArmJoints, Joint } from "./armLogic";
 import { GUIDE_POINTS, isFramed } from "./poseFrame";
 import { BG_SAMPLE_HEIGHT, BG_SAMPLE_WIDTH, cellMeans, compareBackground, personCells } from "./background";
 import type { PosePoint } from "./poseFrame";
+import { workerInterval } from "../lib/workerInterval";
 
 // package.json에 설치된 @mediapipe/tasks-vision 버전과 맞춰야 합니다.
 const WASM_URL =
@@ -28,6 +31,8 @@ const POSE_MODEL_URL =
 const LEFT = { shoulder: 11, elbow: 13, wrist: 15 };
 const RIGHT = { shoulder: 12, elbow: 14, wrist: 16 };
 const BG_INTERVAL_MS = 1000; // 배경 확인 간격 (제안서: 가이드라인 확인은 초당 1~2회)
+// 숨긴 탭에서 인식하는 간격. 자리 이탈(60초)·졸음(21초)을 재기엔 1초면 충분하고, 한 번에 15~19ms라 부담이 적습니다. (시험 2026-10-16)
+const HIDDEN_TICK_MS = 1000;
 
 export type FaceState = {
   found: boolean;
@@ -36,6 +41,7 @@ export type FaceState = {
   roll: number;
   blink: number;
   ear: number | null; // 눈 크기(EAR). 보정·눈 감음 판정용
+  updatedAt: number | null; // 마지막으로 인식한 시각(Date.now). 오래되면 판정에서 "안 보임"으로 봅니다
 };
 
 export type PoseState = {
@@ -54,7 +60,7 @@ export type PoseState = {
 export type TrackingStatus = "loading" | "ready" | "error";
 
 export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
-  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, ear: null });
+  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, ear: null, updatedAt: null });
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
     bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false,
@@ -68,6 +74,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
     const poseState = pose.current;
     let cancelled = false;
     let frameId = 0;
+    let stopHidden: (() => void) | undefined;
     let stream: MediaStream | undefined;
     let faceLandmarker: FaceLandmarker | undefined;
     let poseLandmarker: PoseLandmarker | undefined;
@@ -77,6 +84,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
     // 얼굴: 변환 행렬 → 고개 각도, blendshape → 눈 감긴 정도
     function readFace(landmarker: FaceLandmarker, video: HTMLVideoElement, now: number) {
       const result = landmarker.detectForVideo(video, now);
+      faceState.updatedAt = Date.now();
       const transform = result.facialTransformationMatrixes?.[0];
       if (!transform) {
         faceState.found = false;
@@ -197,7 +205,8 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
       let lastVideoTime = -1;
       let lastPose = 0;
       let lastBackground = 0;
-      const loop = () => {
+      // 인식 한 번. 보일 때는 화면 반복(loop)이, 숨겨졌을 때는 워커 신호가 부릅니다.
+      const step = () => {
         if (cancelled || !faceLandmarker) return;
         if (video.readyState >= 2) {
           const now = performance.now();
@@ -230,9 +239,16 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
             setPoseStatus("error");
           }
         }
+      };
+      const loop = () => {
+        if (cancelled || !faceLandmarker) return;
+        if (!document.hidden) step();
         frameId = requestAnimationFrame(loop);
       };
       loop();
+      stopHidden = workerInterval(HIDDEN_TICK_MS, () => {
+        if (document.hidden) step();
+      });
     }
 
     start().catch((error: unknown) => {
@@ -244,6 +260,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>) {
     return () => {
       cancelled = true;
       cancelAnimationFrame(frameId);
+      stopHidden?.();
       stream?.getTracks().forEach((track) => track.stop());
       faceLandmarker?.close();
       poseLandmarker?.close();

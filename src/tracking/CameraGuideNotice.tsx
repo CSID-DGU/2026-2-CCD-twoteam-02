@@ -25,7 +25,7 @@ export function CameraGuideNotice({ pose }: { pose: RefObject<PoseState> }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      // 다른 탭에 있으면 트래킹이 멈춰 마지막 값이 남아 있으므로 처음부터 다시 잽니다.
+      // 다른 탭에 있으면 팝업이 보이지 않으므로 띄우지 않고, 돌아오면 처음부터 다시 잽니다.
       if (document.hidden) {
         setAlert(initialGuideAlert);
         return;

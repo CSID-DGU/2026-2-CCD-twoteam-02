@@ -12,6 +12,7 @@ import { CameraGuideNotice } from "./tracking/CameraGuideNotice";
 import { CalibrationDialog } from "./study/CalibrationDialog";
 import type { Baseline } from "./focus/calibration";
 import { MeasureRecorder } from "./tracking/MeasureRecorder";
+import { FocusLogRecorder } from "./focus/FocusLogRecorder";
 import PoseReadout from "./tracking/PoseReadout";
 import type { FaceState } from "./tracking/useTracking";
 import { TrackedCharacter } from "./tracking/TrackedCharacter";
@@ -98,6 +99,7 @@ export default function HeadTrackingTest() {
         />
       )}
       {status === "ready" && <MeasureRecorder pose={pose} />}
+      {status === "ready" && <FocusLogRecorder face={face} pose={pose} focus={focus} />}
 
       <video
         ref={videoRef}

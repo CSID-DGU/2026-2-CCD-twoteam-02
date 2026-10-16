@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { initialFocusState, nextFocusState } from "./focusLogic";
 import type { FocusInput, FocusState } from "./focusLogic";
 import type { Baseline } from "./calibration";
+import { workerInterval } from "../lib/workerInterval";
 
 export type FocusView = FocusState & {
   allowDevices: boolean;
@@ -40,9 +41,10 @@ export function useFocusState(
     return () => events.forEach((name) => window.removeEventListener(name, mark));
   }, []);
 
+  // 판정은 워커 신호로 0.1초마다 합니다. setInterval은 다른 탭에 있으면 브라우저가 1분 1회까지 늦출 수 있어서입니다.
   useEffect(() => {
-    const id = setInterval(() => {
-      const { found, ear, pitch } = face.current;
+    const stop = workerInterval(100, () => {
+      const { found, ear, pitch, updatedAt } = face.current;
       const framed = pose?.current.framed ?? null;
       const bodyFound = body ? (body.current.framed === null ? null : body.current.found) : null;
       const screen = {
@@ -52,10 +54,10 @@ export function useFocusState(
         lastInputMs: lastInputMs.current,
       };
       setState((prev) =>
-        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline }, Date.now(), screen)
+        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline, updatedAt }, Date.now(), screen)
       );
-    }, 100);
-    return () => clearInterval(id);
+    });
+    return stop;
   }, [face, pose, body, baseline, allowDevices]);
 
   return { ...state, allowDevices, setAllowDevices };
