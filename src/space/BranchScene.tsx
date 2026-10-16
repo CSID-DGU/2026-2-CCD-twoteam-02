@@ -25,6 +25,7 @@ import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
+import { useWalkView } from "./useWalkView";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -224,7 +225,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
-  const [view, setView] = useState<"top" | "first">("first");
+  const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
   // 문을 지나 왔으면 그때 보던 방향 그대로 섭니다(#150). 주소로 바로 들어오면 입구에서 안쪽(-Z)을 봅니다.
   const location = useLocation();
