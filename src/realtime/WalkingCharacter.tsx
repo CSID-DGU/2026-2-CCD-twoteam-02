@@ -18,12 +18,16 @@ import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { TELEPORT_GAP, angleDiff, facingGoal, gaitOf } from './walkLogic'
+import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait } from './walkLogic'
 
 const SCALE = 0.6 // Player와 같은 크기
 const FOLLOW = 10 // 목표 위치로 다가가는 빠르기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
 const FADE = 0.15 // 동작 전환 시간(초)
+const PACE_SMOOTH = 4 // 이동 빠르기를 고르게 하는 정도 (빠르기 측정이 프레임마다 출렁여서)
+const PACE_MIN = 0.7 // 걷기 동작 재생 빠르기 범위 (걷기 = 1)
+const PACE_MAX = 2.2
 
 type Props = {
   x: number
@@ -38,6 +42,7 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
   const body = useRef<Group>(null!) // 몸 방향만 돌리는 묶음
   const gait = useRef<Gait>('idle')
   const placed = useRef(false) // 처음 한 번은 목표 위치에 바로 놓습니다.
+  const pace = useRef(0) // 고르게 한 이동 빠르기(m/초). 달리면 걷기 동작을 빨리 재생합니다. (#118)
   const { scene, animations } = useGLTF(`/models/character-${model}.glb`)
   // 같은 모델을 여러 사람이 쓸 수 있으므로 복사본을 씁니다.
   const copy = useMemo(() => scene.clone(true), [scene])
@@ -71,6 +76,7 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
     const k = 1 - Math.exp(-FOLLOW * delta)
     p.x += gapX * k
     p.z += gapZ * k
+    if (delta > 0) pace.current += (Math.hypot(gapX, gapZ) * k / delta - pace.current) * (1 - Math.exp(-PACE_SMOOTH * delta))
 
     if (gait.current !== next) {
       const from = gait.current === 'idle' ? 'idle' : 'walk'
@@ -79,9 +85,12 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
         actions[from]?.fadeOut(FADE)
         actions[to]?.reset().fadeIn(FADE).play()
       }
-      // 뒷걸음은 걷기 동작을 거꾸로 재생합니다. (재생 속도 -1)
-      actions.walk?.setEffectiveTimeScale(next === 'backward' ? -1 : 1)
       gait.current = next
+    }
+    // 걷기 동작 빠르기: 실제로 움직이는 빠르기에 맞추고, 뒷걸음은 거꾸로 재생합니다. (재생 속도가 음수)
+    if (next !== 'idle') {
+      const rate = Math.min(PACE_MAX, Math.max(PACE_MIN, pace.current / WALK_SPEED))
+      actions.walk?.setEffectiveTimeScale(next === 'backward' ? -rate : rate)
     }
   })
 
