@@ -17,10 +17,10 @@ import SeatMap from './SeatMap'
 import { formatMinutes } from './duration'
 import branch from '../space/branches/byeol.json'
 
-type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done'
+type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done' | 'extend'
 
 // my_current_place() 가 돌려주는 한 행
-type MyPlace = { kind: string; number: number; expires_at: string }
+type MyPlace = { kind: string; number: number; expires_at: string; expired: boolean }
 
 // '14:30 까지' 처럼 보여 준다.
 const untilText = (iso: string) =>
@@ -37,6 +37,7 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
   const [step, setStep] = useState<Step>('loading')
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [minutes, setMinutes] = useState(60)
+  const [extendMinutes, setExtendMinutes] = useState(30) // 연장할 시간 (#38)
   const [occupied, setOccupied] = useState<Set<number>>(new Set())
   const [picked, setPicked] = useState<number | null>(null)
   const [error, setError] = useState('')
@@ -70,6 +71,24 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
       cancelled = true
     }
   }, [])
+
+  // 지금 쓰는 자리의 시간을 늘립니다. (#38)
+  async function extend() {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    const { error } = await supabase.rpc('extend_my_place', { p_minutes: extendMinutes })
+    setBusy(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    // 늘어난 시각을 다시 읽어 화면에 반영합니다.
+    const { data } = await supabase.rpc('my_current_place')
+    const row = Array.isArray(data) ? data[0] : data
+    if (row) setMine(row as MyPlace)
+    setStep('current')
+  }
 
   async function release() {
     setBusy(true)
@@ -133,12 +152,39 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
               이미 {mine.kind === 'room' ? '회의실' : ''} {mine.number}번{' '}
               {mine.kind === 'room' ? '을' : '자리를'} 이용 중입니다
             </p>
-            <p style={styles.sub}>{untilText(mine.expires_at)}까지 · 한 번에 한 자리만 쓸 수 있습니다</p>
-            <button type="button" style={styles.primary} disabled={busy} onClick={() => void release()}>
+            {mine.expired ? (
+              <p style={styles.warn}>
+                이용 시간이 지났습니다. 자리는 그대로 두었으니 연장해 주세요.
+              </p>
+            ) : (
+              <p style={styles.sub}>{untilText(mine.expires_at)}까지 · 한 번에 한 자리만 쓸 수 있습니다</p>
+            )}
+            <button type="button" style={styles.primary} onClick={() => setStep('extend')}>
+              시간 연장하기
+            </button>
+            <button type="button" style={styles.secondary} disabled={busy} onClick={() => void release()}>
               {busy ? '반납 중…' : '반납하기'}
             </button>
             <button type="button" style={styles.secondary} onClick={onClose}>
               그대로 두고 닫기
+            </button>
+          </>
+        )}
+
+        {step === 'extend' && mine && (
+          <>
+            <p style={styles.title}>얼마나 연장할까요?</p>
+            <p style={styles.sub}>
+              {mine.expired
+                ? '지난 시간은 더하지 않고 지금부터 셉니다.'
+                : `${untilText(mine.expires_at)}에서 더 늘어납니다.`}
+            </p>
+            <DurationPicker minutes={extendMinutes} onChange={setExtendMinutes} />
+            <button type="button" style={styles.primary} disabled={busy} onClick={() => void extend()}>
+              {busy ? '연장 중…' : '연장하기'}
+            </button>
+            <button type="button" style={styles.secondary} onClick={() => setStep('current')}>
+              그만두기
             </button>
           </>
         )}
@@ -250,6 +296,7 @@ const styles = {
   close: { background: 'none', border: 'none', color: '#9aa1ab', fontSize: 16, cursor: 'pointer' },
   title: { margin: 0, fontSize: 18, fontWeight: 600 },
   sub: { margin: 0, fontSize: 13, color: '#9aa1ab', display: 'flex', gap: 10, alignItems: 'center' },
+  warn: { margin: 0, fontSize: 13, color: '#f59e0b' }, // 시간 초과 안내 (#38)
   link: {
     background: 'none',
     border: 'none',

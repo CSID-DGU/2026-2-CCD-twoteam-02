@@ -12,6 +12,7 @@ import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import KioskScreen from "../kiosk/KioskScreen";
+import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (#38)
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { WalkCamera } from "./WalkCamera";
@@ -554,6 +555,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       </div>
     )}
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
+    {session && <SeatTimeCorner />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
