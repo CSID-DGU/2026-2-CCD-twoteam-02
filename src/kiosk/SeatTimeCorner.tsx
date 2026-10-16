@@ -1,4 +1,5 @@
 // 지점 화면 왼쪽 위에 띄우는 "남은 시간 + 연장" 창. (#38)
+// 보이는 모양은 이용권 영수증입니다(#39, PassReceipt.tsx). 이 파일은 자리 정보·접속 신호·연장을 맡습니다.
 //
 // 왜 자리에서 연장하나:
 //   전에는 연장하려면 앉은 자리에서 일어나 키오스크까지 걸어가야 했습니다.
@@ -6,16 +7,14 @@
 //
 // 시간이 지나도 자리는 유지됩니다(#38). 지나면 "시간 초과"로 바뀌고 연장을 권합니다.
 //
-// 참고: 남은 시간을 영수증 모양으로 보여 주는 작업(#39)이 따로 있습니다.
-//       그 화면이 들어오면 이 창은 거기에 합치거나 지워도 됩니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
 import { formatMinutes } from './duration'
-// 공부 타이머와 같은 "01:02:03" 형식을 씁니다. 화면에 두 시간이 같이 보이므로
-// 형식이 다르면 눈에 걸립니다. (#38)
-import { formatDuration } from '../study/studyLogic'
+import { PassReceipt } from './PassReceipt'
+import { modeOf } from './receiptLogic'
+import { usePassDetail } from './usePassDetail'
 
 type MyPlace = { kind: string; number: number; expires_at: string; expired: boolean }
 
@@ -25,10 +24,14 @@ const TICK_MS = 1000
 // 신호를 따로 보내면 통신이 두 번이 되므로 한 번에 합쳤습니다.
 // 이 신호가 5분 넘게 끊기면 DB 가 자리를 반납합니다.
 const RELOAD_MS = 60 * 1000
+// 막 발급된 영수증을 펼쳐 둔 뒤 접기까지의 시간 (#39)
+const PRINT_SHOW_MS = 5000
 
 // onLost: 접속이 끊겨 자리를 잃었을 때 부릅니다. 지점 화면이 들고 있던 내 자리도
 // 같이 비워야 "화면에는 내 자리, DB 에는 없음"으로 어긋나지 않습니다. (#135 와 같은 문제)
-export default function SeatTimeCorner({ onLost }: { onLost?: () => void }) {
+// placeKey: 지점 화면이 아는 내 자리 번호. 키오스크 배정·반납, 카페 앉기·일어나기로 바뀌면
+// 1분을 기다리지 않고 바로 다시 읽습니다. 새로 받은 자리면 영수증이 출력되듯 펼쳐집니다. (#39)
+export default function SeatTimeCorner({ onLost, placeKey = null }: { onLost?: () => void; placeKey?: number | null }) {
   // 쓰는 쪽에서 onLost={() => ...} 로 넘기면 매 렌더마다 다른 함수가 됩니다.
   // 그대로 의존성에 넣으면 아래 타이머가 계속 지워졌다 다시 걸립니다. ref 에 담아 둡니다.
   const lostRef = useRef(onLost)
@@ -40,21 +43,53 @@ export default function SeatTimeCorner({ onLost }: { onLost?: () => void }) {
   const [now, setNow] = useState(() => Date.now())
   // 접속이 끊겨 자리를 잃었을 때 한 번 알립니다. (#155)
   const [lost, setLost] = useState(false)
+  const [expanded, setExpanded] = useState(false) // 영수증을 펼쳤는지 (#39)
+  const [printKey, setPrintKey] = useState(0) // 올라가면 영수증이 출력되듯 나타납니다.
+  const mineRef = useRef<MyPlace | null>(null) // 직전 자리 (사라졌는지·새로 생겼는지 비교)
+  const loaded = useRef(false) // 처음 읽은 자리는 "새로 받은 자리"가 아닙니다. (새로고침해서 들어온 경우)
+  const released = useRef(false) // 직접 반납·일어나기로 비운 것이면 "접속이 끊겨" 안내를 띄우지 않습니다.
 
   const load = useCallback(() => {
     supabase.rpc('heartbeat').then(({ data }) => {
       const row = Array.isArray(data) ? data[0] : data
       const next = (row as MyPlace) ?? null
-      setMine((before) => {
-        // 자리가 있었는데 사라졌다면 접속이 끊겨 반납된 것입니다. 이유를 알려 줍니다. (#155)
-        if (before && !next) {
-          setLost(true)
-          lostRef.current?.()
-        }
-        return next
-      })
+      const before = mineRef.current
+      mineRef.current = next
+      // 자리가 있었는데 사라졌다면 접속이 끊겨 반납된 것입니다. 이유를 알려 줍니다. (#155)
+      if (before && !next && !released.current) {
+        setLost(true)
+        lostRef.current?.()
+      }
+      // 새로 받은 자리면 영수증을 펼쳐 출력합니다. (#39)
+      if (!before && next && loaded.current) {
+        setLost(false)
+        setExpanded(true)
+        setPrintKey((k) => k + 1)
+      }
+      if (next) released.current = false
+      loaded.current = true
+      setMine(next)
     })
   }, [])
+
+  // 지점 화면에서 자리가 바뀌면 바로 다시 읽습니다. 비워졌으면 직접 비운 것입니다.
+  const lastKey = useRef(placeKey)
+  useEffect(() => {
+    if (placeKey === lastKey.current) return
+    lastKey.current = placeKey
+    if (placeKey === null) released.current = true
+    load()
+  }, [placeKey, load])
+
+  // 출력된 영수증은 잠시 보여 준 뒤 접습니다.
+  useEffect(() => {
+    if (printKey === 0) return
+    const id = setTimeout(() => setExpanded(false), PRINT_SHOW_MS)
+    return () => clearTimeout(id)
+  }, [printKey])
+
+  const placeKind = mine?.kind === 'room' ? 'room' : mine ? 'seat' : null
+  const detail = usePassDetail(placeKind, mine ? `${mine.kind}-${mine.number}-${mine.expires_at}` : '')
 
   useEffect(() => {
     lostRef.current = onLost
@@ -87,47 +122,54 @@ export default function SeatTimeCorner({ onLost }: { onLost?: () => void }) {
   if (!mine) {
     if (!lost) return null
     return (
-      <div style={styles.panel}>
-        <p style={styles.line}>
-          접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.
-        </p>
-        <div style={styles.row}>
-          <button type="button" style={styles.primary} onClick={() => setLost(false)}>
-            확인
-          </button>
+      <div style={styles.corner}>
+        <div style={styles.panel}>
+          <p style={styles.line}>
+            접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.
+          </p>
+          <div style={styles.row}>
+            <button type="button" style={styles.primary} onClick={() => setLost(false)}>
+              확인
+            </button>
+          </div>
         </div>
       </div>
     )
   }
 
-  const leftMs = new Date(mine.expires_at).getTime() - now
-  const over = leftMs <= 0
+  // 이용 정보를 읽기 전에는 띄우지 않습니다. (솔카페가 잠깐 이용권처럼 보이지 않게)
+  if (!detail) return null
+  const mode = modeOf(detail.branchKind)
   const where = mine.kind === 'room' ? `회의실 ${mine.number}번` : `${mine.number}번 자리`
-  // 남았으면 줄어드는 시간을, 지났으면 얼마나 지났는지를 보여 줍니다.
-  const clock = formatDuration(Math.abs(leftMs))
-  // 10분 이하로 남으면 미리 눈에 띄게 합니다.
-  const soon = !over && leftMs <= 10 * 60 * 1000
 
   return (
-    <>
-      <button
-        type="button"
-        style={{ ...styles.badge, ...(over ? styles.badgeOver : soon ? styles.badgeSoon : null) }}
-        onClick={() => setOpen((v) => !v)}
-        title={over ? '이용 시간이 지났습니다. 눌러서 연장하세요.' : '눌러서 시간을 연장할 수 있습니다.'}
-      >
-        <span>{where}</span>
-        <span style={styles.clock}>{over ? `+${clock}` : clock}</span>
-        <span style={styles.tag}>{over ? '초과' : '남음'}</span>
-      </button>
+    <div style={styles.corner}>
+      <PassReceipt
+        mode={mode}
+        branchName={detail.branchName}
+        where={where}
+        sessionId={detail.sessionId}
+        startedAt={new Date(detail.startedAt)}
+        expiresAt={new Date(mine.expires_at)}
+        durationMinutes={detail.durationMinutes}
+        now={now}
+        expanded={expanded}
+        printKey={printKey}
+        onToggle={() => {
+          setExpanded((v) => !v)
+          setOpen(false)
+        }}
+        footer={
+          mode === 'pass' && (
+            <button type="button" style={styles.extendButton} onClick={() => setOpen((v) => !v)}>
+              {open ? '연장 닫기' : '시간 연장'}
+            </button>
+          )
+        }
+      />
 
-      {open && (
+      {expanded && open && mode === 'pass' && (
         <div style={styles.panel}>
-          <p style={styles.line}>
-            {over
-              ? `이용 시간이 ${formatMinutes(Math.ceil(-leftMs / 60000))} 지났습니다. 자리는 그대로 두었으니 연장해 주세요.`
-              : `${formatMinutes(Math.ceil(leftMs / 60000))} 남았습니다.`}
-          </p>
           <DurationPicker minutes={minutes} onChange={setMinutes} />
           {error && <p style={styles.error}>{error}</p>}
           <div style={styles.row}>
@@ -135,43 +177,29 @@ export default function SeatTimeCorner({ onLost }: { onLost?: () => void }) {
               닫기
             </button>
             <button type="button" style={styles.primary} disabled={busy} onClick={() => void extend()}>
-              {busy ? '연장 중…' : '연장하기'}
+              {busy ? '연장 중…' : `${formatMinutes(minutes)} 연장하기`}
             </button>
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
 
 const styles: Record<string, CSSProperties> = {
-  badge: {
-    position: 'fixed',
-    top: 136,
-    left: 16,
-    zIndex: 10,
-    padding: '6px 10px',
-    borderRadius: 8,
-    border: 'none',
-    background: 'rgba(32,35,42,.85)',
-    color: '#fff',
-    font: '13px system-ui, sans-serif',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
+  // 왼쪽 위 자리. 위에는 FPS(16)와 숨김 모드 인원 수(76)가 있습니다.
+  corner: {
+    position: 'fixed', top: 136, left: 16, zIndex: 11,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+    maxWidth: 'calc(100vw - 32px)',
   },
-  badgeOver: { background: 'rgba(146,64,14,.9)', color: '#fde68a' },
-  badgeSoon: { background: 'rgba(120,53,15,.8)' },
-  // 공부 타이머와 같은 설정. 숫자 폭을 같게 해서 시간이 흔들리지 않게 합니다.
-  clock: { fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: 14 },
-  tag: { fontSize: 11, color: '#9aa1ab' },
+  extendButton: {
+    padding: '5px 10px', borderRadius: 6, border: 'none', background: '#26241f', color: '#fbfaf5',
+    font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  },
   panel: {
-    position: 'fixed',
-    top: 172,
-    left: 16,
-    zIndex: 11,
     width: 'min(300px, calc(100vw - 32px))',
+    boxSizing: 'border-box',
     padding: 16,
     borderRadius: 12,
     background: '#20232a',
