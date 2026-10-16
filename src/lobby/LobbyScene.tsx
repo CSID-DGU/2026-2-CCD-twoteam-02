@@ -25,6 +25,11 @@ import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { passageOf } from '../space/passage'
+import { useParticipants } from '../realtime/useParticipants'
+import { OtherParticipants } from '../realtime/OtherParticipants'
+import { LOBBY_CHANNEL } from '../realtime/participants'
+import type { PresenceState } from '../realtime/participants'
+import { currentCondition } from '../study/condition'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
@@ -91,6 +96,11 @@ export default function LobbyScene({ onEnter }: Props) {
   const [panel, setPanel] = useState<PanelView | null>(null)
   const { session } = useSession()
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
+  // 로비에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
+  const me = useRef<PresenceState | null>(null)
+  const others = useParticipants(LOBBY_CHANNEL, me)
+  // 캐릭터 숨김 모드(실험 B 조건)면 로비에서도 다른 참여자를 그리지 않습니다.
+  const [condition] = useState(() => currentCondition(location.search))
   const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
     panelRef.current = panel
@@ -176,6 +186,11 @@ export default function LobbyScene({ onEnter }: Props) {
           )
         })}
 
+        {/* 로비의 다른 참여자. 누르면 프로필 창 (#166). 로비에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
+        {condition === 'visible' && (
+          <OtherParticipants others={others} spots={[]} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
+        )}
+
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
         {myModel && (
           <Player
@@ -196,6 +211,8 @@ export default function LobbyScene({ onEnter }: Props) {
               pos.current.x = x
               pos.current.z = z
               bodyHeading.current = h
+              // 로비에서는 앉는 자리가 없고 모두 공부 전(idle)입니다.
+              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle' }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
@@ -203,10 +220,17 @@ export default function LobbyScene({ onEnter }: Props) {
       </Canvas>
 
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
+      {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
+      {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
       {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
+}
+
+const crosshair: React.CSSProperties = {
+  position: 'fixed', left: '50%', top: '50%', width: 6, height: 6, marginLeft: -3, marginTop: -3,
+  borderRadius: '50%', background: '#fff', boxShadow: '0 0 0 1.5px rgba(0,0,0,.6)', pointerEvents: 'none',
 }
 
 const hintBox: React.CSSProperties = {

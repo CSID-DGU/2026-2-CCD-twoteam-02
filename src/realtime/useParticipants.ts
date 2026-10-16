@@ -58,7 +58,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import { onMyProfileChanged } from '../profile/characters'
-import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS, channelName } from './participants'
+import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS } from './participants'
 import type { ArmVector, Participant, PresenceState } from './participants'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
@@ -79,14 +79,15 @@ function pack(state: PresenceState): PresenceState {
   }
 }
 
-export function useParticipants(branchId: number, me: RefObject<PresenceState | null>) {
+// room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166)
+export function useParticipants(room: string, me: RefObject<PresenceState | null>) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
 
   useEffect(() => {
     let alive = true
-    const channel = supabase.channel(channelName(branchId))
+    const channel = supabase.channel(room)
 
     const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -261,7 +262,7 @@ export function useParticipants(branchId: number, me: RefObject<PresenceState | 
       stopProfileListen()
       void channel.unsubscribe()
     }
-  }, [branchId, me])
+  }, [room, me])
 
   return others
 }

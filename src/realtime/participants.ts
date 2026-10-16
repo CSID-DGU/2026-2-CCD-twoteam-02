@@ -86,3 +86,6 @@ export const STALE_MS = 8000
 
 // 지점마다 방을 따로 쓴다. 다른 지점 사람의 움직임을 받을 이유가 없다.
 export const channelName = (branchId: number) => `branch:${branchId}`
+
+// 로비는 방 하나를 모두 같이 쓴다. (#166)
+export const LOBBY_CHANNEL = 'lobby'

@@ -29,6 +29,7 @@ import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
 import type { PanelView } from "../menu/panelTypes";
+import { channelName } from "../realtime/participants";
 import type { PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
 import { characterArms } from "../tracking/armLogic";
@@ -242,7 +243,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
-  const others = useParticipants(BRANCH_ID, me); // 같은 지점의 다른 참여자 (실시간)
+  const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
   // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
   // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
   const { search } = useLocation();
