@@ -14,6 +14,9 @@ const MAX_DT = 0.05 // 탭을 잠깐 떠났다 돌아왔을 때 벽을 뚫지 �
 const SIT_RANGE = 0.9 // 의자에서 이 거리 안에 있으면 앉을 수 있습니다.
 const SIT_KEY = 'KeyE' // 앉기·일어나기, 키오스크 사용
 const KIOSK_RANGE = 1.0 // 키오스크 중심에서 이 거리 안에 있으면 사용할 수 있습니다.
+// 출입문 중심에서 이 거리 안이면 나갈 수 있습니다. 들어오면 서는 자리(문에서 1m)보다 짧게 둬서
+// 들어오자마자 "나가기" 안내가 뜨지 않고, 문 쪽으로 한 걸음 더 가야 뜹니다. (#150)
+const EXIT_RANGE = 0.8
 const KEY_TURN_SPEED = 2.2 // 1인칭에서 방향키 ←→ 로 도는 빠르기(초당 라디안)
 
 const hit = (x: number, z: number, o: Box) =>
@@ -23,6 +26,7 @@ type Props = {
   model: string // 내 캐릭터 종류 (a~r, 내 프로필에서 고름 #131)
   obstacles: Box[]
   spawn: { x: number; z: number }
+  spawnHeading?: number // 처음 바라보는 방향(라디안, 0이면 +Z). 문을 지나 왔을 때 보던 방향 그대로 (#150)
   spots: Spot[]
   kiosk: { x: number; z: number }
   frozen: boolean // 키오스크 화면처럼 다른 창이 떠 있으면 움직이지 않습니다.
@@ -30,6 +34,9 @@ type Props = {
   onSeat: (no: number | null) => void // 앉거나 일어날 때
   onNearKiosk: (near: boolean) => void // 키오스크를 쓸 수 있는 거리에 들어오거나 벗어날 때
   onKiosk: () => void // 키오스크 앞에서 E를 눌렀을 때
+  exit?: { x: number; z: number } // 나가는 출입문 위치. 없으면 문으로 나갈 수 없습니다. (#150)
+  onNearExit?: (near: boolean) => void // 출입문 앞에 들어오거나 벗어날 때
+  onExit?: () => void // 출입문 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
   // 매 프레임 현재 위치와 몸이 바라보는 방향(라디안). 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
   onMove?: (x: number, z: number, heading: number) => void
@@ -42,13 +49,14 @@ type Props = {
   sitRef?: RefObject<number | null>
 }
 
-export function Player({ model: character, obstacles, spawn, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
   const anim = useRef('idle')
   const near = useRef<Spot | null>(null)
   const nearKiosk = useRef(false)
+  const nearExit = useRef(false)
   const seated = useRef<Spot | null>(null)
   const { scene, animations } = useGLTF(modelUrl(character))
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
@@ -106,6 +114,11 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
       nearKiosk.current = v
       onNearKiosk(v)
     }
+    const setNearExit = (v: boolean) => {
+      if (nearExit.current === v) return
+      nearExit.current = v
+      onNearExit?.(v)
+    }
 
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
@@ -150,6 +163,11 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
     if (wantToggle && nearKiosk.current) {
       play('idle')
       onKiosk()
+      return
+    }
+    if (wantToggle && nearExit.current) {
+      play('idle')
+      onExit?.()
       return
     }
 
@@ -200,12 +218,14 @@ export function Player({ model: character, obstacles, spawn, spots, kiosk, froze
       if (d < bestDist) { best = s; bestDist = d }
     }
     setNear(best)
-    // 의자가 가까우면 앉기가 먼저이고, 아닐 때만 키오스크를 쓸 수 있습니다.
-    setNearKiosk(!best && Math.hypot(kiosk.x - p.x, kiosk.z - p.z) < KIOSK_RANGE)
+    // 의자가 가까우면 앉기가 먼저이고, 아닐 때만 키오스크를 쓸 수 있습니다. 출입문은 그다음입니다.
+    const kioskNear = !best && Math.hypot(kiosk.x - p.x, kiosk.z - p.z) < KIOSK_RANGE
+    setNearKiosk(kioskNear)
+    setNearExit(!best && !kioskNear && !!exit && Math.hypot(exit.x - p.x, exit.z - p.z) < EXIT_RANGE)
   })
 
   return (
-    <group ref={ref} position={[spawn.x, 0, spawn.z]}>
+    <group ref={ref} position={[spawn.x, 0, spawn.z]} rotation={[0, spawnHeading, 0]}>
       <primitive object={model} scale={SCALE} />
     </group>
   )

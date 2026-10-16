@@ -24,8 +24,8 @@ function Protected({ children }: { children: ReactNode }) {
 }
 
 // 우측 상단 이동 버튼. top 으로 세로 위치를 정합니다.
-function CornerLink({ to, label, top }: { to: string; label: string; top: number }) {
-  return <Link to={to} style={{ ...cornerButton, top }}>{label}</Link>
+function CornerLink({ to, label, top, state }: { to: string; label: string; top: number; state?: unknown }) {
+  return <Link to={to} state={state} style={{ ...cornerButton, top }}>{label}</Link>
 }
 
 function AppRoutes() {
@@ -75,7 +75,7 @@ function AppRoutes() {
         element={
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}>
-              <LobbyScene onEnter={(branch) => navigate(`/space?branch=${branch.slug}`)} />
+              <LobbyScene onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
             </div>
             {/* 내 기록·친구·내 프로필(16~96)은 LobbyScene 이 창으로 엽니다. (#70) */}
             <LogoutButton style={{ ...cornerButton, top: 136 }} />
@@ -88,7 +88,8 @@ function AppRoutes() {
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
             <CornerLink to="/tracking" label="트래킹 검증으로" top={16} />
-            <CornerLink to="/" label="로비로" top={56} />
+            {/* 버튼으로 나가도 로비의 그 지점 문 앞에 섭니다. (문으로 나가기는 지점 안 출입문에서 E, #150) */}
+            <CornerLink to="/" label="로비로" top={56} state={{ from: new URLSearchParams(search).get('branch') ?? undefined }} />
             {/* 내 기록·친구·내 프로필(96~176)은 BranchScene 이 창으로 엽니다. (#70) */}
             <LogoutButton style={{ ...cornerButton, top: 216 }} />
           </Protected>

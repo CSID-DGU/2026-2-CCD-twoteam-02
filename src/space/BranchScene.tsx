@@ -23,7 +23,8 @@ import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
 import { OtherParticipants } from "../realtime/OtherParticipants";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
+import { passageOf } from "./passage";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -37,6 +38,9 @@ import type { PresenceStatus } from "./status";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
+const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
+const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
+const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
 
@@ -217,10 +221,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
+  const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useState<"top" | "first">("first");
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
-  const heading = useRef(Math.PI); // 1인칭에서 바라보는 방향. 처음에는 입구에서 안쪽(-Z)을 봅니다.
+  // 문을 지나 왔으면 그때 보던 방향 그대로 섭니다(#150). 주소로 바로 들어오면 입구에서 안쪽(-Z)을 봅니다.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [arrival] = useState(() => passageOf(location.state).heading ?? Math.PI);
+  const heading = useRef(arrival); // 1인칭에서 바라보는 방향
+  const bodyHeading = useRef(arrival); // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 나갈 때 로비로 넘깁니다.
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
@@ -260,6 +270,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const handleMove = (x: number, z: number, h: number) => {
     pos.current.x = x;
     pos.current.z = z;
+    bodyHeading.current = h;
     const id = session?.user.id;
     if (!id) return;
     // 앉아 있을 때만 고개·눈(얼굴을 찾았을 때)과 팔을 싣습니다. 다른 사람 화면에서는 거울이 아니라 실제 방향입니다.
@@ -369,6 +380,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const walkHint =
     seat !== null
       ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · E 일어나기`
+      : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
+        ? "출입문 · E 로비로 나가기"
       : isCafe
         ? near !== null
           ? `${near}번 좌석 · E 앉기`
@@ -456,6 +469,21 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </mesh>
       ))}
 
+      {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
+      {branch.door && (
+        <group>
+          <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>
+            <boxGeometry args={[branch.door.w, DOOR_HEIGHT, branch.door.d]} />
+            <meshStandardMaterial color={nearExit ? DOOR_COLOR.near : DOOR_COLOR.idle} />
+          </mesh>
+          {/* 표지판은 문 안쪽 면(지점 쪽, -Z)을 보게 반 바퀴 돌립니다. */}
+          <mesh position={[branch.door.x, DOOR_SIGN.y, branch.door.z - branch.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
+            <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+            <meshBasicMaterial map={labelTexture("로비", "#14532d")} transparent />
+          </mesh>
+        </group>
+      )}
+
       {branch.kiosk && (
         <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
           <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
@@ -493,12 +521,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           model={myModel}
           obstacles={obstacles}
           spawn={branch.spawn}
+          spawnHeading={arrival}
           spots={freeSpots}
           kiosk={branch.kiosk ?? NO_KIOSK}
           frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
           onNear={setNear}
           onSeat={handleSeat}
           onNearKiosk={setNearKiosk}
+          exit={branch.door}
+          onNearExit={setNearExit}
+          onExit={() => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } })}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}

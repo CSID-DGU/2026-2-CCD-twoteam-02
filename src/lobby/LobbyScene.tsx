@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
+import { useLocation } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
@@ -23,9 +24,13 @@ import type { PanelView } from '../menu/panelTypes'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
+import { passageOf } from '../space/passage'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
+// 지점에서 나오면 그 지점 문 앞 이만큼 떨어진 곳에 섭니다. 입장 지점(1.1)보다 멀어서
+// 나오자마자 "입장" 안내가 뜨지 않습니다. (#150)
+const ARRIVE_GAP = 2.1
 const NO_KIOSK = { x: 1000, z: 1000 } // 로비에는 키오스크가 없다. 아래 Player 주석 참고
 const VIEW_KEY = 'KeyV' // 1인칭 ↔ 위에서 보기
 const SIGN = { width: 2.4, y: 1.75 } // 문 간판 크기와 높이 (문 높이 2.2)
@@ -41,11 +46,12 @@ const COLOR = {
 type Branch = { id: number; slug: string; name: string }
 
 // 문은 벽에 붙어 있으므로, 입장 지점은 문에서 방 안쪽으로 한 걸음 들어온 자리다.
+// 문은 Player 의 "앉는 자리"로 다루므로 E 를 누르면 몸이 rot 쪽으로 돈다. 문 쪽(-Z)을 보게 둔다.
 const doorSpots: Spot[] = lobby.doors.map((d) => ({
   no: d.no,
   x: d.x,
   z: d.z + DOOR_GAP,
-  rot: 0,
+  rot: Math.PI,
 }))
 
 const obstacles: Box[] = [
@@ -60,7 +66,7 @@ function FitCamera() {
 }
 
 type Props = {
-  onEnter: (branch: Branch) => void
+  onEnter: (branch: Branch, heading: number) => void // heading: 문에 들어갈 때 보던 방향 (지점에서 그대로 섬, #150)
 }
 
 export default function LobbyScene({ onEnter }: Props) {
@@ -68,8 +74,18 @@ export default function LobbyScene({ onEnter }: Props) {
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
   const [view, setView] = useState<'top' | 'first'>('first') // 처음엔 1인칭
-  const pos = useRef({ x: lobby.spawn.x, z: lobby.spawn.z }) // 1인칭 카메라가 따라갈 내 위치
-  const heading = useRef(Math.PI) // 처음엔 지점 문들이 있는 쪽(-Z)을 봅니다.
+  // 지점에서 문으로 나왔으면 그 지점 문 앞에서 보던 방향 그대로 섭니다(#150).
+  // "로비로" 버튼으로 나왔으면 문을 등지고(+Z) 서고, 주소로 바로 들어오면 가운데에서 문들 쪽(-Z)을 봅니다.
+  const location = useLocation()
+  const [arrival] = useState(() => {
+    const { from, heading } = passageOf(location.state)
+    const door = lobby.doors.find((d) => d.slug === from)
+    if (!door) return { spawn: lobby.spawn, heading: Math.PI }
+    return { spawn: { x: door.x, z: door.z + ARRIVE_GAP }, heading: heading ?? 0 }
+  })
+  const pos = useRef({ x: arrival.spawn.x, z: arrival.spawn.z }) // 1인칭 카메라가 따라갈 내 위치
+  const heading = useRef(arrival.heading) // 1인칭에서 바라보는 방향
+  const bodyHeading = useRef(arrival.heading) // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 문에 들어갈 때 넘깁니다.
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
   // 로비 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null)
@@ -105,6 +121,8 @@ export default function LobbyScene({ onEnter }: Props) {
   // 들어갈 수 있는 문인지 확인하고 들어간다. 목록을 아직 안 읽었으면 이때 읽는다.
   async function tryEnter(doorNo: number | null) {
     if (doorNo === null) return
+    // E 를 누른 순간 보던 방향. 문 앞에서 몸이 돌거나 지점 목록을 읽는 동안 바뀌기 전에 붙잡아 둔다. (#150)
+    const enteringHeading = bodyHeading.current
     const door = lobby.doors.find((d) => d.no === doorNo)
     if (!door) return
     const list = branches ?? (await loadBranches())
@@ -114,7 +132,7 @@ export default function LobbyScene({ onEnter }: Props) {
       return
     }
     setMessage('')
-    onEnter(found)
+    onEnter(found, enteringHeading)
   }
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
@@ -163,7 +181,8 @@ export default function LobbyScene({ onEnter }: Props) {
           <Player
             model={myModel}
             obstacles={obstacles}
-            spawn={lobby.spawn}
+            spawn={arrival.spawn}
+            spawnHeading={arrival.heading}
             spots={doorSpots}
             // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
@@ -173,9 +192,10 @@ export default function LobbyScene({ onEnter }: Props) {
             onKiosk={() => {}}
             onNear={setNear}
             onSeat={(no) => void tryEnter(no)}
-            onMove={(x, z) => {
+            onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z
+              bodyHeading.current = h
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
