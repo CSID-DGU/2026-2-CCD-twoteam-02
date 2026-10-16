@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { SUBJECT_MAX } from './useSubjects'
 import type { Subject } from './useSubjects'
+import { PHONE_SECONDS } from '../focus/focusLogic'
 
 export type StudyChoice = { subject: Subject; allowDevices: boolean }
 
@@ -82,6 +83,10 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, onS
           <input type="checkbox" checked={allowDevices} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
           학습기기 사용함
           <div style={styles.hint}>켜면 다른 탭·다른 앱을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
+          {/* 사용 안 함이면 휴대폰이 3초 넘게 화면에 보일 때 노란불이 되므로 미리 알립니다. (focusLogic PHONE_SECONDS) */}
+          {!allowDevices && (
+            <div style={styles.hint}>📱 휴대폰은 카메라에 보이지 않게 치워 두세요. 화면에 {PHONE_SECONDS}초 넘게 보이면 공부 시간이 멈춥니다.</div>
+          )}
         </label>
 
         <div style={styles.actions}>

@@ -17,7 +17,7 @@ const CHUNK_ROWS = 300; // 저장소 한 칸에 담는 줄 수 (매초 전체를
 const SHOWN_SEGMENTS = 15; // 표에 보여 줄 최근 구간 수
 
 const STATUS_LABEL: [FocusStatus, string][] = [
-  ["focus", "집중"], ["away", "이탈"], ["drowsy", "졸음"], ["offscreen", "다른 화면"], ["outframe", "가이드"],
+  ["focus", "집중"], ["away", "이탈"], ["drowsy", "졸음"], ["offscreen", "다른 화면"], ["outframe", "가이드"], ["phone", "휴대폰"],
 ];
 
 function loadRows(): FocusLogRow[] {

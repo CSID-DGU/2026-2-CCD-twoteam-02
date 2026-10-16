@@ -34,11 +34,12 @@ type Props = {
 
 export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onTracking }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { face, pose, status, message } = useTracking(videoRef) // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다.
+  const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
+  // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 학습기기 사용 안 함으로 공부할 때만 켭니다.
+  const { face, pose, phone, status, message } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices })
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
-  const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
   // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
   const [calibrating, setCalibrating] = useState(false)
   const [calibrated, setCalibrated] = useState(false) // 보정을 마쳤거나 건너뛰었는지
@@ -71,6 +72,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           key={`${choice.subject.id}-${choice.allowDevices}`}
           face={face}
           pose={pose}
+          phone={phone}
           baseline={baseline}
           onRecalibrate={() => setCalibrating(true)}
           choice={choice}

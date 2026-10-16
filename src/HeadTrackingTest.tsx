@@ -45,11 +45,11 @@ function Readout({ face }: { face: RefObject<FaceState> }) {
 
 export default function HeadTrackingTest() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { face, pose, status, message, poseStatus } = useTracking(videoRef); // 얼굴·팔·가이드라인 (src/tracking)
+  const { face, pose, phone, status, message, poseStatus } = useTracking(videoRef, { phone: true }); // 얼굴·팔·가이드라인·휴대폰 (src/tracking)
   const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   const [baseline, setBaseline] = useState<Baseline | null>(null); // 보정 기준 (확인용)
   const [calibrating, setCalibrating] = useState(false);
-  const focus = useFocusState(face, false, pose, { body: pose, baseline }); // 집중 상태 판정 (src/focus)
+  const focus = useFocusState(face, false, pose, { body: pose, baseline, phone }); // 집중 상태 판정 (src/focus)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
