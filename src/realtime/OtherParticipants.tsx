@@ -26,9 +26,11 @@ export function OtherParticipants({
   others,
   spots,
   onSelect,
+  showStatus = true,
 }: {
   others: Participant[]
   spots: Spot[]
+  showStatus?: boolean // 상태 표시등. 로비에서는 모두 공부 전이라 끕니다. (#166)
   onSelect?: (userId: string) => void
 }) {
   // 캐릭터에 마우스를 올리면 누를 수 있다는 걸 손가락 커서로 알립니다. 나가면 원래 커서로 돌립니다.
@@ -97,13 +99,13 @@ export function OtherParticipants({
               <>
                 <SeatedCharacter spot={spot} model={p.model} head={p.head} eyes={p.eyes} arms={p.arms} />
                 <NameTag x={x} z={z} name={p.nickname} />
-                <StatusMarker x={x} z={z} status={p.status} />
+                {showStatus && <StatusMarker x={x} z={z} status={p.status} />}
               </>
             ) : (
               // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
               <WalkingCharacter x={p.x} z={p.z} h={p.h} model={p.model}>
                 <NameTag x={0} z={0} name={p.nickname} />
-                <StatusMarker x={0} z={0} status={p.status} />
+                {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
               </WalkingCharacter>
             )}
           </group>
