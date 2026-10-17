@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { OnlineProvider } from './realtime/OnlineProvider'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
 import LoginPage from './auth/LoginPage'
@@ -133,7 +134,10 @@ function App() {
   // BrowserRouter: 주소창의 경로(/space 등)를 읽어 맞는 화면을 고르고, 새로고침 없이 화면을 바꿉니다.
   return (
     <BrowserRouter>
-      <AppRoutes />
+      {/* 사이트 전체 접속 상태 (친구 활동 중, 접속자 수, #176). 로그인하면 한 번만 연결합니다. */}
+      <OnlineProvider>
+        <AppRoutes />
+      </OnlineProvider>
     </BrowserRouter>
   )
 }
