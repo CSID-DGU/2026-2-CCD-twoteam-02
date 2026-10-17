@@ -31,6 +31,8 @@ import { OtherParticipants } from '../realtime/OtherParticipants'
 import { LOBBY_CHANNEL } from '../realtime/participants'
 import type { PresenceState } from '../realtime/participants'
 import { currentCondition } from '../study/condition'
+import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
+import { LOBBY_PLACE } from '../realtime/online'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
@@ -103,6 +105,9 @@ export default function LobbyScene({ onEnter }: Props) {
   const others = useParticipants(LOBBY_CHANNEL, me)
   // 캐릭터 숨김 모드(실험 B 조건)면 로비에서도 다른 참여자를 그리지 않습니다.
   const [condition] = useState(() => currentCondition(location.search))
+  // 사이트 전체 접속 상태에 "로비에 있음"으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
+  useOnlinePlace(LOBBY_PLACE)
+  const onlineCount = useOnline().size
   const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
     panelRef.current = panel
@@ -222,12 +227,20 @@ export default function LobbyScene({ onEnter }: Props) {
       </Canvas>
 
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
+      {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
+      {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
       {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
+}
+
+const onlineBox: React.CSSProperties = {
+  position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+  padding: '6px 12px', borderRadius: 999, background: 'rgba(32,35,42,.85)', color: '#fff',
+  font: '13px system-ui, sans-serif', fontVariantNumeric: 'tabular-nums',
 }
 
 const crosshair: React.CSSProperties = {
