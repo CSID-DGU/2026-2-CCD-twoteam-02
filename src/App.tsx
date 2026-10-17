@@ -6,6 +6,7 @@ import { BranchScene } from './space/BranchScene'
 import LoginPage from './auth/LoginPage'
 import SignupPage from './auth/SignupPage'
 import RequireAuth from './auth/RequireAuth'
+import { useHeartbeat } from './auth/useHeartbeat'
 import ForgotPasswordPage from './auth/ForgotPasswordPage'
 import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
@@ -31,6 +32,9 @@ function CornerLink({ to, label, top, state }: { to: string; label: string; top:
 function AppRoutes() {
   const navigate = useNavigate()
   const { hash, search } = useLocation()
+
+  // 어느 화면에 있든 "아직 접속해 있다"를 알립니다. 지점을 떠나도 자리를 잃지 않게. (#170)
+  useHeartbeat()
 
   // 실험 진행자가 준 링크(?condition=hidden|visible)로 들어오면 그 조건을 이 브라우저에 기억합니다.
   useEffect(() => {
