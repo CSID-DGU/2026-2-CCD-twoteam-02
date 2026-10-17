@@ -33,6 +33,7 @@ import type { PresenceState } from '../realtime/participants'
 import { currentCondition } from '../study/condition'
 import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { LOBBY_PLACE } from '../realtime/online'
+import { ChatOverlay } from '../chat/ChatOverlay'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
@@ -122,7 +123,7 @@ export default function LobbyScene({ onEnter }: Props) {
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [])
+  }, [setView])
 
   const loadBranches = useCallback(async () => {
     const { data, error } = await supabase.from('branches').select('id, slug, name').eq('is_open', true)
@@ -229,6 +230,7 @@ export default function LobbyScene({ onEnter }: Props) {
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}

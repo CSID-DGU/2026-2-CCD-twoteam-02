@@ -27,6 +27,7 @@ import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
 import { useOnlinePlace } from "../realtime/onlineContext";
+import { ChatOverlay } from "../chat/ChatOverlay";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -376,7 +377,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, panelOpen]);
+  }, [kioskOpen, panelOpen, setView]);
 
   const seatSpot = spots.find((c) => c.no === seat);
   const viewHint =
@@ -588,6 +589,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     >
       이 지점 접속 인원 {others.length + 1}명
     </div>
+    <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
