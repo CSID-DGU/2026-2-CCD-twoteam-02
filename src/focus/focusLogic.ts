@@ -9,7 +9,10 @@
 // 화면에는 확정 시간 + 보류 시간(shownStudyMs)을 보여 줘서 타이머가 멈췄다 튀지 않게 합니다.
 //
 // 졸음: 공부 시작 때 보정(정면·필기 자세·눈 감기)을 했을 때만, 눈 크기(EAR)가 그 자세의 뜬 눈과 감은 눈의 중간보다
-// 작은 채로 DROWSY_SECONDS 넘게 이어지면 졸음입니다. 정면이든 숙였든 같습니다. 보정을 안 했으면 눈은 보지 않습니다.
+// 작은 채로 DROWSY_SECONDS 넘게 이어지면 졸음입니다. 뜬 눈 기준은 정면 각도와 필기 각도 사이에서 고개 각도에 비례해 잇습니다.
+// 보정한 필기 자세보다 EYE_PITCH_MARGIN_DEGREES 넘게 더 숙이면 눈은 읽을 수 없는 것으로 보고 판정하지 않습니다.
+// (각본 시험 2026-10-17: 깊이 숙여 종이를 읽으면 눈을 떠도 EAR이 감은 눈만큼 작아져 필기 중 졸음 오판이 났고,
+//  더 깊이 숙이면 얼굴 점 자체가 흐트러져 감아도 EAR이 큼 → 애매하면 공부로 인정) 보정을 안 했으면 눈은 보지 않습니다.
 // 얼굴이 안 보여도 몸(Pose)이 자리에 있으면 자리 이탈이 아니라 엎드림으로 보고, AWAY_SECONDS 넘게 이어지면 졸음입니다.
 // 그동안 키보드·마우스 입력이 있으면 깨어 있는 것이므로 처음부터 다시 셉니다.
 //
@@ -44,6 +47,9 @@ export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면
 // 짧은 끊김 내성. 각본 시험(2026-10-17)에서 잘못 읽힌 구간은 0.9~1.0초였고, 그 두 배로 잡았습니다. (임시값, 정식판 뒤 조정)
 export const RETURN_SECONDS = 2; // 안 보이다 다시 잡힌 얼굴이 이 시간 이상 계속 보여야 돌아온 것
 export const EYE_GAP_SECONDS = 2; // 눈 감은 중 '뜸'·얼굴 끊김이 이 시간 안이면 계속 감은 것
+// 보정한 필기 자세보다 이만큼 넘게 더 숙이면 EAR을 믿지 않습니다. 각본 시험(2026-10-17)에서 12° 숙여 읽기는 정상,
+// 21°·26° 숙여 읽기·필기는 오판이었고 보정의 필기 자세는 그보다 얕았던 것으로 보여 작게 잡았습니다. (임시값, 보정값 기록 뒤 조정)
+export const EYE_PITCH_MARGIN_DEGREES = 5;
 // 인식 결과가 이 시간 넘게 갱신되지 않으면 안 보임으로 봅니다. 숨긴 탭의 인식 주기(1초)를 세 번 놓친 정도입니다.
 export const STALE_SECONDS = 3;
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
@@ -131,13 +137,17 @@ export const HOLD_LABEL = {
   phone: "🟡 휴대폰 확인 중",
 };
 
-// 보정 기준으로 눈을 감았는지. 자세(정면/숙임)는 정면 각도와 숙인 각도의 중간으로 가릅니다.
-// 감음 기준 = 그 자세의 뜬 눈과 감은 눈의 중간, 다시 뜸 = 거기서 뜬 눈 쪽으로 1/4 (깜빡거림 방지)
-export function eyeClosed(input: FocusInput, wasClosed: boolean): boolean {
+// 보정 기준으로 눈을 감았는지. true 감음 / false 뜸 / null 읽을 수 없음(보정 없음, EAR 없음, 보정한 필기 자세보다 많이 숙임).
+// 뜬 눈 기준은 정면 각도(frontEar)와 필기 각도(downEar) 사이에서 지금 각도에 비례해 잇고, 그 밖은 가까운 쪽 값을 씁니다.
+// 감음 기준 = 그 각도의 뜬 눈과 감은 눈의 중간, 다시 뜸 = 거기서 뜬 눈 쪽으로 1/4 (깜빡거림 방지)
+export function eyeClosed(input: FocusInput, wasClosed: boolean): boolean | null {
   const b = input.baseline;
-  if (!b || input.ear === null || input.ear === undefined) return false;
-  const down = (input.pitch ?? b.frontPitch) > (b.frontPitch + b.downPitch) / 2;
-  const open = down ? b.downEar : b.frontEar;
+  if (!b || input.ear === null || input.ear === undefined) return null;
+  const pitch = input.pitch ?? b.frontPitch;
+  if (pitch > b.downPitch + (EYE_PITCH_MARGIN_DEGREES * Math.PI) / 180) return null;
+  const span = b.downPitch - b.frontPitch;
+  const ratio = span > 0 ? Math.min(Math.max((pitch - b.frontPitch) / span, 0), 1) : 1;
+  const open = b.frontEar + (b.downEar - b.frontEar) * ratio;
   const closeAt = (open + b.closedEar) / 2;
   const reopenAt = closeAt + (open - closeAt) / 4;
   return input.ear < (wasClosed ? reopenAt : closeAt);
@@ -219,7 +229,7 @@ function judgeFace(
   const back =
     input.found && (prev.missingSince === null || (foundSince !== null && (nowMs - foundSince) / 1000 >= RETURN_SECONDS));
 
-  // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄) 얼굴이 안 보이면 읽을 수 없음(null).
+  // 눈: 보정 기준으로 감았는지 봅니다. 얼굴이 안 보이거나 보정이 없거나 너무 숙였으면 읽을 수 없음(null).
   const wasClosed = prev.closedSince !== null;
   const closedNow = input.found ? eyeClosed(input, wasClosed) : null;
   const eyes = nextEyes(prev, closedNow, nowMs);
