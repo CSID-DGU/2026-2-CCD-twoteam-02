@@ -131,7 +131,10 @@ export function FriendsView({ onOpenProfile }: { onOpenProfile?: (userId: string
           friends.map((f) => (
             <Item key={f.id} name={nameOf(otherOf(f, myId))} userId={otherOf(f, myId)} onOpenProfile={onOpenProfile}>
               {online.has(otherOf(f, myId)) ? (
-                <span style={styles.online}>🟢 {placeLabel(online.get(otherOf(f, myId)) ?? '')}</span>
+                <span style={styles.online}>
+                  🟢 {placeLabel(online.get(otherOf(f, myId))?.place ?? '')}
+                  {online.get(otherOf(f, myId))?.studying ? ' · 공부 중' : ''}
+                </span>
               ) : (
                 <span style={styles.muted}>접속 안 함</span>
               )}

@@ -7,6 +7,7 @@ import type { CSSProperties, RefObject } from 'react'
 import { useTracking } from '../tracking/useTracking'
 import type { FaceState } from '../tracking/useTracking'
 import { useArmDirections } from '../tracking/useArmDirections'
+import { useStudyingFlag } from '../realtime/onlineContext'
 import type { UserArms } from '../tracking/armLogic'
 import { CameraGuideNotice } from '../tracking/CameraGuideNotice'
 import { SelfView } from '../space/SelfView'
@@ -35,6 +36,8 @@ type Props = {
 export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onTracking }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
+  // 공부 세션이 도는 동안 "공부 중"으로 표시합니다. 귓속말 방해금지가 자동으로 켜지고, 친구에게도 공부 중으로 보입니다. (#49)
+  useStudyingFlag(choice !== null)
   // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 학습기기 사용 안 함으로 공부할 때만 켭니다.
   const { face, pose, phone, status, message } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices })
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)

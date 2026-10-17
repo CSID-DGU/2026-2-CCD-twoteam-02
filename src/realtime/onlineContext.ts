@@ -5,16 +5,34 @@
 import { createContext, useContext, useEffect } from 'react'
 import { ELSEWHERE } from './online'
 
-export type OnlineValue = {
-  places: Map<string, string> // 접속 중인 계정 번호 → 지금 있는 곳
-  setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
+// 한 사람의 접속 상태
+export type OnlineEntry = {
+  place: string // 지금 있는 곳 (로비·지점 slug·그 밖의 화면)
+  studying: boolean // 공부 세션이 도는 중인지 (귓속말 방해금지 안내용, #49)
 }
 
-export const OnlineContext = createContext<OnlineValue>({ places: new Map(), setPlace: () => {} })
+export type OnlineValue = {
+  people: Map<string, OnlineEntry> // 접속 중인 계정 번호 → 상태
+  studying: boolean // 내가 공부 중인지
+  setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
+  setStudying: (studying: boolean) => void // 내 공부 중 여부를 바꿉니다
+}
+
+export const OnlineContext = createContext<OnlineValue>({
+  people: new Map(),
+  studying: false,
+  setPlace: () => {},
+  setStudying: () => {},
+})
 
 // 접속 중인 사람들
 export function useOnline() {
-  return useContext(OnlineContext).places
+  return useContext(OnlineContext).people
+}
+
+// 내가 공부 중인지 (귓속말 방해금지, #49)
+export function useMyStudying() {
+  return useContext(OnlineContext).studying
 }
 
 // 이 화면에 있는 동안 내가 있는 곳을 place 로 표시합니다. 화면을 떠나면 "그 밖의 화면"으로 돌립니다.
@@ -24,4 +42,13 @@ export function useOnlinePlace(place: string) {
     setPlace(place)
     return () => setPlace(ELSEWHERE)
   }, [place, setPlace])
+}
+
+// 공부 세션이 도는 동안 "공부 중"으로 표시합니다. 끝나거나 화면을 떠나면 풉니다. (#49)
+export function useStudyingFlag(active: boolean) {
+  const { setStudying } = useContext(OnlineContext)
+  useEffect(() => {
+    setStudying(active)
+    return () => setStudying(false)
+  }, [active, setStudying])
 }
