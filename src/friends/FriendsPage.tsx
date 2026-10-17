@@ -9,6 +9,8 @@ import { BackLink } from '../menu/BackLink'
 import { useFriends } from './useFriends'
 import type { UserCard } from './useFriends'
 import { displayName, matchUsers, otherOf, relationOf, splitFriendships } from './friendsLogic'
+import { useOnline } from '../realtime/onlineContext'
+import { placeLabel } from '../realtime/online'
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
 // onOpenProfile 을 주면 이름을 눌렀을 때 페이지를 옮기지 않고 그 함수를 부릅니다(창 안에서 프로필 열기).
@@ -22,7 +24,10 @@ export function FriendsView({ onOpenProfile }: { onOpenProfile?: (userId: string
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const { friends, received, sent } = splitFriendships(list, myId)
+  const { friends: friendRows, received, sent } = splitFriendships(list, myId)
+  // 접속 중인 친구를 위로 올리고, 있는 곳을 같이 보여 줍니다. (#176, 채팅 #49 는 접속 중인 친구에게만)
+  const online = useOnline()
+  const friends = [...friendRows].sort((a, b) => Number(online.has(otherOf(b, myId))) - Number(online.has(otherOf(a, myId))))
   const nameOf = (id: string) => displayName(names.get(id) ?? '…', id)
 
   // 버튼 하나를 누르는 동안 다른 버튼을 막고, 실패하면 안내를 띄웁니다.
@@ -125,6 +130,11 @@ export function FriendsView({ onOpenProfile }: { onOpenProfile?: (userId: string
         ) : (
           friends.map((f) => (
             <Item key={f.id} name={nameOf(otherOf(f, myId))} userId={otherOf(f, myId)} onOpenProfile={onOpenProfile}>
+              {online.has(otherOf(f, myId)) ? (
+                <span style={styles.online}>🟢 {placeLabel(online.get(otherOf(f, myId)) ?? '')}</span>
+              ) : (
+                <span style={styles.muted}>접속 안 함</span>
+              )}
               <button
                 type="button"
                 style={styles.ghost}
@@ -198,6 +208,7 @@ const styles: Record<string, CSSProperties> = {
   primary: { padding: '4px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10', fontWeight: 600, cursor: 'pointer', font: 'inherit' },
   ghost: { padding: '4px 10px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent', color: '#fff', cursor: 'pointer', font: 'inherit', textDecoration: 'none' },
   muted: { color: '#aab0bb', margin: 0, fontSize: 13 },
+  online: { color: '#4ade80', fontSize: 13, whiteSpace: 'nowrap' },
   nameButton: { padding: 0, border: 'none', background: 'transparent', font: 'inherit', cursor: 'pointer', textAlign: 'left' },
   nameLink: { color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,.3)' },
   error: { color: '#f87171', margin: 0 },

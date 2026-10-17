@@ -26,6 +26,7 @@ import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
+import { useOnlinePlace } from "../realtime/onlineContext";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -245,6 +246,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
   const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
   // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
   const { search } = useLocation();
@@ -571,23 +573,21 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         }}
       />
     )}
-    {condition === "hidden" && (
-      // 숨김 모드: 다른 사람은 안 보이고 몇 명이 있는지만 알 수 있습니다. (나 포함)
-      <div
-        style={{
-          position: "fixed",
-          top: 76,
-          left: 16,
-          padding: "6px 10px",
-          borderRadius: 8,
-          background: "rgba(32,35,42,.85)",
-          color: "#fff",
-          font: "13px system-ui, sans-serif",
-        }}
-      >
-        이 지점 접속 인원 {others.length + 1}명
-      </div>
-    )}
+    {/* 이 지점 접속 인원 (나 포함, #176). 숨김 모드에서는 다른 사람은 안 보이고 이 인원만 알 수 있습니다. */}
+    <div
+      style={{
+        position: "fixed",
+        top: 76,
+        left: 16,
+        padding: "6px 10px",
+        borderRadius: 8,
+        background: "rgba(32,35,42,.85)",
+        color: "#fff",
+        font: "13px system-ui, sans-serif",
+      }}
+    >
+      이 지점 접속 인원 {others.length + 1}명
+    </div>
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
