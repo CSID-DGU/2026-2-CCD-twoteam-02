@@ -8,6 +8,7 @@
 // - guide(가이드라인 켬): 머리~가슴이 화면 밖인 것도 판정에 쓰면 정확도가 오르는지 보기 위한 비교입니다.
 import { AWAY_SECONDS, DROWSY_SECONDS } from "./focusLogic";
 import type { FocusStatus } from "./focusLogic";
+import type { Baseline } from "./calibration";
 
 export const FULL_REPEATS = 5; // 정식판에서 행동마다 반복하는 횟수
 const GRACE_SECONDS = 5; // 노란불 마감 = 판정 기준 + 이 여유
@@ -199,17 +200,23 @@ export type LogRow = {
   hidden: boolean; // 다른 탭
   focused: boolean; // 창 선택
   allowDevices: boolean;
+  baseline: Baseline | null; // 보정값. 눈 판정 임계값을 나중에 계산하려면 필요 (10-17 시험 때 없어서 못 함)
 };
 
 const cell = (v: number | boolean | string | null) => (v === null ? "" : typeof v === "boolean" ? (v ? 1 : 0) : v);
 
 export function logCsv(rows: LogRow[]): string {
-  const header = "t,trial,behavior,elapsed,status,studyMs,statusGuide,studyMsGuide,found,ear,pitch,framed,body,hidden,focused,allowDevices";
+  const header =
+    "t,trial,behavior,elapsed,status,studyMs,statusGuide,studyMsGuide,found,ear,pitch,framed,body,hidden,focused,allowDevices," +
+    "frontEar,downEar,closedEar,frontPitch,downPitch";
   const lines = rows.map((r) =>
     [
       r.t, r.trial, r.behaviorId, r.elapsedMs, r.plain.status, Math.round(r.plain.studyMs), r.guide.status,
       Math.round(r.guide.studyMs), r.found, r.ear === null ? null : r.ear.toFixed(4), r.pitch.toFixed(4),
       r.framed, r.body, r.hidden, r.focused, r.allowDevices,
+      ...(r.baseline
+        ? [r.baseline.frontEar, r.baseline.downEar, r.baseline.closedEar, r.baseline.frontPitch, r.baseline.downPitch].map((v) => v.toFixed(4))
+        : [null, null, null, null, null]),
     ].map(cell).join(",")
   );
   return [header, ...lines].join("\n");

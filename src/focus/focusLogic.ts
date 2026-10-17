@@ -13,6 +13,12 @@
 // 얼굴이 안 보여도 몸(Pose)이 자리에 있으면 자리 이탈이 아니라 엎드림으로 보고, AWAY_SECONDS 넘게 이어지면 졸음입니다.
 // 그동안 키보드·마우스 입력이 있으면 깨어 있는 것이므로 처음부터 다시 셉니다.
 //
+// 짧은 끊김 내성 (각본 시험 2026-10-17, 3명): 인식은 1초 안팎으로 틀리게 읽는 일이 있습니다.
+// - 안 보이다 다시 잡힌 얼굴은 RETURN_SECONDS 이상 계속 보여야 돌아온 것으로 봅니다. 그 전까지는 안 보이는 중으로 계속 셉니다.
+//   (자리를 비운 동안 약 1초 얼굴이 잘못 잡혀 이탈 시간이 0으로 돌아가고 보류 시간이 전부 공부로 들어간 사례)
+// - 눈을 감은 중에 뜬 것으로 읽히거나 얼굴이 끊겨도 EYE_GAP_SECONDS 안이면 계속 감은 것으로 봅니다.
+//   (눈 감은 13초가 1초 '뜸' 판독에 0으로 돌아가 21초에 끝내 닿지 못한 사례)
+//
 // 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "학습기기 사용함"을 고른 경우에만 공부로 인정합니다.
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
 // - 사용함: 다른 앱·다른 탭에 있어도 평소처럼 얼굴로 판정합니다.
@@ -35,6 +41,9 @@ import type { Baseline } from "./calibration";
 export const AWAY_SECONDS = 60; // 얼굴이 이 시간 이상 안 보이면 자리 이탈 의심 (Dell 자리 비움 잠금 60초)
 export const DROWSY_SECONDS = 21; // 눈을 이 시간 이상 계속 감으면 졸음 의심 (OSLER 검사의 잠든 판정 21초)
 export const OUTFRAME_SECONDS = 10; // 머리~가슴이 이 시간 이상 화면 밖이면 가이드라인 이탈 (카메라 팝업 기준 GUIDE_ALERT_SECONDS와 같게)
+// 짧은 끊김 내성. 각본 시험(2026-10-17)에서 잘못 읽힌 구간은 0.9~1.0초였고, 그 두 배로 잡았습니다. (임시값, 정식판 뒤 조정)
+export const RETURN_SECONDS = 2; // 안 보이다 다시 잡힌 얼굴이 이 시간 이상 계속 보여야 돌아온 것
+export const EYE_GAP_SECONDS = 2; // 눈 감은 중 '뜸'·얼굴 끊김이 이 시간 안이면 계속 감은 것
 // 인식 결과가 이 시간 넘게 갱신되지 않으면 안 보임으로 봅니다. 숨긴 탭의 인식 주기(1초)를 세 번 놓친 정도입니다.
 export const STALE_SECONDS = 3;
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
@@ -73,6 +82,8 @@ export type FocusState = {
   missingSince: number | null;
   closedSince: number | null;
   outframeSince: number | null;
+  foundSince: number | null; // 얼굴이 연속으로 보이기 시작한 시각 (돌아옴 확인용)
+  eyeGapSince: number | null; // 눈 감은 중 '뜸'·얼굴 끊김이 시작된 시각 (EYE_GAP_SECONDS 안이면 감은 기록 유지)
   lastMs: number | null;
   bodyWhileMissing: boolean; // 얼굴이 안 보이는 동안 몸은 자리에 있었는지 (엎드림)
   phoneSince: number | null; // 휴대폰이 연속으로 잡히기 시작한 시각
@@ -89,6 +100,8 @@ export const initialFocusState: FocusState = {
   missingSince: null,
   closedSince: null,
   outframeSince: null,
+  foundSince: null,
+  eyeGapSince: null,
   lastMs: null,
   bodyWhileMissing: false,
   phoneSince: null,
@@ -104,7 +117,7 @@ export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phon
   if (state.status !== "focus") return null;
   // 몸이 자리에 있으면 숙여 필기하며 얼굴이 띄엄띄엄 끊기는 경우가 많아 노란 표시를 하지 않습니다. (#119)
   if (state.awaySeconds > 0) return state.bodyWhileMissing ? null : "face";
-  if (state.closedSeconds > 0) return "eyes";
+  if (state.closedSeconds > 0 && state.eyeGapSince === null) return "eyes"; // 잠깐 뜬 틈에는 표시하지 않음
   if (state.outframeSeconds > 0) return "frame";
   if (state.phoneSeconds > 0) return "phone";
   return null;
@@ -157,6 +170,8 @@ export function nextFocusState(
       missingSince: null,
       closedSince: null,
       outframeSince: null,
+      foundSince: null,
+      eyeGapSince: null,
       lastMs: nowMs,
       bodyWhileMissing: false,
       phoneSince,
@@ -192,14 +207,28 @@ function judgeFace(
       missingSince: null,
       closedSince: null,
       outframeSince: null,
+      foundSince: null,
+      eyeGapSince: null,
       lastMs: nowMs,
       bodyWhileMissing: false,
     };
   }
 
+  // 안 보이다 다시 잡힌 얼굴은 RETURN_SECONDS 이상 계속 보여야 돌아온 것입니다. 그 전에는 아래 "안 보임"으로 계속 셉니다.
+  const foundSince = input.found ? prev.foundSince ?? nowMs : null;
+  const back =
+    input.found && (prev.missingSince === null || (foundSince !== null && (nowMs - foundSince) / 1000 >= RETURN_SECONDS));
+
+  // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄) 얼굴이 안 보이면 읽을 수 없음(null).
+  const wasClosed = prev.closedSince !== null;
+  const closedNow = input.found ? eyeClosed(input, wasClosed) : null;
+  const eyes = nextEyes(prev, closedNow, nowMs);
+  const closedSeconds = eyes.closedSince === null ? 0 : (nowMs - eyes.closedSince) / 1000;
+
   // 얼굴이 안 보이면 안 보인 시간을 잽니다. 몸이 자리에 있으면 엎드림(→ 졸음), 없으면 자리 이탈입니다.
-  if (!input.found) {
-    const body = input.bodyFound === true;
+  if (!back) {
+    // 돌아옴을 확인하는 동안(얼굴은 보임)은 안 보이던 때의 몸 판정을 이어 써서 이탈·졸음 표시가 흔들리지 않게 합니다.
+    const body = input.found ? prev.bodyWhileMissing : input.bodyFound === true;
     let missingSince = prev.missingSince ?? nowMs;
     const lastInput = screen.lastInputMs ?? null;
     // 입력이 있어 깨어 있음이 확인되면 처음부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
@@ -210,43 +239,39 @@ function judgeFace(
     return {
       status,
       awaySeconds,
-      closedSeconds: 0,
+      closedSeconds,
       outframeSeconds: 0,
       studyMs: typed ? prev.studyMs + prev.pendingMs + step : prev.studyMs,
       pendingMs: typed ? 0 : status === "focus" ? prev.pendingMs + step : 0,
       missingSince,
-      closedSince: null,
+      closedSince: eyes.closedSince,
       outframeSince: null,
+      foundSince,
+      eyeGapSince: eyes.eyeGapSince,
       lastMs: nowMs,
       bodyWhileMissing: body,
     };
   }
-
-  // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄)
-  const wasClosed = prev.closedSince !== null;
-  const closed = eyeClosed(input, wasClosed);
-  const closedSince = closed ? prev.closedSince ?? nowMs : null;
-  const closedSeconds = closedSince === null ? 0 : (nowMs - closedSince) / 1000;
 
   // 머리~가슴이 화면 밖이면 시간을 잽니다. 한 번이라도 들어오거나 확인할 수 없으면(null) 0부터 다시.
   const out = input.framed === false;
   const outframeSince = out ? prev.outframeSince ?? nowMs : null;
   const outframeSeconds = outframeSince === null ? 0 : (nowMs - outframeSince) / 1000;
 
-  // 졸음과 가이드라인 이탈이 겹치면 졸음을 보여 줍니다. (졸음은 아이콘이 따로 있음)
+  // 졸음은 지금도 감은 것으로 읽힐 때만 보여 줍니다(잠깐 뜬 틈에는 아님). 가이드라인 이탈과 겹치면 졸음이 우선입니다. (졸음은 아이콘이 따로 있음)
   const status: FocusStatus =
-    closedSeconds >= DROWSY_SECONDS
+    closedNow === true && closedSeconds >= DROWSY_SECONDS
       ? "drowsy"
       : outframeSeconds >= OUTFRAME_SECONDS
         ? "outframe"
         : "focus";
 
-  // 눈을 뜨고 화면 안이면 보류 시간까지 확정하고, 감았거나 벗어났으면 보류에 쌓습니다.
+  // 눈을 뜨고 화면 안이면 보류 시간까지 확정하고, 감았거나(잠깐 뜬 틈 포함) 벗어났으면 보류에 쌓습니다.
   let studyMs = prev.studyMs;
   let pendingMs = prev.pendingMs;
   if (status !== "focus") {
     pendingMs = 0;
-  } else if (closed || out || holdPhone) {
+  } else if (eyes.closedSince !== null || out || holdPhone) {
     pendingMs += step;
   } else {
     studyMs += pendingMs + step;
@@ -260,9 +285,25 @@ function judgeFace(
     studyMs,
     pendingMs,
     missingSince: null,
-    closedSince,
+    closedSince: eyes.closedSince,
     outframeSince,
+    foundSince,
+    eyeGapSince: eyes.eyeGapSince,
     lastMs: nowMs,
     bodyWhileMissing: false,
   };
+}
+
+// 눈 감은 기록 갱신. closedNow: 지금 감은 것으로 읽힘(true) / 뜸(false) / 얼굴이 없어 못 읽음(null).
+// 감은 중에 뜸·못 읽음이 EYE_GAP_SECONDS 안이면 감은 기록(closedSince)을 유지하고, 넘기면 지웁니다.
+function nextEyes(
+  prev: FocusState,
+  closedNow: boolean | null,
+  nowMs: number
+): { closedSince: number | null; eyeGapSince: number | null } {
+  if (closedNow === true) return { closedSince: prev.closedSince ?? nowMs, eyeGapSince: null };
+  if (prev.closedSince === null) return { closedSince: null, eyeGapSince: null };
+  const eyeGapSince = prev.eyeGapSince ?? nowMs;
+  if ((nowMs - eyeGapSince) / 1000 < EYE_GAP_SECONDS) return { closedSince: prev.closedSince, eyeGapSince };
+  return { closedSince: null, eyeGapSince: null };
 }

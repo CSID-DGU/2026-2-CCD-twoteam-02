@@ -125,7 +125,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
     return workerInterval(SAMPLE_MS, () => {
       const n = Date.now();
       testStart.current ??= n;
-      const { plain, guide } = latest.current;
+      const { plain, guide, baseline } = latest.current;
       const run = runRef.current;
       const elapsedMs = run ? n - run.startMs : null;
       const f = face.current;
@@ -133,7 +133,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
         t: n - testStart.current, trial: run?.trial ?? null, behaviorId: run?.behavior.id ?? null, elapsedMs,
         plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, ear: f.ear ?? null, pitch: f.pitch ?? 0,
         framed: pose.current.framed, body: pose.current.framed === null ? null : pose.current.found,
-        hidden: document.hidden, focused: document.hasFocus(), allowDevices: plain.allowDevices,
+        hidden: document.hidden, focused: document.hasFocus(), allowDevices: plain.allowDevices, baseline,
       });
       if (run && elapsedMs !== null) {
         run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide) });
