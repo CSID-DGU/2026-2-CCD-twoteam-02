@@ -8,6 +8,7 @@ import type { CSSProperties } from 'react'
 import { useSession } from '../auth/useSession'
 import { otherOf, relationOf } from './friendsLogic'
 import { useFriends } from './useFriends'
+import { WhisperButton } from '../chat/WhisperButton'
 
 export function FriendButton({ otherId }: { otherId: string }) {
   const { session } = useSession()
@@ -51,7 +52,12 @@ export function FriendButton({ otherId }: { otherId: string }) {
             </button>
           </>
         )}
-        {relation === 'friend' && <span style={styles.friend}>✓ 친구</span>}
+        {relation === 'friend' && (
+          <>
+            <span style={styles.friend}>✓ 친구</span>
+            <WhisperButton friendId={otherId} />
+          </>
+        )}
       </div>
       {message && <p style={styles.error}>{message}</p>}
     </div>

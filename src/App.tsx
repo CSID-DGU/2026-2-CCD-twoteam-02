@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { OnlineProvider } from './realtime/OnlineProvider'
+import { ChatProvider } from './chat/ChatProvider'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
 import LoginPage from './auth/LoginPage'
@@ -140,7 +141,10 @@ function App() {
     <BrowserRouter>
       {/* 사이트 전체 접속 상태 (친구 활동 중, 접속자 수, #176). 로그인하면 한 번만 연결합니다. */}
       <OnlineProvider>
-        <AppRoutes />
+        {/* 친구 귓속말 (#49). 접속 상태를 써서 그 안쪽에 둡니다. 로그는 여기 메모리에만 있습니다. */}
+        <ChatProvider>
+          <AppRoutes />
+        </ChatProvider>
       </OnlineProvider>
     </BrowserRouter>
   )

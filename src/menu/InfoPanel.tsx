@@ -9,6 +9,7 @@ import { RecordsView } from '../study/RecordsPage'
 import { FriendsView } from '../friends/FriendsPage'
 import { ProfileView } from '../profile/ProfileView'
 import type { PanelView } from './panelTypes'
+import { useChat } from '../chat/chatContext'
 
 const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필' }
 
@@ -17,6 +18,13 @@ export function InfoPanel({ initial, myId, onClose }: { initial: PanelView; myId
   const view = stack[stack.length - 1]
   const open = (next: PanelView) => setStack((s) => [...s, next])
   const back = () => setStack((s) => s.slice(0, -1))
+
+  // 프로필에서 "귓속말"을 누르면 채팅창이 열리도록 이 창은 닫습니다. (#49)
+  const openKey = useChat()?.openKey ?? 0
+  const [firstOpenKey] = useState(openKey)
+  useEffect(() => {
+    if (openKey !== firstOpenKey) onClose()
+  }, [openKey, firstOpenKey, onClose])
 
   // Esc 로도 닫습니다.
   useEffect(() => {
