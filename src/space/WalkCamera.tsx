@@ -4,28 +4,39 @@
 // 그 상태에서 마우스를 움직이면 좌우·위아래로 바라봅니다. Esc 를 누르면 브라우저가 잠금을 풀어 커서가 돌아옵니다.
 // 바라보는 좌우 방향(headingRef)은 Player 와 같이 써서, W 를 누르면 보는 쪽으로 걷습니다.
 // 위아래(pitch)는 카메라만 기울입니다. 걷는 방향에는 영향이 없습니다.
+//
+// 감정표현(#162) 중에는 오버워치처럼 카메라가 앞으로 빠져 돌아서서 내 캐릭터를 비추고, 끝나면 돌아옵니다.
+// 감정표현 바퀴를 고르는 동안에는 마우스로 시점이 돌지 않습니다(바퀴 고르기에 마우스를 씀).
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { PerspectiveCamera } from '@react-three/drei'
 import { MathUtils } from 'three'
 import type { PerspectiveCamera as PerspectiveCameraImpl } from 'three'
+import type { EmoteState } from './emotes'
 
 const EYE_HEIGHT = 1.45 // 서 있을 때 눈높이 (캐릭터 키 약 1.6)
 const WALK_FOV = 70 // 걸을 때는 앉았을 때보다 조금 넓게 봅니다.
 const MOUSE_SPEED = 0.0025 // 마우스를 1픽셀 움직일 때 도는 각도(라디안)
 const PITCH_LIMIT = Math.PI / 3 // 위아래 각 60도까지
+const EMOTE_DISTANCE = 2.6 // 감정표현 때 카메라가 내 캐릭터 앞으로 빠지는 거리
+const EMOTE_LIFT = 0.15 // 그때 눈높이에서 조금 올림
+const EMOTE_PITCH = -0.18 // 그때 살짝 내려다봄
+const EMOTE_SWING = 5 // 빠지고 돌아오는 빠르기
 
 type Props = {
   posRef: RefObject<{ x: number; z: number }> // 내 캐릭터 위치
   headingRef: RefObject<number> // 바라보는 좌우 방향(라디안). 0이면 +Z 쪽
   paused?: boolean // 키오스크·프로필 창이 떠 있으면 잠금을 풀고 다시 잠그지 않습니다.
   onLockChange?: (locked: boolean) => void // 안내 문구·조준점 표시용
+  emoteRef?: RefObject<EmoteState> // 감정표현 중이면 카메라가 앞으로 빠져 나를 비춤
+  suspendLookRef?: RefObject<boolean> // true 인 동안 마우스로 시점을 돌리지 않음 (감정표현 바퀴)
 }
 
-export function WalkCamera({ posRef, headingRef, paused = false, onLockChange }: Props) {
+export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, emoteRef, suspendLookRef }: Props) {
   const cam = useRef<PerspectiveCameraImpl>(null!)
   const pitch = useRef(0) // 위(+)·아래(-)로 기울인 각도
+  const swing = useRef(0) // 0: 1인칭, 1: 감정표현 때 앞에서 나를 비춤
   const pausedRef = useRef(paused)
   const canvas = useThree((s) => s.gl.domElement)
 
@@ -48,7 +59,7 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange }:
       onLockChange?.(isLocked())
     }
     const move = (e: MouseEvent) => {
-      if (!isLocked()) return
+      if (!isLocked() || suspendLookRef?.current) return
       headingRef.current -= e.movementX * MOUSE_SPEED // 마우스를 오른쪽으로 → 오른쪽으로 돌기
       pitch.current = MathUtils.clamp(pitch.current - e.movementY * MOUSE_SPEED, -PITCH_LIMIT, PITCH_LIMIT) // 위로 → 위 보기
     }
@@ -63,13 +74,20 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange }:
       if (isLocked()) document.exitPointerLock()
       onLockChange?.(false)
     }
-  }, [canvas, headingRef, onLockChange])
+  }, [canvas, headingRef, onLockChange, suspendLookRef])
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const { x, z } = posRef.current
-    cam.current.position.set(x, EYE_HEIGHT, z)
+    const h = headingRef.current
+    // 감정표현 중이면 앞으로 빠져 돌아서고(swing → 1), 끝나면 돌아옵니다(→ 0).
+    const target = emoteRef?.current.playing ? 1 : 0
+    swing.current += (target - swing.current) * (1 - Math.exp(-EMOTE_SWING * delta))
+    const s = swing.current
+    // 내 앞쪽(보는 방향)으로 s 만큼 빠집니다. 앞 = (sin h, cos h)
+    cam.current.position.set(x + Math.sin(h) * EMOTE_DISTANCE * s, EYE_HEIGHT + EMOTE_LIFT * s, z + Math.cos(h) * EMOTE_DISTANCE * s)
     // 좌우를 먼저 돌리고(Y) 그다음 위아래로 기울입니다(X). 카메라는 기본으로 -Z 를 보므로 반 바퀴 더 돕니다.
-    cam.current.rotation.set(pitch.current, headingRef.current + Math.PI, 0, 'YXZ')
+    // 감정표현 때는 그 반 바퀴를 빼서 나를 마주 봅니다.
+    cam.current.rotation.set(pitch.current * (1 - s) + EMOTE_PITCH * s, h + Math.PI * (1 - s), 0, 'YXZ')
   })
 
   return <PerspectiveCamera ref={cam} makeDefault fov={WALK_FOV} near={0.05} />

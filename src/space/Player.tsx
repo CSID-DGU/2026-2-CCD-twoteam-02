@@ -6,6 +6,8 @@ import type { Group } from 'three'
 import type { Box, Spot } from './layout'
 import { DEFAULT_MODEL, modelUrl } from '../profile/characters'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
+import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
+import type { EmoteState } from './emotes'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -47,9 +49,11 @@ type Props = {
   onSitBlocked?: (no: number) => void
   // 바깥에서 "이 번호 자리에 앉아라" 요청. 그 자리 앞에 서 있으면 다음 프레임에 앉습니다. (카페: 자리를 잡은 뒤)
   sitRef?: RefObject<number | null>
+  // 감정표현 (#162). 바깥(EmoteControls)에서 request 를 넣으면 서 있을 때 그 동작을 합니다. 움직이면 멈춥니다.
+  emoteRef?: RefObject<EmoteState>
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, canSit, onMove, headingRef, onSitBlocked, sitRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef }: Props) {
   const ref = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
@@ -61,7 +65,9 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const { scene, animations } = useGLTF(modelUrl(character))
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
   const model = useMemo(() => scene.clone(true), [scene])
-  const { actions } = useAnimations(animations, ref)
+  // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
+  const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
+  const { actions } = useAnimations(clips, ref)
 
   useEffect(() => {
     actions[anim.current]?.play()
@@ -120,8 +126,18 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       onNearExit?.(v)
     }
 
+    // 감정표현: 지금 하던 것을 멈춥니다(움직이거나 앉거나 창이 뜰 때).
+    const em = emoteRef?.current
+    const stopEmote = () => {
+      if (!em?.playing) return
+      endEmote(em)
+      play('idle')
+    }
+
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
+      if (em) clearEmoteRequest(em)
+      stopEmote()
       toggle.current = false
       if (!seated.current) play('idle') // 앉아 있을 때는 앉은 자세를 그대로 둡니다.
       return
@@ -131,6 +147,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     const wantToggle = toggle.current
     toggle.current = false
     if (seated.current) {
+      if (em) clearEmoteRequest(em) // 앉아 있을 때는 감정표현을 하지 않습니다 (다리 자세·트래킹과 겹침)
       if (!wantToggle) return
       seated.current = null
       g.visible = true
@@ -148,6 +165,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       return
     }
     if (near.current && (forced || (wantToggle && (canSit?.(near.current.no) ?? true)))) {
+      stopEmote()
       const s = near.current
       seated.current = s
       p.x = s.x
@@ -174,7 +192,8 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     let dx = 0, dz = 0
     if (headingRef) {
       // 1인칭: 보는 방향 기준으로 움직입니다. 내 캐릭터는 카메라를 가리므로 숨깁니다.
-      g.visible = false
+      // 감정표현 중에는 카메라가 앞으로 빠져 나를 비추므로 보이게 합니다. (WalkCamera)
+      g.visible = Boolean(em?.playing)
       const turn = +k.has('ArrowRight') - +k.has('ArrowLeft')
       headingRef.current -= turn * KEY_TURN_SPEED * dt // 오른쪽 방향키 = 오른쪽으로 돌기
       const h = headingRef.current
@@ -202,7 +221,25 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       }
     }
     const moving = dx !== 0 || dz !== 0
-    play(moving ? 'walk' : 'idle')
+
+    // 감정표현: 움직이면 멈추고, 서 있을 때 고른 것이 있으면 시작합니다. 하는 동안은 걷기·서기 동작을 바꾸지 않습니다.
+    if (em) {
+      if (moving) stopEmote()
+      else if (em.request && !em.playing) {
+        const def = emoteById(em.request)
+        const action = def ? actions[def.clip] : null
+        if (def && action) {
+          actions[anim.current]?.fadeOut(FADE)
+          prepareEmoteAction(action, def)
+          action.reset().fadeIn(FADE).play()
+          anim.current = def.clip
+          beginEmote(em, def.id, emoteSeconds(def, action.getClip().duration))
+        }
+      }
+      clearEmoteRequest(em)
+      if (em.playing && performance.now() > em.until) stopEmote()
+    }
+    if (!em?.playing) play(moving ? 'walk' : 'idle')
     // 달릴 때는 걷기 동작을 빠르기에 맞춰 빨리 재생합니다. (다리가 미끄러져 보이지 않게)
     actions.walk?.setEffectiveTimeScale(speed / WALK_SPEED)
     if (moving) {

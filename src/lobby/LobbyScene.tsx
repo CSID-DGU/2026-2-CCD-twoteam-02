@@ -34,6 +34,8 @@ import { currentCondition } from '../study/condition'
 import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { LOBBY_PLACE } from '../realtime/online'
 import { ChatOverlay } from '../chat/ChatOverlay'
+import { EmoteControls } from '../space/EmoteControls'
+import { newEmoteState } from '../space/emotes'
 import lobby from './lobby.json'
 
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
@@ -103,6 +105,9 @@ export default function LobbyScene({ onEnter }: Props) {
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 로비에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   const me = useRef<PresenceState | null>(null)
+  // 감정표현 (#162): Player 가 동작하고, 1인칭 카메라는 그동안 앞으로 빠져 나를 비춥니다.
+  const emote = useRef(newEmoteState())
+  const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const others = useParticipants(LOBBY_CHANNEL, me)
   // 캐릭터 숨김 모드(실험 B 조건)면 로비에서도 다른 참여자를 그리지 않습니다.
   const [condition] = useState(() => currentCondition(location.search))
@@ -155,12 +160,12 @@ export default function LobbyScene({ onEnter }: Props) {
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
   const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
-  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · ${viewHint}`
+  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · X 감정표현 · ${viewHint}`
 
   return (
     <>
       <Canvas>
-        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} /> : <FitCamera />}
+        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} /> : <FitCamera />}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
@@ -206,6 +211,7 @@ export default function LobbyScene({ onEnter }: Props) {
             obstacles={obstacles}
             spawn={arrival.spawn}
             spawnHeading={arrival.heading}
+            emoteRef={emote}
             spots={doorSpots}
             // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
@@ -220,7 +226,9 @@ export default function LobbyScene({ onEnter }: Props) {
               pos.current.z = z
               bodyHeading.current = h
               // 로비에서는 앉는 자리가 없고 모두 공부 전(idle)입니다.
-              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle' }
+              // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
+              const e = emote.current
+              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}) }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
@@ -231,6 +239,7 @@ export default function LobbyScene({ onEnter }: Props) {
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
