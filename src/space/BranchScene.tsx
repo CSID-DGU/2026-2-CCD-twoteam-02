@@ -26,7 +26,7 @@ import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
-import { useOnlinePlace } from "../realtime/onlineContext";
+import { useOnlineInvisible, useOnlinePlace } from "../realtime/onlineContext";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -245,12 +245,17 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
-  const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
-  useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
-  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
-  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
+  // 사용자 실험 조건 (docs/사용자-실험-재설계.md, #47)
+  //   visible(C): 다른 참여자가 보이고 나도 보입니다.
+  //   hidden(B, 혼자 공부): 다른 참여자·표시등·접속 인원 수를 모두 숨기고, 나도 남에게 보이지 않습니다.
+  //     내 위치를 지점 방에 보내지 않고, 사이트 전체 접속 상태에서도 나를 뺍니다.
+  //   내 트래킹·타이머·기록은 두 조건 모두 그대로 동작합니다.
   const { search } = useLocation();
   const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
+  const hidden = condition === "hidden";
+  const others = useParticipants(hidden ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
+  useOnlineInvisible(hidden); // B 조건이면 접속 상태에서 나를 뺌
   useEffect(() => {
     console.info(`[실험 조건] ${condition === "hidden" ? "hidden (캐릭터 숨김 모드)" : "visible (캐릭터 보임)"}`);
   }, [condition]);
@@ -517,7 +522,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      {condition === "visible" && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
+      {!hidden && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
 
       {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
       {myModel && (
@@ -573,21 +578,23 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         }}
       />
     )}
-    {/* 이 지점 접속 인원 (나 포함, #176). 숨김 모드에서는 다른 사람은 안 보이고 이 인원만 알 수 있습니다. */}
-    <div
-      style={{
-        position: "fixed",
-        top: 76,
-        left: 16,
-        padding: "6px 10px",
-        borderRadius: 8,
-        background: "rgba(32,35,42,.85)",
-        color: "#fff",
-        font: "13px system-ui, sans-serif",
-      }}
-    >
-      이 지점 접속 인원 {others.length + 1}명
-    </div>
+    {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 조건(혼자 공부)에서는 인원 수도 숨깁니다. (#47) */}
+    {!hidden && (
+      <div
+        style={{
+          position: "fixed",
+          top: 76,
+          left: 16,
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: "rgba(32,35,42,.85)",
+          color: "#fff",
+          font: "13px system-ui, sans-serif",
+        }}
+      >
+        이 지점 접속 인원 {others.length + 1}명
+      </div>
+    )}
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}

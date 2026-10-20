@@ -31,7 +31,7 @@ import { OtherParticipants } from '../realtime/OtherParticipants'
 import { LOBBY_CHANNEL } from '../realtime/participants'
 import type { PresenceState } from '../realtime/participants'
 import { currentCondition } from '../study/condition'
-import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
+import { useOnline, useOnlineInvisible, useOnlinePlace } from '../realtime/onlineContext'
 import { LOBBY_PLACE } from '../realtime/online'
 import lobby from './lobby.json'
 
@@ -102,11 +102,14 @@ export default function LobbyScene({ onEnter }: Props) {
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 로비에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   const me = useRef<PresenceState | null>(null)
-  const others = useParticipants(LOBBY_CHANNEL, me)
-  // 캐릭터 숨김 모드(실험 B 조건)면 로비에서도 다른 참여자를 그리지 않습니다.
+  // 실험 B 조건(혼자 공부)이면 로비에서도 남도 안 보이고 나도 안 보입니다. (#47)
+  // 로비 방에 들어가지 않고(내 위치를 보내지 않음), 접속 상태에서도 나를 뺍니다.
   const [condition] = useState(() => currentCondition(location.search))
+  const hidden = condition === 'hidden'
+  const others = useParticipants(hidden ? '' : LOBBY_CHANNEL, me)
   // 사이트 전체 접속 상태에 "로비에 있음"으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
   useOnlinePlace(LOBBY_PLACE)
+  useOnlineInvisible(hidden)
   const onlineCount = useOnline().size
   const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
@@ -194,7 +197,7 @@ export default function LobbyScene({ onEnter }: Props) {
         })}
 
         {/* 로비의 다른 참여자. 누르면 프로필 창 (#166). 로비에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
-        {condition === 'visible' && (
+        {!hidden && (
           <OtherParticipants others={others} spots={[]} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
         )}
 
@@ -228,7 +231,7 @@ export default function LobbyScene({ onEnter }: Props) {
 
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
-      {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      {!hidden && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
