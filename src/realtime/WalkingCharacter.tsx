@@ -14,6 +14,7 @@
 // position 을 prop 으로 묶으면 메시지가 올 때마다 R3F 가 좌표로 바로 덮어써서
 // 보간·걷기 동작·방향 돌리기가 모두 안 되고 순간이동만 합니다. (#130)
 // 걷기 판단과 몸 방향은 walkLogic.ts 참고. (#122)
+// 서서 감정표현을 하면(emote) 같은 동작을 재생하고, 걷기 시작하면 멈춥니다. (#162)
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -22,6 +23,7 @@ import type { Group } from 'three'
 import { INTERP_DELAY_MS, SAMPLE_MAX, TELEPORT_GAP, angleDiff, facingGoal, gaitOf, sampleAt } from './walkLogic'
 import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
+import { EMOTE_CLIPS, emoteById, emoteSeconds, prepareEmoteAction } from '../space/emotes'
 
 const SCALE = 0.6 // Player와 같은 크기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
@@ -35,9 +37,11 @@ type Props = {
   h?: number // 그 사람이 보낸 몸 방향. 없으면 가는 방향을 봅니다.
   model: string
   children?: ReactNode // 캐릭터와 함께 움직일 것 (닉네임·표시등). 몸이 돌아도 따라 돌지 않습니다.
+  emote?: string // 그 사람이 지금 하는 감정표현 (#162)
+  emoteSeq?: number // 감정표현을 새로 시작할 때마다 올라가는 번호
 }
 
-export function WalkingCharacter({ x, z, h, model, children }: Props) {
+export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: Props) {
   const ref = useRef<Group>(null!) // 위치만 옮기는 묶음
   const body = useRef<Group>(null!) // 몸 방향만 돌리는 묶음
   const gait = useRef<Gait>('idle')
@@ -46,7 +50,12 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
   const { scene, animations } = useGLTF(`/models/character-${model}.glb`)
   // 같은 모델을 여러 사람이 쓸 수 있으므로 복사본을 씁니다.
   const copy = useMemo(() => scene.clone(true), [scene])
-  const { actions } = useAnimations(animations, ref)
+  // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작
+  const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
+  const { actions } = useAnimations(clips, ref)
+  const emoteClip = useRef<string | null>(null) // 지금 재생 중인 감정표현 동작
+  const emoteUntil = useRef(0)
+  const emoteStarted = useRef(0) // 마지막으로 재생을 시작한 감정표현 번호 (같은 번호는 다시 시작하지 않음)
 
   useEffect(() => {
     actions.idle?.play()
@@ -84,10 +93,31 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
     if (goal !== null) b.rotation.y += angleDiff(goal, b.rotation.y) * (1 - Math.exp(-TURN * delta))
     const next = gaitOf(at.vx, at.vz, b.rotation.y, gait.current !== 'idle')
 
+    // 감정표현: 서 있을 때 새 번호가 오면 시작, 걷거나 그 사람이 멈추거나 시간이 지나면 끝냅니다.
+    const now = performance.now()
+    if (emoteClip.current && (next !== 'idle' || !emote || now > emoteUntil.current)) {
+      actions[emoteClip.current]?.fadeOut(FADE)
+      actions[next === 'idle' ? 'idle' : 'walk']?.reset().fadeIn(FADE).play()
+      emoteClip.current = null
+    }
+    const def = emoteById(emote)
+    if (def && next === 'idle' && !emoteClip.current && emoteSeq !== undefined && emoteSeq !== emoteStarted.current) {
+      const action = actions[def.clip]
+      if (action) {
+        actions[gait.current === 'idle' ? 'idle' : 'walk']?.fadeOut(FADE)
+        prepareEmoteAction(action, def)
+        action.reset().fadeIn(FADE).play()
+        emoteClip.current = def.clip
+        emoteUntil.current = now + emoteSeconds(def, action.getClip().duration) * 1000
+        emoteStarted.current = emoteSeq
+      }
+    }
+
     if (gait.current !== next) {
       const from = gait.current === 'idle' ? 'idle' : 'walk'
       const to = next === 'idle' ? 'idle' : 'walk'
-      if (from !== to) {
+      // 감정표현 중에는 서기 동작으로 덮지 않습니다.
+      if (from !== to && !emoteClip.current) {
         actions[from]?.fadeOut(FADE)
         actions[to]?.reset().fadeIn(FADE).play()
       }
