@@ -28,6 +28,8 @@ import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
 import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
+import { EmoteControls } from "./EmoteControls";
+import { newEmoteState } from "./emotes";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -246,6 +248,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
+  // 감정표현 (#162): 고른 것·하는 중인 것. Player 가 동작하고, 1인칭 카메라는 그동안 앞으로 빠져 나를 비춥니다.
+  const emote = useRef(newEmoteState());
+  const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
@@ -294,6 +299,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       status: seat === null ? "idle" : studyStatus,
       ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
+      // 서서 감정표현 중이면 같이 실어 보냅니다. 보고 있는 사람 화면에서도 같은 동작을 합니다. (#162)
+      ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
     };
   };
 
@@ -402,7 +409,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · X 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -420,6 +427,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           headingRef={heading}
           paused={kioskOpen || panelOpen || conflict !== null}
           onLockChange={setLocked}
+          emoteRef={emote}
+          suspendLookRef={suspendLook}
         />
       ) : (
         <TopDownCamera area={branch.size} />
@@ -527,6 +536,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           obstacles={obstacles}
           spawn={branch.spawn}
           spawnHeading={arrival}
+          emoteRef={emote}
           spots={freeSpots}
           kiosk={branch.kiosk ?? NO_KIOSK}
           frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
@@ -590,6 +600,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       이 지점 접속 인원 {others.length + 1}명
     </div>
     <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
+    {/* 감정표현: 숫자키 1~8, X 바퀴 (#162). 창이 떠 있거나 앉아 있으면 쓰지 않습니다. */}
+    <EmoteControls
+      emoteRef={emote}
+      suspendLookRef={suspendLook}
+      disabled={kioskOpen || panelOpen || conflict !== null || seat !== null}
+    />
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
