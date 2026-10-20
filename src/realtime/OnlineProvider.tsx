@@ -19,7 +19,9 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   // 누구 기준으로 읽은 목록인지 같이 둡니다. 로그아웃하거나 계정이 바뀌면 이전 목록을 쓰지 않습니다.
   const [result, setResult] = useState<{ myId: string; places: Map<string, string> } | null>(null)
   const [place, setPlace] = useState(ELSEWHERE)
+  const [invisible, setInvisible] = useState(false) // 실험 B 조건이면 나를 접속 상태에서 뺌 (#47)
   const placeRef = useRef(place)
+  const invisibleRef = useRef(invisible)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const subscribed = useRef(false)
 
@@ -42,7 +44,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       .subscribe((status) => {
         if (status !== 'SUBSCRIBED') return
         subscribed.current = true
-        void channel.track({ place: placeRef.current })
+        if (!invisibleRef.current) void channel.track({ place: placeRef.current })
       })
     return () => {
       subscribed.current = false
@@ -51,14 +53,18 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     }
   }, [myId])
 
-  // 있는 곳이 바뀌면 상태를 한 번 바꿉니다.
+  // 있는 곳이 바뀌면 상태를 한 번 바꿉니다. 안 보이기면 접속 상태에서 나를 뺍니다(남의 상태는 계속 받음).
   useEffect(() => {
     placeRef.current = place
-    if (subscribed.current) void channelRef.current?.track({ place })
-  }, [place])
+    invisibleRef.current = invisible
+    const channel = channelRef.current
+    if (!subscribed.current || !channel) return
+    if (invisible) void channel.untrack()
+    else void channel.track({ place })
+  }, [place, invisible])
 
   const places = result && result.myId === myId ? result.places : EMPTY
-  return <OnlineContext.Provider value={{ places, setPlace }}>{children}</OnlineContext.Provider>
+  return <OnlineContext.Provider value={{ places, setPlace, setInvisible }}>{children}</OnlineContext.Provider>
 }
 
 const EMPTY = new Map<string, string>()

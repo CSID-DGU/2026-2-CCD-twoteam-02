@@ -8,9 +8,10 @@ import { ELSEWHERE } from './online'
 export type OnlineValue = {
   places: Map<string, string> // 접속 중인 계정 번호 → 지금 있는 곳
   setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
+  setInvisible: (on: boolean) => void // 켜면 접속 상태 방에서 나를 뺍니다 (실험 B 조건, #47)
 }
 
-export const OnlineContext = createContext<OnlineValue>({ places: new Map(), setPlace: () => {} })
+export const OnlineContext = createContext<OnlineValue>({ places: new Map(), setPlace: () => {}, setInvisible: () => {} })
 
 // 접속 중인 사람들
 export function useOnline() {
@@ -24,4 +25,14 @@ export function useOnlinePlace(place: string) {
     setPlace(place)
     return () => setPlace(ELSEWHERE)
   }, [place, setPlace])
+}
+
+// 이 화면에 있는 동안 active 면 다른 사람에게 접속 중으로 보이지 않습니다. 화면을 떠나면 풉니다.
+// 실험 B 조건(혼자 공부: 남도 안 보이고 나도 안 보임)에서 씁니다. (#47)
+export function useOnlineInvisible(active: boolean) {
+  const { setInvisible } = useContext(OnlineContext)
+  useEffect(() => {
+    setInvisible(active)
+    return () => setInvisible(false)
+  }, [active, setInvisible])
 }

@@ -80,12 +80,15 @@ function pack(state: PresenceState): PresenceState {
 }
 
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166)
+// 빈 문자열이면 방에 들어가지 않습니다. 실험 B 조건(혼자 공부)은 남도 안 보이고 나도 안 보여야 해서
+// 내 위치를 보내지도, 남의 위치를 받지도 않습니다. (#47, docs/사용자-실험-재설계.md)
 export function useParticipants(room: string, me: RefObject<PresenceState | null>) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
 
   useEffect(() => {
+    if (!room) return
     let alive = true
     const channel = supabase.channel(room)
 
