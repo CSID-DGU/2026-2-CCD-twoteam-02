@@ -376,7 +376,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, panelOpen]);
+  }, [kioskOpen, panelOpen, setView]);
 
   const seatSpot = spots.find((c) => c.no === seat);
   const viewHint =

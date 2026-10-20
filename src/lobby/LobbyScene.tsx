@@ -122,7 +122,7 @@ export default function LobbyScene({ onEnter }: Props) {
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [])
+  }, [setView])
 
   const loadBranches = useCallback(async () => {
     const { data, error } = await supabase.from('branches').select('id, slug, name').eq('is_open', true)
