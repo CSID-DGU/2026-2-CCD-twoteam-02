@@ -281,7 +281,7 @@ function ResultTable({ results }: { results: TrialResult[] }) {
       <table style={styles.table}>
         <thead>
           <tr>
-            {["#", "행동", "정답", "맞음(없이)", "맞음(가이드)", "처음 노란불(없이)", "노란불까지(없이)", "들어간 시간(없이)", "들어가야 할 시간"].map((h) => (
+            {["#", "행동", "정답", "맞음(없이)", "맞음(가이드)", "처음 빨간불(없이)", "빨간불까지(없이)", "들어간 시간(없이)", "들어가야 할 시간"].map((h) => (
               <th key={h} style={styles.cell}>{h}</th>
             ))}
           </tr>

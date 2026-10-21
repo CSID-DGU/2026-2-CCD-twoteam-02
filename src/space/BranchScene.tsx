@@ -276,7 +276,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   }, []);
 
   // Player 가 매 프레임 알려 주는 위치로 내 상태를 갱신합니다. 보내는 주기는 훅이 알아서 늦춥니다.
-  // 상태: 돌아다니면 idle(노란불), 앉아 있으면 집중 판정 결과(공부 시작 전에는 idle).
+  // 상태: 돌아다니면 idle(표시등 없음), 앉아 있으면 집중 판정 결과(공부 시작 전에는 idle).
   const handleMove = (x: number, z: number, h: number) => {
     pos.current.x = x;
     pos.current.z = z;

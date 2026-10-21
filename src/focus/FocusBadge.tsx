@@ -1,4 +1,5 @@
-// 집중 상태 표시 (초록/노랑) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
+// 집중 상태 표시 (초록/노랑/빨강) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
+// 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (보류·가이드라인)
 import {
   AWAY_SECONDS,
   DROWSY_SECONDS,
@@ -11,11 +12,11 @@ import type { FocusView } from "./useFocusState";
 
 const LABEL = {
   focus: { color: "#4ade80", text: "🟢 집중" },
-  away: { color: "#facc15", text: "🟡 자리 이탈 의심" },
-  drowsy: { color: "#facc15", text: "🟡 졸음 의심" },
-  offscreen: { color: "#facc15", text: "🟡 다른 화면 사용 중" },
+  away: { color: "#f87171", text: "🔴 자리 이탈" },
+  drowsy: { color: "#f87171", text: "🔴 졸음" },
+  offscreen: { color: "#f87171", text: "🔴 다른 화면 사용 중" },
   outframe: { color: "#facc15", text: "🟡 가이드라인 이탈 의심" },
-  phone: { color: "#facc15", text: "🟡 휴대폰 사용 의심" },
+  phone: { color: "#f87171", text: "🔴 휴대폰 사용" },
 };
 
 // 밀리초 → "01:02:03"

@@ -1,4 +1,4 @@
-// 머리 위 표시등: 상태 색 동그라미와, 자리 이탈·졸음일 때 붙는 아이콘
+// 머리 위 표시등: 상태 색 동그라미와, 자리 이탈·졸음일 때 붙는 아이콘. 색이 없는 상태(돌아다님·공부 시작 전)는 그리지 않습니다.
 import { Billboard } from '@react-three/drei'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 import { LIGHT_COLOR, STATUS_ICON, lightOf } from './status'
@@ -41,6 +41,8 @@ function Icon({ emoji }: { emoji: string }) {
 
 export function StatusMarker({ x, z, status }: { x: number; z: number; status: PresenceStatus }) {
   const icon = STATUS_ICON[status]
+  const light = lightOf(status)
+  if (!light) return null
   return (
     // Billboard: 카메라가 어디서 보든 항상 정면을 향하게 돌려 줍니다. (2D 위쪽 시점, 3D 1인칭 모두)
     <Billboard position={[x, HEIGHT, z]}>
@@ -50,7 +52,7 @@ export function StatusMarker({ x, z, status }: { x: number; z: number; status: P
       </mesh>
       <mesh position={[0, 0, 0.001]}>
         <circleGeometry args={[RADIUS, 32]} />
-        <meshBasicMaterial color={LIGHT_COLOR[lightOf(status)]} />
+        <meshBasicMaterial color={LIGHT_COLOR[light]} />
       </mesh>
       {icon && <Icon emoji={icon} />}
     </Billboard>
