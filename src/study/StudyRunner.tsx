@@ -39,7 +39,7 @@ type Props = {
 }
 
 export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
-  const focus = useFocusState(face, choice.allowDevices, undefined, { body: pose, baseline, phone })
+  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.
@@ -60,7 +60,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
       user_id: userId,
       session_id: sessionId,
       subject_id: choice.subject.id,
-      devices: devicesOf(choice.allowDevices),
+      devices: devicesOf(choice),
     }
     const save = async (row: ChunkRow) => {
       const values = {
