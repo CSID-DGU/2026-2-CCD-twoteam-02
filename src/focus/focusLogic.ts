@@ -67,7 +67,8 @@ export type FocusInput = {
 export type ScreenInput = {
   pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식은 1초마다 계속)
   windowFocused: boolean; // 이 브라우저 창이 선택돼 있음 (다른 앱을 누르면 false)
-  allowDevices: boolean; // "학습기기 사용함"을 골랐는지
+  allowOtherScreen: boolean; // ⓐ "다른 탭·앱 사용함" → 다른 화면 판정 안 함
+  allowDevices: boolean; // ⓑ "휴대폰·학습기기 사용함" → 휴대폰 판정 안 함
   lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (엎드림 판정에서 깨어 있음의 근거)
 };
 
@@ -147,16 +148,16 @@ export function nextFocusState(
   prev: FocusState,
   given: FocusInput,
   nowMs: number,
-  screen: ScreenInput = { pageHidden: false, windowFocused: true, allowDevices: false }
+  screen: ScreenInput = { pageHidden: false, windowFocused: true, allowOtherScreen: false, allowDevices: false }
 ): FocusState {
   // 인식이 멈춰 값이 오래됐으면 얼굴·몸 모두 안 보임으로 보고, 휴대폰 값도 믿지 않습니다. (몸 null = 모름 → 자리 이탈 쪽)
   const stale = given.updatedAt != null && nowMs - given.updatedAt > STALE_SECONDS * 1000;
   const input: FocusInput = stale ? { ...given, found: false, bodyFound: null, phone: null } : given;
 
-  // 휴대폰: 학습기기 사용 안 함일 때만 연속으로 잡힌 시간을 잽니다. 한 번이라도 안 잡히면 0부터 다시.
+  // 휴대폰: 휴대폰·학습기기 사용함이 아닐 때만 연속으로 잡힌 시간을 잽니다. 한 번이라도 안 잡히면 0부터 다시.
   const phoneSince = !screen.allowDevices && input.phone === true ? prev.phoneSince ?? nowMs : null;
   const phoneSeconds = phoneSince === null ? 0 : (nowMs - phoneSince) / 1000;
-  const offScreenStop = (screen.pageHidden || !screen.windowFocused) && !screen.allowDevices;
+  const offScreenStop = (screen.pageHidden || !screen.windowFocused) && !screen.allowOtherScreen;
 
   // 다른 화면 다음으로 우선합니다. 휴대폰을 보느라 얼굴이 안 보여도 자리 이탈보다 휴대폰이 맞는 설명이라서입니다.
   if (!offScreenStop && phoneSeconds >= PHONE_SECONDS) {
@@ -193,10 +194,10 @@ function judgeFace(
   const elapsed = prev.lastMs === null ? 0 : Math.max(nowMs - prev.lastMs, 0);
   const step = Math.min(elapsed, MAX_STEP_MS);
 
-  // 다른 화면 사용: 학습기기 사용 안 함이면 얼굴 기록은 지우고 바로 멈춥니다.
+  // 다른 화면 사용: 다른 탭·앱 사용함이 아니면 얼굴 기록은 지우고 바로 멈춥니다.
   // 사용함이면 다른 탭·다른 앱이어도 아래에서 평소처럼 얼굴로 판정합니다.
   const offScreen = screen.pageHidden || !screen.windowFocused;
-  if (offScreen && !screen.allowDevices) {
+  if (offScreen && !screen.allowOtherScreen) {
     return {
       status: "offscreen",
       awaySeconds: 0,
