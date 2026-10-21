@@ -27,7 +27,7 @@ const LABEL: Record<FocusStatus, { color: string; text: string }> = {
 type Props = {
   face: RefObject<FocusInput>
   pose: RefObject<PoseState> // 몸 인식 (얼굴을 놓쳐도 자리에 있는지)
-  phone: RefObject<PhoneState> // 휴대폰 감지 (학습기기 사용 안 함일 때만 판정에 씀)
+  phone: RefObject<PhoneState> // 휴대폰 감지 (휴대폰·학습기기 사용함이 아닐 때만 판정에 씀)
   baseline: Baseline | null // 보정 기준 (건너뛰면 null)
   onRecalibrate: () => void
   choice: StudyChoice
