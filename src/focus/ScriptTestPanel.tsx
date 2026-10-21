@@ -66,8 +66,8 @@ type Props = {
 };
 
 export function ScriptTestPanel({ face, pose, baseline }: Props) {
-  const plain = useFocusState(face, false, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
-  const guide = useFocusState(face, false, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, undefined, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
   const [open, setOpen] = useState(() => loadSaved() !== null);
   const [saved, setSaved] = useState<Saved | null>(loadSaved);
   const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);

@@ -6,8 +6,14 @@ import type { FocusInput, FocusState } from "./focusLogic";
 import type { Baseline } from "./calibration";
 import { workerInterval } from "../lib/workerInterval";
 
+// 두 허용 값은 따로 켜고 끕니다 (#172). allowOtherScreen: 다른 탭·앱 사용함, allowDevices: 휴대폰·학습기기 사용함
+export type Allowed = { allowOtherScreen: boolean; allowDevices: boolean };
+export const NOTHING_ALLOWED: Allowed = { allowOtherScreen: false, allowDevices: false };
+
 export type FocusView = FocusState & {
+  allowOtherScreen: boolean;
   allowDevices: boolean;
+  setAllowOtherScreen: (value: boolean) => void;
   setAllowDevices: (value: boolean) => void;
 };
 
@@ -20,16 +26,17 @@ export type FocusExtras = {
   phone?: RefObject<{ found: boolean | null }>;
 };
 
-// initialAllowDevices: 공부 시작 창에서 고른 학습기기 사용 여부. 트래킹 검증 화면은 체크박스로 바꿉니다.
+// initial: 공부 시작 창에서 고른 두 허용 값. 트래킹 검증 화면은 체크박스로 바꿉니다.
 // pose(선택): 카메라 가이드라인 결과. 넘기지 않으면 가이드라인은 보지 않습니다.
 export function useFocusState(
   face: RefObject<FocusInput>,
-  initialAllowDevices = false,
+  initial: Allowed = NOTHING_ALLOWED,
   pose?: RefObject<{ framed: boolean | null }>,
   extras: FocusExtras = {}
 ): FocusView {
   const [state, setState] = useState<FocusState>(initialFocusState);
-  const [allowDevices, setAllowDevices] = useState(initialAllowDevices);
+  const [allowOtherScreen, setAllowOtherScreen] = useState(initial.allowOtherScreen);
+  const [allowDevices, setAllowDevices] = useState(initial.allowDevices);
   const lastInputMs = useRef<number | null>(null);
   const { body, baseline = null, phone } = extras;
 
@@ -53,6 +60,7 @@ export function useFocusState(
       const screen = {
         pageHidden: document.hidden,
         windowFocused: document.hasFocus(),
+        allowOtherScreen,
         allowDevices,
         lastInputMs: lastInputMs.current,
       };
@@ -61,7 +69,7 @@ export function useFocusState(
       );
     });
     return stop;
-  }, [face, pose, body, baseline, phone, allowDevices]);
+  }, [face, pose, body, baseline, phone, allowOtherScreen, allowDevices]);
 
-  return { ...state, allowDevices, setAllowDevices };
+  return { ...state, allowOtherScreen, allowDevices, setAllowOtherScreen, setAllowDevices };
 }
