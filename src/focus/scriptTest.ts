@@ -22,7 +22,7 @@ export type Behavior = {
   seconds: number; // 행동 길이
   expect: FocusStatus; // "focus" = 초록 유지가 정답, 나머지 = 마감 안에 그 빨간불이 떠야 정답
   deadlineSeconds?: number; // 빨간불 행동의 마감 (행동 시작부터)
-  allowDevices?: boolean; // 이 행동 동안 "학습기기 사용함"으로 판정
+  allowOtherScreen?: boolean; // 이 행동 동안 "다른 탭·앱 사용함"으로 판정 (13번)
   cue?: { atSeconds: number; text: string }; // 행동 중간에 소리로 알릴 것 (예: 돌아와 앉기)
   writing?: boolean; // 필기 오판율에 들어가는 행동
 };
@@ -50,8 +50,8 @@ export const BEHAVIORS: Behavior[] = [
   { id: 11, name: "숙인 채 눈 감기", hint: "필기 자세로 숙여 눈을 감습니다", seconds: 30, expect: "drowsy", deadlineSeconds: drowsy },
   { id: 12, name: "엎드리기", hint: "책상에 엎드립니다. 키보드·마우스는 만지지 않습니다", seconds: 90, expect: "drowsy", deadlineSeconds: away },
   {
-    id: 13, name: "학습기기 사용함 + 다른 탭에서 자리 비우기", hint: "다른 탭으로 간 뒤 카메라 밖으로 나갑니다",
-    seconds: 90, expect: "away", deadlineSeconds: AWAY_SECONDS + MOVE_GRACE_SECONDS, allowDevices: true,
+    id: 13, name: "다른 탭·앱 사용함 + 다른 탭에서 자리 비우기", hint: "다른 탭으로 간 뒤 카메라 밖으로 나갑니다",
+    seconds: 90, expect: "away", deadlineSeconds: AWAY_SECONDS + MOVE_GRACE_SECONDS, allowOtherScreen: true,
   },
 ];
 
@@ -199,7 +199,8 @@ export type LogRow = {
   body: boolean | null; // 몸(Pose) 있음 (모르면 null)
   hidden: boolean; // 다른 탭
   focused: boolean; // 창 선택
-  allowDevices: boolean;
+  allowOtherScreen: boolean; // 다른 탭·앱 사용함으로 판정 중
+  allowDevices: boolean; // 휴대폰·학습기기 사용함으로 판정 중
   baseline: Baseline | null; // 보정값. 눈 판정 임계값을 나중에 계산하려면 필요 (10-17 시험 때 없어서 못 함)
 };
 
@@ -207,13 +208,13 @@ const cell = (v: number | boolean | string | null) => (v === null ? "" : typeof 
 
 export function logCsv(rows: LogRow[]): string {
   const header =
-    "t,trial,behavior,elapsed,status,studyMs,statusGuide,studyMsGuide,found,ear,pitch,framed,body,hidden,focused,allowDevices," +
+    "t,trial,behavior,elapsed,status,studyMs,statusGuide,studyMsGuide,found,ear,pitch,framed,body,hidden,focused,allowOtherScreen,allowDevices," +
     "frontEar,downEar,closedEar,frontPitch,downPitch";
   const lines = rows.map((r) =>
     [
       r.t, r.trial, r.behaviorId, r.elapsedMs, r.plain.status, Math.round(r.plain.studyMs), r.guide.status,
       Math.round(r.guide.studyMs), r.found, r.ear === null ? null : r.ear.toFixed(4), r.pitch.toFixed(4),
-      r.framed, r.body, r.hidden, r.focused, r.allowDevices,
+      r.framed, r.body, r.hidden, r.focused, r.allowOtherScreen, r.allowDevices,
       ...(r.baseline
         ? [r.baseline.frontEar, r.baseline.downEar, r.baseline.closedEar, r.baseline.frontPitch, r.baseline.downPitch].map((v) => v.toFixed(4))
         : [null, null, null, null, null]),
