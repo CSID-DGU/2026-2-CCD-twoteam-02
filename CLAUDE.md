@@ -13,7 +13,7 @@
 - 얼굴·자세·물체 인식은 모두 브라우저 안(MediaPipe)에서 처리한다. 영상을 외부 API로 보내는 코드를 제안하지 않는다.
 - Supabase 테이블에는 RLS를 적용한다. 본인 데이터만 조회·수정할 수 있어야 한다.
 - 비밀 키는 `.env`에 두고 커밋하지 않는다. service role 키는 클라이언트 코드에 넣지 않는다.
-- `main`, `develop`에 직접 커밋하지 않는다.
+- `main`, `develop`, `experiment`에 직접 커밋하지 않는다.
 
 ## 기술 스택
 
@@ -79,6 +79,25 @@ docs/                  제안서·주간발표 자료
 - PR은 Merge commit으로 합친다. `develop` → `main`은 Squash를 쓰지 않는다(두 브랜치의 기록이 갈라진다).
 - 합친 기능 브랜치는 삭제한다.
 - worktree나 새 브랜치를 만들 때도 위 이름 규칙을 따른다.
+
+### experiment (사용자 실험용)
+
+- `experiment`: 사용자 실험(`docs/사용자-실험-재설계.md`)에 쓰는 버전. 2026-10-17에 `develop`을 통째로 복사해 만들었다. 실험 기간에 참가자마다 화면이 달라지지 않도록 `develop`과 따로 간다.
+- 실험에만 쓰는 작업(실험에 필요 없는 기능 정리, 조건 B·C, 봇, A 조건 재생 웹)은 `experiment`에서 브랜치를 따고 `experiment`로 PR한다. 브랜치 이름 규칙은 같다.
+  ```
+  git switch experiment
+  git pull origin experiment
+  git switch -c feat/이름/설명
+  gh pr create --base experiment
+  ```
+  PR의 base는 기본으로 `develop`이 잡히므로 반드시 `experiment`로 바꾼다.
+- `experiment`를 `develop`으로 합치지 않는다. 실험용 삭제와 조건 코드가 서비스에 들어간다.
+- `develop` → `experiment` 합치기는 실험에 필요 없는 기능을 정리(삭제)하기 전까지만 한다. 정리한 뒤에 합치면 지운 파일마다 충돌이 난다.
+- 정리한 뒤에는 서비스와 실험에 둘 다 걸리는 버그(트래킹 등)를 `develop`에서 먼저 고치고, 그 커밋만 `experiment`로 가져온다. `experiment`에서 딴 `fix/` 브랜치에서 `git cherry-pick 커밋번호`로 가져와 PR한다. `experiment`에서 먼저 고치면 `develop`이 그 수정을 놓친다.
+- Supabase는 두 브랜치가 같은 프로젝트(같은 DB, 같은 실시간 방)를 쓴다.
+  - 실험 중에는 실험 화면과 개발 테스트 화면이 같은 지점에서 서로 보인다.
+  - DB가 하나이므로 마이그레이션은 `develop`에 먼저 올리고 `experiment`로 가져온다. 두 브랜치에서 따로 만들면 번호가 겹친다.
+- 팀원 녹화 영상(A 조건 자극)은 git에 올리지 않는다. 용량이 크고(GitHub 파일당 100MB 제한) 저장소가 공개라 얼굴이 그대로 올라간다. 실험용 컴퓨터에만 둔다.
 
 ## 커밋 메시지
 
