@@ -7,10 +7,28 @@
 export const SAVE_INTERVAL_MS = 5 * 60 * 1000; // 이 간격마다 한 조각을 저장합니다.
 export const MIN_CHUNK_MS = 1000; // 이보다 짧은 조각은 저장하지 않습니다. (앉자마자 일어난 경우 등)
 
-// 학습기기 사용 여부를 study_logs.devices(text[])에 담는 값.
-// 지금은 켜기·끄기뿐이라 하나만 쓰고, 나중에 기기 종류를 나누면 값을 늘립니다.
+// 공부 시작 창에서 켠 허용을 study_logs.devices(text[])에 담는 값. 켠 것만 넣습니다. (#172)
+//   other_screen: ⓐ 다른 탭·앱 사용함 (다른 화면 판정 끔)
+//   learning_device: ⓑ 휴대폰·학습기기 사용함 (휴대폰 판정 끔)
+export const OTHER_SCREEN = 'other_screen'
 export const LEARNING_DEVICE = 'learning_device'
-export const devicesOf = (allowDevices: boolean) => (allowDevices ? [LEARNING_DEVICE] : [])
+
+export type Allowed = { allowOtherScreen: boolean; allowDevices: boolean }
+
+export const devicesOf = (choice: Allowed): string[] => [
+  ...(choice.allowOtherScreen ? [OTHER_SCREEN] : []),
+  ...(choice.allowDevices ? [LEARNING_DEVICE] : []),
+]
+
+// 저장된 devices 를 두 허용으로 되돌립니다.
+// 2026-10-21 이전 기록은 체크 하나('학습기기 사용함')가 둘 다 허용했고 learning_device 하나만 저장됐으므로,
+// other_screen 없이 learning_device 만 있으면 둘 다 켠 것으로 읽습니다.
+export function allowedOf(devices: string[]): Allowed {
+  const otherScreen = devices.includes(OTHER_SCREEN)
+  const learning = devices.includes(LEARNING_DEVICE)
+  if (learning && !otherScreen) return { allowOtherScreen: true, allowDevices: true }
+  return { allowOtherScreen: otherScreen, allowDevices: learning }
+}
 
 // 아직 저장하지 않은 구간
 export type ChunkState = {
