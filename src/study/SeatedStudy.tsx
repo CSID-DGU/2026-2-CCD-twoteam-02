@@ -49,7 +49,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
     onDialogChange(dialogOpen || calibrating)
   }, [dialogOpen, calibrating, onDialogChange])
 
-  // 공부를 시작하기 전에는 앉아 있어도 노란불(공부하지 않음)입니다.
+  // 공부를 시작하기 전에는 앉아 있어도 idle(표시등 없음)입니다.
   useEffect(() => {
     if (!choice || !calibrated) onStatus('idle')
   }, [choice, calibrated, onStatus])
