@@ -25,10 +25,9 @@ export type ChatValue = {
   lastFrom: string | null // 마지막으로 나에게 귓속말한 친구 (채팅창을 열 때 먼저 골라 둠)
   send: (to: string, text: string) => Promise<string> // 성공하면 '', 실패하면 안내문
   note: (text: string) => void // 로그에 안내 한 줄
-  quiet: boolean // 방해금지인지 (공부 중이거나 직접 켬)
+  quiet: boolean // 방해금지인지 (공부를 시작하면 자동으로 켜짐, 언제든 직접 끄고 켬, #216)
   studying: boolean
-  manualQuiet: boolean
-  setManualQuiet: (on: boolean) => void
+  setQuiet: (on: boolean) => void // 방해금지 켜고 끄기. 공부 중에 끈 것은 그 공부 동안만
   muted: boolean // 소리 끔
   setMuted: (on: boolean) => void
   // 프로필 창의 "귓속말" 버튼: 그 친구를 받는 사람으로 고르고 채팅창을 엽니다. (프로필 창은 openKey 가 바뀌면 닫힘)

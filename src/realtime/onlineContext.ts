@@ -8,7 +8,8 @@ import { ELSEWHERE } from './online'
 // 한 사람의 접속 상태
 export type OnlineEntry = {
   place: string // 지금 있는 곳 (로비·지점 slug·그 밖의 화면)
-  studying: boolean // 공부 세션이 도는 중인지 (귓속말 방해금지 안내용, #49)
+  studying: boolean // 공부 세션이 도는 중인지 (친구 탭 표시, #49)
+  quiet: boolean // 귓속말 방해금지 중인지 (보낼 때 "알림 없이 전달돼요" 안내용, #216)
 }
 
 export type OnlineValue = {
@@ -16,6 +17,7 @@ export type OnlineValue = {
   studying: boolean // 내가 공부 중인지
   setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
   setStudying: (studying: boolean) => void // 내 공부 중 여부를 바꿉니다
+  setQuiet: (quiet: boolean) => void // 내 방해금지 여부를 바꿉니다
 }
 
 export const OnlineContext = createContext<OnlineValue>({
@@ -23,6 +25,7 @@ export const OnlineContext = createContext<OnlineValue>({
   studying: false,
   setPlace: () => {},
   setStudying: () => {},
+  setQuiet: () => {},
 })
 
 // 접속 중인 사람들
@@ -51,4 +54,13 @@ export function useStudyingFlag(active: boolean) {
     setStudying(active)
     return () => setStudying(false)
   }, [active, setStudying])
+}
+
+// 귓속말 방해금지 중이면 친구에게 알립니다. 꺼지거나 화면을 떠나면 풉니다. (#216)
+export function useQuietFlag(active: boolean) {
+  const { setQuiet } = useContext(OnlineContext)
+  useEffect(() => {
+    setQuiet(active)
+    return () => setQuiet(false)
+  }, [active, setQuiet])
 }
