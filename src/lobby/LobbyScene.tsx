@@ -21,6 +21,8 @@ import { useSession } from '../auth/useSession'
 import { InfoPanel } from '../menu/InfoPanel'
 import { SceneMenu } from '../menu/SceneMenu'
 import type { PanelView } from '../menu/panelTypes'
+import { panelKey } from '../menu/panelTypes'
+import { useMenuShortcuts } from '../menu/useMenuShortcuts'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
@@ -114,6 +116,8 @@ export default function LobbyScene({ onEnter }: Props) {
   // 사이트 전체 접속 상태에 "로비에 있음"으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
   useOnlinePlace(LOBBY_PLACE)
   const onlineCount = useOnline().size
+  // 오른쪽 위 버튼 단축키 R·F·P (#205)
+  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel })
   const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
     panelRef.current = panel
@@ -243,7 +247,8 @@ export default function LobbyScene({ onEnter }: Props) {
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
-      {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
+      {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+      {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
 }
