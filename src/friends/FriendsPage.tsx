@@ -1,6 +1,6 @@
 // 친구 화면 (/friends): 친구 찾기·요청, 받은 요청 수락·거절, 보낸 요청 취소, 친구 목록·삭제.
 // 새 요청이 와도 실시간으로 뜨지는 않습니다. 화면을 열 때와 새로고침 버튼으로 갱신합니다.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '../auth/useSession'
@@ -28,6 +28,12 @@ export function FriendsView({ onOpenProfile }: { onOpenProfile?: (userId: string
   // 접속 중인 친구를 위로 올리고, 있는 곳을 같이 보여 줍니다. (#176, 채팅 #49 는 접속 중인 친구에게만)
   const online = useOnline()
   const friends = [...friendRows].sort((a, b) => Number(online.has(otherOf(b, myId))) - Number(online.has(otherOf(a, myId))))
+  // [임시 진단] 친구 탭이 보는 접속 목록과 친구 계정 번호. 원인을 찾으면 지웁니다.
+  const onlineKeys = [...online.keys()].map((k) => k.slice(0, 4)).join(',')
+  const friendKeys = friendRows.map((f) => otherOf(f, myId).slice(0, 4)).join(',')
+  useEffect(() => {
+    console.info('[접속진단] 친구 탭', '접속 목록', onlineKeys || '(없음)', '/ 친구', friendKeys || '(없음)')
+  }, [onlineKeys, friendKeys])
   const nameOf = (id: string) => displayName(names.get(id) ?? '…', id)
 
   // 버튼 하나를 누르는 동안 다른 버튼을 막고, 실패하면 안내를 띄웁니다.
