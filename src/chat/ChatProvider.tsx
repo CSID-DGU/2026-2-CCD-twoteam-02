@@ -5,7 +5,9 @@
 // 메시지는 어디에도 저장하지 않고, 로그는 이 장치의 메모리에만 있습니다.
 //   로비 ↔ 지점 이동: 유지 / 새로고침·탭 닫기·접속 끊김·로그아웃: 사라짐
 //
-// 방해금지: 공부 세션이 도는 동안(초록·노랑 상관없이) 자동으로, 또는 직접 켰을 때.
+// 방해금지: 공부를 시작하면(초록·노랑 상관없이) 자동으로 켜지고, 공부 중에도 직접 끌 수 있습니다(#216).
+// 공부 중에 끈 것은 그 공부 동안만이고, 다음 공부를 시작하면 다시 켜집니다. 공부가 끝나면 공부 전 설정으로.
+// 친구에게는 접속 상태로 "방해금지 중"을 알립니다(보낼 때 "알림 없이 전달돼요" 안내용).
 // 그동안 받은 귓속말은 소리 없이 쌓아 두고, 공부가 끝나면 아직 안 읽은 것만 "귓속말 N개"로 한 번 알립니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -14,7 +16,7 @@ import { supabase } from '../lib/supabase'
 import { useSession } from '../auth/useSession'
 import { useFriends } from '../friends/useFriends'
 import { otherOf } from '../friends/friendsLogic'
-import { useMyStudying, useOnline } from '../realtime/onlineContext'
+import { useMyStudying, useOnline, useQuietFlag } from '../realtime/onlineContext'
 import { ChatContext } from './chatContext'
 import type { ChatLine } from './chatContext'
 import { MAX_LENGTH, SEND_GAP_MS, WHISPER_EVENT, isQuiet, pairTopic, pickColor } from './chatLogic'
@@ -59,11 +61,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { list, names, reload } = useFriends(myId || undefined)
   const [log, setLog] = useState<Log>(() => freshLog(myId))
   const current = log.owner === myId ? log : freshLog(myId)
-  const [manualQuiet, setManualQuiet] = useState(false)
+  const [manualQuiet, setManualQuiet] = useState(false) // 공부 중이 아닐 때 직접 켰는지
+  const [studyQuietOff, setStudyQuietOff] = useState(false) // 이번 공부 동안 직접 껐는지
+  // 공부를 새로 시작하면 다시 켜지게 합니다. (렌더 중에 이전 값과 비교해 고치는 React 권장 방식)
+  const [seenStudying, setSeenStudying] = useState(studying)
+  if (studying !== seenStudying) {
+    setSeenStudying(studying)
+    if (studying) setStudyQuietOff(false)
+  }
   const [muted, setMutedState] = useState(readMuted)
   const [openKey, setOpenKey] = useState(0)
   const [hasOverlay, setHasOverlay] = useState(false)
-  const quiet = isQuiet(studying, manualQuiet)
+  const quiet = isQuiet(studying, manualQuiet, studyQuietOff)
+  useQuietFlag(Boolean(myId) && quiet) // 친구에게 "방해금지 중" 알리기
 
   // 로그를 바꿉니다. 다른 계정의 로그였으면 새로 시작합니다.
   const update = useCallback(
@@ -185,7 +195,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [studying, update])
 
   const lastSent = useRef(0)
-  const toldStudying = useRef(new Set<string>()) // "공부 중이라 알림 없이 전달" 안내를 이미 한 친구
+  const toldQuiet = useRef(new Set<string>()) // "방해금지 중이라 알림 없이 전달" 안내를 이미 한 친구
   const send = useCallback(
     async (to: string, text: string) => {
       const now = Date.now()
@@ -202,13 +212,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         target: to,
         lines: [...l.lines, { id: nextLineId++, at: Date.now(), kind: 'out' as const, peer, text }].slice(-MAX_LINES),
       }))
-      // 상대가 공부 중이면 답이 늦을 수 있다고 한 번 알려 줍니다.
-      const peerStudying = people.get(to)?.studying ?? false
-      if (peerStudying && !toldStudying.current.has(to)) {
-        toldStudying.current.add(to)
-        addLine({ kind: 'system', text: `${peer.nickname} 님은 공부 중이라 알림 없이 전달돼요.` })
+      // 상대가 방해금지 중이면 답이 늦을 수 있다고 한 번 알려 줍니다.
+      const peerQuiet = people.get(to)?.quiet ?? false
+      if (peerQuiet && !toldQuiet.current.has(to)) {
+        toldQuiet.current.add(to)
+        addLine({ kind: 'system', text: `${peer.nickname} 님은 방해금지 중이라 알림 없이 전달돼요.` })
       }
-      if (!peerStudying) toldStudying.current.delete(to)
+      if (!peerQuiet) toldQuiet.current.delete(to)
       return ''
     },
     [addLine, people, update],
@@ -239,8 +249,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     note: (text: string) => addLine({ kind: 'system', text }),
     quiet,
     studying,
-    manualQuiet,
-    setManualQuiet,
+    setQuiet: (on: boolean) => (studying ? setStudyQuietOff(!on) : setManualQuiet(on)),
     muted,
     setMuted,
     startWhisper: (friendId: string) => {

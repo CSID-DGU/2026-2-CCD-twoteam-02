@@ -67,8 +67,10 @@ export function pickColor(used: string[], random: number): string {
   return pool[Math.min(pool.length - 1, Math.floor(random * pool.length))]
 }
 
-// 방해금지인지: 공부 세션이 도는 중이거나, 직접 켰을 때
-export const isQuiet = (studying: boolean, manual: boolean) => studying || manual
+// 방해금지인지 (#216)
+//   공부 중: 공부를 시작하면 자동으로 켜지고, 그 공부 동안 직접 끌 수 있음(studyOff)
+//   공부 중이 아닐 때: 직접 켰는지(manual)
+export const isQuiet = (studying: boolean, manual: boolean, studyOff: boolean) => (studying ? !studyOff : manual)
 
 // 몇 분 전에 주고받았는지 (#211). 채팅창을 열었을 때 줄 끝에 붙입니다.
 export function timeAgo(at: number, now: number): string {

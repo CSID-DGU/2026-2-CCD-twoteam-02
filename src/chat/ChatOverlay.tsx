@@ -234,13 +234,12 @@ export function ChatOverlay() {
             <button
               type="button"
               style={styles.toggle}
-              disabled={chat.studying} // 공부 중에는 자동으로 켜져 있고 끌 수 없습니다.
               onMouseDown={(e) => e.preventDefault()} // 입력칸 커서를 뺏지 않게
               onClick={() => {
-                chat.setManualQuiet(!chat.manualQuiet)
+                chat.setQuiet(!chat.quiet) // 공부 중에도 끄고 켤 수 있음 (#216)
                 touch()
               }}
-              title={chat.studying ? '공부 중에는 자동으로 방해금지예요' : '방해금지 켜고 끄기'}
+              title={chat.studying ? '공부를 시작하면 자동으로 켜져요. 이번 공부 동안 끄고 켤 수 있어요' : '방해금지 켜고 끄기'}
             >
               {chat.quiet ? '🔕 방해금지 켜짐' : '🔔 방해금지 꺼짐'}
             </button>
