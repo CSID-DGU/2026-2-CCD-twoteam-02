@@ -3,10 +3,12 @@
 import type { BranchLayout } from '../layout'
 import byeol from './byeol.json'
 import sol from './sol.json'
+import roomB from './room-b.json'
 
 export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   byeol, // 별다방 (스터디카페, 키오스크)
   sol, // 솔카페 (카페, 커피 바)
+  'room-b': roomB, // 실험 B 조건(혼자 공부). 솔카페 배치를 복사하고 다른 참여자를 숨김 (#198)
 }
 
 export const DEFAULT_BRANCH = 'byeol'

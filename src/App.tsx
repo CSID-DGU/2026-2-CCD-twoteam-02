@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { OnlineProvider } from './realtime/OnlineProvider'
 import HeadTrackingTest from './HeadTrackingTest'
@@ -16,7 +15,6 @@ import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
-import { rememberCondition } from './study/condition'
 import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
 
 
@@ -36,11 +34,6 @@ function AppRoutes() {
 
   // 어느 화면에 있든 "아직 접속해 있다"를 알립니다. 지점을 떠나도 자리를 잃지 않게. (#170)
   useHeartbeat()
-
-  // 실험 진행자가 준 링크(?condition=hidden|visible)로 들어오면 그 조건을 이 브라우저에 기억합니다.
-  useEffect(() => {
-    rememberCondition(search)
-  }, [search])
 
   // 예전 주소(#space)로 들어오면 /space 로 넘깁니다. 북마크가 깨지지 않게 하려는 것입니다.
   if (hash === '#space') return <Navigate to="/space" replace />
