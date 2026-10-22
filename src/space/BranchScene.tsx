@@ -619,7 +619,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       suspendLookRef={suspendLook}
       disabled={kioskOpen || panelOpen || conflict !== null || seat !== null}
     />
-    {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={goLobby} showTracking />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}

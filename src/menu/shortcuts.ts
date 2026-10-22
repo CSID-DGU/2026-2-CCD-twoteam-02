@@ -15,9 +15,6 @@ export const PANEL_KEYS = [
 // 지점에서 로비로 나가기. 서 있을 때만 됩니다(공부 중에 실수로 나가지 않게).
 export const LOBBY_KEY = { code: 'KeyL', key: 'L' }
 
-// 버튼 글자: "[R] 내 기록"
-export const withKey = (key: string, label: string) => `[${key}] ${label}`
-
 // 글자를 쓰는 중인지 (입력칸·채팅창). 이때 누른 키는 단축키가 아닙니다.
 export function isTyping(target: EventTarget | null): boolean {
   return (

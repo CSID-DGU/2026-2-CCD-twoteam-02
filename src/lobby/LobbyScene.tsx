@@ -246,7 +246,7 @@ export default function LobbyScene({ onEnter }: Props) {
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
-      {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
+      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
