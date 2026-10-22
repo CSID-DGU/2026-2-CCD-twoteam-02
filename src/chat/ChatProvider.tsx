@@ -6,7 +6,7 @@
 //   로비 ↔ 지점 이동: 유지 / 새로고침·탭 닫기·접속 끊김·로그아웃: 사라짐
 //
 // 방해금지: 공부 세션이 도는 동안(초록·노랑 상관없이) 자동으로, 또는 직접 켰을 때.
-// 그동안 받은 귓속말은 소리 없이 쌓아 두고, 공부가 끝나면 "귓속말 N개"로 한 번 알립니다.
+// 그동안 받은 귓속말은 소리 없이 쌓아 두고, 공부가 끝나면 아직 안 읽은 것만 "귓속말 N개"로 한 번 알립니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -29,7 +29,7 @@ type Log = {
   owner: string // 누구의 로그인지. 로그아웃·계정 전환이면 버립니다.
   lines: ChatLine[]
   unread: number
-  quietCount: number // 방해금지 중에 받은 수 (공부가 끝나면 알림)
+  quietCount: number // 방해금지 중에 받아 아직 안 읽은 수 (공부가 끝나면 알림). 채팅창을 열어 읽으면 0 (#217)
   lastFrom: string | null
   target: string | null
   colors: Record<string, string> // 친구 계정 번호 → 이번 접속에서 정한 글자 색
@@ -177,7 +177,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       update((l) => ({
         ...l,
         quietCount: 0,
-        lines: [...l.lines, { id: nextLineId++, at: Date.now(), kind: 'system' as const, text: `공부하는 동안 귓속말 ${n}개가 왔어요.` }].slice(-MAX_LINES),
+        lines: [...l.lines, { id: nextLineId++, at: Date.now(), kind: 'system' as const, text: `공부하는 동안 온 귓속말 ${n}개를 아직 안 읽었어요.` }].slice(-MAX_LINES),
       }))
       if (!latest.current.quiet && !latest.current.muted) playDing()
     }, 0)
@@ -227,7 +227,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     enabled: Boolean(myId),
     lines: current.lines,
     unread: current.unread,
-    markRead: () => update((l) => (l.unread === 0 ? l : { ...l, unread: 0 })),
+    // 읽으면 방해금지 중에 받은 수도 0으로. 이미 읽고 답장한 것을 공부가 끝날 때 다시 알리지 않게 (#217)
+    markRead: () => update((l) => (l.unread === 0 && l.quietCount === 0 ? l : { ...l, unread: 0, quietCount: 0 })),
     online,
     colors: current.colors,
     refreshFriends: reload,
