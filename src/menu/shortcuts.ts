@@ -10,6 +10,7 @@ export const PANEL_KEYS = [
   { code: 'KeyR', key: 'R', label: '내 기록', kind: 'records' },
   { code: 'KeyF', key: 'F', label: '친구', kind: 'friends' },
   { code: 'KeyP', key: 'P', label: '내 프로필', kind: 'profile' },
+  { code: 'KeyO', key: 'O', label: '설정', kind: 'settings' }, // 메뉴 아래 상자에 있음 (#222)
 ] as const
 
 // 지점에서 로비로 나가기. 서 있을 때만 됩니다(공부 중에 실수로 나가지 않게).

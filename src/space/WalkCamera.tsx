@@ -16,10 +16,11 @@ import { MathUtils } from 'three'
 import type { PerspectiveCamera as PerspectiveCameraImpl } from 'three'
 import type { EmoteState } from './emotes'
 import { isShortcut } from '../menu/shortcuts'
+import { getMouseSensitivity } from '../menu/lookSettings'
 
 const EYE_HEIGHT = 1.45 // 서 있을 때 눈높이 (캐릭터 키 약 1.6)
 const WALK_FOV = 70 // 걸을 때는 앉았을 때보다 조금 넓게 봅니다.
-const MOUSE_SPEED = 0.0025 // 마우스를 1픽셀 움직일 때 도는 각도(라디안)
+const MOUSE_SPEED = 0.0025 // 마우스를 1픽셀 움직일 때 도는 각도(라디안). 설정 창의 마우스 감도(배율)를 곱합니다(#222).
 const PITCH_LIMIT = Math.PI / 3 // 위아래 각 60도까지
 const EMOTE_DISTANCE = 2.6 // 감정표현 때 카메라가 내 캐릭터 앞으로 빠지는 거리
 const EMOTE_LIFT = 0.15 // 그때 눈높이에서 조금 올림
@@ -68,8 +69,9 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
     }
     const move = (e: MouseEvent) => {
       if (!isLocked() || suspendLookRef?.current) return
-      headingRef.current -= e.movementX * MOUSE_SPEED // 마우스를 오른쪽으로 → 오른쪽으로 돌기
-      pitch.current = MathUtils.clamp(pitch.current - e.movementY * MOUSE_SPEED, -PITCH_LIMIT, PITCH_LIMIT) // 위로 → 위 보기
+      const speed = MOUSE_SPEED * getMouseSensitivity()
+      headingRef.current -= e.movementX * speed // 마우스를 오른쪽으로 → 오른쪽으로 돌기
+      pitch.current = MathUtils.clamp(pitch.current - e.movementY * speed, -PITCH_LIMIT, PITCH_LIMIT) // 위로 → 위 보기
     }
     canvas.addEventListener('click', lock)
     window.addEventListener('keydown', keyDown)

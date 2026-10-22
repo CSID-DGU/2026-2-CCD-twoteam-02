@@ -1,12 +1,14 @@
 // 로비·지점 오른쪽 위 메뉴 (#70, #208).
 //   위 상자: 자주 쓰는 것. 내 기록·친구·내 프로필(누르면 페이지를 옮기지 않고 창), 로비로(지점만)
-//   아래 상자: 가끔 쓰는 것. 트래킹 검증(지점만), 로그아웃
-// 키보드로도 엽니다(R·F·P·L, #205). 버튼 앞에 키를 키캡 모양으로 적습니다.
+//   아래 상자: 가끔 쓰는 것. 설정(#222), 트래킹 검증(지점만), 로그아웃
+// 키보드로도 엽니다(R·F·P·L·O, #205). 버튼 앞에 키를 키캡 모양으로 적습니다.
 import { Link } from 'react-router'
 import LogoutButton from '../auth/LogoutButton'
 import { keyCap, menuBox, menuDivider, menuRow, menuRowMinor, menuStack } from './cornerStyle'
 import type { PanelView } from './panelTypes'
 import { LOBBY_KEY, PANEL_KEYS } from './shortcuts'
+
+const SETTINGS = PANEL_KEYS.find((it) => it.kind === 'settings')!
 
 type Props = {
   myId: string
@@ -19,7 +21,7 @@ export function SceneMenu({ myId, onOpen, onLobby, showTracking = false }: Props
   return (
     <div style={menuStack}>
       <nav style={menuBox}>
-        {PANEL_KEYS.map((it) => (
+        {PANEL_KEYS.filter((it) => it.kind !== 'settings').map((it) => (
           <button
             key={it.code}
             type="button"
@@ -42,6 +44,10 @@ export function SceneMenu({ myId, onOpen, onLobby, showTracking = false }: Props
         )}
       </nav>
       <div style={menuBox}>
+        <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'settings' })}>
+          <span style={keyCap}>{SETTINGS.key}</span>
+          {SETTINGS.label}
+        </button>
         {showTracking && (
           <Link to="/tracking" style={menuRowMinor}>
             트래킹 검증

@@ -1,4 +1,4 @@
-// 로비·지점 위에 띄우는 창: 내 기록, 친구, 프로필. (#70)
+// 로비·지점 위에 띄우는 창: 내 기록, 친구, 프로필, 설정. (#70, #222)
 //
 // 다른 주소로 페이지를 옮기면 로비·지점 화면이 사라지면서 서 있던 위치, 앉은 자리, 공부 타이머,
 // 실시간 연결이 다 끊깁니다. 그래서 창으로 띄우고, 닫으면 원래 있던 그대로 돌아옵니다.
@@ -9,9 +9,10 @@ import { RecordsView } from '../study/RecordsPage'
 import { FriendsView } from '../friends/FriendsPage'
 import { ProfileView } from '../profile/ProfileView'
 import type { PanelView } from './panelTypes'
+import { SettingsView } from './SettingsView'
 import { useChat } from '../chat/chatContext'
 
-const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필' }
+const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필', settings: '설정' }
 
 export function InfoPanel({ initial, myId, onClose }: { initial: PanelView; myId: string; onClose: () => void }) {
   const [stack, setStack] = useState<PanelView[]>([initial]) // 창 안에서 옮겨 다닌 순서 (뒤로 가기용)
@@ -51,6 +52,7 @@ export function InfoPanel({ initial, myId, onClose }: { initial: PanelView; myId
         </header>
         {view.kind === 'records' && <RecordsView />}
         {view.kind === 'friends' && <FriendsView onOpenProfile={(userId) => open({ kind: 'profile', userId })} />}
+        {view.kind === 'settings' && <SettingsView />}
         {view.kind === 'profile' && (
           <div style={styles.card}>
             <ProfileView key={view.userId} userId={view.userId} isMe={view.userId === myId} />
