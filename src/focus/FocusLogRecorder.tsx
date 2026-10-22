@@ -75,6 +75,7 @@ export function FocusLogRecorder({ face, pose, focus }: Props) {
   const rows = useRef<FocusLogRow[]>([]);
   const [view, setView] = useState<View>({ count: 0, elapsedMs: 0, segments: [] });
   const [saveFailed, setSaveFailed] = useState(false);
+  const [open, setOpen] = useState(false); // 접힘이 기본. 접어도 기록은 계속되고 머리글에 기록 중인지 보입니다 (2026-10-22)
   const focusRef = useRef(focus);
   useEffect(() => {
     focusRef.current = focus;
@@ -118,11 +119,28 @@ export function FocusLogRecorder({ face, pose, focus }: Props) {
     setView(viewOf([]));
   };
 
+  const title = (
+    <>
+      <b>판정 자동 기록</b> · ● 기록 중 {count > 0 ? `${duration(elapsedMs)} (${count}줄)` : ""}
+      {saveFailed ? " · ⚠ 저장 실패 — CSV를 내려받으세요" : " · 이 브라우저에 저장됨"}
+    </>
+  );
+  if (!open) {
+    return (
+      <div style={styles.panel}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span>{title}</span>
+          <button type="button" onClick={() => setOpen(true)}>열기</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.panel}>
-      <div>
-        <b>판정 자동 기록</b> · ● 기록 중 {count > 0 ? `${duration(elapsedMs)} (${count}줄)` : ""}
-        {saveFailed ? " · ⚠ 저장 실패 — CSV를 내려받으세요" : " · 이 브라우저에 저장됨"}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{title}</span>
+        <button type="button" onClick={() => setOpen(false)}>접기</button>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button type="button" onClick={download} disabled={count === 0}>CSV 내려받기</button>
