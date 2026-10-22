@@ -19,28 +19,48 @@
 #   drop 된 객체(예: 0010 에서 없앤 nicknames 뷰)는 확인 대상에서 뺀다.
 #
 # 쓰는 법
-#   ./scripts/check-db.sh
+#   ./scripts/check-db.sh                                              서비스 DB (.env.local, 지금 폴더의 마이그레이션)
+#   ./scripts/check-db.sh .env.experiment.local origin/experiment      실험 DB (#218)
+#
+#   첫 번째 값: Supabase 주소·키를 읽을 파일. 생략하면 .env.local
+#   두 번째 값: 마이그레이션을 읽을 git 브랜치. 생략하면 지금 폴더의 파일
+#     실험 DB 에는 experiment 브랜치의 마이그레이션만 적용한다(develop 의 0019 는 없음).
+#     지금 폴더 기준으로 검사하면 실험 DB 에 없는 게 정상인 객체까지 "없음"으로 나와서 브랜치를 지정한다.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ENV_FILE=".env.local"
+ENV_FILE="${1:-.env.local}"
+REF="${2:-}"   # 비어 있으면 지금 폴더의 supabase/migrations/
 [ -f "$ENV_FILE" ] || { echo "❌ $ENV_FILE 이 없습니다."; exit 1; }
+if [ -n "$REF" ]; then
+  git rev-parse --verify --quiet "$REF^{commit}" > /dev/null || { echo "❌ git 브랜치 $REF 를 찾을 수 없습니다. git fetch origin 을 먼저 하세요."; exit 1; }
+fi
 
 URL=$(grep '^VITE_SUPABASE_URL=' "$ENV_FILE" | cut -d= -f2- | tr -d ' \r')
 KEY=$(grep '^VITE_SUPABASE_PUBLISHABLE_KEY=' "$ENV_FILE" | cut -d= -f2- | tr -d ' \r')
 [ -n "$URL" ] && [ -n "$KEY" ] || { echo "❌ $ENV_FILE 에 Supabase 값이 비어 있습니다."; exit 1; }
 
 printf '\n\033[1mSupabase 에 마이그레이션이 적용됐는지 확인합니다\033[0m\n'
-printf '  %s\n\n' "$URL"
+printf '  %s\n' "$URL"
+printf '  마이그레이션 기준: %s\n\n' "${REF:-지금 폴더}"
 
 # 마이그레이션에서 확인할 객체 목록을 만든다. (drop 된 것은 제외)
-PLAN=$(python3 - <<'PY'
-import re, glob
+PLAN=$(REF="$REF" python3 - <<'PY'
+import re, glob, os, subprocess
 
+ref = os.environ.get('REF', '')
 src = ""
-for f in sorted(glob.glob('supabase/migrations/*.sql')):
-    src += open(f).read() + "\n"
+if ref:
+    # 브랜치를 바꾸지 않고 그 브랜치에 있는 파일을 읽는다.
+    names = subprocess.run(['git', 'ls-tree', '--name-only', ref, 'supabase/migrations/'],
+                           capture_output=True, text=True, check=True).stdout.split()
+    for f in sorted(n for n in names if n.endswith('.sql')):
+        src += subprocess.run(['git', 'show', f'{ref}:{f}'],
+                              capture_output=True, text=True, check=True).stdout + "\n"
+else:
+    for f in sorted(glob.glob('supabase/migrations/*.sql')):
+        src += open(f).read() + "\n"
 
 tables, views, funcs = {}, {}, {}
 
@@ -115,7 +135,7 @@ if [ "$missing" = "0" ]; then
   printf '\033[1m%d개 전부 적용돼 있습니다.\033[0m\n' "$total"
 else
   printf '\033[1m%d개 중 %d개가 없습니다.\033[0m\n' "$total" "$missing"
-  printf 'supabase/migrations/ 의 파일을 번호 순서대로 Supabase SQL Editor 에서 실행하세요.\n'
+  printf '%s 의 supabase/migrations/ 파일을 번호 순서대로 Supabase SQL Editor 에서 실행하세요.\n' "${REF:-지금 폴더}"
   printf '이미 적용한 파일은 다시 실행하지 않습니다.\n'
   exit 1
 fi
