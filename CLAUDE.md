@@ -23,12 +23,8 @@
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
 - 캐릭터: GLB 모델(`public/models/character-a~r.glb`)을 drei `useGLTF`로 불러온다. VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
-- 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
-
-도입 예정(아직 설치 안 됨):
-
-- Supabase Realtime(Broadcast·Presence), 좌석 배정용 DB 함수
-- Vercel 배포
+- 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL, Realtime(Broadcast·Presence), 좌석 배정 DB 함수). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
+- 배포: Vercel. `develop`과 `experiment`가 각각 따로 배포된다(아래 "배포" 참고).
 
 위 목록에 없는 라이브러리를 추가해야 하면 먼저 이유를 설명하고 확인을 받는다.
 
@@ -96,12 +92,41 @@ docs/                  제안서·주간발표 자료
 - 정리한 뒤에는 서비스와 실험에 둘 다 걸리는 버그(트래킹 등)를 `develop`에서 먼저 고치고, 그 커밋만 `experiment`로 가져온다. `experiment`에서 딴 `fix/` 브랜치에서 `git cherry-pick 커밋번호`로 가져와 PR한다. `experiment`에서 먼저 고치면 `develop`이 그 수정을 놓친다.
 - `experiment`는 **실험 전용 Supabase 프로젝트**를 쓴다(2026-10-22 결정). `develop`이 쓰는 서비스 프로젝트와 계정·DB·실시간 방이 모두 따로다.
   - 실험 기간에 `develop` 쪽 마이그레이션을 실행해도 실험 화면은 바뀌지 않는다. 개발 테스트하는 사람이 실험 로비·지점에 섞이지도 않는다.
-  - `experiment` 배포와 `experiment`에서 하는 로컬 개발은 실험 프로젝트의 URL·anon 키를 쓴다. 키는 `.env`에 두고 git에 올리지 않는다.
+  - `experiment` 배포와 `experiment`에서 하는 로컬 개발은 실험 프로젝트의 URL·Publishable 키를 쓴다. 로컬에서는 `.env.experiment.local`에 두고 git에 올리지 않는다(아래 "배포"의 로컬 실행 참고).
   - 실험 프로젝트에는 `experiment` 브랜치의 `supabase/migrations/`를 번호 순서대로 실행한다. `0019_whisper_channels.sql`은 `develop`에만 있고 실험에서는 쓰지 않는다.
   - 실험에만 필요한 마이그레이션은 `experiment`에만 두고, 파일 이름에 `experiment`를 넣는다(예: `0020_experiment_rooms.sql`). 번호가 `develop`과 겹쳐도 이름으로 구분된다.
   - 서비스와 실험에 둘 다 필요한 스키마 변경은 `develop`에 먼저 올리고 그 커밋을 `experiment`로 가져와, 두 프로젝트에서 각각 실행한다.
   - 무료 플랜은 7일 동안 사용이 적으면 프로젝트가 일시정지된다(90일 안에 다시 켤 수 있음). 실험 날 전에 켜져 있는지 확인한다.
 - 팀원 녹화 영상(A 조건 자극)은 git에 올리지 않는다. 용량이 크고(GitHub 파일당 100MB 제한) 저장소가 공개라 얼굴이 그대로 올라간다. 실험용 컴퓨터에만 둔다.
+
+## 배포 (브랜치마다 따로)
+
+`develop`과 `experiment`는 서로 다른 Vercel 프로젝트·Supabase 프로젝트로 배포된다(#218). **PR이 어느 브랜치로 머지되느냐가 어디에 배포되느냐를 정한다.**
+
+| 브랜치 | Vercel 프로젝트 | 주소 | Supabase 프로젝트 | 로컬 환경 파일 |
+|---|---|---|---|---|
+| `develop` | `twoteam` | https://twoteam.vercel.app | 서비스 (`lkvsbdbssrictnrxmdig`) | `.env.local` |
+| `experiment` | `twoteam-experiment` | https://twoteam-experiment.vercel.app | 실험 (`eimxyjlarbbbnqmpmmex`) | `.env.experiment.local` |
+| `main` | 아직 없음 | — | 아직 없음 (실험이 끝나고 실험 프로젝트를 정지한 뒤 만든다) | — |
+
+- **머지하면 바로 배포된다.** 따로 배포 명령을 돌리지 않는다. 기능 브랜치를 push해도 실서비스 주소는 바뀌지 않는다.
+- **PR을 만들 때 base를 먼저 확인한다.** 서비스 기능은 `develop`, 실험 작업은 `experiment`(`gh pr create --base experiment`). base를 잘못 고르면 실험 코드가 서비스에, 서비스 코드가 실험 참가자 화면에 올라간다.
+- **마이그레이션이 든 PR은 머지 전에 그 브랜치의 DB에 SQL을 먼저 실행한다.** 코드가 먼저 배포되면 화면이 없는 함수·컬럼을 불러 깨진다. 컬럼 삭제처럼 기존 코드가 쓰던 것을 없애는 경우만 반대로(코드 먼저, DB 나중) 한다.
+  - `develop`으로 가는 PR → 서비스 Supabase에 실행
+  - `experiment`로 가는 PR → 실험 Supabase에 실행
+  - 둘 다 필요한 변경 → `develop`에 먼저 올리고 커밋을 `experiment`로 가져와, 두 프로젝트에 각각 실행
+  - PR 설명에 "적용할 DB"와 파일명을 적는다. Supabase 대시보드 권한은 육심호에게 있으니 적용을 요청한다.
+- 적용됐는지는 `develop`에서 아래로 확인한다(브랜치를 바꾸지 않아도 된다).
+  ```
+  ./scripts/check-db.sh                                          # 서비스 DB
+  ./scripts/check-db.sh .env.experiment.local origin/experiment  # 실험 DB
+  ```
+- **로컬 실행**: 서비스 DB는 `npm run dev`, 실험 DB는 `npm run dev -- --mode experiment`. Vite는 `--mode experiment`일 때 `.env.experiment.local`을 `.env.local`보다 먼저 읽는다. 두 파일의 값은 육심호에게 받는다(Publishable 키만, Secret 키는 쓰지 않는다).
+- **실험을 진행하는 기간에는 `experiment`에 머지하지 않는다.** 머지하는 순간 다시 배포돼 참가자마다 화면이 달라진다.
+- Vercel 설정 중 아래는 바꾸지 않는다. 바꾸면 한 브랜치가 다른 DB를 보는 화면으로 배포된다.
+  - `twoteam`: Production Branch `develop`, Ignored Build Step `[ "$VERCEL_GIT_COMMIT_REF" = "experiment" ]` (experiment는 빌드하지 않음)
+  - `twoteam-experiment`: Production Branch `experiment`, Ignored Build Step `[ "$VERCEL_GIT_COMMIT_REF" != "experiment" ]` (experiment만 빌드)
+  - Vercel의 Supabase 연동(Integrations → Supabase "Add")은 쓰지 않는다. 환경 변수를 직접 넣어 두었다.
 
 ## 커밋 메시지
 
