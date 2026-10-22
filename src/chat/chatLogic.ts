@@ -69,3 +69,11 @@ export function pickColor(used: string[], random: number): string {
 
 // 방해금지인지: 공부 세션이 도는 중이거나, 직접 켰을 때
 export const isQuiet = (studying: boolean, manual: boolean) => studying || manual
+
+// 몇 분 전에 주고받았는지 (#211). 채팅창을 열었을 때 줄 끝에 붙입니다.
+export function timeAgo(at: number, now: number): string {
+  const minutes = Math.floor((now - at) / 60000)
+  if (minutes < 1) return '방금'
+  if (minutes < 60) return `${minutes}분 전`
+  return `${Math.floor(minutes / 60)}시간 전`
+}

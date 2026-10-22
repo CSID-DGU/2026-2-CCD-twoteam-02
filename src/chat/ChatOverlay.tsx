@@ -3,7 +3,7 @@
 // Enter: 채팅창 열기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
 // Tab: 접속 중인 친구를 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기
 // 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다(적던 글이 있거나 스크롤하는 중이면 기다림).
-// 열면 이번 접속의 대화(최대 100줄)를 모두 보여 주고 마우스 휠로 올려 볼 수 있습니다(#211).
+// 열면 이번 접속의 대화(최대 100줄)를 모두 보여 주고 마우스 휠로 올려 볼 수 있습니다. 줄 끝에 몇 분 전인지 붙입니다(#211).
 // 닫혀 있을 때 새 귓속말은 10초 보였다가 스르륵 사라지고, "Enter 귓속말"과 안 읽은 개수만 남습니다.
 // 밝은 바닥 위에서도 보이도록 글자 뒤에 어두운 반투명 배경을 깝니다(#211).
 // 입력하는 동안에는 WASD·E·V 가 캐릭터를 움직이지 않습니다(입력칸에서 누른 키는 무시).
@@ -11,11 +11,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useChat } from './chatContext'
 import type { ChatLine } from './chatContext'
-import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget } from './chatLogic'
+import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget, timeAgo } from './chatLogic'
 
 const SHOW_MS = 10000 // 닫혀 있을 때 새 줄이 보이는 시간
 const IDLE_MS = 10000 // 열어 두고 이만큼 아무것도 안 하면 닫힘
 const FADE_MS = 800 // 스르륵 사라지는 시간
+const AGO_TICK_MS = 30000 // 열어 둔 동안 "몇 분 전"을 다시 계산하는 간격
 const CLOSED_LINES = 5 // 닫혀 있을 때 새 줄을 최대 몇 줄까지 띄울지
 const BOTTOM_GAP = 24 // 맨 아래에서 이만큼(px) 안이면 "맨 아래를 보는 중"으로 침
 const SCROLL_TOUCH_MS = 500 // 스크롤 중에는 이 간격으로 자동 닫힘 시간을 다시 셈
@@ -122,10 +123,9 @@ export function ChatOverlay() {
     if (box && stickToBottom.current) box.scrollTop = box.scrollHeight
   }, [open, lineCount])
 
-  // 닫혀 있을 때 줄이 사라지도록 1초마다 시계를 돌립니다.
+  // 시계: 닫혀 있을 때는 줄이 사라지도록 1초마다, 열어 둔 동안은 "몇 분 전"을 고치도록 30초마다 돌립니다.
   useEffect(() => {
-    if (open) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
+    const id = setInterval(() => setNow(Date.now()), open ? AGO_TICK_MS : 1000)
     return () => clearInterval(id)
   }, [open])
 
@@ -193,7 +193,7 @@ export function ChatOverlay() {
         shown.length > 0 && (
           <div ref={logBox} style={styles.logOpen} onScroll={onScroll}>
             {shown.map((l) => (
-              <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={false} />
+              <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={false} ago={timeAgo(l.at, now)} />
             ))}
           </div>
         )
@@ -271,7 +271,8 @@ export function ChatOverlay() {
 }
 
 // 받은 줄은 [받음], 보낸 줄은 [보냄] 태그로 방향을 보여 줍니다(오버워치식). 그 친구와의 줄은 모두 같은 색입니다.
-function Line({ line, color, gone, pill = false }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean }) {
+// ago: 몇 분 전인지 (열었을 때만. 닫혀 있을 때는 새 줄만 10초 보이므로 붙이지 않음)
+function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean; ago?: string }) {
   const style = { ...styles.line, ...(pill ? styles.pill : null), opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
   if (line.kind === 'system') return <div style={{ ...style, ...styles.system }}>{line.text}</div>
   const name = line.peer?.nickname ?? '친구'
@@ -279,6 +280,7 @@ function Line({ line, color, gone, pill = false }: { line: ChatLine; color?: str
     <div style={{ ...style, color: color ?? WHISPER }}>
       <span style={styles.tag}>{line.kind === 'in' ? '[받음]' : '[보냄]'}</span> <span style={styles.who}>{name}:</span> {line.text}
       {line.quiet && <span style={styles.quietMark}> 🔕</span>}
+      {ago && <span style={styles.ago}> · {ago}</span>}
     </div>
   )
 }
@@ -301,6 +303,7 @@ const styles: Record<string, CSSProperties> = {
   who: { fontWeight: 700 },
   tag: { opacity: 0.8 },
   quietMark: { fontSize: 11 },
+  ago: { color: '#9ca3af', fontSize: 12 },
   inputRow: { display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderRadius: 8, background: HUD_BG },
   chip: { flexShrink: 0, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,.1)', fontWeight: 700, fontSize: 12 },
   input: { flex: 1, minWidth: 0, padding: '4px 6px', border: 'none', outline: 'none', background: 'transparent', color: '#fff', font: 'inherit', textAlign: 'left' },
