@@ -29,8 +29,9 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!myId) return
     const channel = supabase.channel(ONLINE_CHANNEL, { config: { presence: { key: myId } } })
+    dbg('채널 만듦', '나', short(myId), '채널 상태', channel.state)
     channelRef.current = channel
-    const read = () => {
+    const read = (event: string) => {
       const people = new Map<string, OnlineEntry>()
       for (const [id, metas] of Object.entries(channel.presenceState<Meta>())) {
         // 같은 계정으로 탭을 여러 개 열었으면 로비·지점에 있는 탭을 우선합니다. (탭 순서는 정해져 있지 않음)
@@ -40,18 +41,21 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
           quiet: metas.some((m) => m.quiet), // 어느 탭에서든 방해금지면 방해금지
         })
       }
+      dbg('받음', event, '보이는 사람', people.size, [...people.keys()].map(short).join(','), '나 포함', people.has(myId))
       setResult({ myId, people })
     }
     channel
-      .on('presence', { event: 'sync' }, read)
-      .on('presence', { event: 'join' }, read)
-      .on('presence', { event: 'leave' }, read)
-      .subscribe((status) => {
+      .on('presence', { event: 'sync' }, () => read('sync'))
+      .on('presence', { event: 'join' }, ({ key }) => read(`join ${short(key)}`))
+      .on('presence', { event: 'leave' }, ({ key }) => read(`leave ${short(key)}`))
+      .subscribe((status, err) => {
+        dbg('연결 상태', status, err?.message ?? '')
         if (status !== 'SUBSCRIBED') return
         subscribed.current = true
-        void channel.track(mine.current)
+        void channel.track(mine.current).then((r) => dbg('내 상태 보냄(연결 직후)', JSON.stringify(mine.current), r))
       })
     return () => {
+      dbg('채널 정리', short(myId))
       subscribed.current = false
       channelRef.current = null
       void channel.unsubscribe()
@@ -61,7 +65,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   // 있는 곳, 공부 중·방해금지 여부가 바뀌면 상태를 한 번 바꿉니다.
   useEffect(() => {
     mine.current = { place, studying, quiet }
-    if (subscribed.current) void channelRef.current?.track(mine.current)
+    if (subscribed.current) void channelRef.current?.track(mine.current).then((r) => dbg('내 상태 보냄', JSON.stringify(mine.current), r))
   }, [place, studying, quiet])
 
   const people = result && result.myId === myId ? result.people : EMPTY
@@ -69,3 +73,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
 }
 
 const EMPTY = new Map<string, OnlineEntry>()
+
+// [임시 진단] 접속 상태가 친구 탭에 반영되지 않는 문제를 찾기 위한 기록. 원인을 찾으면 지웁니다.
+const short = (id: string) => id.slice(0, 4)
+const dbg = (...args: unknown[]) => console.info('[접속진단]', new Date().toISOString().slice(11, 23), ...args)
