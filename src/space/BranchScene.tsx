@@ -34,6 +34,8 @@ import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
 import type { PanelView } from "../menu/panelTypes";
+import { panelKey } from "../menu/panelTypes";
+import { useMenuShortcuts } from "../menu/useMenuShortcuts";
 import { channelName } from "../realtime/participants";
 import type { PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
@@ -386,6 +388,17 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     return () => window.removeEventListener("keydown", down);
   }, [kioskOpen, panelOpen, setView]);
 
+  // 로비로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 로비 문 앞에 섭니다(#150).
+  const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
+  // 오른쪽 위 버튼 단축키 R·F·P·L (#205). 키오스크·확인 창·공부 시작 창이 떠 있으면 쓰지 않습니다.
+  useMenuShortcuts({
+    myId: session?.user.id ?? null,
+    panel,
+    setPanel,
+    disabled: kioskOpen || conflict !== null || studyDialogOpen,
+    onLobby: seat === null ? goLobby : undefined, // 앉아 있을 때는 L 로 나가지 않음 (공부 중 실수 방지)
+  });
+
   const seatSpot = spots.find((c) => c.no === seat);
   const viewHint =
     view === "top" ? "V 1인칭으로" : locked ? "Esc 커서 보이기 · V 위에서 보기" : "클릭해서 둘러보기 · V 위에서 보기";
@@ -545,7 +558,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onNearKiosk={setNearKiosk}
           exit={branch.door}
           onNearExit={setNearExit}
-          onExit={() => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } })}
+          onExit={goLobby}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
@@ -608,7 +621,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     />
     {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
-    {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
+    {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+    {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
       <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
