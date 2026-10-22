@@ -12,14 +12,12 @@ import { useHeartbeat } from './auth/useHeartbeat'
 import ForgotPasswordPage from './auth/ForgotPasswordPage'
 import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
-import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
 import { rememberCondition } from './study/condition'
 import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
-import { LOBBY_KEY, withKey } from './menu/shortcuts'
 
 
 // 로그인한 사람만 통과시키고, 아니면 /login 으로 보냅니다.
@@ -84,8 +82,7 @@ function AppRoutes() {
             <div style={{ width: '100vw', height: '100vh' }}>
               <LobbyScene onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
             </div>
-            {/* 내 기록·친구·내 프로필(16~96)은 LobbyScene 이 창으로 엽니다. (#70) */}
-            <LogoutButton style={{ ...cornerButton, top: 136 }} />
+            {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로그아웃)는 LobbyScene 이 그립니다. (#70, #208) */}
           </Protected>
         }
       />
@@ -94,11 +91,7 @@ function AppRoutes() {
         element={
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
-            <CornerLink to="/tracking" label="트래킹 검증으로" top={16} />
-            {/* 버튼으로 나가도 로비의 그 지점 문 앞에 섭니다. (문으로 나가기는 지점 안 출입문에서 E, #150) */}
-            <CornerLink to="/" label={withKey(LOBBY_KEY.key, '로비로')} top={56} state={{ from: new URLSearchParams(search).get('branch') ?? undefined }} />
-            {/* 내 기록·친구·내 프로필(96~176)은 BranchScene 이 창으로 엽니다. (#70) */}
-            <LogoutButton style={{ ...cornerButton, top: 216 }} />
+            {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로비로·트래킹 검증·로그아웃)는 BranchScene 이 그립니다. (#70, #208) */}
           </Protected>
         }
       />
