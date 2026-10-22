@@ -11,7 +11,7 @@ import type { FocusStatus } from "./focusLogic";
 import type { Baseline } from "./calibration";
 
 export const FULL_REPEATS = 5; // 정식판에서 행동마다 반복하는 횟수
-const GRACE_SECONDS = 5; // 노란불 마감 = 판정 기준 + 이 여유
+const GRACE_SECONDS = 5; // 빨간불 마감 = 판정 기준 + 이 여유
 const OFFSCREEN_DEADLINE_SECONDS = 3; // 다른 화면은 즉시 판정이라 탭·앱을 바꾸는 동작 시간만 줍니다
 const MOVE_GRACE_SECONDS = 10; // 다른 탭을 열고 자리를 떠나야 하는 행동은 움직이는 시간을 더 줍니다
 
@@ -20,8 +20,8 @@ export type Behavior = {
   name: string;
   hint?: string; // 행동 중 할 일 (화면에 함께 보여 줌)
   seconds: number; // 행동 길이
-  expect: FocusStatus; // "focus" = 초록 유지가 정답, 나머지 = 마감 안에 그 노란불이 떠야 정답
-  deadlineSeconds?: number; // 노란불 행동의 마감 (행동 시작부터)
+  expect: FocusStatus; // "focus" = 초록 유지가 정답, 나머지 = 마감 안에 그 빨간불이 떠야 정답
+  deadlineSeconds?: number; // 빨간불 행동의 마감 (행동 시작부터)
   allowDevices?: boolean; // 이 행동 동안 "학습기기 사용함"으로 판정
   cue?: { atSeconds: number; text: string }; // 행동 중간에 소리로 알릴 것 (예: 돌아와 앉기)
   writing?: boolean; // 필기 오판율에 들어가는 행동
@@ -42,7 +42,7 @@ export const BEHAVIORS: Behavior[] = [
     id: 6, name: "잠깐 자리 비우기", hint: "카메라 밖으로 나갔다가 소리가 나면 돌아와 앉습니다",
     seconds: 60, expect: "focus", cue: { atSeconds: 30, text: "돌아와 앉으세요" },
   },
-  // 정답 = 노란불
+  // 정답 = 빨간불
   { id: 7, name: "자리 비우기", hint: "카메라 밖으로 나갑니다 (누워 있기 포함)", seconds: 90, expect: "away", deadlineSeconds: away },
   { id: 8, name: "정면을 보고 눈 감기", seconds: 30, expect: "drowsy", deadlineSeconds: drowsy },
   { id: 9, name: "다른 탭 열기", hint: "같은 창에서 다른 탭으로 갑니다", seconds: 30, expect: "offscreen", deadlineSeconds: OFFSCREEN_DEADLINE_SECONDS },
@@ -79,8 +79,8 @@ export type TrialSample = { elapsedMs: number; plain: Judgement; guide: Judgemen
 
 export type VariantScore = {
   correct: boolean;
-  firstYellow: FocusStatus | null; // 처음 나온 노란불 종류 (없으면 null)
-  firstYellowMs: number | null; // 행동 시작부터 그 노란불까지 걸린 시간
+  firstYellow: FocusStatus | null; // 처음 나온 빨간불 종류 (없으면 null)
+  firstYellowMs: number | null; // 행동 시작부터 그 빨간불까지 걸린 시간
   gainedMs: number; // 행동 동안 실제로 늘어난 집중 시간
 };
 
@@ -88,7 +88,7 @@ export type TrialResult = { trial: number; behaviorId: number; plain: VariantSco
 
 // 행동 하나 채점.
 // - 초록 행동: 행동 동안 한 번이라도 focus가 아니면 오답.
-// - 노란불 행동: 처음 나온 노란불이 기대한 종류이고 마감 안이면 정답. 다른 노란불이 먼저 나오거나 마감을 넘기면 오답.
+// - 빨간불 행동: 처음 나온 빨간불이 기대한 종류이고 마감 안이면 정답. 다른 빨간불이 먼저 나오거나 마감을 넘기면 오답.
 // - 시간: 시작과 끝의 확정 집중 시간 차이.
 export function scoreVariant(behavior: Behavior, samples: TrialSample[], variant: "plain" | "guide"): VariantScore {
   const first = samples[0]?.[variant];
@@ -117,7 +117,7 @@ export type Summary = {
   accuracy: number; // 판정 정확도 (제안서 목표 80% 이상)
   writingTrials: number;
   writingWrong: number;
-  writingWrongRate: number | null; // 필기 오판율: 숙여 읽기·필기 중 노란불이 뜬 비율 (목표 10% 이하)
+  writingWrongRate: number | null; // 필기 오판율: 숙여 읽기·필기 중 빨간불이 뜬 비율 (목표 10% 이하)
   gainedMs: number;
   expectedMs: number;
   timeError: number | null; // 공부 시간 오차 = (들어간 합 − 들어가야 할 합) ÷ 들어가야 할 합 (목표 ±10%)
@@ -155,8 +155,8 @@ export type BehaviorRow = {
   n: number;
   plainCorrect: number;
   guideCorrect: number;
-  plainFirstYellow: (FocusStatus | null)[]; // 회차별 처음 나온 노란불 (원인 확인용)
-  plainYellowMs: number | null; // 정답 회차에서 노란불까지 걸린 평균 시간
+  plainFirstYellow: (FocusStatus | null)[]; // 회차별 처음 나온 빨간불 (원인 확인용)
+  plainYellowMs: number | null; // 정답 회차에서 빨간불까지 걸린 평균 시간
   guideYellowMs: number | null;
   plainGainedMs: number; // 평균
   guideGainedMs: number;
@@ -223,7 +223,7 @@ export function logCsv(rows: LogRow[]): string {
 }
 
 export function resultsCsv(results: TrialResult[]): string {
-  const header = "회차,행동,행동 이름,기대,정답(없이),노란불(없이),노란불까지ms(없이),들어간ms(없이),정답(가이드),노란불(가이드),노란불까지ms(가이드),들어간ms(가이드),들어가야 할ms";
+  const header = "회차,행동,행동 이름,기대,정답(없이),빨간불(없이),빨간불까지ms(없이),들어간ms(없이),정답(가이드),빨간불(가이드),빨간불까지ms(가이드),들어간ms(가이드),들어가야 할ms";
   const lines = results.map((r) => {
     const b = behaviorOf(r.behaviorId);
     const v = (s: VariantScore) => [s.correct, s.firstYellow, s.firstYellowMs, Math.round(s.gainedMs)];

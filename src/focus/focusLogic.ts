@@ -112,7 +112,7 @@ export const initialFocusState: FocusState = {
 // 저장은 확정 시간(studyMs)만 합니다.
 export const shownStudyMs = (state: FocusState) => state.studyMs + state.pendingMs;
 
-// 보류 중인 이유 (내 화면에만 노란 표시용). 다른 참여자에게 보내는 상태(status)는 그대로 focus 입니다.
+// 보류 중인 이유. 내 화면의 노란 표시와 다른 참여자에게 보내는 노란불(hold)에 씁니다. status 자체는 focus 입니다.
 export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phone" | null {
   if (state.status !== "focus") return null;
   // 몸이 자리에 있으면 숙여 필기하며 얼굴이 띄엄띄엄 끊기는 경우가 많아 노란 표시를 하지 않습니다. (#119)
@@ -123,7 +123,7 @@ export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phon
   return null;
 }
 
-// 보류 중일 때 내 화면에 보여 줄 노란 표시. 시간은 계속 올라갑니다.
+// 보류 중일 때 내 화면에 보여 줄 노란 표시. 시간은 계속 올라갑니다. (기준을 넘기면 빨간 표시로 바뀜)
 export const HOLD_LABEL = {
   face: "🟡 얼굴을 찾는 중",
   eyes: "🟡 눈 감음 확인 중",
