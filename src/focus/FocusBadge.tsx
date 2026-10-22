@@ -56,13 +56,21 @@ export default function FocusBadge({
       {guide === "loading" && <div style={{ opacity: 0.7 }}>가이드라인 모델 불러오는 중…</div>}
       {guide === "error" && <div style={{ opacity: 0.7 }}>가이드라인 확인 불가 (다른 판정은 계속)</div>}
       {/* 임시: 모드 선택 창이 생기면 그쪽으로 옮깁니다. */}
-      <label style={{ cursor: "pointer" }}>
+      <label style={{ cursor: "pointer", display: "block" }}>
+        <input
+          type="checkbox"
+          checked={state.allowOtherScreen}
+          onChange={(e) => state.setAllowOtherScreen(e.target.checked)}
+        />{" "}
+        다른 탭·앱 사용함 (다른 탭·다른 앱을 써도 공부로 인정)
+      </label>
+      <label style={{ cursor: "pointer", display: "block" }}>
         <input
           type="checkbox"
           checked={state.allowDevices}
           onChange={(e) => state.setAllowDevices(e.target.checked)}
         />{" "}
-        학습기기 사용함 (다른 화면도 공부로 인정)
+        휴대폰·학습기기 사용함 (휴대폰·패드가 보여도 공부로 인정)
       </label>
     </>
   );

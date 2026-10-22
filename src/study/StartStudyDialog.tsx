@@ -1,11 +1,12 @@
-// 공부 시작 창: 과목과 학습기기 사용 여부를 고릅니다. 내 자리에 앉으면 뜹니다.
+// 공부 시작 창: 과목과 두 가지 허용(다른 탭·앱 사용, 휴대폰·학습기기 사용)을 고릅니다. 내 자리에 앉으면 뜹니다.
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { SUBJECT_MAX } from './useSubjects'
 import type { Subject } from './useSubjects'
 import { PHONE_SECONDS } from '../focus/focusLogic'
 
-export type StudyChoice = { subject: Subject; allowDevices: boolean }
+// allowOtherScreen: ⓐ 다른 탭·앱 사용함 (다른 화면 판정 끔), allowDevices: ⓑ 휴대폰·학습기기 사용함 (휴대폰 판정 끔). 따로 켤 수 있습니다. (#172)
+export type StudyChoice = { subject: Subject; allowOtherScreen: boolean; allowDevices: boolean }
 
 type Props = {
   subjects: Subject[]
@@ -19,7 +20,8 @@ type Props = {
 export function StartStudyDialog({ subjects, loading, loadError, addSubject, onStart, onCancel }: Props) {
   const [picked, setPicked] = useState<Subject | null>(null)
   const [newName, setNewName] = useState('')
-  const [allowDevices, setAllowDevices] = useState(false) // 기본은 사용 안 함
+  const [allowOtherScreen, setAllowOtherScreen] = useState(false) // 기본은 둘 다 사용 안 함
+  const [allowDevices, setAllowDevices] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -80,9 +82,14 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, onS
         {error && <div style={styles.error}>{error}</div>}
 
         <label style={styles.check}>
-          <input type="checkbox" checked={allowDevices} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
-          학습기기 사용함
+          <input type="checkbox" checked={allowOtherScreen} onChange={(e) => setAllowOtherScreen(e.target.checked)} />{' '}
+          다른 탭·앱 사용함
           <div style={styles.hint}>켜면 다른 탭·다른 앱을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
+        </label>
+        <label style={styles.check}>
+          <input type="checkbox" checked={allowDevices} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
+          휴대폰·학습기기 사용함
+          <div style={styles.hint}>켜면 휴대폰·패드 등이 카메라에 보여도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
           {/* 사용 안 함이면 휴대폰이 3초 넘게 화면에 보일 때 빨간불이 되므로 미리 알립니다. (focusLogic PHONE_SECONDS) */}
           {!allowDevices && (
             <div style={styles.hint}>📱 휴대폰은 카메라에 보이지 않게 치워 두세요. 화면에 {PHONE_SECONDS}초 넘게 보이면 공부 시간이 멈춥니다.</div>
@@ -97,7 +104,7 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, onS
             type="button"
             style={{ ...styles.primary, opacity: picked ? 1 : 0.5 }}
             disabled={!picked}
-            onClick={() => picked && onStart({ subject: picked, allowDevices })}
+            onClick={() => picked && onStart({ subject: picked, allowOtherScreen, allowDevices })}
           >
             {picked ? `${picked.name} 공부 시작` : '과목을 골라 주세요'}
           </button>

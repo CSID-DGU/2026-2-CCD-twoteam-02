@@ -66,8 +66,8 @@ type Props = {
 };
 
 export function ScriptTestPanel({ face, pose, baseline }: Props) {
-  const plain = useFocusState(face, false, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
-  const guide = useFocusState(face, false, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, undefined, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
   const [open, setOpen] = useState(() => loadSaved() !== null);
   const [saved, setSaved] = useState<Saved | null>(loadSaved);
   const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);
@@ -106,9 +106,9 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
     if (!saved) return;
     runRef.current = null;
     setRunning(null);
-    if (run.behavior.allowDevices) {
-      plain.setAllowDevices(false);
-      guide.setAllowDevices(false);
+    if (run.behavior.allowOtherScreen) {
+      plain.setAllowOtherScreen(false);
+      guide.setAllowOtherScreen(false);
     }
     const next: Saved = { ...saved, results: [...saved.results, scoreTrial(run.trial, run.behavior, run.samples)] };
     latest.current.saved = next;
@@ -133,7 +133,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
         t: n - testStart.current, trial: run?.trial ?? null, behaviorId: run?.behavior.id ?? null, elapsedMs,
         plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, ear: f.ear ?? null, pitch: f.pitch ?? 0,
         framed: pose.current.framed, body: pose.current.framed === null ? null : pose.current.found,
-        hidden: document.hidden, focused: document.hasFocus(), allowDevices: plain.allowDevices, baseline,
+        hidden: document.hidden, focused: document.hasFocus(), allowOtherScreen: plain.allowOtherScreen, allowDevices: plain.allowDevices, baseline,
       });
       if (run && elapsedMs !== null) {
         run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide) });
@@ -159,9 +159,9 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
       audio.current ??= new AudioContext(); // 사용자가 누른 순간에 만들어야 소리가 납니다
       void audio.current.resume();
       const behavior = behaviorOf(saved.plan[saved.results.length]);
-      if (behavior.allowDevices) {
-        plain.setAllowDevices(true);
-        guide.setAllowDevices(true);
+      if (behavior.allowOtherScreen) {
+        plain.setAllowOtherScreen(true);
+        guide.setAllowOtherScreen(true);
       }
       const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cueDone: false };
       runRef.current = run;

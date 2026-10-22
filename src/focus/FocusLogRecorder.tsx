@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { shownStudyMs } from "./focusLogic";
 import type { FocusStatus } from "./focusLogic";
-import { clockOf, segmentsOf, toCsv } from "./focusLog";
+import { clockOf, segmentsOf, toCsv, withBothFlags } from "./focusLog";
 import type { FocusLogRow, LogSegment } from "./focusLog";
 import type { FocusView } from "./useFocusState";
 import { workerInterval } from "../lib/workerInterval";
@@ -24,7 +24,8 @@ function loadRows(): FocusLogRow[] {
   try {
     const chunks = Number(localStorage.getItem(`${PREFIX}chunks`) ?? 0);
     const rows: FocusLogRow[] = [];
-    for (let i = 0; i < chunks; i++) rows.push(...(JSON.parse(localStorage.getItem(`${PREFIX}${i}`) ?? "[]") as FocusLogRow[]));
+    for (let i = 0; i < chunks; i++)
+      rows.push(...(JSON.parse(localStorage.getItem(`${PREFIX}${i}`) ?? "[]") as FocusLogRow[]).map(withBothFlags));
     return rows;
   } catch {
     return [];
@@ -88,7 +89,8 @@ export function FocusLogRecorder({ face, pose, focus }: Props) {
       const { found, updatedAt } = face.current;
       const body = pose.current.framed === null ? null : pose.current.found;
       rows.current.push({
-        at: now, page, hidden: document.hidden, windowFocused: document.hasFocus(), allowDevices: f.allowDevices,
+        at: now, page, hidden: document.hidden, windowFocused: document.hasFocus(),
+        allowOtherScreen: f.allowOtherScreen, allowDevices: f.allowDevices,
         face: found, faceAgeMs: updatedAt === null ? null : now - updatedAt, body, status: f.status,
         awaySeconds: f.awaySeconds, closedSeconds: f.closedSeconds, studyMs: f.studyMs, shownMs: shownStudyMs(f),
       });
@@ -130,7 +132,7 @@ export function FocusLogRecorder({ face, pose, focus }: Props) {
         <table style={styles.table}>
           <thead>
             <tr>
-              {["시작", "길이", "화면", "학습기기", "늘어난 집중", ...STATUS_LABEL.map(([, l]) => `${l}(초)`), "최대 끊김(초)"].map((h) => (
+              {["시작", "길이", "화면", "다른 탭·앱", "휴대폰·기기", "늘어난 집중", ...STATUS_LABEL.map(([, l]) => `${l}(초)`), "최대 끊김(초)"].map((h) => (
                 <th key={h} style={styles.cell}>{h}</th>
               ))}
             </tr>
@@ -141,7 +143,8 @@ export function FocusLogRecorder({ face, pose, focus }: Props) {
                 <td style={styles.cell}>{clockOf(s.from)}</td>
                 <td style={styles.cell}>{duration(s.to - s.from)}</td>
                 <td style={styles.cell}>{s.screen}</td>
-                <td style={styles.cell}>{s.allowDevices ? "사용함" : "안 함"}</td>
+                <td style={styles.cell}>{s.allowOtherScreen ? "켬" : "끔"}</td>
+                <td style={styles.cell}>{s.allowDevices ? "켬" : "끔"}</td>
                 <td style={styles.cell}>{duration(s.gainedMs)}</td>
                 {STATUS_LABEL.map(([k]) => (
                   <td key={k} style={styles.cell}>{s.statusSeconds[k] ?? ""}</td>
