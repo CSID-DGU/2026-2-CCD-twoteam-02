@@ -243,17 +243,20 @@ export function ChatOverlay() {
             >
               {chat.quiet ? '🔕 방해금지 켜짐' : '🔔 방해금지 꺼짐'}
             </button>
+            {/* 방해금지 중에는 알림음이 나지 않으므로 꺼짐으로 고정해 보여 줍니다. 원래 소리 설정은 그대로 두었다가
+                방해금지를 끄면 다시 보여 줍니다. (#220) */}
             <button
               type="button"
-              style={styles.toggle}
+              style={{ ...styles.toggle, ...(chat.quiet ? styles.toggleLocked : null) }}
+              disabled={chat.quiet}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 chat.setMuted(!chat.muted)
                 touch()
               }}
-              title="알림음 켜고 끄기"
+              title={chat.quiet ? '방해금지 중에는 알림음이 나지 않아요' : '알림음 켜고 끄기'}
             >
-              {chat.muted ? '🔇 소리 끔' : '🔊 소리 켬'}
+              {chat.quiet ? '🔇 소리 꺼짐 (방해금지)' : chat.muted ? '🔇 소리 끔' : '🔊 소리 켬'}
             </button>
             <span style={styles.hint}>접속한 친구 {chat.online.length}명</span>
           </div>
@@ -314,4 +317,5 @@ const styles: Record<string, CSSProperties> = {
     padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: HUD_BG,
     color: '#fff', font: 'inherit', fontSize: 12, cursor: 'pointer',
   },
+  toggleLocked: { color: '#9ca3af', cursor: 'default' }, // 방해금지 중이라 누를 수 없는 소리 버튼
 }
