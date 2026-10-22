@@ -101,7 +101,7 @@ export default function HeadTrackingTest() {
       )}
       {status === "ready" && <MeasureRecorder pose={pose} />}
       {status === "ready" && <FocusLogRecorder face={face} pose={pose} focus={focus} />}
-      {status === "ready" && <ScriptTestPanel face={face} pose={pose} baseline={baseline} />}
+      {status === "ready" && <ScriptTestPanel face={face} pose={pose} phone={phone} baseline={baseline} />}
 
       <video
         ref={videoRef}
