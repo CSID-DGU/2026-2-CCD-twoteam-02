@@ -27,7 +27,7 @@ import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
 import { useOnlineInvisible, useOnlinePlace } from "../realtime/onlineContext";
-import { currentCondition } from "../study/condition";
+import { conditionOf } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
 import type { PanelView } from "../menu/panelTypes";
@@ -245,13 +245,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
-  // 사용자 실험 조건 (docs/사용자-실험-재설계.md, #47)
+  // 사용자 실험 조건 (docs/사용자-실험-재설계.md, #47). 지점마다 정해져 있습니다(#198).
   //   visible(C): 다른 참여자가 보이고 나도 보입니다.
-  //   hidden(B, 혼자 공부): 다른 참여자·표시등·접속 인원 수를 모두 숨기고, 나도 남에게 보이지 않습니다.
+  //   hidden(B 지점, 혼자 공부): 다른 참여자·표시등·접속 인원 수를 모두 숨기고, 나도 남에게 보이지 않습니다.
   //     내 위치를 지점 방에 보내지 않고, 사이트 전체 접속 상태에서도 나를 뺍니다.
   //   내 트래킹·타이머·기록은 두 조건 모두 그대로 동작합니다.
-  const { search } = useLocation();
-  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
+  const condition = conditionOf(branch);
   const hidden = condition === "hidden";
   const others = useParticipants(hidden ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
@@ -578,7 +577,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         }}
       />
     )}
-    {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 조건(혼자 공부)에서는 인원 수도 숨깁니다. (#47) */}
+    {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 지점(혼자 공부)에서는 인원 수도 숨깁니다. (#47, #198) */}
     {!hidden && (
       <div
         style={{
