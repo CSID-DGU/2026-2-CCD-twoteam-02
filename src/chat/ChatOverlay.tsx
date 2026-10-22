@@ -2,10 +2,12 @@
 //
 // Enter: 채팅창 열기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
 // Tab: 접속 중인 친구를 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기
-// 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다(적던 글이 있으면 기다림).
+// 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다(적던 글이 있거나 스크롤하는 중이면 기다림).
+// 열면 이번 접속의 대화(최대 100줄)를 모두 보여 주고 마우스 휠로 올려 볼 수 있습니다(#211).
 // 닫혀 있을 때 새 귓속말은 10초 보였다가 스르륵 사라지고, "Enter 귓속말"과 안 읽은 개수만 남습니다.
+// 밝은 바닥 위에서도 보이도록 글자 뒤에 어두운 반투명 배경을 깝니다(#211).
 // 입력하는 동안에는 WASD·E·V 가 캐릭터를 움직이지 않습니다(입력칸에서 누른 키는 무시).
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useChat } from './chatContext'
 import type { ChatLine } from './chatContext'
@@ -14,8 +16,10 @@ import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget } from './chatLogic
 const SHOW_MS = 10000 // 닫혀 있을 때 새 줄이 보이는 시간
 const IDLE_MS = 10000 // 열어 두고 이만큼 아무것도 안 하면 닫힘
 const FADE_MS = 800 // 스르륵 사라지는 시간
-const CLOSED_LINES = 5 // 닫혀 있을 때 최대 줄 수
-const OPEN_LINES = 14 // 열었을 때 보이는 줄 수
+const CLOSED_LINES = 5 // 닫혀 있을 때 새 줄을 최대 몇 줄까지 띄울지
+const BOTTOM_GAP = 24 // 맨 아래에서 이만큼(px) 안이면 "맨 아래를 보는 중"으로 침
+const SCROLL_TOUCH_MS = 500 // 스크롤 중에는 이 간격으로 자동 닫힘 시간을 다시 셈
+const HUD_BG = 'rgba(32,35,42,.85)' // 오른쪽 위 메뉴·화면 정보 상자와 같은 배경
 const WHISPER = '#d8b4fe' // 아직 이야기하지 않은 친구의 색 (처음 주고받으면 친구마다 색이 정해짐)
 
 export function ChatOverlay() {
@@ -27,6 +31,9 @@ export function ChatOverlay() {
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
   const input = useRef<HTMLInputElement>(null)
+  const logBox = useRef<HTMLDivElement>(null)
+  const stickToBottom = useRef(true) // 맨 아래를 보는 중이면 새 줄이 올 때 따라 내려감
+  const lastScrollTouch = useRef(0)
   const chatRef = useRef(chat) // Enter 처리(한 번 등록)에서 최신 값을 읽기 위해
   useEffect(() => {
     chatRef.current = chat
@@ -104,6 +111,17 @@ export function ChatOverlay() {
     return () => clearTimeout(id)
   }, [fading, close])
 
+  // 열 때는 맨 아래(최근 대화)부터 보여 주고, 새 줄이 오면 따라 내려갑니다.
+  // 위로 올려 예전 대화를 보는 중이면 끌어내리지 않습니다.
+  useLayoutEffect(() => {
+    if (!open) {
+      stickToBottom.current = true
+      return
+    }
+    const box = logBox.current
+    if (box && stickToBottom.current) box.scrollTop = box.scrollHeight
+  }, [open, lineCount])
+
   // 닫혀 있을 때 줄이 사라지도록 1초마다 시계를 돌립니다.
   useEffect(() => {
     if (open) return
@@ -152,19 +170,41 @@ export function ChatOverlay() {
     }
   }
 
+  // 스크롤하면 맨 아래인지 기억하고, 자동 닫힘 시간을 다시 셉니다(읽는 중에 닫히지 않게).
+  const onScroll = () => {
+    const box = logBox.current
+    if (!box) return
+    stickToBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < BOTTOM_GAP
+    const t = Date.now()
+    if (t - lastScrollTouch.current < SCROLL_TOUCH_MS) return
+    lastScrollTouch.current = t
+    touch()
+  }
+
   const target = chat.online.find((f) => f.id === chat.target)
-  // 닫혀 있을 때는 최근 줄만, 오래된 줄은 투명해졌다가(스르륵) 빠집니다.
+  // 열면 대화 전부(스크롤), 닫혀 있으면 방금 온 줄만. 오래된 줄은 투명해졌다가(스르륵) 빠집니다.
   const shown = open
-    ? chat.lines.slice(-OPEN_LINES)
+    ? chat.lines
     : chat.lines.filter((l) => now - l.at < SHOW_MS + FADE_MS).slice(-CLOSED_LINES)
 
   return (
     <div style={{ ...styles.wrap, opacity: fading ? 0 : 1 }}>
-      <div style={{ ...styles.log, ...(open ? styles.logOpen : null) }}>
-        {shown.map((l) => (
-          <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={!open && now - l.at >= SHOW_MS} />
-        ))}
-      </div>
+      {open ? (
+        shown.length > 0 && (
+          <div ref={logBox} style={styles.logOpen} onScroll={onScroll}>
+            {shown.map((l) => (
+              <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={false} />
+            ))}
+          </div>
+        )
+      ) : (
+        <div style={styles.log}>
+          {/* 닫혀 있을 때는 줄마다 배경을 깔아, 줄이 사라질 때 배경도 같이 사라지게 합니다. */}
+          {shown.map((l) => (
+            <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={now - l.at >= SHOW_MS} pill />
+          ))}
+        </div>
+      )}
 
       {open ? (
         <>
@@ -231,8 +271,8 @@ export function ChatOverlay() {
 }
 
 // 받은 줄은 [받음], 보낸 줄은 [보냄] 태그로 방향을 보여 줍니다(오버워치식). 그 친구와의 줄은 모두 같은 색입니다.
-function Line({ line, color, gone }: { line: ChatLine; color?: string; gone: boolean }) {
-  const style = { ...styles.line, opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
+function Line({ line, color, gone, pill = false }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean }) {
+  const style = { ...styles.line, ...(pill ? styles.pill : null), opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
   if (line.kind === 'system') return <div style={{ ...style, ...styles.system }}>{line.text}</div>
   const name = line.peer?.nickname ?? '친구'
   return (
@@ -247,25 +287,29 @@ const styles: Record<string, CSSProperties> = {
   wrap: {
     position: 'fixed', left: 16, bottom: 16, zIndex: 15, width: 'min(380px, calc(100vw - 32px))',
     display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6,
-    font: '13px/1.5 system-ui, sans-serif', textAlign: 'left', // 모두 왼쪽 정렬
+    font: '14px/1.5 system-ui, sans-serif', textAlign: 'left', // 모두 왼쪽 정렬
     transition: `opacity ${FADE_MS}ms ease`,
   },
   log: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, pointerEvents: 'none' },
-  logOpen: { padding: '8px 10px', borderRadius: 8, background: 'rgba(20,22,27,.72)', maxHeight: '40vh', overflowY: 'auto', pointerEvents: 'auto' },
+  logOpen: {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+    padding: '8px 10px', borderRadius: 8, background: HUD_BG, maxHeight: '40vh', overflowY: 'auto', pointerEvents: 'auto',
+  },
+  pill: { padding: '2px 8px', borderRadius: 6, background: HUD_BG },
   line: { textShadow: '0 1px 2px rgba(0,0,0,.8)', overflowWrap: 'anywhere', transition: 'opacity 1s ease' },
   system: { color: '#cbd5e1', fontStyle: 'italic' },
   who: { fontWeight: 700 },
   tag: { opacity: 0.8 },
   quietMark: { fontSize: 11 },
-  inputRow: { display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderRadius: 8, background: 'rgba(20,22,27,.85)' },
+  inputRow: { display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderRadius: 8, background: HUD_BG },
   chip: { flexShrink: 0, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,.1)', fontWeight: 700, fontSize: 12 },
   input: { flex: 1, minWidth: 0, padding: '4px 6px', border: 'none', outline: 'none', background: 'transparent', color: '#fff', font: 'inherit', textAlign: 'left' },
-  bar: { display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none' },
-  hint: { color: 'rgba(255,255,255,.75)', fontSize: 12, textShadow: '0 1px 2px rgba(0,0,0,.8)' },
+  bar: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderRadius: 8, background: HUD_BG, pointerEvents: 'none' },
+  hint: { color: '#fff', fontSize: 13 },
   badge: { minWidth: 18, padding: '0 6px', borderRadius: 9, background: '#a855f7', color: '#fff', fontSize: 11, fontWeight: 700, textAlign: 'center' },
-  controls: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  controls: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: 4, borderRadius: 8, background: HUD_BG },
   toggle: {
-    padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'rgba(20,22,27,.8)',
+    padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: HUD_BG,
     color: '#fff', font: 'inherit', fontSize: 12, cursor: 'pointer',
   },
 }
