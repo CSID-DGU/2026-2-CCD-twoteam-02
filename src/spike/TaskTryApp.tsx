@@ -2,13 +2,11 @@
 //
 // 흐름: 이름·후보·시간 고르기 → 시작 → 문항을 할 수 있는 만큼 풀기 → 시간이 끝나면 요약 + 메모 → CSV 내려받기.
 // 로그인·Supabase·웹캠을 쓰지 않습니다. 과제가 정해지면 이 화면과 taskTryLogic.ts는 지웁니다.
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
-import {
-  CANDIDATE_LABEL, CHECK_SECONDS, SHORT_SECONDS, TRY_SECONDS, TYPO_PASSAGES,
-  makeCalcProblem, passageOrder, scoreTypo, seededRandom, summarize, toCsv,
-} from "./taskTryLogic";
-import type { Candidate, CalcProblem, Memo, TrialRecord, TrialRow } from "./taskTryLogic";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { CANDIDATE_LABEL, CHECK_SECONDS, SHORT_SECONDS, TRY_SECONDS, summarize, toCsv } from "./taskTryLogic";
+import type { Candidate, Memo, TrialRecord, TrialRow } from "./taskTryLogic";
+import { CalcTask, TypoTask } from "../experiment/task/TaskItems";
 
 const TICK_MS = 250; // 남은 시간 표시 갱신 간격
 
@@ -140,95 +138,6 @@ function TrialScreen({ trial, onFinish }: { trial: TrialRecord; onFinish: (rows:
         <TypoTask seed={trial.seed} elapsed={elapsed} onAnswer={push} />
       )}
     </main>
-  );
-}
-
-type TaskProps = { seed: number; elapsed: () => number; onAnswer: (row: Omit<TrialRow, "index">) => void };
-
-function CalcTask({ seed, elapsed, onAnswer }: TaskProps) {
-  const rand = useMemo(() => seededRandom(seed), [seed]);
-  const [problem, setProblem] = useState<CalcProblem>(() => makeCalcProblem(rand));
-  const [shownMs, setShownMs] = useState(0);
-  const [input, setInput] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const v = input.trim();
-    if (v === "") return; // 빈 Enter는 무시
-    onAnswer({
-      shownMs, answeredMs: elapsed(), problem: `${problem.a}+${problem.b}`, answer: String(problem.answer),
-      input: v, correct: Number(v) === problem.answer, detail: problem.carry ? "받아올림" : "", missed: "", wrong: "",
-    });
-    setProblem(makeCalcProblem(rand));
-    setShownMs(elapsed());
-    setInput("");
-    inputRef.current?.focus();
-  };
-
-  return (
-    <form onSubmit={submit} style={styles.center}>
-      <div style={styles.problem}>
-        {problem.a} + {problem.b} =
-      </div>
-      <input
-        ref={inputRef}
-        autoFocus
-        inputMode="numeric"
-        pattern="[0-9]*"
-        style={styles.answer}
-        value={input}
-        onChange={(e) => setInput(e.target.value.replace(/[^0-9]/g, ""))}
-      />
-      <p style={styles.muted}>답을 치고 Enter</p>
-    </form>
-  );
-}
-
-function TypoTask({ seed, elapsed, onAnswer }: TaskProps) {
-  const order = useMemo(() => passageOrder(seededRandom(seed)), [seed]);
-  const [pos, setPos] = useState(0); // 지문 순서상 위치 (바닥나면 처음부터 다시)
-  const [marked, setMarked] = useState<Set<number>>(new Set());
-  const [shownMs, setShownMs] = useState(0);
-  const passage = TYPO_PASSAGES[order[pos % order.length]];
-  const round = Math.floor(pos / order.length) + 1;
-
-  const toggle = (i: number) => {
-    if (passage.chars[i].trim() === "") return; // 공백은 누를 수 없음
-    const next = new Set(marked);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    setMarked(next);
-  };
-
-  const next = () => {
-    const s = scoreTypo(passage, marked);
-    onAnswer({
-      shownMs, answeredMs: elapsed(), problem: `지문${order[pos % order.length] + 1}${round > 1 ? ` (${round}회차)` : ""}`,
-      answer: String(passage.typoAt.length), input: String(marked.size),
-      correct: s.misses === 0 && s.falseMarks === 0, detail: `${s.hits}/${s.misses}/${s.falseMarks}`, missed: s.missed, wrong: s.wrong,
-    });
-    setPos(pos + 1);
-    setMarked(new Set());
-    setShownMs(elapsed());
-  };
-
-  return (
-    <div style={styles.center}>
-      <p style={styles.passage}>
-        {passage.chars.map((ch, i) => (
-          <span
-            key={i}
-            onClick={() => toggle(i)}
-            style={{ ...styles.char, ...(marked.has(i) ? styles.marked : null), cursor: ch.trim() === "" ? "default" : "pointer" }}
-          >
-            {ch}
-          </span>
-        ))}
-      </p>
-      <p style={styles.muted}>틀린 글자를 눌러 표시하세요. 다시 누르면 지워집니다. 다 찾았으면 '다음'. {marked.size}개 표시</p>
-      <button type="button" style={styles.primary} onClick={next}>다음</button>
-    </div>
   );
 }
 
