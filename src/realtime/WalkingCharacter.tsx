@@ -22,6 +22,7 @@ import type { Group } from 'three'
 import { INTERP_DELAY_MS, SAMPLE_MAX, TELEPORT_GAP, angleDiff, facingGoal, gaitOf, sampleAt } from './walkLogic'
 import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
+import { holdStandingPose } from '../space/standStill'
 
 const SCALE = 0.6 // Player와 같은 크기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
@@ -49,6 +50,7 @@ export function WalkingCharacter({ x, z, h, model, children }: Props) {
   const { actions } = useAnimations(animations, ref)
 
   useEffect(() => {
+    holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
     actions.idle?.play()
   }, [actions])
 
