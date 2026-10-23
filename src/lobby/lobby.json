@@ -10,6 +10,7 @@
     { "x": 15, "z": 0, "w": 0.3, "d": 18 }
   ],
   "doors": [
+    { "no": 2, "slug": "room-a", "label": "room A", "x": -10, "z": -8.6, "w": 3.2, "d": 0.8, "to": "/room-a" },
     { "no": 3, "slug": "room-b", "label": "room B", "x": 0, "z": -8.6, "w": 3.2, "d": 0.8 },
     { "no": 4, "slug": "room-c", "label": "room C", "x": 10, "z": -8.6, "w": 3.2, "d": 0.8 }
   ]

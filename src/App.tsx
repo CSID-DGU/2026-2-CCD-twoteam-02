@@ -12,6 +12,7 @@ import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
+import { VideoRoom } from './videoRoom/VideoRoom'
 import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
 
 
@@ -84,6 +85,15 @@ function AppRoutes() {
             {/* 버튼으로 나가도 로비의 그 지점 문 앞에 섭니다. (문으로 나가기는 지점 안 출입문에서 E, #150) */}
             <CornerLink to="/" label="로비로" top={16} state={{ from: new URLSearchParams(search).get('branch') ?? undefined }} />
             <LogoutButton style={{ ...cornerButton, top: 56 }} />
+          </Protected>
+        }
+      />
+      {/* room A: 캠 ON 조건의 화상회의 화면 (#192, #197). 로비의 room A 문으로 들어옵니다. */}
+      <Route
+        path="/room-a"
+        element={
+          <Protected>
+            <VideoRoom />
           </Protected>
         }
       />
