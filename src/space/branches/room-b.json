@@ -2,7 +2,7 @@
   "id": "room-b",
   "name": "room B",
   "hideOthers": true,
-  "experimentSeat": 8,
+  "experimentSeat": 4,
   "size": {
     "w": 24,
     "d": 16

@@ -10,7 +10,7 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   byeol, // 별다방 (스터디카페, 키오스크)
   sol, // 솔카페 (카페, 커피 바)
   'room-b': roomB, // 실험 B 조건(혼자 공부). 솔카페 배치를 복사하고 다른 참여자를 숨김 (#198)
-  'room-c': roomC, // 실험 C 조건(아바타). room B 와 같은 배치, 팀원 캐릭터 2명이 3·4번에 앉음 (#199)
+  'room-c': roomC, // 실험 C 조건(아바타). room B 와 같은 배치, 참가자는 4번, 팀원 캐릭터 2명은 맞은편 테이블 18·20번 (#199)
 }
 
 export const DEFAULT_BRANCH = 'byeol'
