@@ -31,7 +31,7 @@ export type PresenceState = {
   h?: number
   // 앉아서 공부하는 동안의 고개 각도(캐릭터 기준 라디안 [좌우, 위아래, 갸웃])와 눈 감김. (#129)
   // 서 있거나 얼굴을 못 찾으면 보내지 않는다. 받는 쪽은 정면·눈 뜬 모습으로 돌아간다.
-  // 앉은 사람은 고개가 조금만 움직여도 매번 보내게 된다. 보내는 횟수 줄이기는 보간과 함께 나중에 정한다.
+  // 가만히 있을 때의 떨림으로 매번 보내지 않도록, 마지막으로 보낸 값에서 일정 이상 움직였을 때만 보낸다(sendLogic.ts, #237).
   head?: [number, number, number]
   eyes?: boolean // true 면 눈을 감고 있음
   // 앉아서 공부하는 동안의 팔 방향 [캐릭터 왼팔, 캐릭터 오른팔]. 어깨에서 손 쪽을 가리키는 [x, y, z] (캐릭터 기준).
@@ -54,9 +54,7 @@ export const SEND_INTERVAL_MS = 250
 // 가만히 선 사람도 나중에 들어온 사람에게 보여야 한다.
 export const RESEND_IDLE_MS = 2000
 
-// 보내기 전에 값을 줄이는 단위. 이보다 작은 변화는 보내지 않는다(쓸데없는 전송 줄이기).
-export const POSITION_STEP = 0.01 // 위치: 1cm
-export const HEADING_STEP = 0.05 // 방향: 약 3도. 받는 쪽이 부드럽게 돌리므로 충분하다.
+// 얼마나 움직여야 보낼지(떨림 무시 기준)와 보내는 값의 자릿수는 sendLogic.ts 에 있다. (#237)
 
 // 위치를 실어 보내는 메시지 이름
 export const MOVE_EVENT = 'move'
