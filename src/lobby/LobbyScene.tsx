@@ -6,6 +6,7 @@
 // (Player 는 "앉으면" 캐릭터를 숨기지만, 문을 열면 곧바로 장면이 바뀌므로 보이지 않는다)
 //
 // 어느 문이 실제로 열리는지는 DB의 branches 를 보고 정한다. slug 가 없는 문은 준비 중이다.
+// 단, "to" 가 있는 문(room A 화상회의 화면, #197)은 앉는 자리가 없어 DB 없이 그 주소로 바로 간다.
 //
 // 시점은 지점과 같다: 처음엔 1인칭으로 걸어 다니고, V 로 위에서 보기와 바꾼다. (#71)
 // 1인칭에서는 어느 문이 어느 지점인지 보이도록 문마다 이름 간판을 단다.
@@ -13,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrthographicCamera } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
@@ -82,6 +83,7 @@ export default function LobbyScene({ onEnter }: Props) {
   // 지점에서 문으로 나왔으면 그 지점 문 앞에서 보던 방향 그대로 섭니다(#150).
   // "로비로" 버튼으로 나왔으면 문을 등지고(+Z) 서고, 주소로 바로 들어오면 가운데에서 문들 쪽(-Z)을 봅니다.
   const location = useLocation()
+  const navigate = useNavigate()
   const [arrival] = useState(() => {
     const { from, heading } = passageOf(location.state)
     const door = lobby.doors.find((d) => d.slug === from)
@@ -132,6 +134,13 @@ export default function LobbyScene({ onEnter }: Props) {
     const enteringHeading = bodyHeading.current
     const door = lobby.doors.find((d) => d.no === doorNo)
     if (!door) return
+    // 3D 지점이 아닌 문(room A)은 DB를 보지 않고 그 화면으로 갑니다. (#197)
+    const to = 'to' in door ? door.to : undefined
+    if (to) {
+      setMessage('')
+      navigate(to, { state: { heading: enteringHeading } })
+      return
+    }
     const list = branches ?? (await loadBranches())
     const found = list.find((b) => b.slug === door.slug)
     if (!found) {
@@ -166,7 +175,7 @@ export default function LobbyScene({ onEnter }: Props) {
         ))}
 
         {lobby.doors.map((d) => {
-          const open = branches === null || branches.some((b) => b.slug === d.slug)
+          const open = ('to' in d && Boolean(d.to)) || branches === null || branches.some((b) => b.slug === d.slug)
           const color = d.no === near ? COLOR.near : open ? COLOR.doorOpen : COLOR.doorSoon
           return (
             <group key={d.no}>
