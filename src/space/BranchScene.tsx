@@ -263,6 +263,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     others.map((p) => p.seat).filter((no): no is number => no !== null),
   );
   const freeSpots = spots.filter((c) => !taken.has(c.no));
+  // 실험 지점(room B·C)은 정해진 자리 하나에만 앉습니다. 참가자마다 팀원 캐릭터가 같은 각도로 보이게 (#199)
+  const fixedSeat = branch.experimentSeat ?? null;
+  const sittable = fixedSeat === null ? freeSpots : freeSpots.filter((c) => c.no === fixedSeat);
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
@@ -393,7 +396,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       : isCafe
         ? near !== null
           ? `${near}번 좌석 · E 앉기`
-          : "빈자리에서 E로 앉기"
+          : fixedSeat !== null
+            ? `파란 의자(${fixedSeat}번)에서 E로 앉기`
+            : "빈자리에서 E로 앉기"
       : near !== null
         ? near === mySeat
           ? `${near}번 좌석 (내 자리) · E 앉기`
@@ -458,7 +463,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             color={
               c.no === seat || c.no === near
                 ? "#f59e0b"
-                : c.no === mySeat
+                : c.no === mySeat || c.no === fixedSeat
                   ? MY_SEAT_COLOR
                   : "#6b7280"
             }
@@ -520,6 +525,11 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         const desk = branch.seats.find((s) => s.no === mySeat);
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
+      {/* 실험 지점: 앉을 자리를 "내 자리"로 표시 (#199) */}
+      {fixedSeat !== null && seat === null && (() => {
+        const desk = branch.seats.find((s) => s.no === fixedSeat);
+        return desk && <MySeatMarker x={desk.x} z={desk.z} />;
+      })()}
 
       {!hidden && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
 
@@ -530,7 +540,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           obstacles={obstacles}
           spawn={branch.spawn}
           spawnHeading={arrival}
-          spots={freeSpots}
+          spots={sittable}
           kiosk={branch.kiosk ?? NO_KIOSK}
           frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
           onNear={setNear}
