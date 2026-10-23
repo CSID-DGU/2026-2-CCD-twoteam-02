@@ -10,7 +10,8 @@ export type FocusLogRow = {
   page: number; // 페이지를 연 시각. 새로고침하면 바뀌고, 집중 시간도 0부터 다시 셉니다
   hidden: boolean; // 다른 탭
   windowFocused: boolean; // false면 다른 앱·다른 창
-  allowDevices: boolean;
+  allowOtherScreen: boolean; // 다른 탭·앱 사용함
+  allowDevices: boolean; // 휴대폰·학습기기 사용함
   face: boolean; // 얼굴 찾음
   faceAgeMs: number | null; // 마지막 인식 뒤 지난 시간 (인식이 멈췄는지 확인용)
   body: boolean | null; // 몸(Pose) 찾음, null = 모름
@@ -21,6 +22,11 @@ export type FocusLogRow = {
   shownMs: number; // 화면에 보이는 집중 시간 (확정 + 보류)
 };
 
+// 2026-10-21 이전에 저장된 줄은 allowDevices 하나뿐이다(체크 하나가 둘 다 허용했음). 없는 칸은 그 값으로 채운다.
+export function withBothFlags(row: Omit<FocusLogRow, "allowOtherScreen"> & { allowOtherScreen?: boolean }): FocusLogRow {
+  return { ...row, allowOtherScreen: row.allowOtherScreen ?? row.allowDevices };
+}
+
 export type ScreenKind = "보임" | "다른 탭" | "다른 앱";
 export const screenOf = (row: FocusLogRow): ScreenKind =>
   row.hidden ? "다른 탭" : row.windowFocused ? "보임" : "다른 앱";
@@ -29,6 +35,7 @@ export type LogSegment = {
   from: number;
   to: number;
   screen: ScreenKind;
+  allowOtherScreen: boolean;
   allowDevices: boolean;
   gainedMs: number; // 이 구간에서 늘어난 화면 집중 시간
   statusSeconds: Partial<Record<FocusStatus, number>>; // 상태별로 머문 시간(초, 기록 줄 수 기준)
@@ -36,7 +43,7 @@ export type LogSegment = {
   gaps: number; // LOG_GAP_SECONDS 넘게 끊긴 횟수
 };
 
-// 화면 상태·학습기기 설정·페이지(새로고침)가 바뀔 때마다 구간을 나눕니다.
+// 화면 상태·두 허용 설정·페이지(새로고침)가 바뀔 때마다 구간을 나눕니다.
 export function segmentsOf(rows: FocusLogRow[]): LogSegment[] {
   const result: LogSegment[] = [];
   let start: FocusLogRow | null = null;
@@ -45,10 +52,11 @@ export function segmentsOf(rows: FocusLogRow[]): LogSegment[] {
   for (const row of rows) {
     const screen = screenOf(row);
     const split =
-      !current || !prev || !start || screen !== current.screen || row.allowDevices !== current.allowDevices || row.page !== prev.page;
+      !current || !prev || !start || screen !== current.screen ||
+      row.allowOtherScreen !== current.allowOtherScreen || row.allowDevices !== current.allowDevices || row.page !== prev.page;
     if (split) {
       current = {
-        from: row.at, to: row.at, screen, allowDevices: row.allowDevices,
+        from: row.at, to: row.at, screen, allowOtherScreen: row.allowOtherScreen, allowDevices: row.allowDevices,
         gainedMs: 0, statusSeconds: {}, maxGapSeconds: 0, gaps: 0,
       };
       // 바로 앞 줄이 같은 페이지면 그 줄부터 재야 구간 경계의 1초가 빠지지 않습니다.
@@ -69,7 +77,7 @@ export function segmentsOf(rows: FocusLogRow[]): LogSegment[] {
 }
 
 const CSV_HEADER = [
-  "시각", "페이지", "화면", "학습기기", "얼굴", "인식 지난 ms", "몸", "상태", "안 보인 초", "눈 감은 초", "확정 집중 초", "화면 집중 초",
+  "시각", "페이지", "화면", "다른 탭·앱", "휴대폰·기기", "얼굴", "인식 지난 ms", "몸", "상태", "안 보인 초", "눈 감은 초", "확정 집중 초", "화면 집중 초",
 ];
 
 // 시각을 "17:22:05" 형식으로
@@ -81,7 +89,7 @@ export const clockOf = (ms: number) => {
 export function toCsv(rows: FocusLogRow[]): string {
   const lines = rows.map((r) =>
     [
-      clockOf(r.at), r.page, screenOf(r), r.allowDevices ? "사용함" : "안 함", r.face ? 1 : 0, r.faceAgeMs ?? "",
+      clockOf(r.at), r.page, screenOf(r), r.allowOtherScreen ? "켬" : "끔", r.allowDevices ? "켬" : "끔", r.face ? 1 : 0, r.faceAgeMs ?? "",
       r.body === null ? "" : r.body ? 1 : 0, r.status, r.awaySeconds.toFixed(1), r.closedSeconds.toFixed(1),
       (r.studyMs / 1000).toFixed(1), (r.shownMs / 1000).toFixed(1),
     ].join(",")

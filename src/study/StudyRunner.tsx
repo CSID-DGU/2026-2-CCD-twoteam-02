@@ -5,6 +5,7 @@ import type { CSSProperties, RefObject } from 'react'
 import { useFocusState } from '../focus/useFocusState'
 import { HOLD_LABEL, holdReason, shownStudyMs } from '../focus/focusLogic'
 import type { FocusInput, FocusStatus } from '../focus/focusLogic'
+import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
@@ -13,31 +14,32 @@ import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
 
+// 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (표시등 색과 같은 규칙, space/status.ts)
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
   focus: { color: '#4ade80', text: '🟢 공부 중' },
-  away: { color: '#facc15', text: '🟡 자리 이탈 의심' },
-  drowsy: { color: '#facc15', text: '🟡 졸음 의심' },
-  offscreen: { color: '#facc15', text: '🟡 다른 화면 사용 중' },
+  away: { color: '#f87171', text: '🔴 자리 이탈' },
+  drowsy: { color: '#f87171', text: '🔴 졸음' },
+  offscreen: { color: '#f87171', text: '🔴 다른 화면 사용 중' },
   outframe: { color: '#facc15', text: '🟡 가이드라인 이탈 의심' },
-  phone: { color: '#facc15', text: '🟡 휴대폰 사용 의심' },
+  phone: { color: '#f87171', text: '🔴 휴대폰 사용' },
 }
 
 type Props = {
   face: RefObject<FocusInput>
   pose: RefObject<PoseState> // 몸 인식 (얼굴을 놓쳐도 자리에 있는지)
-  phone: RefObject<PhoneState> // 휴대폰 감지 (학습기기 사용 안 함일 때만 판정에 씀)
+  phone: RefObject<PhoneState> // 휴대폰 감지 (휴대폰·학습기기 사용함이 아닐 때만 판정에 씀)
   baseline: Baseline | null // 보정 기준 (건너뛰면 null)
   onRecalibrate: () => void
   choice: StudyChoice
   userId: string
   sessionId: string // 지금 앉아 있는 좌석 이용 기록(seat_sessions.id)
   condition: StudyCondition // 사용자 실험 조건 (기록에 같이 남김)
-  onStatus: (status: FocusStatus) => void // 집중 상태가 바뀔 때 (다른 참여자에게 보내는 표시등용)
+  onStatus: (status: PresenceStatus) => void // 집중 상태가 바뀔 때 (다른 참여자에게 보내는 표시등용). 보류 중이면 hold
   onChangeSubject: () => void
 }
 
 export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
-  const focus = useFocusState(face, choice.allowDevices, undefined, { body: pose, baseline, phone })
+  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.
@@ -46,9 +48,11 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
     studyMs.current = focus.studyMs
   }, [focus.studyMs])
 
+  // 보류 중(의심)이면 다른 참여자에게도 노란불로 보입니다. 산만하면 내 화면에만 보이게 되돌릴 수 있습니다. (2026-10-21)
+  const hold = holdReason(focus)
   useEffect(() => {
-    onStatus(focus.status)
-  }, [focus.status, onStatus])
+    onStatus(hold ? 'hold' : focus.status)
+  }, [focus.status, hold, onStatus])
 
   useEffect(() => {
     let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
@@ -56,7 +60,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
       user_id: userId,
       session_id: sessionId,
       subject_id: choice.subject.id,
-      devices: devicesOf(choice.allowDevices),
+      devices: devicesOf(choice),
     }
     const save = async (row: ChunkRow) => {
       const values = {
@@ -92,8 +96,6 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
     }
   }, [userId, sessionId, choice, condition])
 
-  // 보류 중이면 내 화면에만 노란 표시. 다른 참여자에게는 onStatus 로 focus(초록)가 그대로 갑니다.
-  const hold = holdReason(focus)
   const { color, text } = hold ? { color: '#facc15', text: HOLD_LABEL[hold] } : LABEL[focus.status]
   return (
     <div style={styles.bar}>

@@ -15,6 +15,7 @@ const range = (r: [number, number] | null, digits = 2) =>
 
 export function MeasureRecorder({ pose }: { pose: RefObject<PoseState> }) {
   const [current, setCurrent] = useState<string | null>(null); // 지금 기록 중인 상황 (null = 멈춤)
+  const [open, setOpen] = useState(false); // 접힘이 기본. 화면이 번잡해 각본 시험이 잘 안 보여서 (2026-10-22). 접어도 키 입력·기록은 그대로
   const [samples, setSamples] = useState<MeasureSample[]>([]);
   const startedAt = useRef<number | null>(null);
 
@@ -73,10 +74,23 @@ export function MeasureRecorder({ pose }: { pose: RefObject<PoseState> }) {
     URL.revokeObjectURL(url);
   };
 
+  const title = <><b>측정 기록</b> · {current ? `● ${current} 기록 중 (스페이스바로 멈춤)` : "멈춤 — 키로 상황을 고르면 기록 시작"}</>;
+  if (!open) {
+    return (
+      <div style={styles.panel}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span>{title}</span>
+          <button type="button" onClick={() => setOpen(true)}>열기</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.panel}>
-      <div>
-        <b>측정 기록</b> · {current ? `● ${current} 기록 중 (스페이스바로 멈춤)` : "멈춤 — 키로 상황을 고르면 기록 시작"}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{title}</span>
+        <button type="button" onClick={() => setOpen(false)}>접기</button>
       </div>
       <div style={{ opacity: 0.7 }}>
         {SITUATIONS.map((s) => `${s.key} ${s.name}`).join(" · ")}

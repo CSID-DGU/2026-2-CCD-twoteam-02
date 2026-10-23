@@ -7,13 +7,16 @@
 // 채점 결과와 순서는 브라우저 저장소에 저장해서, 새로고침하거나 정식판을 2~3번에 나눠 해도 이어서 할 수 있습니다.
 // 0.1초 기록은 양이 많아 메모리에만 두고, 시험이 끝나거나 중단할 때 CSV로 내려받습니다(새로고침하면 그 전 기록은 사라짐).
 // 영상은 남기지 않고 숫자만 남기며, 서버로 보내지 않습니다.
+// (2026-10-22) 눈 감음·휴대폰도 기록해, 정답 없는 측정 행동(14~17)과 기존 행동의 최장 연속·끊김·고개 변동 폭을 측정표로 보여 줍니다.
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { useFocusState } from "./useFocusState";
 import type { FocusView } from "./useFocusState";
+import { AWAY_SECONDS, DROWSY_SECONDS, PHONE_SECONDS, RETURN_SECONDS, eyeClosed } from "./focusLogic";
 import type { FocusInput } from "./focusLogic";
 import type { Baseline } from "./calibration";
-import { BEHAVIORS, behaviorOf, byBehavior, expectedStudyMs, logCsv, makePlan, resultsCsv, scoreTrial, summarize } from "./scriptTest";
+import type { PhoneState } from "../tracking/useTracking";
+import { BEHAVIORS, behaviorOf, byBehavior, expectedStudyMs, logCsv, makePlan, measureRows, resultsCsv, scoreTrial, summarize } from "./scriptTest";
 import type { Behavior, Judgement, LogRow, Summary, TestMode, TrialResult, TrialSample } from "./scriptTest";
 import { workerInterval } from "../lib/workerInterval";
 
@@ -23,7 +26,7 @@ const BEEP_HZ = 880;
 // 카메라에 잘 잡히게 행동하면 실제보다 높은 정확도가 나오므로, 평소처럼 하도록 안내합니다.
 const NATURAL_NOTE = "평소 하던 대로 하세요. 카메라를 의식해서 잘 보이게 하지 마세요.";
 
-type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number };
+type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number; knownIds?: number[] }; // knownIds: 시작할 때의 행동 표 (건너뛴 행동과 "새 행동"을 구분하려고. 옛 저장엔 없음)
 type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cueDone: boolean };
 
 function loadSaved(): Saved | null {
@@ -62,12 +65,13 @@ const minutesOf = (ids: number[]) => Math.round(ids.reduce((sum, id) => sum + be
 type Props = {
   face: RefObject<FocusInput>;
   pose: RefObject<{ found: boolean; framed: boolean | null }>;
+  phone: RefObject<PhoneState>; // 휴대폰 감지 결과 (측정 기록용. /tracking은 감지를 항상 켜 둠)
   baseline: Baseline | null; // 보정 기준. 없으면 시작할 수 없습니다(졸음 판정이 보정했을 때만 동작하므로).
 };
 
-export function ScriptTestPanel({ face, pose, baseline }: Props) {
-  const plain = useFocusState(face, false, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
-  const guide = useFocusState(face, false, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
+  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, undefined, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
   const [open, setOpen] = useState(() => loadSaved() !== null);
   const [saved, setSaved] = useState<Saved | null>(loadSaved);
   const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);
@@ -77,6 +81,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
   const rows = useRef<LogRow[]>([]);
   const testStart = useRef<number | null>(null);
   const audio = useRef<AudioContext | null>(null);
+  const wasClosed = useRef(false); // 눈 감음 기록의 히스테리시스(감김·뜸 경계가 다름)용
   // 워커 신호·키 입력에서 최신 값을 읽기 위한 ref (그리는 중에는 읽지 않음)
   const latest = useRef({ plain, guide, saved, baseline });
   useEffect(() => {
@@ -106,9 +111,9 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
     if (!saved) return;
     runRef.current = null;
     setRunning(null);
-    if (run.behavior.allowDevices) {
-      plain.setAllowDevices(false);
-      guide.setAllowDevices(false);
+    if (run.behavior.allowOtherScreen) {
+      plain.setAllowOtherScreen(false);
+      guide.setAllowOtherScreen(false);
     }
     const next: Saved = { ...saved, results: [...saved.results, scoreTrial(run.trial, run.behavior, run.samples)] };
     latest.current.saved = next;
@@ -129,14 +134,18 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
       const run = runRef.current;
       const elapsedMs = run ? n - run.startMs : null;
       const f = face.current;
+      // 눈 감음은 판정과 같은 함수로 기록합니다. 보정 전이거나 얼굴이 없으면 모름(null)
+      const closed = baseline && f.found && f.ear !== null && f.ear !== undefined ? eyeClosed({ ...f, baseline }, wasClosed.current) : null;
+      wasClosed.current = closed ?? false;
+      const phoneFound = phone.current.found;
       rows.current.push({
         t: n - testStart.current, trial: run?.trial ?? null, behaviorId: run?.behavior.id ?? null, elapsedMs,
-        plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, ear: f.ear ?? null, pitch: f.pitch ?? 0,
+        plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, ear: f.ear ?? null, pitch: f.pitch ?? 0, closed, phone: phoneFound,
         framed: pose.current.framed, body: pose.current.framed === null ? null : pose.current.found,
-        hidden: document.hidden, focused: document.hasFocus(), allowDevices: plain.allowDevices, baseline,
+        hidden: document.hidden, focused: document.hasFocus(), allowOtherScreen: plain.allowOtherScreen, allowDevices: plain.allowDevices, baseline,
       });
       if (run && elapsedMs !== null) {
-        run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide) });
+        run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, closed, phone: phoneFound, pitch: f.pitch ?? 0 });
         if (run.behavior.cue && !run.cueDone && elapsedMs >= run.behavior.cue.atSeconds * 1000) {
           run.cueDone = true;
           beep(2);
@@ -147,7 +156,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
     });
     // finishTrial·beep은 ref만 읽으므로 의존성에 넣지 않습니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inProgress, face, pose]);
+  }, [inProgress, face, pose, phone]);
 
   // 스페이스바: 다음 행동 시작
   useEffect(() => {
@@ -159,9 +168,9 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
       audio.current ??= new AudioContext(); // 사용자가 누른 순간에 만들어야 소리가 납니다
       void audio.current.resume();
       const behavior = behaviorOf(saved.plan[saved.results.length]);
-      if (behavior.allowDevices) {
-        plain.setAllowDevices(true);
-        guide.setAllowDevices(true);
+      if (behavior.allowOtherScreen) {
+        plain.setAllowOtherScreen(true);
+        guide.setAllowOtherScreen(true);
       }
       const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cueDone: false };
       runRef.current = run;
@@ -172,7 +181,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
   }, []);
 
   const start = (mode: TestMode) => {
-    const next: Saved = { mode, plan: makePlan(mode), results: [], startedAt: Date.now() };
+    const next: Saved = { mode, plan: makePlan(mode), results: [], startedAt: Date.now(), knownIds: BEHAVIORS.map((b) => b.id) };
     rows.current = [];
     testStart.current = null;
     store(next);
@@ -183,6 +192,31 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
     if (rows.current.length > 0) download(logCsv(rows.current), "script-test-log");
     rows.current = [];
     testStart.current = null;
+  };
+
+  // 다음 행동을 채점 없이 순서에서 뺍니다 (특정 행동만 해 보고 싶을 때). 결과·기록은 그대로입니다.
+  const skip = () => {
+    const { saved } = latest.current;
+    if (!saved || runRef.current || saved.results.length >= saved.plan.length) return;
+    const at = saved.results.length;
+    const next: Saved = { ...saved, plan: [...saved.plan.slice(0, at), ...saved.plan.slice(at + 1)] };
+    latest.current.saved = next;
+    store(next);
+    setSaved(next);
+  };
+
+  // 저장된 시험이 예전 행동 표로 만들어졌으면(새 행동이 없음) 새 행동을 뒤에 붙여 이어 합니다.
+  // 건너뛴 행동은 순서에서 빠지지만 knownIds에는 있으므로 "새 행동"으로 보지 않습니다.
+  const knownIds = saved ? (saved.knownIds ?? saved.plan) : [];
+  const missingIds = saved ? BEHAVIORS.filter((b) => !knownIds.includes(b.id)).map((b) => b.id) : [];
+  const appendMissing = () => {
+    const { saved } = latest.current;
+    if (!saved || runRef.current) return;
+    const added = BEHAVIORS.filter((b) => missingIds.includes(b.id)).flatMap((b) => Array<number>(saved.mode === "full" ? (b.repeats ?? 1) : 1).fill(b.id));
+    const next: Saved = { ...saved, plan: [...saved.plan, ...added], knownIds: [...knownIds, ...missingIds] };
+    latest.current.saved = next;
+    store(next);
+    setSaved(next);
   };
 
   const reset = () => {
@@ -206,6 +240,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
   const results = saved?.results ?? [];
   const next = saved && inProgress ? behaviorOf(saved.plan[saved.results.length]) : null;
   const quickIds = BEHAVIORS.map((b) => b.id);
+  const fullPlan = makePlan("full"); // 회차 수·시간 표시용 (순서는 시작할 때 다시 섞음)
 
   return (
     <div style={styles.panel}>
@@ -222,7 +257,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
             빠른 점검판 ({quickIds.length}개, 약 {minutesOf(quickIds)}분 + 쉬는 시간)
           </button>
           <button type="button" disabled={!baseline} onClick={() => start("full")}>
-            정식판 ({quickIds.length * 5}회, 약 {minutesOf(quickIds) * 5}분 + 쉬는 시간, 나눠서 가능)
+            정식판 ({fullPlan.length}회, 약 {minutesOf(fullPlan)}분 + 쉬는 시간, 나눠서 가능)
           </button>
         </div>
       )}
@@ -242,15 +277,26 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
 
       {!running && next && (
         <div style={styles.big}>
-          <div>다음: <b>#{next.id} {next.name}</b> ({next.seconds}초{next.expect === "focus" ? ", 초록 유지가 정답" : `, ${next.expect}가 정답`})</div>
+          <div>
+            다음: <b>#{next.id} {next.name}</b> ({next.seconds}초
+            {next.expect === "focus" ? ", 초록 유지가 정답" : next.expect === "measure" ? ", 측정만 — 정답 없음" : `, ${next.expect}가 정답`})
+          </div>
           {next.hint && <div>{next.hint}</div>}
           <div><b>준비되면 스페이스바</b> — 끝나면 삐 소리가 납니다</div>
           <div style={{ opacity: 0.7 }}>{NATURAL_NOTE}</div>
         </div>
       )}
 
+      {saved && missingIds.length > 0 && !running && (
+        <div style={styles.warn}>
+          저장된 시험은 예전 행동 표로 만들어져 새 행동(#{missingIds.join(", #")})이 없습니다.{" "}
+          <button type="button" onClick={appendMissing}>새 행동 추가해 이어 하기</button> 또는 "처음부터 다시"
+        </div>
+      )}
+
       {saved && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {inProgress && <button type="button" onClick={skip} disabled={running !== null}>이 행동 건너뛰기</button>}
           {inProgress && <button type="button" onClick={stop} disabled={running !== null}>여기서 멈추고 기록 내려받기</button>}
           {results.length > 0 && <button type="button" onClick={() => download(resultsCsv(results), "script-test-results")}>결과 CSV</button>}
           <button type="button" onClick={reset} disabled={running !== null}>처음부터 다시</button>
@@ -258,6 +304,7 @@ export function ScriptTestPanel({ face, pose, baseline }: Props) {
       )}
 
       {results.length > 0 && <ResultTable results={results} />}
+      {results.length > 0 && <MeasureTable results={results} />}
     </div>
   );
 }
@@ -281,7 +328,7 @@ function ResultTable({ results }: { results: TrialResult[] }) {
       <table style={styles.table}>
         <thead>
           <tr>
-            {["#", "행동", "정답", "맞음(없이)", "맞음(가이드)", "처음 노란불(없이)", "노란불까지(없이)", "들어간 시간(없이)", "들어가야 할 시간"].map((h) => (
+            {["#", "행동", "정답", "맞음(없이)", "맞음(가이드)", "처음 빨간불(없이)", "빨간불까지(없이)", "들어간 시간(없이)", "들어가야 할 시간"].map((h) => (
               <th key={h} style={styles.cell}>{h}</th>
             ))}
           </tr>
@@ -298,6 +345,45 @@ function ResultTable({ results }: { results: TrialResult[] }) {
               <td style={styles.cell}>{sec(r.plainYellowMs)}</td>
               <td style={styles.cell}>{sec(r.plainGainedMs)}</td>
               <td style={styles.cell}>{sec(expectedStudyMs(r.behavior))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+// 측정표: 정답 없이 수치만 모은 것. 기준값을 정하는 데 씁니다 (docs/판정-기준-근거.md 10절)
+function MeasureTable({ results }: { results: TrialResult[] }) {
+  const rows = measureRows(results);
+  if (rows.length === 0) return null;
+  const withCount = (ms: number | null, n: number | null) => (ms === null ? "-" : `${sec(ms)} (${n ?? 0}회)`);
+  const deg = (v: number | null) => (v === null ? "-" : `${v.toFixed(0)}°`);
+  return (
+    <>
+      <div style={{ marginTop: 6 }}>
+        <b>측정</b> (정답 없음 — 기준값을 정하는 수치) · 지금 기준: 자리 이탈 {AWAY_SECONDS}초 · 졸음 {DROWSY_SECONDS}초 · 휴대폰 {PHONE_SECONDS}초 · 끊김 내성 {RETURN_SECONDS}초
+      </div>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            {["#", "행동", "회차", "안 보임 최장", "감음 최장", "휴대폰 최장", "끊김(보임)", "끊김(뜸)", "고개 변동 폭"].map((h) => (
+              <th key={h} style={styles.cell}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.behavior.id}>
+              <td style={styles.cell}>{r.behavior.id}</td>
+              <td style={styles.cell}>{r.behavior.name}</td>
+              <td style={styles.cell}>{r.n}</td>
+              <td style={styles.cell}>{sec(r.longestMissingMs)}</td>
+              <td style={styles.cell}>{sec(r.longestClosedMs)}</td>
+              <td style={styles.cell}>{sec(r.longestPhoneMs)}</td>
+              <td style={styles.cell}>{withCount(r.shortFoundMaxMs, r.shortFoundCount)}</td>
+              <td style={styles.cell}>{withCount(r.shortOpenMaxMs, r.shortOpenCount)}</td>
+              <td style={styles.cell}>{deg(r.pitchRangeDeg)}</td>
             </tr>
           ))}
         </tbody>

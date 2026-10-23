@@ -49,7 +49,7 @@ export default function HeadTrackingTest() {
   const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   const [baseline, setBaseline] = useState<Baseline | null>(null); // 보정 기준 (확인용)
   const [calibrating, setCalibrating] = useState(false);
-  const focus = useFocusState(face, false, pose, { body: pose, baseline, phone }); // 집중 상태 판정 (src/focus)
+  const focus = useFocusState(face, undefined, pose, { body: pose, baseline, phone }); // 집중 상태 판정 (src/focus)
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#20232a" }}>
@@ -101,7 +101,7 @@ export default function HeadTrackingTest() {
       )}
       {status === "ready" && <MeasureRecorder pose={pose} />}
       {status === "ready" && <FocusLogRecorder face={face} pose={pose} focus={focus} />}
-      {status === "ready" && <ScriptTestPanel face={face} pose={pose} baseline={baseline} />}
+      {status === "ready" && <ScriptTestPanel face={face} pose={pose} phone={phone} baseline={baseline} />}
 
       <video
         ref={videoRef}

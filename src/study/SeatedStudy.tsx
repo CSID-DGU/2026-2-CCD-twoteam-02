@@ -35,7 +35,7 @@ type Props = {
 export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onTracking }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
-  // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 학습기기 사용 안 함으로 공부할 때만 켭니다.
+  // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 휴대폰·학습기기 사용함이 아닐 때만 켭니다.
   const { face, pose, phone, status, message } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices })
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
@@ -49,7 +49,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
     onDialogChange(dialogOpen || calibrating)
   }, [dialogOpen, calibrating, onDialogChange])
 
-  // 공부를 시작하기 전에는 앉아 있어도 노란불(공부하지 않음)입니다.
+  // 공부를 시작하기 전에는 앉아 있어도 idle(표시등 없음)입니다.
   useEffect(() => {
     if (!choice || !calibrated) onStatus('idle')
   }, [choice, calibrated, onStatus])
@@ -69,7 +69,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
       {choice && sessionId && calibrated ? (
         // key: 과목을 바꾸면 새 타이머로 다시 시작하고, 이전 타이머는 사라지면서 남은 기록을 저장합니다.
         <StudyRunner
-          key={`${choice.subject.id}-${choice.allowDevices}`}
+          key={`${choice.subject.id}-${choice.allowOtherScreen}-${choice.allowDevices}`}
           face={face}
           pose={pose}
           phone={phone}

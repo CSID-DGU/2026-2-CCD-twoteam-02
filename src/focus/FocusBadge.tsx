@@ -1,4 +1,5 @@
-// 집중 상태 표시 (초록/노랑) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
+// 집중 상태 표시 (초록/노랑/빨강) + 집중 시간. 기준 시간이 되기 전에도 재는 중인 시간을 같이 보여 줍니다.
+// 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (보류·가이드라인)
 import {
   AWAY_SECONDS,
   DROWSY_SECONDS,
@@ -11,11 +12,11 @@ import type { FocusView } from "./useFocusState";
 
 const LABEL = {
   focus: { color: "#4ade80", text: "🟢 집중" },
-  away: { color: "#facc15", text: "🟡 자리 이탈 의심" },
-  drowsy: { color: "#facc15", text: "🟡 졸음 의심" },
-  offscreen: { color: "#facc15", text: "🟡 다른 화면 사용 중" },
+  away: { color: "#f87171", text: "🔴 자리 이탈" },
+  drowsy: { color: "#f87171", text: "🔴 졸음" },
+  offscreen: { color: "#f87171", text: "🔴 다른 화면 사용 중" },
   outframe: { color: "#facc15", text: "🟡 가이드라인 이탈 의심" },
-  phone: { color: "#facc15", text: "🟡 휴대폰 사용 의심" },
+  phone: { color: "#f87171", text: "🔴 휴대폰 사용" },
 };
 
 // 밀리초 → "01:02:03"
@@ -55,13 +56,21 @@ export default function FocusBadge({
       {guide === "loading" && <div style={{ opacity: 0.7 }}>가이드라인 모델 불러오는 중…</div>}
       {guide === "error" && <div style={{ opacity: 0.7 }}>가이드라인 확인 불가 (다른 판정은 계속)</div>}
       {/* 임시: 모드 선택 창이 생기면 그쪽으로 옮깁니다. */}
-      <label style={{ cursor: "pointer" }}>
+      <label style={{ cursor: "pointer", display: "block" }}>
+        <input
+          type="checkbox"
+          checked={state.allowOtherScreen}
+          onChange={(e) => state.setAllowOtherScreen(e.target.checked)}
+        />{" "}
+        다른 탭·앱 사용함 (다른 탭·다른 앱을 써도 공부로 인정)
+      </label>
+      <label style={{ cursor: "pointer", display: "block" }}>
         <input
           type="checkbox"
           checked={state.allowDevices}
           onChange={(e) => state.setAllowDevices(e.target.checked)}
         />{" "}
-        학습기기 사용함 (다른 화면도 공부로 인정)
+        휴대폰·학습기기 사용함 (휴대폰·패드가 보여도 공부로 인정)
       </label>
     </>
   );

@@ -19,7 +19,7 @@
 // - 눈을 감은 중에 뜬 것으로 읽히거나 얼굴이 끊겨도 EYE_GAP_SECONDS 안이면 계속 감은 것으로 봅니다.
 //   (눈 감은 13초가 1초 '뜸' 판독에 0으로 돌아가 21초에 끝내 닿지 못한 사례)
 //
-// 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "학습기기 사용함"을 고른 경우에만 공부로 인정합니다.
+// 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "다른 탭·앱 사용함"을 고른 경우에만 공부로 인정합니다. (#172)
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
 // - 사용함: 다른 앱·다른 탭에 있어도 평소처럼 얼굴로 판정합니다.
 //   (다른 탭이면 useTracking이 1초마다 인식을 계속하므로 자리 이탈·졸음을 그대로 봅니다)
@@ -29,9 +29,9 @@
 //
 // 카메라 가이드라인: 얼굴이 보일 때만, 머리~가슴(코·양 어깨)이 화면 밖으로 나간 시간을 잽니다.
 // 기준 시간 안에 돌아오면 그동안은 보류했다가 인정하고, 넘기면 "가이드라인 이탈"이 되어 시간이 멈춥니다.
-// 학습기기 사용 여부와 상관없이 적용합니다. (Pose 결과가 없으면 무시)
+// 두 허용 설정과 상관없이 적용합니다. (Pose 결과가 없으면 무시)
 //
-// 휴대폰: "학습기기 사용 안 함"일 때만, 휴대폰이 화면에 PHONE_SECONDS 넘게 연속으로 잡히면 "휴대폰 사용"이 되고 시간이 멈춥니다.
+// 휴대폰: "휴대폰·학습기기 사용함"이 아닐 때만, 휴대폰이 화면에 PHONE_SECONDS 넘게 연속으로 잡히면 "휴대폰 사용"이 되고 시간이 멈춥니다.
 // 한 번 잡혔다고 바로 멈추지 않는 것은 비슷한 물건을 순간적으로 휴대폰으로 착각하는 경우를 거르기 위해서입니다.
 // 화면 밖(책상 아래 등)에서 쓰는 휴대폰은 잡지 못합니다. (docs/판정-기준-근거.md 8절)
 
@@ -67,7 +67,8 @@ export type FocusInput = {
 export type ScreenInput = {
   pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식은 1초마다 계속)
   windowFocused: boolean; // 이 브라우저 창이 선택돼 있음 (다른 앱을 누르면 false)
-  allowDevices: boolean; // "학습기기 사용함"을 골랐는지
+  allowOtherScreen: boolean; // ⓐ "다른 탭·앱 사용함" → 다른 화면 판정 안 함
+  allowDevices: boolean; // ⓑ "휴대폰·학습기기 사용함" → 휴대폰 판정 안 함
   lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (엎드림 판정에서 깨어 있음의 근거)
 };
 
@@ -112,7 +113,7 @@ export const initialFocusState: FocusState = {
 // 저장은 확정 시간(studyMs)만 합니다.
 export const shownStudyMs = (state: FocusState) => state.studyMs + state.pendingMs;
 
-// 보류 중인 이유 (내 화면에만 노란 표시용). 다른 참여자에게 보내는 상태(status)는 그대로 focus 입니다.
+// 보류 중인 이유. 내 화면의 노란 표시와 다른 참여자에게 보내는 노란불(hold)에 씁니다. status 자체는 focus 입니다.
 export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phone" | null {
   if (state.status !== "focus") return null;
   // 몸이 자리에 있으면 숙여 필기하며 얼굴이 띄엄띄엄 끊기는 경우가 많아 노란 표시를 하지 않습니다. (#119)
@@ -123,7 +124,7 @@ export function holdReason(state: FocusState): "face" | "eyes" | "frame" | "phon
   return null;
 }
 
-// 보류 중일 때 내 화면에 보여 줄 노란 표시. 시간은 계속 올라갑니다.
+// 보류 중일 때 내 화면에 보여 줄 노란 표시. 시간은 계속 올라갑니다. (기준을 넘기면 빨간 표시로 바뀜)
 export const HOLD_LABEL = {
   face: "🟡 얼굴을 찾는 중",
   eyes: "🟡 눈 감음 확인 중",
@@ -147,16 +148,16 @@ export function nextFocusState(
   prev: FocusState,
   given: FocusInput,
   nowMs: number,
-  screen: ScreenInput = { pageHidden: false, windowFocused: true, allowDevices: false }
+  screen: ScreenInput = { pageHidden: false, windowFocused: true, allowOtherScreen: false, allowDevices: false }
 ): FocusState {
   // 인식이 멈춰 값이 오래됐으면 얼굴·몸 모두 안 보임으로 보고, 휴대폰 값도 믿지 않습니다. (몸 null = 모름 → 자리 이탈 쪽)
   const stale = given.updatedAt != null && nowMs - given.updatedAt > STALE_SECONDS * 1000;
   const input: FocusInput = stale ? { ...given, found: false, bodyFound: null, phone: null } : given;
 
-  // 휴대폰: 학습기기 사용 안 함일 때만 연속으로 잡힌 시간을 잽니다. 한 번이라도 안 잡히면 0부터 다시.
+  // 휴대폰: 휴대폰·학습기기 사용함이 아닐 때만 연속으로 잡힌 시간을 잽니다. 한 번이라도 안 잡히면 0부터 다시.
   const phoneSince = !screen.allowDevices && input.phone === true ? prev.phoneSince ?? nowMs : null;
   const phoneSeconds = phoneSince === null ? 0 : (nowMs - phoneSince) / 1000;
-  const offScreenStop = (screen.pageHidden || !screen.windowFocused) && !screen.allowDevices;
+  const offScreenStop = (screen.pageHidden || !screen.windowFocused) && !screen.allowOtherScreen;
 
   // 다른 화면 다음으로 우선합니다. 휴대폰을 보느라 얼굴이 안 보여도 자리 이탈보다 휴대폰이 맞는 설명이라서입니다.
   if (!offScreenStop && phoneSeconds >= PHONE_SECONDS) {
@@ -193,10 +194,10 @@ function judgeFace(
   const elapsed = prev.lastMs === null ? 0 : Math.max(nowMs - prev.lastMs, 0);
   const step = Math.min(elapsed, MAX_STEP_MS);
 
-  // 다른 화면 사용: 학습기기 사용 안 함이면 얼굴 기록은 지우고 바로 멈춥니다.
+  // 다른 화면 사용: 다른 탭·앱 사용함이 아니면 얼굴 기록은 지우고 바로 멈춥니다.
   // 사용함이면 다른 탭·다른 앱이어도 아래에서 평소처럼 얼굴로 판정합니다.
   const offScreen = screen.pageHidden || !screen.windowFocused;
-  if (offScreen && !screen.allowDevices) {
+  if (offScreen && !screen.allowOtherScreen) {
     return {
       status: "offscreen",
       awaySeconds: 0,
