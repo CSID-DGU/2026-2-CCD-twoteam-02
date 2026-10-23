@@ -33,6 +33,8 @@ import { characterArms } from "../tracking/armLogic";
 import type { Direction } from "../tracking/armLogic";
 import type { MyTracking } from "../study/SeatedStudy";
 import type { PresenceStatus } from "./status";
+import { RecordControls } from "../recording/RecordControls";
+import { recordSeatOf } from "../recording/recordLogic";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
@@ -254,7 +256,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   );
   const freeSpots = spots.filter((c) => !taken.has(c.no));
   // 실험 지점(room B·C)은 정해진 자리 하나에만 앉습니다. 참가자마다 팀원 캐릭터가 같은 각도로 보이게 (#199)
-  const fixedSeat = branch.experimentSeat ?? null;
+  // 기록 모드(#190): 주소의 ?record=18 처럼 자리를 정하면 그 자리에 앉아 내 움직임을 기록합니다. 팀원 녹화용.
+  const [recordSeat] = useState(() => recordSeatOf(location.search));
+  const fixedSeat = recordSeat ?? branch.experimentSeat ?? null;
   const sittable = fixedSeat === null ? freeSpots : freeSpots.filter((c) => c.no === fixedSeat);
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
@@ -386,7 +390,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       : near !== null
         ? `${near}번 좌석 · E 앉기`
         : fixedSeat !== null
-          ? `파란 의자(${fixedSeat}번)에서 E로 앉기`
+          ? `파란 의자(${fixedSeat}번)에서 E로 앉기${recordSeat !== null ? " (기록 모드)" : ""}`
           : "빈자리에서 E로 앉기";
   const hint = conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${viewHint}`;
 
@@ -537,6 +541,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
     )}
     <PerfReadout perf={perf} />
+    {recordSeat !== null && <RecordControls meRef={me} branch={branch.id} seat={recordSeat} />}
     {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 지점(혼자 공부)에서는 인원 수도 숨깁니다. (#47, #198) */}
     {!hidden && (
       <div
