@@ -9,13 +9,13 @@ import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
 import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
 import type { EmoteState } from './emotes'
 import { holdStandingPose } from './standStill'
+import { getKeymap } from '../menu/keymap'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
 const FADE = 0.15 // 동작 전환 시간(초)
 const MAX_DT = 0.05 // 탭을 잠깐 떠났다 돌아왔을 때 벽을 뚫지 않도록 한 프레임 이동량을 제한합니다.
 const SIT_RANGE = 0.9 // 의자에서 이 거리 안에 있으면 앉을 수 있습니다.
-const SIT_KEY = 'KeyE' // 앉기·일어나기, 키오스크 사용
 const KIOSK_RANGE = 1.0 // 키오스크 중심에서 이 거리 안에 있으면 사용할 수 있습니다.
 // 출입문 중심에서 이 거리 안이면 나갈 수 있습니다. 들어오면 서는 자리(문에서 1m)보다 짧게 둬서
 // 들어오자마자 "나가기" 안내가 뜨지 않고, 문 쪽으로 한 걸음 더 가야 뜹니다. (#150)
@@ -80,7 +80,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     const down = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.code.startsWith('Arrow')) e.preventDefault() // 방향키로 페이지가 스크롤되지 않게
-      if (e.code === SIT_KEY && !e.repeat) toggle.current = true
+      if (e.code === getKeymap().interact && !e.repeat) toggle.current = true // 앉기·일어나기·입장 (기본 E, 설정에서 바꿈 #250)
       pressed.add(e.code)
     }
     const up = (e: KeyboardEvent) => pressed.delete(e.code)

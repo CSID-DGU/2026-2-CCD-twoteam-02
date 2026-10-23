@@ -8,8 +8,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { EMOTES, requestEmote, wheelIndex } from './emotes'
 import type { EmoteState } from './emotes'
+import { getKeymap } from '../menu/keymap'
 
-const WHEEL_KEY = 'KeyX'
 const RADIUS = 118 // 바퀴 반지름(px)
 
 type Props = {
@@ -46,7 +46,7 @@ export function EmoteControls({ emoteRef, suspendLookRef, disabled }: Props) {
         requestEmote(emoteRef.current, quick.id)
         return
       }
-      if (e.code === WHEEL_KEY) {
+      if (e.code === getKeymap().emoteWheel) { // 바퀴 키 (기본 X, 설정에서 바꿈 #250)
         moved.current = { x: 0, y: 0 }
         openRef.current = true
         suspendLookRef.current = true
@@ -56,7 +56,7 @@ export function EmoteControls({ emoteRef, suspendLookRef, disabled }: Props) {
       }
     }
     const up = (e: KeyboardEvent) => {
-      if (e.code !== WHEEL_KEY || !openRef.current) return
+      if (e.code !== getKeymap().emoteWheel || !openRef.current) return
       const i = pickRef.current
       if (i !== null) requestEmote(emoteRef.current, EMOTES[i].id)
       close()
