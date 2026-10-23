@@ -36,6 +36,7 @@ import { SceneMenu } from "../menu/SceneMenu";
 import type { PanelView } from "../menu/panelTypes";
 import { panelKey } from "../menu/panelTypes";
 import { useMenuShortcuts } from "../menu/useMenuShortcuts";
+import { getKeymap, keyLabel, useKeymap } from "../menu/keymap";
 import { channelName } from "../realtime/participants";
 import type { PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
@@ -45,7 +46,6 @@ import type { MyTracking } from "../study/SeatedStudy";
 import type { PresenceStatus } from "./status";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
-const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
 const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
@@ -380,7 +380,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat || kioskOpen || panelOpen) return;
+      if (e.code !== getKeymap().view || e.repeat || kioskOpen || panelOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
@@ -390,6 +390,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
   // 로비로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 로비 문 앞에 섭니다(#150).
   const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
+  // 트래킹 검증 화면으로 (#250). 다른 주소라 지점 화면이 닫히므로 키는 서 있을 때만 받습니다.
+  const goTracking = () => navigate("/tracking");
   // 오른쪽 위 버튼 단축키 R·F·P·L (#205). 키오스크·확인 창·공부 시작 창이 떠 있으면 쓰지 않습니다.
   useMenuShortcuts({
     myId: session?.user.id ?? null,
@@ -397,32 +399,36 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     setPanel,
     disabled: kioskOpen || conflict !== null || studyDialogOpen,
     onLobby: seat === null ? goLobby : undefined, // 앉아 있을 때는 L 로 나가지 않음 (공부 중 실수 방지)
+    onTracking: seat === null ? goTracking : undefined, // T 도 같은 이유로 서 있을 때만
   });
 
   const seatSpot = spots.find((c) => c.no === seat);
+  // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
+  const keymap = useKeymap();
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) };
   const viewHint =
-    view === "top" ? "V 1인칭으로" : locked ? "Esc 커서 보이기 · V 위에서 보기" : "클릭해서 둘러보기 · V 위에서 보기";
+    view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
   const walkHint =
     seat !== null
-      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · E 일어나기`
+      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.interact} 일어나기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
-        ? "출입문 · E 로비로 나가기"
+        ? `출입문 · ${K.interact} 로비로 나가기`
       : isCafe
         ? near !== null
-          ? `${near}번 좌석 · E 앉기`
-          : "빈자리에서 E로 앉기"
+          ? `${near}번 좌석 · ${K.interact} 앉기`
+          : `빈자리에서 ${K.interact}로 앉기`
       : near !== null
         ? near === mySeat
-          ? `${near}번 좌석 (내 자리) · E 앉기`
+          ? `${near}번 좌석 (내 자리) · ${K.interact} 앉기`
           : mySeat === null
             ? `${near}번 좌석 · 키오스크에서 자리를 먼저 지정하세요`
             : `${near}번 좌석 · 내 자리(${mySeat}번)가 아니에요`
         : nearKiosk
-          ? "키오스크 · E 사용하기"
+          ? `키오스크 · ${K.interact} 사용하기`
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · X 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -619,7 +625,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       suspendLookRef={suspendLook}
       disabled={kioskOpen || panelOpen || conflict !== null || seat !== null}
     />
-    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={goLobby} showTracking />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={goLobby} onTracking={goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}

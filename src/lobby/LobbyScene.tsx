@@ -23,6 +23,7 @@ import { SceneMenu } from '../menu/SceneMenu'
 import type { PanelView } from '../menu/panelTypes'
 import { panelKey } from '../menu/panelTypes'
 import { useMenuShortcuts } from '../menu/useMenuShortcuts'
+import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
@@ -45,7 +46,6 @@ const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
 // 나오자마자 "입장" 안내가 뜨지 않습니다. (#150)
 const ARRIVE_GAP = 2.1
 const NO_KIOSK = { x: 1000, z: 1000 } // 로비에는 키오스크가 없다. 아래 Player 주석 참고
-const VIEW_KEY = 'KeyV' // 1인칭 ↔ 위에서 보기
 const SIGN = { width: 2.4, y: 1.75 } // 문 간판 크기와 높이 (문 높이 2.2)
 
 const COLOR = {
@@ -126,7 +126,7 @@ export default function LobbyScene({ onEnter }: Props) {
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat || panelRef.current) return
+      if (e.code !== getKeymap().view || e.repeat || panelRef.current) return // 1인칭 ↔ 위에서 보기 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       setView((v) => (v === 'top' ? 'first' : 'top'))
     }
@@ -163,8 +163,11 @@ export default function LobbyScene({ onEnter }: Props) {
   }
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
-  const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
-  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · X 감정표현 · ${viewHint}`
+  // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
+  const keymap = useKeymap()
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) }
+  const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
+  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · ${K.interact} 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
