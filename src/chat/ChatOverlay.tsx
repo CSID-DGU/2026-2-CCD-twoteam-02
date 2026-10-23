@@ -100,12 +100,14 @@ export function ChatOverlay() {
   }, [open, unread, markRead])
 
   // 열어 두고 10초 동안 아무것도 안 하면 스르륵 닫습니다. 적던 글이 있거나 새 줄이 오면 다시 셉니다.
-  const lineCount = chat?.lines.length ?? 0
+  // 새 줄은 줄 수가 아니라 마지막 줄 번호로 알아챕니다. 대화는 100줄까지만 들고 있어서, 넘으면 오래된 줄이
+  // 빠지면서 줄 수는 그대로 100이기 때문입니다. (#242)
+  const lastLineId = chat?.lines[chat.lines.length - 1]?.id ?? 0
   useEffect(() => {
     if (!open || draft.trim()) return
     const id = setTimeout(() => setFading(true), IDLE_MS)
     return () => clearTimeout(id)
-  }, [open, draft, activity, lineCount])
+  }, [open, draft, activity, lastLineId])
   useEffect(() => {
     if (!fading) return
     const id = setTimeout(close, FADE_MS)
@@ -121,7 +123,7 @@ export function ChatOverlay() {
     }
     const box = logBox.current
     if (box && stickToBottom.current) box.scrollTop = box.scrollHeight
-  }, [open, lineCount])
+  }, [open, lastLineId])
 
   // 시계: 닫혀 있을 때는 줄이 사라지도록 1초마다, 열어 둔 동안은 "몇 분 전"을 고치도록 30초마다 돌립니다.
   useEffect(() => {
