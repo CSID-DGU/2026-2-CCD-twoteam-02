@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { useFocusState } from "./useFocusState";
 import type { FocusView } from "./useFocusState";
-import { AWAY_SECONDS, DROWSY_SECONDS, PHONE_SECONDS, RETURN_SECONDS, eyeClosed } from "./focusLogic";
+import { AWAY_SECONDS, DROWSY_DOWN_SECONDS, DROWSY_SECONDS, PHONE_SECONDS, RETURN_SECONDS, eyeClosed } from "./focusLogic";
 import type { FocusInput } from "./focusLogic";
 import type { Baseline } from "./calibration";
 import type { PhoneState } from "../tracking/useTracking";
@@ -362,7 +362,7 @@ function MeasureTable({ results }: { results: TrialResult[] }) {
   return (
     <>
       <div style={{ marginTop: 6 }}>
-        <b>측정</b> (정답 없음 — 기준값을 정하는 수치) · 지금 기준: 자리 이탈 {AWAY_SECONDS}초 · 졸음 {DROWSY_SECONDS}초 · 휴대폰 {PHONE_SECONDS}초 · 끊김 내성 {RETURN_SECONDS}초
+        <b>측정</b> (정답 없음 — 기준값을 정하는 수치) · 지금 기준: 자리 이탈 {AWAY_SECONDS}초 · 졸음 {DROWSY_SECONDS}초(숙임 {DROWSY_DOWN_SECONDS}초) · 휴대폰 {PHONE_SECONDS}초 · 끊김 내성 {RETURN_SECONDS}초
       </div>
       <table style={styles.table}>
         <thead>
