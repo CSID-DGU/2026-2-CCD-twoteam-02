@@ -5,6 +5,7 @@
 // 영상·개인정보는 다루지 않고, 남는 것은 문항·입력·시각 숫자뿐입니다.
 
 export const TRY_SECONDS = 600; // 후보당 시험 시간 (문서: 10분)
+export const SHORT_SECONDS = 300; // 회의 시간이 짧을 때 쓰는 5분 (10-23 결정, 기본값). 2분은 지루함·피로가 쌓이기 전이라 짧음
 export const CHECK_SECONDS = 120; // 화면이 잘 도는지 보는 짧은 점검용
 export const CALC_MIN = 10; // 계산 과제 피연산자 범위: 두 자리 수
 export const CALC_MAX = 99;
