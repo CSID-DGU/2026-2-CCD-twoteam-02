@@ -16,6 +16,7 @@ export type BranchLayout = {
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
   hideOthers?: boolean // 실험 B 조건(혼자 공부) 지점: 다른 참여자를 숨기고 나도 안 보이게 (#198)
+  experimentSeat?: number // 실험 지점: 참가자가 앉을 수 있는 자리 하나. 참가자마다 같은 자리에서 같은 각도로 보게 (#199)
 }
 type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'rooms' | 'kiosk' | 'bar'>
 

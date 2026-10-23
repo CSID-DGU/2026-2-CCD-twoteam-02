@@ -12,6 +12,7 @@
   "doors": [
     { "no": 1, "slug": "byeol", "label": "별다방", "x": -5, "z": -8.6, "w": 3.2, "d": 0.8 },
     { "no": 2, "slug": "sol", "label": "솔카페", "x": 5, "z": -8.6, "w": 3.2, "d": 0.8 },
-    { "no": 3, "slug": "room-b", "label": "room B", "x": 0, "z": -8.6, "w": 3.2, "d": 0.8 }
+    { "no": 3, "slug": "room-b", "label": "room B", "x": 0, "z": -8.6, "w": 3.2, "d": 0.8 },
+    { "no": 4, "slug": "room-c", "label": "room C", "x": 10, "z": -8.6, "w": 3.2, "d": 0.8 }
   ]
 }
