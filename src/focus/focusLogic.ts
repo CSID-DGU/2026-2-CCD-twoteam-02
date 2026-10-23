@@ -13,6 +13,9 @@
 // 얼굴이 안 보여도 몸(Pose)이 자리에 있으면 자리 이탈이 아니라 엎드림으로 보고, AWAY_SECONDS 넘게 이어지면 졸음입니다.
 // 그동안 키보드·마우스 입력이 있으면 깨어 있는 것이므로 처음부터 다시 셉니다.
 //
+// 깨어 있음 신호: 키보드·마우스 입력이나 팔 움직임(bodyMotion.ts)이 있으면 그 시각부터 눈 감음·엎드림을 다시 셉니다.
+// 손·모자로 눈이 가려져 감은 것으로 읽히거나 숙여서 얼굴을 놓쳐도, 필기 중이면 졸음이 되지 않게 하기 위해서입니다.
+// 움직임이 없다고 해서 타이머가 빨라지지는 않습니다(가만히 읽기만 해도 1분은 안 움직일 수 있음).
 // 짧은 끊김 내성 (각본 시험 2026-10-17, 3명): 인식은 1초 안팎으로 틀리게 읽는 일이 있습니다.
 // - 안 보이다 다시 잡힌 얼굴은 RETURN_SECONDS 이상 계속 보여야 돌아온 것으로 봅니다. 그 전까지는 안 보이는 중으로 계속 셉니다.
 //   (자리를 비운 동안 약 1초 얼굴이 잘못 잡혀 이탈 시간이 0으로 돌아가고 보류 시간이 전부 공부로 들어간 사례)
@@ -64,12 +67,13 @@ export type FocusInput = {
   updatedAt?: number | null; // 인식 결과의 시각(ms). 오래되면 안 보임으로 처리 (null·생략 = 확인 안 함)
 };
 
+  lastMotionMs?: number | null; // 팔이 마지막으로 움직인 시각(ms). 눈 감음·엎드림에서 깨어 있음의 근거 (null·생략 = 모름)
 export type ScreenInput = {
   pageHidden: boolean; // 다른 탭으로 가서 이 페이지가 안 보임 (얼굴 인식은 1초마다 계속)
   windowFocused: boolean; // 이 브라우저 창이 선택돼 있음 (다른 앱을 누르면 false)
   allowOtherScreen: boolean; // ⓐ "다른 탭·앱 사용함" → 다른 화면 판정 안 함
   allowDevices: boolean; // ⓑ "휴대폰·학습기기 사용함" → 휴대폰 판정 안 함
-  lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (엎드림 판정에서 깨어 있음의 근거)
+  lastInputMs?: number | null; // 마지막 키보드·마우스 입력 시각 (눈 감음·엎드림 판정에서 깨어 있음의 근거)
 };
 
 export type FocusState = {
@@ -223,7 +227,7 @@ function judgeFace(
   // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄) 얼굴이 안 보이면 읽을 수 없음(null).
   const wasClosed = prev.closedSince !== null;
   const closedNow = input.found ? eyeClosed(input, wasClosed) : null;
-  const eyes = nextEyes(prev, closedNow, nowMs);
+  const eyes = nextEyes(prev, closedNow, nowMs, awakeAt);
   const closedSeconds = eyes.closedSince === null ? 0 : (nowMs - eyes.closedSince) / 1000;
 
   // 얼굴이 안 보이면 안 보인 시간을 잽니다. 몸이 자리에 있으면 엎드림(→ 졸음), 없으면 자리 이탈입니다.
@@ -231,13 +235,15 @@ function judgeFace(
     // 돌아옴을 확인하는 동안(얼굴은 보임)은 안 보이던 때의 몸 판정을 이어 써서 이탈·졸음 표시가 흔들리지 않게 합니다.
     const body = input.found ? prev.bodyWhileMissing : input.bodyFound === true;
     let missingSince = prev.missingSince ?? nowMs;
-    const lastInput = screen.lastInputMs ?? null;
-    // 입력이 있어 깨어 있음이 확인되면 처음부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
-    const typed = body && lastInput !== null && lastInput > missingSince;
-    if (typed) missingSince = Math.min(lastInput, nowMs);
+    // 입력·팔 움직임으로 깨어 있음이 확인되면 그 시각부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
+    const typed = body && awakeAt !== null && awakeAt > missingSince;
+    if (typed) missingSince = Math.min(awakeAt, nowMs);
     const awaySeconds = (nowMs - missingSince) / 1000;
     const status: FocusStatus = awaySeconds >= AWAY_SECONDS ? (body ? "drowsy" : "away") : "focus";
     return {
+  // 깨어 있음 신호: 입력과 팔 움직임 중 더 최근 시각. 둘 다 없으면 null.
+  const awakeAt = latest(screen.lastInputMs ?? null, input.lastMotionMs ?? null);
+
       status,
       awaySeconds,
       closedSeconds,
@@ -300,11 +306,19 @@ function judgeFace(
 function nextEyes(
   prev: FocusState,
   closedNow: boolean | null,
-  nowMs: number
+  nowMs: number,
+  awakeAt: number | null = null
 ): { closedSince: number | null; eyeGapSince: number | null } {
-  if (closedNow === true) return { closedSince: prev.closedSince ?? nowMs, eyeGapSince: null };
+  const closedSince = prev.closedSince ?? (closedNow === true ? nowMs : null);
+  if (closedSince !== null && awakeAt !== null && awakeAt >= closedSince) return { closedSince: null, eyeGapSince: null };
+  if (closedNow === true) return { closedSince, eyeGapSince: null };
   if (prev.closedSince === null) return { closedSince: null, eyeGapSince: null };
   const eyeGapSince = prev.eyeGapSince ?? nowMs;
   if ((nowMs - eyeGapSince) / 1000 < EYE_GAP_SECONDS) return { closedSince: prev.closedSince, eyeGapSince };
   return { closedSince: null, eyeGapSince: null };
 }
+// 두 시각 중 더 최근 것. 둘 다 없으면 null
+const latest = (a: number | null, b: number | null) => (a === null ? b : b === null ? a : Math.max(a, b));
+
+// 감기 시작한 뒤(같은 순간 포함)에 깨어 있음 신호(awakeAt)가 있었으면 감은 기록을 지웁니다. 손·모자 가림을 감음으로 읽은 경우입니다.
+// 지금 막 감기 시작한 것(closedSince = nowMs)도 같은 순간의 신호로 지워야, 계속 움직이는 동안 기록이 틱마다 생겼다 지워졌다 하지 않습니다.

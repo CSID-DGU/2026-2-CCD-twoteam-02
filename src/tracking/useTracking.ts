@@ -11,9 +11,11 @@ import type { RefObject } from "react";
 import { FaceLandmarker, FilesetResolver, ObjectDetector, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
 import * as THREE from "three";
-import { POSE_HZ } from "./armLogic";
+import { POSE_HZ, armDirection, pickTarget } from "./armLogic";
 import { earOf } from "./eyeMetrics";
-import type { ArmJoints, Joint } from "./armLogic";
+import type { ArmJoints, ArmTarget, Joint } from "./armLogic";
+import { initialArmMotion, latestMotionMs, nextArmMotion } from "./bodyMotion";
+import type { ArmMotion } from "./bodyMotion";
 import { GUIDE_POINTS, isFramed } from "./poseFrame";
 import { BG_SAMPLE_HEIGHT, BG_SAMPLE_WIDTH, cellMeans, compareBackground, personCells } from "./background";
 import type { PosePoint } from "./poseFrame";
@@ -62,6 +64,7 @@ export type PoseState = {
   bgSpread: number | null; // 확인용: 기준 배경 무늬의 퍼짐(밝기 표준편차)
   bgCells: number; // 확인용: 사람 칸을 빼고 실제로 비교한 칸 수
   wristsInView: boolean; // 손목이 화면 아래쪽 안에 보이는지 (책상이 보이는 구도인지)
+  lastMotionMs: number | null; // 팔이 마지막으로 움직인 시각(Date.now 기준, 집중 판정의 lastInputMs와 같은 시계). null = 아직 없음·Pose 없음
 };
 
 export type PhoneState = {
@@ -81,7 +84,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
   }, [wantPhone]);
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
-    bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false,
+    bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false, lastMotionMs: null,
   });
   const [status, setStatus] = useState<TrackingStatus>("loading");
   const [message, setMessage] = useState("");
@@ -125,7 +128,20 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       faceState.ear = earOf(result.faceLandmarks?.[0], video.videoWidth || 640, video.videoHeight || 480);
     }
 
-    // Pose: 팔 관절(3D 위치) + 가이드라인(코·양 어깨 화면 좌표)
+    // 팔 움직임(깨어 있음 신호): 팔마다 기준 관절(손목/팔꿈치)과 움직임 기록. 캐릭터 팔(useArmDirections)과 같은 관절 선택 규칙을 씁니다.
+    const motionTargets: Record<"left" | "right", ArmTarget> = { left: null, right: null };
+    const motions: Record<"left" | "right", ArmMotion> = { left: initialArmMotion, right: initialArmMotion };
+    function readMotion() {
+      const nowMs = Date.now(); // 집중 판정(Date.now)과 비교하므로 영상 시각(performance.now)이 아니라 이 시계를 씁니다.
+      for (const side of ["left", "right"] as const) {
+        const joints = poseState[side];
+        motionTargets[side] = pickTarget(joints, motionTargets[side]);
+        motions[side] = nextArmMotion(motions[side], armDirection(joints, motionTargets[side]), motionTargets[side], nowMs);
+      }
+      poseState.lastMotionMs = latestMotionMs(motions.left.lastMotionMs, motions.right.lastMotionMs);
+    }
+
+    // Pose: 팔 관절(3D 위치) + 가이드라인(코·양 어깨 화면 좌표) + 팔 움직임
     function readPose(landmarker: PoseLandmarker, video: HTMLVideoElement, now: number) {
       const result = landmarker.detectForVideo(video, now);
       const world = result.worldLandmarks?.[0]; // 3D 위치(미터)
@@ -150,6 +166,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
         !!image && [image[15], image[16]].some((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0.5 && p.y <= 1);
       poseState.framed = isFramed(image);
       poseState.guidePoints = image ? GUIDE_POINTS.map((i) => image[i]) : null;
+      readMotion();
     }
 
     // 배경: 영상을 작게 줄여 칸별 밝기만 읽고, 머리~가슴이 화면 안인 동안은 그 배경을 기준으로 삼습니다.
@@ -257,6 +274,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
             poseState.framed = null; // 판정·팝업에서 빼기
             poseState.guidePoints = null;
             poseState.bgSame = null;
+            poseState.lastMotionMs = null; // 움직임을 더 못 보므로 지난 값으로 깨어 있음을 주장하지 않게
             setPoseStatus("error");
           }
           readPhone(video, now);
@@ -331,6 +349,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       poseState.framed = null; // 꺼진 뒤 남은 값으로 판정하지 않게
       poseState.guidePoints = null;
       poseState.bgSame = null;
+      poseState.lastMotionMs = null;
     };
   }, [videoRef]);
 
