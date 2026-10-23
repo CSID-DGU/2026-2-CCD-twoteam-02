@@ -343,7 +343,7 @@ function ResultTable({ results }: { results: TrialResult[] }) {
             <tr key={r.behavior.id}>
               <td style={styles.cell}>{r.behavior.id}</td>
               <td style={styles.cell}>{r.behavior.name}</td>
-              <td style={styles.cell}>{r.behavior.expect === "focus" ? "초록" : r.behavior.expect}</td>
+              <td style={styles.cell}>{r.behavior.expect === "focus" ? "초록" : r.behavior.alsoExpect ? `${r.behavior.expect}·${r.behavior.alsoExpect}` : r.behavior.expect}</td>
               <td style={{ ...styles.cell, color: r.plainCorrect < r.n ? "#fbbf24" : undefined }}>{r.plainCorrect}/{r.n}</td>
               <td style={styles.cell}>{r.guideCorrect}/{r.n}</td>
               <td style={styles.cell}>{r.plainFirstYellow.map((s) => s ?? "없음").join(", ")}</td>
