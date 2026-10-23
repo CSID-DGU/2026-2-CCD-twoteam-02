@@ -24,6 +24,7 @@ import { INTERP_DELAY_MS, SAMPLE_MAX, TELEPORT_GAP, angleDiff, facingGoal, gaitO
 import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
 import { EMOTE_CLIPS, emoteById, emoteSeconds, prepareEmoteAction } from '../space/emotes'
+import { holdStandingPose } from '../space/standStill'
 
 const SCALE = 0.6 // Player와 같은 크기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
@@ -58,6 +59,7 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   const emoteStarted = useRef(0) // 마지막으로 재생을 시작한 감정표현 번호 (같은 번호는 다시 시작하지 않음)
 
   useEffect(() => {
+    holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
     actions.idle?.play()
   }, [actions])
 
