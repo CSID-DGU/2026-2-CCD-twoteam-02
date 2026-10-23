@@ -58,26 +58,12 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import { onMyProfileChanged } from '../profile/characters'
-import { HEADING_STEP, HELLO_EVENT, MOVE_EVENT, POSITION_STEP, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS } from './participants'
-import type { ArmVector, Participant, PresenceState } from './participants'
+import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS } from './participants'
+import type { Participant, PresenceState } from './participants'
+import { changedEnough, pack } from './sendLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
 type Profile = { nickname: string; model: string }
-
-// toFixed 로 0.30000000000000004 같은 소수 오차를 지워 메시지를 짧게 둔다.
-const round = (value: number, step: number) => Number((Math.round(value / step) * step).toFixed(3))
-
-// 보낼 값을 정한 단위로 줄인다. 아주 작은 흔들림으로 값이 바뀌어 매번 보내는 일을 막는다.
-function pack(state: PresenceState): PresenceState {
-  return {
-    ...state,
-    x: round(state.x, POSITION_STEP),
-    z: round(state.z, POSITION_STEP),
-    ...(state.h === undefined ? {} : { h: round(state.h, HEADING_STEP) }),
-    ...(state.head === undefined ? {} : { head: state.head.map((a) => round(a, HEADING_STEP)) as [number, number, number] }),
-    ...(state.arms === undefined ? {} : { arms: state.arms.map((v) => v && (v.map((a) => round(a, HEADING_STEP)) as ArmVector)) as PresenceState['arms'] }),
-  }
-}
 
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166)
 export function useParticipants(room: string, me: RefObject<PresenceState | null>) {
@@ -162,17 +148,18 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
     }
 
     let subscribed = false
-    let lastSentKey = ''
+    // 마지막으로 보낸 값. 다음에 보낼지는 이것과 비교해 정한다(sendLogic.ts).
+    // 반올림 전 값을 들고 있어야 기준점이 칸 경계에 묶이지 않는다.
+    let lastSent: PresenceState | null = null
     let lastSentAt = 0
 
     // 지금 내 상태를 한 번 보낸다. 값이 그대로여도 보낸다.
     function sendNow() {
       const state = me.current
       if (!subscribed || !state) return
-      const packed = pack(state)
-      lastSentKey = JSON.stringify(packed)
+      lastSent = state
       lastSentAt = Date.now()
-      void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: packed })
+      void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: pack(state) })
     }
 
     // 들어왔다고 알린다. 받은 사람들이 자기 위치로 답해 준다.
@@ -223,15 +210,15 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
         sayHello()
       })
 
-    // 값이 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
+    // 값이 충분히 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
     //
     // "값이 그대로면 안 보낸다" 가 트래픽을 아끼는 대신, 가만히 선 사람이
     // 남에게 늦게 보이는 원인이 된다. RESEND_IDLE_MS 가 그 최대 지연이다.
+    // 기준값보다 작게 움직이고 멈춘 경우도 이 재전송으로 따라잡는다.
     const timer = setInterval(() => {
       const state = me.current
       if (!subscribed || !state) return
-      const key = JSON.stringify(pack(state))
-      if (key === lastSentKey && Date.now() - lastSentAt < RESEND_IDLE_MS) return
+      if (!changedEnough(lastSent, state) && Date.now() - lastSentAt < RESEND_IDLE_MS) return
       sendNow()
     }, SEND_INTERVAL_MS)
 
