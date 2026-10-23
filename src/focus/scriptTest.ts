@@ -7,7 +7,7 @@
 // 판정은 두 가지를 동시에 채점합니다.
 // - plain(가이드라인 없이): 실제 공부 화면(StudyRunner)과 같은 방식. 기준 결과입니다.
 // - guide(가이드라인 켬): 머리~가슴이 화면 밖인 것도 판정에 쓰면 정확도가 오르는지 보기 위한 비교입니다.
-import { AWAY_SECONDS, DROWSY_SECONDS, EYE_GAP_SECONDS, RETURN_SECONDS } from "./focusLogic";
+import { AWAY_SECONDS, DROWSY_DOWN_SECONDS, DROWSY_SECONDS, EYE_GAP_SECONDS, RETURN_SECONDS } from "./focusLogic";
 import type { FocusStatus } from "./focusLogic";
 import type { Baseline } from "./calibration";
 
@@ -30,6 +30,7 @@ export type Behavior = {
 
 const away = AWAY_SECONDS + GRACE_SECONDS;
 const drowsy = DROWSY_SECONDS + GRACE_SECONDS;
+const drowsyDown = DROWSY_DOWN_SECONDS + GRACE_SECONDS; // 숙인 채 눈 감기는 기준이 60초라 행동도 길게
 
 // 행동 표는 여기 한 곳에만 있습니다. 행동을 추가할 때는 한 줄만 넣으면 됩니다.
 export const BEHAVIORS: Behavior[] = [
@@ -48,7 +49,7 @@ export const BEHAVIORS: Behavior[] = [
   { id: 8, name: "정면을 보고 눈 감기", seconds: 30, expect: "drowsy", deadlineSeconds: drowsy, repeats: 3 },
   { id: 9, name: "다른 탭 열기", hint: "같은 창에서 다른 탭으로 갑니다", seconds: 30, expect: "offscreen", deadlineSeconds: OFFSCREEN_DEADLINE_SECONDS },
   { id: 10, name: "다른 앱 누르기", hint: "다른 앱 창을 누릅니다", seconds: 30, expect: "offscreen", deadlineSeconds: OFFSCREEN_DEADLINE_SECONDS },
-  { id: 11, name: "숙인 채 눈 감기", hint: "필기 자세로 숙여 눈을 감습니다", seconds: 30, expect: "drowsy", deadlineSeconds: drowsy, repeats: 3 },
+  { id: 11, name: "숙인 채 눈 감기", hint: "필기 자세로 숙여 눈을 감습니다", seconds: 75, expect: "drowsy", deadlineSeconds: drowsyDown, repeats: 3 },
   { id: 12, name: "엎드리기", hint: "책상에 엎드립니다. 키보드·마우스는 만지지 않습니다", seconds: 90, expect: "drowsy", deadlineSeconds: away },
   {
     id: 13, name: "다른 탭·앱 사용함 + 다른 탭에서 자리 비우기", hint: "다른 탭으로 간 뒤 카메라 밖으로 나갑니다",
