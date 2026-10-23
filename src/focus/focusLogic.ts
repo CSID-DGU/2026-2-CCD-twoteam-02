@@ -17,6 +17,8 @@
 // 손·모자로 눈이 가려져 감은 것으로 읽히거나 숙여서 얼굴을 놓쳐도, 필기 중이면 졸음이 되지 않게 하기 위해서입니다.
 // 움직임이 없다고 해서 타이머가 빨라지지는 않습니다(가만히 읽기만 해도 1분은 안 움직일 수 있음).
 // 그동안 키보드·마우스 입력이 있으면 깨어 있는 것이므로 처음부터 다시 셉니다.
+// 몸은 그 순간 값이 아니라 얼굴이 안 보인 시간 중 몸이 잡힌 시간의 비율(BODY_RATIO)로 봅니다. 빈 자리에서도 Pose가
+// 0.1~3초씩 몸을 잘못 잡는 일이 잦아, 60초가 되는 순간의 값 하나로 정하면 자리 이탈이 졸음이 되거나 둘 사이를 오갔습니다. (#183)
 //
 // 짧은 끊김 내성 (각본 시험 2026-10-17, 3명): 인식은 1초 안팎으로 틀리게 읽는 일이 있습니다.
 // - 안 보이다 다시 잡힌 얼굴은 RETURN_SECONDS 이상 계속 보여야 돌아온 것으로 봅니다. 그 전까지는 안 보이는 중으로 계속 셉니다.
@@ -53,6 +55,9 @@ export const RETURN_SECONDS = 2; // 안 보이다 다시 잡힌 얼굴이 이 �
 export const EYE_GAP_SECONDS = 2; // 눈 감은 중 '뜸'·얼굴 끊김이 이 시간 안이면 계속 감은 것
 // 인식 결과가 이 시간 넘게 갱신되지 않으면 안 보임으로 봅니다. 숨긴 탭의 인식 주기(1초)를 세 번 놓친 정도입니다.
 export const STALE_SECONDS = 3;
+// 얼굴이 안 보인 시간 중 몸이 잡힌 시간이 이 비율 이상이면 몸이 자리에 있는 것(엎드림). 빈 자리에서 잘못 잡힌 비율은
+// 14~28%, 엎드렸을 때는 사람에 따라 12%·100%였습니다(각본 시험 2026-10-23, 2명). 12%인 사람은 자리 이탈로 잡힙니다.
+export const BODY_RATIO = 0.5;
 const MAX_STEP_MS = 1000; // 한 번에 더하는 시간의 최대값 (컴퓨터가 잠들었다 깨도 시간이 튀지 않게)
 
 // 휴대폰이 이 시간 이상 연속으로 잡히면 휴대폰 사용. 휴대폰이 없을 때 잘못 잡힌 것은 가장 길어도 1초였습니다(측정 2026-10-16, 1명).
@@ -94,7 +99,8 @@ export type FocusState = {
   foundSince: number | null; // 얼굴이 연속으로 보이기 시작한 시각 (돌아옴 확인용)
   eyeGapSince: number | null; // 눈 감은 중 '뜸'·얼굴 끊김이 시작된 시각 (EYE_GAP_SECONDS 안이면 감은 기록 유지)
   lastMs: number | null;
-  bodyWhileMissing: boolean; // 얼굴이 안 보이는 동안 몸은 자리에 있었는지 (엎드림)
+  bodyWhileMissing: boolean; // 얼굴이 안 보이는 동안 몸은 자리에 있었는지 (엎드림). 아래 시간의 비율로 정함
+  bodyMsWhileMissing: number; // 얼굴이 안 보이는 동안 몸이 잡힌 시간 (ms). 얼굴이 돌아오면 0
   phoneSince: number | null; // 휴대폰이 연속으로 잡히기 시작한 시각
   phoneSeconds: number; // 휴대폰이 연속으로 잡힌 시간
   drowsyLimitSeconds: number; // 지금 자세의 졸음 기준(정면 21초·숙임 60초). 화면에 "n초 / 기준" 표시용
@@ -114,6 +120,7 @@ export const initialFocusState: FocusState = {
   eyeGapSince: null,
   lastMs: null,
   bodyWhileMissing: false,
+  bodyMsWhileMissing: 0,
   phoneSince: null,
   phoneSeconds: 0,
   drowsyLimitSeconds: DROWSY_SECONDS,
@@ -194,6 +201,7 @@ export function nextFocusState(
       eyeGapSince: null,
       lastMs: nowMs,
       bodyWhileMissing: false,
+      bodyMsWhileMissing: 0,
       phoneSince,
       phoneSeconds,
       drowsyLimitSeconds: drowsyLimit(input),
@@ -234,6 +242,7 @@ function judgeFace(
       lastMs: nowMs,
       bodyWhileMissing: false,
       drowsyLimitSeconds,
+      bodyMsWhileMissing: 0,
     };
   }
 
@@ -253,12 +262,18 @@ function judgeFace(
 
   // 얼굴이 안 보이면 안 보인 시간을 잽니다. 몸이 자리에 있으면 엎드림(→ 졸음), 없으면 자리 이탈입니다.
   if (!back) {
-    // 돌아옴을 확인하는 동안(얼굴은 보임)은 안 보이던 때의 몸 판정을 이어 써서 이탈·졸음 표시가 흔들리지 않게 합니다.
-    const body = input.found ? prev.bodyWhileMissing : input.bodyFound === true;
     let missingSince = prev.missingSince ?? nowMs;
+    // 몸이 잡힌 시간을 쌓아, 안 보인 시간의 BODY_RATIO 이상이면 몸이 자리에 있는 것으로 봅니다. (순간 값은 빈 자리에서도 자주 틀림)
+    // 돌아옴을 확인하는 동안(얼굴은 보임)은 안 보이던 때의 몸 판정을 이어 써서 이탈·졸음 표시가 흔들리지 않게 합니다.
+    let bodyMs = input.found ? prev.bodyMsWhileMissing : prev.bodyMsWhileMissing + (input.bodyFound === true ? step : 0);
+    const missingMs = nowMs - missingSince;
+    const body = input.found ? prev.bodyWhileMissing : missingMs > 0 ? bodyMs >= missingMs * BODY_RATIO : input.bodyFound === true;
     // 입력·팔 움직임으로 깨어 있음이 확인되면 그 시각부터 다시 세고, 그동안 보류해 둔 시간도 확정합니다.
     const typed = body && awakeAt !== null && awakeAt > missingSince;
-    if (typed) missingSince = Math.min(awakeAt, nowMs);
+    if (typed) {
+      missingSince = Math.min(awakeAt, nowMs);
+      bodyMs = 0;
+    }
     const awaySeconds = (nowMs - missingSince) / 1000;
     const status: FocusStatus = awaySeconds >= AWAY_SECONDS ? (body ? "drowsy" : "away") : "focus";
     return {
@@ -276,6 +291,7 @@ function judgeFace(
       lastMs: nowMs,
       bodyWhileMissing: body,
       drowsyLimitSeconds,
+      bodyMsWhileMissing: bodyMs,
     };
   }
 
@@ -318,6 +334,7 @@ function judgeFace(
     lastMs: nowMs,
     bodyWhileMissing: false,
     drowsyLimitSeconds,
+    bodyMsWhileMissing: 0,
   };
 }
 
