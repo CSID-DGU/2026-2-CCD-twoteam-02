@@ -41,7 +41,7 @@ export const BEHAVIORS: Behavior[] = [
   { id: 4, name: "턱 괴기·자세 바꾸기", seconds: 60, expect: "focus", repeats: 3 },
   { id: 5, name: "잠깐 고개 돌리기·물 마시기", hint: "10초 정도 옆을 봅니다", seconds: 60, expect: "focus" },
   {
-    id: 6, name: "잠깐 자리 비우기", hint: "카메라 밖으로 나갔다가 소리가 나면 돌아와 앉습니다",
+    id: 6, name: "잠깐 자리 비우기", hint: "카메라 밖으로 나갔다가 소리가 나면 돌아와 앉습니다 (소리가 들리는 곳까지만)",
     seconds: 60, expect: "focus", cue: { atSeconds: 30, text: "돌아와 앉으세요" },
   },
   // 정답 = 빨간불

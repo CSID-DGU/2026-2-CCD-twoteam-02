@@ -23,11 +23,15 @@ import { workerInterval } from "../lib/workerInterval";
 const SAMPLE_MS = 100; // 기록 간격
 const STORAGE_KEY = "scriptTest:v1";
 const BEEP_HZ = 880;
+// 행동 중간 신호(돌아와 앉기)는 카메라 밖에 있는 사람이 들어야 하므로 CUE_INTERVAL_SECONDS 간격으로 CUE_REPEATS번 되풀이합니다.
+// (각본 시험 2026-10-23: 두 명 모두 30초 신호를 못 듣고 돌아오지 않음)
+const CUE_REPEATS = 3;
+const CUE_INTERVAL_SECONDS = 2;
 // 카메라에 잘 잡히게 행동하면 실제보다 높은 정확도가 나오므로, 평소처럼 하도록 안내합니다.
 const NATURAL_NOTE = "평소 하던 대로 하세요. 카메라를 의식해서 잘 보이게 하지 마세요.";
 
 type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number; knownIds?: number[] }; // knownIds: 시작할 때의 행동 표 (건너뛴 행동과 "새 행동"을 구분하려고. 옛 저장엔 없음)
-type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cueDone: boolean };
+type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cuesDone: number }; // cuesDone: 중간 신호를 낸 횟수
 
 function loadSaved(): Saved | null {
   try {
@@ -94,14 +98,14 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
     const ctx = audio.current;
     if (!ctx) return;
     for (let i = 0; i < times; i++) {
-      const at = ctx.currentTime + i * 0.35;
+      const at = ctx.currentTime + i * 0.5;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.frequency.value = BEEP_HZ;
-      gain.gain.value = 0.2;
+      gain.gain.value = 0.5; // 자리를 비운 사람도 들리게 (0.2는 못 들었음)
       osc.connect(gain).connect(ctx.destination);
       osc.start(at);
-      osc.stop(at + 0.25);
+      osc.stop(at + 0.4);
     }
   }
 
@@ -146,9 +150,10 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
       });
       if (run && elapsedMs !== null) {
         run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, closed, phone: phoneFound, pitch: f.pitch ?? 0 });
-        if (run.behavior.cue && !run.cueDone && elapsedMs >= run.behavior.cue.atSeconds * 1000) {
-          run.cueDone = true;
-          beep(2);
+        const cue = run.behavior.cue;
+        if (cue && run.cuesDone < CUE_REPEATS && elapsedMs >= (cue.atSeconds + run.cuesDone * CUE_INTERVAL_SECONDS) * 1000) {
+          run.cuesDone += 1;
+          beep(3);
         }
         if (elapsedMs >= run.behavior.seconds * 1000) finishTrial(run);
       }
@@ -172,7 +177,7 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
         plain.setAllowOtherScreen(true);
         guide.setAllowOtherScreen(true);
       }
-      const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cueDone: false };
+      const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cuesDone: 0 };
       runRef.current = run;
       setRunning({ trial: run.trial, behavior, startMs: run.startMs });
     };
@@ -266,7 +271,7 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
         <div style={styles.big}>
           <div style={{ fontSize: 22, fontWeight: 700 }}>#{running.behavior.id} {running.behavior.name}</div>
           {running.behavior.hint && <div>{running.behavior.hint}</div>}
-          {running.behavior.cue && <div>{running.behavior.cue.atSeconds}초에 소리 두 번: {running.behavior.cue.text}</div>}
+          {running.behavior.cue && <div>{running.behavior.cue.atSeconds}초부터 {CUE_INTERVAL_SECONDS}초마다 {CUE_REPEATS}번 소리(세 번씩): {running.behavior.cue.text}</div>}
           <div style={{ fontSize: 32, fontVariantNumeric: "tabular-nums" }}>
             {Math.max(0, Math.ceil((running.startMs + running.behavior.seconds * 1000 - now) / 1000))}초
           </div>
