@@ -69,13 +69,14 @@ const minutesOf = (ids: number[]) => Math.round(ids.reduce((sum, id) => sum + be
 type Props = {
   face: RefObject<FocusInput>;
   pose: RefObject<{ found: boolean; framed: boolean | null }>;
-  phone: RefObject<PhoneState>; // 휴대폰 감지 결과 (측정 기록용. /tracking은 감지를 항상 켜 둠)
+  phone: RefObject<PhoneState>; // 휴대폰 감지 결과. 판정(실제 공부 화면과 같게)과 측정 기록에 씀 (/tracking은 감지를 항상 켜 둠)
   baseline: Baseline | null; // 보정 기준. 없으면 시작할 수 없습니다(졸음 판정이 보정했을 때만 동작하므로).
 };
 
 export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
-  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
-  const guide = useFocusState(face, undefined, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+  // 휴대폰도 판정에 넣습니다. 전에는 기록만 해서 휴대폰 빨간불이 결과에 안 나왔고, 휴대폰 없는 책상에서 4~7초 오인식이 있어도 몰랐습니다(2026-10-23).
+  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline, phone }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, undefined, pose, { body: pose, baseline, phone }); // 가이드라인도 쓰는 판정
   const [open, setOpen] = useState(() => loadSaved() !== null);
   const [saved, setSaved] = useState<Saved | null>(loadSaved);
   const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);
