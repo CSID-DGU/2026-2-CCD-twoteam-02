@@ -6,6 +6,7 @@ import type { Group } from 'three'
 import type { Box, Spot } from './layout'
 import { DEFAULT_MODEL, modelUrl } from '../profile/characters'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
+import { holdStandingPose } from './standStill'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -64,6 +65,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const { actions } = useAnimations(animations, ref)
 
   useEffect(() => {
+    holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
     actions[anim.current]?.play()
   }, [actions])
 
