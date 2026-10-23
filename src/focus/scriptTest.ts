@@ -22,6 +22,7 @@ export type Behavior = {
   seconds: number; // 행동 길이
   expect: FocusStatus | "measure"; // "focus" = 초록 유지가 정답, 빨간불 = 마감 안에 그 빨간불이 떠야 정답, "measure" = 정답 없음(수치만 모음)
   deadlineSeconds?: number; // 빨간불 행동의 마감 (행동 시작부터)
+  alsoExpect?: FocusStatus; // 이 빨간불이 먼저 떠도 정답 (12번: 엎드린 몸을 Pose가 못 잡는 사람은 자리 이탈로 잡힘 — 둘 다 빨간불, 2026-10-23)
   repeats?: number; // 정식판 반복 횟수 (없으면 1). 오판 위험이 있는 행동만 3회 — 반복 대신 사람 수(팀원 3명 + 팀 외 2명)로 봅니다 (2026-10-22)
   allowOtherScreen?: boolean; // 이 행동 동안 "다른 탭·앱 사용함"으로 판정 (13번)
   cue?: { atSeconds: number; text: string }; // 행동 중간에 소리로 알릴 것 (예: 돌아와 앉기)
@@ -50,7 +51,7 @@ export const BEHAVIORS: Behavior[] = [
   { id: 9, name: "다른 탭 열기", hint: "같은 창에서 다른 탭으로 갑니다", seconds: 30, expect: "offscreen", deadlineSeconds: OFFSCREEN_DEADLINE_SECONDS },
   { id: 10, name: "다른 앱 누르기", hint: "다른 앱 창을 누릅니다", seconds: 30, expect: "offscreen", deadlineSeconds: OFFSCREEN_DEADLINE_SECONDS },
   { id: 11, name: "숙인 채 눈 감기", hint: "필기 자세로 숙여 눈을 감습니다", seconds: 75, expect: "drowsy", deadlineSeconds: drowsyDown, repeats: 3 },
-  { id: 12, name: "엎드리기", hint: "책상에 엎드립니다. 키보드·마우스는 만지지 않습니다", seconds: 90, expect: "drowsy", deadlineSeconds: away },
+  { id: 12, name: "엎드리기", hint: "책상에 엎드립니다. 키보드·마우스는 만지지 않습니다", seconds: 90, expect: "drowsy", alsoExpect: "away", deadlineSeconds: away },
   {
     id: 13, name: "다른 탭·앱 사용함 + 다른 탭에서 자리 비우기", hint: "다른 탭으로 간 뒤 카메라 밖으로 나갑니다",
     seconds: 90, expect: "away", deadlineSeconds: AWAY_SECONDS + MOVE_GRACE_SECONDS, allowOtherScreen: true,
@@ -107,7 +108,7 @@ export type TrialResult = { trial: number; behaviorId: number; plain: VariantSco
 
 // 행동 하나 채점.
 // - 초록 행동: 행동 동안 한 번이라도 focus가 아니면 오답.
-// - 빨간불 행동: 처음 나온 빨간불이 기대한 종류이고 마감 안이면 정답. 다른 빨간불이 먼저 나오거나 마감을 넘기면 오답.
+// - 빨간불 행동: 처음 나온 빨간불이 기대한 종류(alsoExpect 포함)이고 마감 안이면 정답. 다른 빨간불이 먼저 나오거나 마감을 넘기면 오답.
 // - 시간: 시작과 끝의 확정 집중 시간 차이.
 export function scoreVariant(behavior: Behavior, samples: TrialSample[], variant: "plain" | "guide"): VariantScore {
   const first = samples[0]?.[variant];
@@ -121,7 +122,8 @@ export function scoreVariant(behavior: Behavior, samples: TrialSample[], variant
       ? true // 정답이 없는 측정 행동. 요약·행동별 표에는 들어가지 않습니다
       : behavior.expect === "focus"
         ? firstYellow === null
-        : firstYellow === behavior.expect && firstYellowMs! <= (behavior.deadlineSeconds ?? 0) * 1000);
+        : (firstYellow === behavior.expect || (behavior.alsoExpect !== undefined && firstYellow === behavior.alsoExpect)) &&
+          firstYellowMs! <= (behavior.deadlineSeconds ?? 0) * 1000);
   return { correct, firstYellow, firstYellowMs, gainedMs: first && last ? last.studyMs - first.studyMs : 0 };
 }
 
@@ -380,7 +382,7 @@ export function resultsCsv(results: TrialResult[]): string {
       ? [m.longestMissingMs, m.longestClosedMs, m.longestPhoneMs, m.shortFoundMaxMs, m.shortFoundCount, m.shortOpenMaxMs, m.shortOpenCount,
          m.pitchRangeDeg === null ? null : m.pitchRangeDeg.toFixed(1)]
       : Array<null>(8).fill(null);
-    return [r.trial, b.id, `"${b.name}"`, b.expect, ...v(r.plain), ...v(r.guide), expectedStudyMs(b), ...measure].map(cell).join(",");
+    return [r.trial, b.id, `"${b.name}"`, b.alsoExpect ? `${b.expect}|${b.alsoExpect}` : b.expect, ...v(r.plain), ...v(r.guide), expectedStudyMs(b), ...measure].map(cell).join(",");
   });
   return [header, ...lines].join("\n");
 }
