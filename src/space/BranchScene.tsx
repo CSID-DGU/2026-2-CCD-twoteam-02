@@ -4,15 +4,13 @@ import { Billboard, OrthographicCamera, PerspectiveCamera } from "@react-three/d
 import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
 import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
-import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
+import { CHAIR, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
 import type { BranchLayout, Spot } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
-import KioskScreen from "../kiosk/KioskScreen";
-import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (#38), 영수증 모양 (#39)
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { WalkCamera } from "./WalkCamera";
@@ -28,9 +26,6 @@ import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
 import { useOnlineInvisible, useOnlinePlace } from "../realtime/onlineContext";
 import { conditionOf } from "../study/condition";
-import { InfoPanel } from "../menu/InfoPanel";
-import { SceneMenu } from "../menu/SceneMenu";
-import type { PanelView } from "../menu/panelTypes";
 import { channelName } from "../realtime/participants";
 import type { PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
@@ -44,7 +39,7 @@ const VIEW_KEY = "KeyV"; // 위에서 보기 ↔ 1인칭 전환
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
 const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
-const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
+const NO_KIOSK = { x: 1000, z: 1000 }; // 실험 브랜치에는 키오스크가 없습니다(#189). Player 가 좌표를 받으므로 걸어서 닿을 수 없는 자리를 줍니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
@@ -192,7 +187,7 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
   );
 }
 
-// 지점 화면: 주소의 ?branch= 값(별다방 byeol, 솔카페 sol)으로 배치와 DB 지점 정보를 찾아 그립니다. (#44)
+// 지점 화면: 주소의 ?branch= 값(실험 지점 room-b, room-c)으로 배치와 DB 지점 정보를 찾아 그립니다. (#44, #189)
 export function BranchScene() {
   const { search } = useLocation();
   const slug = new URLSearchParams(search).get("branch") ?? DEFAULT_BRANCH;
@@ -222,8 +217,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
-  const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
-  const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
@@ -235,12 +228,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const heading = useRef(arrival); // 1인칭에서 바라보는 방향
   const bodyHeading = useRef(arrival); // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 나갈 때 로비로 넘깁니다.
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
-  const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
+  const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 지금 잡고 있는 내 자리 (카페 방식: 앉으면 잡고 일어나면 놓음)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지
-  // 지점 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 자리·타이머가 그대로입니다. (#70)
-  const [panel, setPanel] = useState<PanelView | null>(null);
-  const panelOpen = panel !== null;
   const { session } = useSession();
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
@@ -377,13 +367,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat || kioskOpen || panelOpen) return;
+      if (e.code !== VIEW_KEY || e.repeat) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, panelOpen, setView]);
+  }, [setView]);
 
   const seatSpot = spots.find((c) => c.no === seat);
   const viewHint =
@@ -393,24 +383,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · E 일어나기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
         ? "출입문 · E 로비로 나가기"
-      : isCafe
-        ? near !== null
-          ? `${near}번 좌석 · E 앉기`
-          : fixedSeat !== null
-            ? `파란 의자(${fixedSeat}번)에서 E로 앉기`
-            : "빈자리에서 E로 앉기"
       : near !== null
-        ? near === mySeat
-          ? `${near}번 좌석 (내 자리) · E 앉기`
-          : mySeat === null
-            ? `${near}번 좌석 · 키오스크에서 자리를 먼저 지정하세요`
-            : `${near}번 좌석 · 내 자리(${mySeat}번)가 아니에요`
-        : nearKiosk
-          ? "키오스크 · E 사용하기"
-          : mySeat === null
-            ? "키오스크에서 자리를 지정하세요"
-            : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${viewHint}`;
+        ? `${near}번 좌석 · E 앉기`
+        : fixedSeat !== null
+          ? `파란 의자(${fixedSeat}번)에서 E로 앉기`
+          : "빈자리에서 E로 앉기";
+  const hint = conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${viewHint}`;
 
   return (
     <>
@@ -420,13 +398,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           key={seatSpot.no}
           spot={seatSpot}
           onArrive={handleArrive}
-          paused={studyDialogOpen || panelOpen}
+          paused={studyDialogOpen}
         />
       ) : view === "first" ? (
         <WalkCamera
           posRef={pos}
           headingRef={heading}
-          paused={kioskOpen || panelOpen || conflict !== null}
+          paused={conflict !== null}
           onLockChange={setLocked}
         />
       ) : (
@@ -497,12 +475,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </group>
       )}
 
-      {branch.kiosk && (
-        <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
-          <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
-          <meshStandardMaterial color="#22c55e" />
-        </mesh>
-      )}
 
       {/* 커피 바(카페): 보이고 부딪히기만 하고 기능은 아직 없습니다. */}
       {branch.bar && (
@@ -521,17 +493,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       )}
 
       {/* 앉아 있을 때는 내 자리 표시가 시야를 가리므로 숨깁니다. 카페는 앉아 있는 동안만 내 자리라 표시하지 않습니다. */}
-      {!isCafe && mySeat !== null && seat === null && (() => {
-        const desk = branch.seats.find((s) => s.no === mySeat);
-        return desk && <MySeatMarker x={desk.x} z={desk.z} />;
-      })()}
       {/* 실험 지점: 앉을 자리를 "내 자리"로 표시 (#199) */}
       {fixedSeat !== null && seat === null && (() => {
         const desk = branch.seats.find((s) => s.no === fixedSeat);
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      {!hidden && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
+      {!hidden && <OtherParticipants others={others} spots={spots} />}
 
       {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
       {myModel && (
@@ -541,15 +509,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           spawn={branch.spawn}
           spawnHeading={arrival}
           spots={sittable}
-          kiosk={branch.kiosk ?? NO_KIOSK}
-          frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
+          kiosk={NO_KIOSK}
+          frozen={conflict !== null || (seat !== null && studyDialogOpen)}
           onNear={setNear}
           onSeat={handleSeat}
-          onNearKiosk={setNearKiosk}
+          onNearKiosk={() => {}}
           exit={branch.door}
           onNearExit={setNearExit}
           onExit={() => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } })}
-          onKiosk={() => setKioskOpen(true)}
+          onKiosk={() => {}}
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
           sitRef={sitRequest}
@@ -569,24 +537,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
     )}
     <PerfReadout perf={perf} />
-    {locked && seat === null && (
-      // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필)
-      <div
-        style={{
-          position: "fixed",
-          left: "50%",
-          top: "50%",
-          width: 6,
-          height: 6,
-          marginLeft: -3,
-          marginTop: -3,
-          borderRadius: "50%",
-          background: "#fff",
-          boxShadow: "0 0 0 1.5px rgba(0,0,0,.6)",
-          pointerEvents: "none",
-        }}
-      />
-    )}
     {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 지점(혼자 공부)에서는 인원 수도 숨깁니다. (#47, #198) */}
     {!hidden && (
       <div
@@ -604,9 +554,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         이 지점 접속 인원 {others.length + 1}명
       </div>
     )}
-    {session && <SceneMenu top={96} myId={session.user.id} onOpen={setPanel} />}
-    {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
-    {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
       <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
@@ -618,13 +565,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           </div>
         </div>
       </div>
-    )}
-    {kioskOpen && (
-      <KioskScreen
-        branchId={BRANCH_ID}
-        onClose={() => setKioskOpen(false)}
-        onAssigned={setMySeat}
-      />
     )}
     {hint && (
       <div

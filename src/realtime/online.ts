@@ -8,7 +8,7 @@ import { BRANCH_LAYOUTS } from '../space/branches'
 
 export const ONLINE_CHANNEL = 'online'
 
-// 지금 있는 곳: 'lobby', 지점 slug('byeol' 등), 그 밖의 화면(기록·친구·프로필 페이지 등)
+// 지금 있는 곳: 'lobby', 지점 slug('room-b' 등), 그 밖의 화면(트래킹 검증 등)
 export const LOBBY_PLACE = 'lobby'
 export const ELSEWHERE = 'elsewhere'
 

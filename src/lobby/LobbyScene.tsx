@@ -18,9 +18,6 @@ import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { useSession } from '../auth/useSession'
-import { InfoPanel } from '../menu/InfoPanel'
-import { SceneMenu } from '../menu/SceneMenu'
-import type { PanelView } from '../menu/panelTypes'
 import type { Box, Spot } from '../space/layout'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
@@ -95,8 +92,6 @@ export default function LobbyScene({ onEnter }: Props) {
   const heading = useRef(arrival.heading) // 1인칭에서 바라보는 방향
   const bodyHeading = useRef(arrival.heading) // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 문에 들어갈 때 넘깁니다.
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
-  // 로비 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
-  const [panel, setPanel] = useState<PanelView | null>(null)
   const { session } = useSession()
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 로비에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
@@ -107,15 +102,11 @@ export default function LobbyScene({ onEnter }: Props) {
   // 사이트 전체 접속 상태에 "로비에 있음"으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
   useOnlinePlace(LOBBY_PLACE)
   const onlineCount = useOnline().size
-  const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
-  useEffect(() => {
-    panelRef.current = panel
-  }, [panel])
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== VIEW_KEY || e.repeat || panelRef.current) return
+      if (e.code !== VIEW_KEY || e.repeat) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       setView((v) => (v === 'top' ? 'first' : 'top'))
     }
@@ -153,12 +144,12 @@ export default function LobbyScene({ onEnter }: Props) {
 
   const nearDoor = lobby.doors.find((d) => d.no === near)
   const viewHint = view === 'top' ? 'V 1인칭으로' : locked ? 'Esc 커서 보이기 · V 위에서 보기' : '클릭해서 둘러보기 · V 위에서 보기'
-  const hint = panel ? '' : nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · ${viewHint}`
+  const hint = nearDoor ? `${nearDoor.label} · E 입장` : `WASD로 움직여 문 앞으로 가세요 · Shift 달리기 · ${viewHint}`
 
   return (
     <>
       <Canvas>
-        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} /> : <FitCamera />}
+        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} onLockChange={setLocked} /> : <FitCamera />}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
@@ -192,8 +183,8 @@ export default function LobbyScene({ onEnter }: Props) {
           )
         })}
 
-        {/* 로비의 다른 참여자. 누르면 프로필 창 (#166). 로비에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
-        <OtherParticipants others={others} spots={[]} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
+        {/* 로비의 다른 참여자 (#166). 로비에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
+        <OtherParticipants others={others} spots={[]} showStatus={false} />
 
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
         {myModel && (
@@ -206,7 +197,7 @@ export default function LobbyScene({ onEnter }: Props) {
             // 로비에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (로비는 30×18 크기다)
             kiosk={NO_KIOSK}
-            frozen={panel !== null}
+            frozen={false}
             onNearKiosk={() => {}}
             onKiosk={() => {}}
             onNear={setNear}
@@ -226,10 +217,6 @@ export default function LobbyScene({ onEnter }: Props) {
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함, #176) */}
       {onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
-      {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
-      {locked && <div style={crosshair} />}
-      {session && <SceneMenu top={16} myId={session.user.id} onOpen={setPanel} />}
-      {panel && session && <InfoPanel initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
     </>
   )
 }
@@ -238,11 +225,6 @@ const onlineBox: React.CSSProperties = {
   position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
   padding: '6px 12px', borderRadius: 999, background: 'rgba(32,35,42,.85)', color: '#fff',
   font: '13px system-ui, sans-serif', fontVariantNumeric: 'tabular-nums',
-}
-
-const crosshair: React.CSSProperties = {
-  position: 'fixed', left: '50%', top: '50%', width: 6, height: 6, marginLeft: -3, marginTop: -3,
-  borderRadius: '50%', background: '#fff', boxShadow: '0 0 0 1.5px rgba(0,0,0,.6)', pointerEvents: 'none',
 }
 
 const hintBox: React.CSSProperties = {
