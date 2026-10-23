@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import {
-  CANDIDATE_LABEL, CHECK_SECONDS, TRY_SECONDS, TYPO_PASSAGES,
+  CANDIDATE_LABEL, CHECK_SECONDS, SHORT_SECONDS, TRY_SECONDS, TYPO_PASSAGES,
   makeCalcProblem, passageOrder, scoreTypo, seededRandom, summarize, toCsv,
 } from "./taskTryLogic";
 import type { Candidate, CalcProblem, Memo, TrialRecord, TrialRow } from "./taskTryLogic";
@@ -15,7 +15,7 @@ const TICK_MS = 250; // 남은 시간 표시 갱신 간격
 type Setup = { name: string; candidate: Candidate; seconds: number };
 
 export default function TaskTryApp() {
-  const [setup, setSetup] = useState<Setup>({ name: "", candidate: "calc", seconds: TRY_SECONDS });
+  const [setup, setSetup] = useState<Setup>({ name: "", candidate: "calc", seconds: SHORT_SECONDS });
   const [trial, setTrial] = useState<TrialRecord | null>(null);
   const [finished, setFinished] = useState(false);
 
@@ -58,7 +58,7 @@ function SetupScreen({ setup, onChange, onStart }: { setup: Setup; onChange: (s:
     <main style={styles.page}>
       <h1 style={styles.h1}>과제 후보 시험</h1>
       <p style={styles.muted}>
-        후보를 하나 골라 {TRY_SECONDS / 60}분 동안 할 수 있는 만큼 풉니다. 정확하게, 그러나 서두르거나 쉬지 말고 평소 속도로.
+        후보를 하나 골라 정한 시간 동안 할 수 있는 만큼 풉니다. 정확하게, 그러나 서두르거나 쉬지 말고 평소 속도로.
         끝나면 지루함·피로·공부 같음을 적고 CSV를 내려받아 주세요.
       </p>
       <label style={styles.field}>
@@ -79,10 +79,10 @@ function SetupScreen({ setup, onChange, onStart }: { setup: Setup; onChange: (s:
       </fieldset>
       <fieldset style={styles.fieldset}>
         <legend>시간</legend>
-        {[TRY_SECONDS, CHECK_SECONDS].map((s) => (
+        {[SHORT_SECONDS, TRY_SECONDS, CHECK_SECONDS].map((s) => (
           <label key={s} style={styles.radio}>
             <input type="radio" checked={setup.seconds === s} onChange={() => onChange({ ...setup, seconds: s })} />
-            {s / 60}분{s === CHECK_SECONDS ? " (화면 점검용)" : ""}
+            {s / 60}분{s === SHORT_SECONDS ? " (회의용 기본)" : s === TRY_SECONDS ? " (설계 문서 기준)" : " (화면 점검용)"}
           </label>
         ))}
       </fieldset>
