@@ -81,11 +81,13 @@ const PITCH_DOWN = MathUtils.degToRad(30); // 아래로 볼 수 있는 각도 (�
 const LOOK_SPEED = 0.005; // 마우스를 1픽셀 끌 때 도는 각도(라디안)
 const KEY_LOOK_SPEED = 1.2; // WASD·방향키로 둘러볼 때 도는 빠르기(초당 라디안)
 const LOOK_FOLLOW = 20; // 시점이 마우스를 따라가는 빠르기
+const RECENTER_SEC = 0.9; // 정면 보기(Space)로 책상 정면까지 돌아오는 시간(초). 천천히 돌아오게 (#112)
 const UP = new Vector3(0, 1, 0);
 
 // 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
 // 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
 // WASD·방향키나 마우스 끌기로 좌우 120도, 위 15도·아래 30도 범위에서 둘러봅니다. (#73)
+// Space(설정에서 바꿈)를 누르면 RECENTER_SEC 동안 천천히 책상 정면으로 돌아옵니다. 그사이 둘러보면 멈춥니다. (#112)
 // 앉아 있을 때는 몸이 움직이지 않으니 WASD 를 시점에 씁니다. 마우스는 잠그지 않습니다(타이머 버튼 등을 눌러야 해서).
 function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => void; paused: boolean }) {
   const cam = useRef<PerspectiveCameraImpl>(null!);
@@ -93,6 +95,7 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
   const yaw = useRef(0); // 정면에서 좌우로 돌린 각도 (+ 가 왼쪽)
   const pitch = useRef(0); // 위(+)·아래(-)로 기울인 각도
   const keys = useRef(new Set<string>());
+  const recenter = useRef<{ yaw: number; pitch: number; t: number } | null>(null); // 정면으로 돌아오는 중이면 시작 각도와 진행(0~1)
   const pausedRef = useRef(paused);
   useEffect(() => {
     pausedRef.current = paused;
@@ -120,6 +123,7 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
     };
     const move = (e: PointerEvent) => {
       if (!dragging) return;
+      recenter.current = null; // 끌어서 둘러보면 정면으로 돌아오기를 멈춤
       yaw.current = MathUtils.clamp(yaw.current + e.movementX * LOOK_SPEED, -LOOK_LIMIT, LOOK_LIMIT);
       pitch.current = MathUtils.clamp(pitch.current + e.movementY * LOOK_SPEED, -PITCH_DOWN, PITCH_UP);
     };
@@ -146,6 +150,14 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
     const pressed = keys.current;
     const down = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // 정면 보기 (#112): 지금 각도에서 정면까지 RECENTER_SEC 동안 천천히 돌립니다(아래 프레임).
+      if (e.code === getKeymap().recenter && !e.repeat && !pausedRef.current && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault(); // Space 로 페이지가 스크롤되지 않게
+        // 방금 누른 버튼(공부 시작 등)에 포커스가 남아 있으면 Space 가 그 버튼을 다시 누르므로 포커스를 뺍니다.
+        if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
+        recenter.current = { yaw: yaw.current, pitch: pitch.current, t: 0 };
+        return;
+      }
       pressed.add(e.code);
     };
     const up = (e: KeyboardEvent) => pressed.delete(e.code);
@@ -166,8 +178,18 @@ function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => vo
       const dt = Math.min(delta, 0.05);
       const turn = +(k.has("KeyA") || k.has("ArrowLeft")) - +(k.has("KeyD") || k.has("ArrowRight")); // 왼쪽 +
       const tilt = +(k.has("KeyW") || k.has("ArrowUp")) - +(k.has("KeyS") || k.has("ArrowDown")); // 위 +
+      if (turn || tilt) recenter.current = null; // 키로 둘러보면 정면으로 돌아오기를 멈춤
       yaw.current = MathUtils.clamp(yaw.current + turn * KEY_LOOK_SPEED * dt, -LOOK_LIMIT, LOOK_LIMIT);
       pitch.current = MathUtils.clamp(pitch.current + tilt * KEY_LOOK_SPEED * dt, -PITCH_DOWN, PITCH_UP);
+      // 정면으로 돌아오는 중: 처음과 끝은 천천히, 가운데는 빠르게(ease-in-out)
+      const r = recenter.current;
+      if (r) {
+        r.t = Math.min(1, r.t + dt / RECENTER_SEC);
+        const left = 1 - (r.t < 0.5 ? 2 * r.t * r.t : 1 - (-2 * r.t + 2) ** 2 / 2);
+        yaw.current = r.yaw * left;
+        pitch.current = r.pitch * left;
+        if (r.t === 1) recenter.current = null;
+      }
     }
     // 바라볼 방향 = 좌석 정면에서 좌우(yaw)로 돌리고 위아래(pitch)로 기울인 방향.
     // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
@@ -405,12 +427,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const seatSpot = spots.find((c) => c.no === seat);
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
-  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) };
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) };
   const viewHint =
     view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
   const walkHint =
     seat !== null
-      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.interact} 일어나기`
+      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
         ? `출입문 · ${K.interact} 로비로 나가기`
       : isCafe

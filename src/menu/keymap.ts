@@ -5,13 +5,14 @@
 // 화면들은 누른 순간 getKeymap() 으로 지금 키를 읽고, 키 표시(키캡·안내 문구)는 useKeymap() 으로 바뀌면 다시 그립니다.
 import { useSyncExternalStore } from 'react'
 
-export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact'
+export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'recenter'
 export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
 export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'interact', label: '앉기·입장·일어나기' },
   { action: 'view', label: '시점 바꾸기 (1인칭·위에서)' },
+  { action: 'recenter', label: '정면 보기 (앉았을 때)' },
   { action: 'emoteWheel', label: '감정표현 바퀴' },
   { action: 'records', label: '내 기록' },
   { action: 'friends', label: '친구' },
@@ -24,6 +25,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
 export const DEFAULT_KEYMAP: Keymap = {
   interact: 'KeyE',
   view: 'KeyV',
+  recenter: 'Space', // 앉아서 둘러본 시점을 책상 정면으로 되돌림 (#112)
   emoteWheel: 'KeyX',
   records: 'KeyR',
   friends: 'KeyF',
@@ -37,7 +39,7 @@ export const DEFAULT_KEYMAP: Keymap = {
 const RESERVED = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight',
-  'Enter', 'NumpadEnter', 'Escape', 'Tab', 'Space', 'Backspace', 'CapsLock',
+  'Enter', 'NumpadEnter', 'Escape', 'Tab', 'Backspace', 'CapsLock',
   'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8',
 ])
 export const isReserved = (code: string) => RESERVED.has(code)
