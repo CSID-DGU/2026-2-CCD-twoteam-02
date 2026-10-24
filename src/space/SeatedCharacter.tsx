@@ -30,10 +30,13 @@ type Props = {
 
 export function SeatedCharacter({ spot, model, head, eyes = false, arms }: Props) {
   const ref = useRef<Group>(null!)
+  // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
+  // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
+  const animRoot = useRef<Group>(null!)
   const { scene, animations } = useGLTF(`/models/character-${model}.glb`)
   // 같은 모델을 여러 자리에 둘 수 있도록 복사본을 씁니다.
   const copy = useMemo(() => scene.clone(true), [scene])
-  const { actions } = useAnimations(animations, ref)
+  const { actions } = useAnimations(animations, animRoot)
   // 이 캐릭터만 쓰는 재질. 눈을 감아도 같은 모델의 다른 캐릭터는 그대로입니다. (#113)
   const skin = useEyeSkin(copy, model)
 
@@ -56,7 +59,9 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms }: Props
 
   return (
     <group ref={ref} position={[spot.x, 0, spot.z]} rotation={[0, spot.rot, 0]}>
-      <primitive object={copy} scale={SCALE} />
+      <group ref={animRoot} key={model}>
+        <primitive object={copy} scale={SCALE} />
+      </group>
     </group>
   )
 }
