@@ -56,6 +56,9 @@ type Props = {
 
 export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef }: Props) {
   const ref = useRef<Group>(null!)
+  // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
+  // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
+  const animRoot = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
   const anim = useRef('idle')
@@ -68,7 +71,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const model = useMemo(() => scene.clone(true), [scene])
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
-  const { actions } = useAnimations(clips, ref)
+  const { actions } = useAnimations(clips, animRoot)
 
   useEffect(() => {
     holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
@@ -265,7 +268,9 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
 
   return (
     <group ref={ref} position={[spawn.x, 0, spawn.z]} rotation={[0, spawnHeading, 0]}>
-      <primitive object={model} scale={SCALE} />
+      <group ref={animRoot} key={character}>
+        <primitive object={model} scale={SCALE} />
+      </group>
     </group>
   )
 }

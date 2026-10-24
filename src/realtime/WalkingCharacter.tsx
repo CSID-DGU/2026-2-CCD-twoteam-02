@@ -45,6 +45,9 @@ type Props = {
 export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: Props) {
   const ref = useRef<Group>(null!) // 위치만 옮기는 묶음
   const body = useRef<Group>(null!) // 몸 방향만 돌리는 묶음
+  // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
+  // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
+  const animRoot = useRef<Group>(null!)
   const gait = useRef<Gait>('idle')
   const buf = useRef<Sample[]>([]) // 받은 위치들. 여기서 과거를 꺼내 재생합니다.
   const placed = useRef(false) // 처음 한 번은 받은 위치에 바로 놓습니다.
@@ -53,7 +56,7 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   const copy = useMemo(() => scene.clone(true), [scene])
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
-  const { actions } = useAnimations(clips, ref)
+  const { actions } = useAnimations(clips, animRoot)
   const emoteClip = useRef<string | null>(null) // 지금 재생 중인 감정표현 동작
   const emoteUntil = useRef(0)
   const emoteStarted = useRef(0) // 마지막으로 재생을 시작한 감정표현 번호 (같은 번호는 다시 시작하지 않음)
@@ -61,6 +64,9 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   useEffect(() => {
     holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
     actions.idle?.play()
+    // 캐릭터가 바뀌어 동작을 새로 만들었으면 서 있는 상태부터 다시 맞춥니다. 걷는 중이면 다음 프레임에 걷기로 바뀝니다. (#259)
+    gait.current = 'idle'
+    emoteClip.current = null
   }, [actions])
 
   // 새 위치가 올 때마다 받은 시각과 함께 쌓아 둡니다.
@@ -137,7 +143,9 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   return (
     <group ref={ref}>
       <group ref={body}>
-        <primitive object={copy} scale={SCALE} />
+        <group ref={animRoot} key={model}>
+          <primitive object={copy} scale={SCALE} />
+        </group>
       </group>
       {children}
     </group>
