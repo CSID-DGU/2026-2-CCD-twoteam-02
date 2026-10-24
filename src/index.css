@@ -50,12 +50,11 @@
   }
 }
 
+/* 앱 전체 상자: 화면 전체 폭. (Vite 기본 예제의 1126px 가운데 정렬·양옆 테두리를 지움.
+   로비·지점 3D 화면이 넓은 창에서 왼쪽으로 비고 오른쪽이 잘리던 문제, #256) */
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
