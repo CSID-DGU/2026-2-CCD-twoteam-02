@@ -57,10 +57,9 @@ export function stepSegments(state: SegmentState, input: SegmentInput): SegmentS
   let { open, holdSince, holdKind, done } = state
   const grew = studyMs > state.lastStudyMs
 
-  // 판정이 오래 멈췄다 옴: 멈추기 전까지만 닫고 사이는 빈칸. 노란불이었으면 그 시간은 타이머에 들어가지 않았으므로 빨강입니다.
+  // 판정이 오래 멈췄다 옴: 멈추기 전까지만 닫고 사이는 빈칸. 결과가 안 정해진 노란불도 빈칸입니다(endSegments 와 같은 이유).
   if (now - state.lastNow > GAP_MS) {
     if (open) done = close(done, open.kind, open.startedAt, state.lastNow)
-    if (holdSince !== null) done = close(done, holdKind, holdSince, state.lastNow)
     open = null
     holdSince = null
   }
@@ -104,10 +103,9 @@ export function takeSegments(state: SegmentState, now: number): { rows: Segment[
   return { rows, next: { ...state, open, done: [] } }
 }
 
-// 공부를 끝낼 때(일어나기, 과목 바꾸기, 창 닫기): 노란불인 채로 끝나면 보류 시간은 타이머에 들어가지 않으므로 빨강으로 닫습니다.
+// 공부를 끝낼 때(일어나기, 과목 바꾸기, 창 닫기): 지금까지의 구간을 닫습니다.
+// 노란불인 채로 끝나면 그 시간은 결과가 정해지지 않았으므로 빈칸으로 둡니다. 타이머에도 안 들어가 초록 합계는 그대로 맞습니다.
+// (빨강으로 닫으면 일어나는 순간 눈을 한 번 깜빡여도 "졸음 0.3초"가 남았습니다, 2026-10-26)
 export function endSegments(state: SegmentState, now: number): Segment[] {
-  let done = state.done
-  if (state.open) done = close(done, state.open.kind, state.open.startedAt, now)
-  if (state.holdSince !== null) done = close(done, state.holdKind, state.holdSince, now)
-  return done
+  return state.open ? close(state.done, state.open.kind, state.open.startedAt, now) : state.done
 }
