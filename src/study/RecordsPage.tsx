@@ -12,6 +12,9 @@ import {
 } from './recordsLogic'
 import type { Period } from './recordsLogic'
 import { ColumnChart, SubjectBars } from './RecordCharts'
+import { useStudySegments } from './useStudySegments'
+import { toCells, toRuns } from './bandLogic'
+import { DayBand, RunDetail } from './DayBand'
 
 const TABS: { key: Period; label: string }[] = [
   { key: 'day', label: '일' },
@@ -27,9 +30,13 @@ export function RecordsView() {
   const [anchor, setAnchor] = useState(() => new Date()) // 보고 있는 날짜
   const [subjectId, setSubjectId] = useState<number | null>(null) // null 이면 전체
   const [showTable, setShowTable] = useState(false)
+  const [openedRun, setOpenedRun] = useState<number | null>(null) // 공부 흐름에서 고른 공부(시작 시각). 고르면 그 공부만의 화면
 
   const { start, end } = periodRange(period, anchor)
   const { rows, error } = useStudyLogs(start, end)
+  const flow = useStudySegments(start, end, period === 'day') // 하루 띠 (#235): 일 탭에서만 읽음
+  const cells = flow.rows ? toCells(flow.rows, start.getTime(), end.getTime()) : []
+  const opened = period === 'day' ? toRuns(cells).find((r) => r.startedAt === openedRun) : undefined
   const isFuture = shiftAnchor(period, anchor, 1) > new Date() // 다음 구간이 미래면 ▶ 를 막습니다.
 
   const nameOf = (id: number) => subjects.find((s) => s.id === id)?.name ?? '(알 수 없는 과목)'
@@ -44,6 +51,11 @@ export function RecordsView() {
       : period === 'month'
         ? byDayOfMonth(filtered, anchor).map((s, i) => ({ label: `${month}월 ${i + 1}일`, seconds: s }))
         : byMonthOfYear(filtered).map((s, i) => ({ label: `${i + 1}월`, seconds: s }))
+
+  // 공부 하나를 고르면 탭·날짜·합계 없이 그 공부만 보여 줍니다.
+  if (opened) {
+    return <RunDetail run={opened} subject={nameOf(opened.subjectId)} onBack={() => setOpenedRun(null)} />
+  }
 
   return (
     <div style={styles.body}>
@@ -127,6 +139,22 @@ export function RecordsView() {
           </table>
         )}
       </section>
+
+      {/* 공부 흐름 (#235): 그날 공부를 켜 둔 시간을 초록(집중)·빨강(타이머가 멈춘 시간)으로. 본인만 봅니다. */}
+      {period === 'day' && (cells.length > 0 || total > 0) && (
+        <section style={styles.card}>
+          <div style={styles.totalLabel}>공부 흐름</div>
+          {flow.error ? (
+            <p style={styles.error}>{flow.error}</p>
+          ) : flow.rows === null ? (
+            <p style={styles.muted}>불러오는 중…</p>
+          ) : cells.length === 0 ? (
+            <p style={styles.muted}>공부 흐름은 이 기능을 넣은 뒤의 기록부터 보여요.</p>
+          ) : (
+            <DayBand cells={cells} nameOf={nameOf} dayStart={start.getTime()} onOpen={setOpenedRun} />
+          )}
+        </section>
+      )}
     </div>
   )
 }
@@ -151,7 +179,7 @@ const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: '#16181d', color: '#fff', font: '14px/1.6 system-ui, sans-serif' },
   container: { maxWidth: 720, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  title: { margin: 0, fontSize: 22 },
+  title: { margin: 0, fontSize: 22, color: '#fff' }, // 전역 h1 색(index.css)이 라이트 모드에서 검정이라 직접 지정
   link: { color: '#fff', padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,.08)', cursor: 'pointer', font: 'inherit' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   tabs: { display: 'flex', gap: 4, padding: 3, borderRadius: 8, background: '#20232a' },
