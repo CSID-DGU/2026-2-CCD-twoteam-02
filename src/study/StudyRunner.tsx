@@ -1,4 +1,5 @@
 // 공부 중: 집중 타이머를 돌리고, 공부 기록을 조각으로 나눠 저장합니다.
+// 같은 때에 상태 구간(내 기록의 하루 띠, #235)도 모아 study_segments 에 저장합니다.
 // 이 컴포넌트가 화면에 있는 동안이 "공부 중"입니다. 일어나거나 과목을 바꾸면 사라지면서 남은 조각을 저장합니다.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
@@ -9,6 +10,8 @@ import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
+import { endSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
+import type { Segment, SegmentState } from './segmentLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
@@ -54,6 +57,17 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
     onStatus(hold ? 'hold' : focus.status)
   }, [focus.status, hold, onStatus])
 
+  // 판정이 새로 나올 때마다(0.1초) 상태 구간을 이어 갑니다. (저장은 아래 5분 저장과 같이)
+  // 값이 바뀔 때만 부르면 안 됩니다. 빨간불 동안은 값이 그대로라 불리지 않고, 돌아왔을 때 컴퓨터가 잠든 것으로 보여
+  // 빨강이 빈칸이 되고 띠가 끊겼습니다(2026-10-26). focus 는 판정마다 새 객체라 매번 불립니다.
+  const segments = useRef<SegmentState | null>(null)
+  useEffect(() => {
+    if (!segments.current) return
+    segments.current = stepSegments(segments.current, {
+      now: Date.now(), status: focus.status, studyMs: focus.studyMs, pendingMs: focus.pendingMs, hold,
+    })
+  }, [focus, hold])
+
   useEffect(() => {
     let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
     const base = {
@@ -79,20 +93,52 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
       console.error('공부 기록을 저장하지 못했습니다:', error.message)
       setSaveError('기록 저장 실패')
     }
+    // 상태 구간은 여러 줄을 한 번에 보냅니다. 실패해도 공부 시간(study_logs)은 따로 저장됩니다.
+    const saveSegments = async (rows: Segment[]) => {
+      if (rows.length === 0) return
+      const { error } = await supabase.from('study_segments').insert(
+        rows.map((r) => ({
+          user_id: userId,
+          session_id: sessionId,
+          subject_id: choice.subject.id,
+          kind: r.kind,
+          started_at: new Date(r.startedAt).toISOString(),
+          ended_at: new Date(r.endedAt).toISOString(),
+        })),
+      )
+      if (error) console.error('상태 구간을 저장하지 못했습니다:', error.message)
+    }
     // 지금까지의 구간을 잘라 저장합니다.
     const flush = () => {
-      const { row, next } = takeChunk(chunk, studyMs.current, Date.now())
+      const now = Date.now()
+      const { row, next } = takeChunk(chunk, studyMs.current, now)
       chunk = next
       if (row) void save(row)
+      if (segments.current) {
+        const taken = takeSegments(segments.current, now)
+        segments.current = taken.next
+        void saveSegments(taken.rows)
+      }
     }
+    // 창을 닫을 때·공부를 끝낼 때: 노란불인 채로 끝나면 그 시간은 타이머에 안 들어가므로 빨강으로 닫아 보냅니다.
+    const finish = () => {
+      flush()
+      if (!segments.current) return
+      const now = Date.now()
+      void saveSegments(endSegments(segments.current, now))
+      segments.current = startSegments(now, studyMs.current) // 창이 실제로 닫히지 않으면(뒤로 가기 캐시 등) 이어서 모읍니다.
+    }
+
+    segments.current = startSegments(Date.now(), studyMs.current)
 
     const timer = setInterval(flush, SAVE_INTERVAL_MS)
     // 탭을 닫을 때도 남은 조각을 보내 봅니다. 브라우저가 요청을 끊으면 이 조각(최대 5분)만 잃습니다.
-    window.addEventListener('pagehide', flush)
+    window.addEventListener('pagehide', finish)
     return () => {
       clearInterval(timer)
-      window.removeEventListener('pagehide', flush)
-      flush() // 일어나기, 과목 바꾸기, 지점 나가기
+      window.removeEventListener('pagehide', finish)
+      finish() // 일어나기, 과목 바꾸기, 지점 나가기
+      segments.current = null
     }
   }, [userId, sessionId, choice, condition])
 
