@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Billboard, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
-import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
-import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
+import { Canvas, useThree } from "@react-three/fiber";
+import { Billboard, OrthographicCamera } from "@react-three/drei";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
 import { CHAIR, KIOSK, SEAT, meetingDoor, meetingDoorFront, meetingRoomWalls, obstaclesOf, spotsOf } from "./layout";
-import type { BranchLayout, Spot } from "./layout";
+import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
+import { SeatCamera } from "./SeatCamera";
+import { MeetingDialog } from "../meeting/MeetingDialog";
 import KioskScreen from "../kiosk/KioskScreen";
 import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (#38), 영수증 모양 (#39)
 import type { Perf } from "./PerfReadout";
@@ -52,7 +52,6 @@ const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
 const MEETING_TABLE = { radius: 1.2, height: 0.74 }; // 회의실 원형 테이블 (장식. 의자는 회의 화면에서 인원수만큼 놓음, #45)
-const MEETING_SOON = "회의실은 준비 중이에요. 곧 열려요."; // 회의 목록·만들기 창이 생기기 전 안내 (#45)
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
 function TopDownCamera({ area }: { area: { w: number; d: number } }) {
@@ -67,156 +66,6 @@ function TopDownCamera({ area }: { area: { w: number; d: number } }) {
       position={[0, 20, 0]}
       rotation={[-Math.PI / 2, 0, 0]}
       zoom={zoom}
-    />
-  );
-}
-
-const EYE_HEIGHT = 1.1; // 앉았을 때 눈높이
-const SEAT_FOV = 60; // 1인칭 화면의 세로 시야각
-const TRANSITION = 0.8; // 2D → 3D 전환 시간(초). 목표는 1초 이내입니다.
-const START_HEIGHT = 7; // 전환을 시작하는 카메라 높이
-const START_BACK = 3; // 전환을 시작할 때 자리 뒤로 물러난 거리
-const SEAT_HEIGHT = 0.74; // 책상 높이
-const LOOK_LIMIT = Math.PI / 3; // 좌우로 60도씩, 합쳐서 120도까지 둘러볼 수 있습니다.
-const PITCH_UP = MathUtils.degToRad(15); // 앉아서 위로 볼 수 있는 각도
-const PITCH_DOWN = MathUtils.degToRad(30); // 아래로 볼 수 있는 각도 (책상을 내려다보기 좋게 더 넓게)
-const LOOK_SPEED = 0.005; // 마우스를 1픽셀 끌 때 도는 각도(라디안)
-const KEY_LOOK_SPEED = 1.2; // WASD·방향키로 둘러볼 때 도는 빠르기(초당 라디안)
-const LOOK_FOLLOW = 20; // 시점이 마우스를 따라가는 빠르기
-const RECENTER_SEC = 0.9; // 정면 보기(Space)로 책상 정면까지 돌아오는 시간(초). 천천히 돌아오게 (#112)
-const UP = new Vector3(0, 1, 0);
-
-// 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
-// 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
-// WASD·방향키나 마우스 끌기로 좌우 120도, 위 15도·아래 30도 범위에서 둘러봅니다. (#73)
-// Space(설정에서 바꿈)를 누르면 RECENTER_SEC 동안 천천히 책상 정면으로 돌아옵니다. 그사이 둘러보면 멈춥니다. (#112)
-// 앉아 있을 때는 몸이 움직이지 않으니 WASD 를 시점에 씁니다. 마우스는 잠그지 않습니다(타이머 버튼 등을 눌러야 해서).
-function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: () => void; paused: boolean }) {
-  const cam = useRef<PerspectiveCameraImpl>(null!);
-  const progress = useRef(0); // 0(시작) → 1(전환 끝)
-  const yaw = useRef(0); // 정면에서 좌우로 돌린 각도 (+ 가 왼쪽)
-  const pitch = useRef(0); // 위(+)·아래(-)로 기울인 각도
-  const keys = useRef(new Set<string>());
-  const recenter = useRef<{ yaw: number; pitch: number; t: number } | null>(null); // 정면으로 돌아오는 중이면 시작 각도와 진행(0~1)
-  const pausedRef = useRef(paused);
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-  const canvas = useThree((s) => s.gl.domElement);
-  const pose = useMemo(() => {
-    const fx = Math.sin(spot.rot), fz = Math.cos(spot.rot); // 책상 쪽 방향
-    const endPos = new Vector3(spot.x, EYE_HEIGHT, spot.z);
-    const startPos = new Vector3(spot.x - fx * START_BACK, START_HEIGHT, spot.z - fz * START_BACK);
-    const desk = new Vector3(spot.x + fx, SEAT_HEIGHT, spot.z + fz);
-    const startQuat = new Quaternion().setFromRotationMatrix(
-      new Matrix4().lookAt(startPos, desk, UP)
-    );
-    // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
-    return { startPos, startQuat, endPos, target: new Quaternion(), euler: new Euler(0, 0, 0, "YXZ") };
-  }, [spot]);
-
-  // 화면을 끌면 끄는 쪽으로 장면이 따라오도록 시점을 돌립니다.
-  useEffect(() => {
-    let dragging = false;
-    const down = (e: PointerEvent) => {
-      dragging = true;
-      canvas.setPointerCapture(e.pointerId); // 화면 밖으로 나가도 끌기가 이어지게
-      canvas.style.setProperty("cursor", "grabbing");
-    };
-    const move = (e: PointerEvent) => {
-      if (!dragging) return;
-      recenter.current = null; // 끌어서 둘러보면 정면으로 돌아오기를 멈춤
-      yaw.current = MathUtils.clamp(yaw.current + e.movementX * LOOK_SPEED, -LOOK_LIMIT, LOOK_LIMIT);
-      pitch.current = MathUtils.clamp(pitch.current + e.movementY * LOOK_SPEED, -PITCH_DOWN, PITCH_UP);
-    };
-    const up = () => {
-      dragging = false;
-      canvas.style.setProperty("cursor", "grab");
-    };
-    canvas.style.setProperty("cursor", "grab");
-    canvas.addEventListener("pointerdown", down);
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", up);
-    return () => {
-      canvas.style.setProperty("cursor", "");
-      canvas.removeEventListener("pointerdown", down);
-      canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", up);
-      canvas.removeEventListener("pointercancel", up);
-    };
-  }, [canvas]);
-
-  // WASD·방향키로 둘러보기. 글자를 입력하는 중이면 무시하고, 창이 떠 있으면 돌지 않습니다.
-  useEffect(() => {
-    const pressed = keys.current;
-    const down = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      // 정면 보기 (#112): 지금 각도에서 정면까지 RECENTER_SEC 동안 천천히 돌립니다(아래 프레임).
-      if (e.code === getKeymap().recenter && !e.repeat && !pausedRef.current && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault(); // Space 로 페이지가 스크롤되지 않게
-        // 방금 누른 버튼(공부 시작 등)에 포커스가 남아 있으면 Space 가 그 버튼을 다시 누르므로 포커스를 뺍니다.
-        if (document.activeElement instanceof HTMLButtonElement) document.activeElement.blur();
-        recenter.current = { yaw: yaw.current, pitch: pitch.current, t: 0 };
-        return;
-      }
-      pressed.add(e.code);
-    };
-    const up = (e: KeyboardEvent) => pressed.delete(e.code);
-    const clear = () => pressed.clear();
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    window.addEventListener("blur", clear);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      window.removeEventListener("blur", clear);
-    };
-  }, []);
-
-  useFrame((_, delta) => {
-    const k = keys.current;
-    if (!pausedRef.current) {
-      const dt = Math.min(delta, 0.05);
-      const turn = +(k.has("KeyA") || k.has("ArrowLeft")) - +(k.has("KeyD") || k.has("ArrowRight")); // 왼쪽 +
-      const tilt = +(k.has("KeyW") || k.has("ArrowUp")) - +(k.has("KeyS") || k.has("ArrowDown")); // 위 +
-      if (turn || tilt) recenter.current = null; // 키로 둘러보면 정면으로 돌아오기를 멈춤
-      yaw.current = MathUtils.clamp(yaw.current + turn * KEY_LOOK_SPEED * dt, -LOOK_LIMIT, LOOK_LIMIT);
-      pitch.current = MathUtils.clamp(pitch.current + tilt * KEY_LOOK_SPEED * dt, -PITCH_DOWN, PITCH_UP);
-      // 정면으로 돌아오는 중: 처음과 끝은 천천히, 가운데는 빠르게(ease-in-out)
-      const r = recenter.current;
-      if (r) {
-        r.t = Math.min(1, r.t + dt / RECENTER_SEC);
-        const left = 1 - (r.t < 0.5 ? 2 * r.t * r.t : 1 - (-2 * r.t + 2) ** 2 / 2);
-        yaw.current = r.yaw * left;
-        pitch.current = r.pitch * left;
-        if (r.t === 1) recenter.current = null;
-      }
-    }
-    // 바라볼 방향 = 좌석 정면에서 좌우(yaw)로 돌리고 위아래(pitch)로 기울인 방향.
-    // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
-    pose.euler.set(pitch.current, spot.rot + Math.PI + yaw.current, 0);
-    pose.target.setFromEuler(pose.euler);
-
-    if (progress.current < 1) {
-      progress.current = Math.min(1, progress.current + delta / TRANSITION);
-      if (progress.current === 1) onArrive(); // 전환이 끝난 순간을 알립니다. (측정용)
-      const k = 1 - (1 - progress.current) ** 3; // 처음엔 빠르게, 끝에서 천천히
-      cam.current.position.lerpVectors(pose.startPos, pose.endPos, k);
-      cam.current.quaternion.slerpQuaternions(pose.startQuat, pose.target, k);
-    } else {
-      cam.current.quaternion.slerp(pose.target, 1 - Math.exp(-LOOK_FOLLOW * delta));
-    }
-  });
-
-  return (
-    <PerspectiveCamera
-      ref={cam}
-      makeDefault
-      fov={SEAT_FOV}
-      near={0.05}
-      position={pose.startPos}
-      quaternion={pose.startQuat}
     />
   );
 }
@@ -255,14 +104,17 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
   const [nearMeeting, setNearMeeting] = useState(false); // 회의실 문 앞인지 (#45)
+  const [meetingOpen, setMeetingOpen] = useState(false); // 회의 목록·만들기 창이 떠 있는지 (#45)
   const meetingFront = useMemo(() => (branch.meetingRoom ? meetingDoorFront(branch.meetingRoom) : undefined), [branch]);
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
-  const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
   // 문을 지나 왔으면 그때 보던 방향 그대로 섭니다(#150). 주소로 바로 들어오면 입구에서 안쪽(-Z)을 봅니다.
+  // 회의에서 나왔으면 출입문 대신 회의실 문 앞에 섭니다(#45).
   const location = useLocation();
   const navigate = useNavigate();
   const [arrival] = useState(() => passageOf(location.state).heading ?? Math.PI);
+  const [startAt] = useState(() => (passageOf(location.state).at === "meeting" && meetingFront) || branch.spawn);
+  const pos = useRef({ x: startAt.x, z: startAt.z }); // 1인칭 카메라가 따라갈 내 위치
   const heading = useRef(arrival); // 1인칭에서 바라보는 방향
   const bodyHeading = useRef(arrival); // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 나갈 때 로비로 넘깁니다.
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
@@ -336,7 +188,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 앉기 전에 DB에 자리를 잡아 봅니다(sit_cafe_seat, 0014). 두 사람이 동시에 눌러도 DB가 한 명만 통과시킵니다.
   // 잡히면 Player 에게 앉으라고 알리고(sitRequest), 실패하면 안내를 띄웁니다.
   const sitRequest = useRef<number | null>(null);
-  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음, 회의실 준비 중 등)
+  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
   const [conflict, setConflict] = useState<{ message: string; seatNo: number } | null>(null); // 다른 자리를 쓰는 중
   const claimSeat = async (no: number) => {
     const { error } = await supabase.rpc("sit_cafe_seat", { p_branch_id: BRANCH_ID, p_seat_number: no });
@@ -406,13 +258,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().view || e.repeat || kioskOpen || panelOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
+      if (e.code !== getKeymap().view || e.repeat || kioskOpen || panelOpen || meetingOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, panelOpen, setView]);
+  }, [kioskOpen, panelOpen, meetingOpen, setView]);
 
   // 로비로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 로비 문 앞에 섭니다(#150).
   const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
@@ -423,7 +275,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     myId: session?.user.id ?? null,
     panel,
     setPanel,
-    disabled: kioskOpen || conflict !== null || studyDialogOpen,
+    disabled: kioskOpen || conflict !== null || studyDialogOpen || meetingOpen,
     onLobby: seat === null ? goLobby : undefined, // 앉아 있을 때는 L 로 나가지 않음 (공부 중 실수 방지)
     onTracking: seat === null ? goTracking : undefined, // T 도 같은 이유로 서 있을 때만
   });
@@ -456,7 +308,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict || meetingOpen ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -472,7 +324,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <WalkCamera
           posRef={pos}
           headingRef={heading}
-          paused={kioskOpen || panelOpen || conflict !== null}
+          paused={kioskOpen || panelOpen || conflict !== null || meetingOpen}
           onLockChange={setLocked}
           emoteRef={emote}
           suspendLookRef={suspendLook}
@@ -601,12 +453,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <Player
           model={myModel}
           obstacles={obstacles}
-          spawn={branch.spawn}
+          spawn={startAt}
           spawnHeading={arrival}
           emoteRef={emote}
           spots={freeSpots}
           kiosk={branch.kiosk ?? NO_KIOSK}
-          frozen={kioskOpen || panelOpen || conflict !== null || (seat !== null && studyDialogOpen)}
+          frozen={kioskOpen || panelOpen || conflict !== null || meetingOpen || (seat !== null && studyDialogOpen)}
           onNear={setNear}
           onSeat={handleSeat}
           onNearKiosk={setNearKiosk}
@@ -615,7 +467,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onExit={goLobby}
           meeting={meetingFront}
           onNearMeeting={setNearMeeting}
-          onMeeting={() => setCafeMessage(MEETING_SOON)}
+          onMeeting={() => setMeetingOpen(true)}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
@@ -674,7 +526,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     <EmoteControls
       emoteRef={emote}
       suspendLookRef={suspendLook}
-      disabled={kioskOpen || panelOpen || conflict !== null || seat !== null}
+      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || seat !== null}
     />
     {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={goLobby} onTracking={goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
@@ -691,6 +543,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           </div>
         </div>
       </div>
+    )}
+    {meetingOpen && (
+      // 회의 목록·만들기 (#45). 들어가면 회의 화면으로 옮깁니다(지점 화면은 닫히고 내 캐릭터도 지점에서 사라짐).
+      <MeetingDialog
+        branchId={BRANCH_ID}
+        onClose={() => setMeetingOpen(false)}
+        onEnter={(id) => navigate(`/meeting/${id}?branch=${branch.id}`)}
+      />
     )}
     {kioskOpen && (
       <KioskScreen

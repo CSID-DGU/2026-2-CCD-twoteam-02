@@ -5,15 +5,20 @@
 // 위치처럼 계속 보내지 않고, 들어올 때와 있는 곳이 바뀔 때만 상태가 바뀝니다(Presence).
 // 탭을 닫거나 접속이 끊기면 서버가 자동으로 지웁니다.
 import { BRANCH_LAYOUTS } from '../space/branches'
+import { MEETING_PLACE_PREFIX } from '../meeting/meetingLogic'
 
 export const ONLINE_CHANNEL = 'online'
 
-// 지금 있는 곳: 'lobby', 지점 slug('byeol' 등), 그 밖의 화면(기록·친구·프로필 페이지 등)
+// 지금 있는 곳: 'lobby', 지점 slug('byeol' 등), 회의 중('meeting:byeol', #45), 그 밖의 화면(기록·친구·프로필 페이지 등)
 export const LOBBY_PLACE = 'lobby'
 export const ELSEWHERE = 'elsewhere'
 
 // 있는 곳을 사람이 읽는 이름으로
 export function placeLabel(place: string): string {
   if (place === LOBBY_PLACE) return '로비'
+  if (place.startsWith(MEETING_PLACE_PREFIX)) {
+    const name = BRANCH_LAYOUTS[place.slice(MEETING_PLACE_PREFIX.length)]?.name
+    return name ? `${name} 회의 중` : '회의 중'
+  }
   return BRANCH_LAYOUTS[place]?.name ?? '활동 중'
 }

@@ -5,6 +5,7 @@ import { OnlineProvider } from './realtime/OnlineProvider'
 import { ChatProvider } from './chat/ChatProvider'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
+import { MeetingScene } from './meeting/MeetingScene' // 회의 화면 (#45)
 import LoginPage from './auth/LoginPage'
 import SignupPage from './auth/SignupPage'
 import RequireAuth from './auth/RequireAuth'
@@ -92,6 +93,14 @@ function AppRoutes() {
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}><BranchScene /></div>
             {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로비로·트래킹 검증·로그아웃)는 BranchScene 이 그립니다. (#70, #208) */}
+          </Protected>
+        }
+      />
+      <Route
+        path="/meeting/:id"
+        element={
+          <Protected>
+            <div style={{ width: '100vw', height: '100vh' }}><MeetingScene /></div>
           </Protected>
         }
       />
