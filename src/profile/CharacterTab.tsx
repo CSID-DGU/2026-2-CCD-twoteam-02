@@ -1,23 +1,24 @@
-// 내 프로필의 "캐릭터" 탭. 18종 중 하나를 골라 저장합니다. (#131)
+// 내 프로필의 "캐릭터" 탭. 머리·상의·하의·피부색을 골라 저장합니다. (#131, 캐릭터 꾸미기 #56)
 //
 // 저장하면 profiles.avatar 를 고칩니다. 본인 행만 고칠 수 있게 RLS 가 막고 있고(0004),
-// 고를 수 있는 값(a~r)은 DB 제약이 한 번 더 확인합니다(0015).
+// 값의 모양은 DB 제약이 한 번 더 확인합니다(0024).
 // 지점 안에서 바꾸면 같은 지점 사람들 화면에도 바로 바뀝니다(useParticipants 의 PROFILE_EVENT).
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CHARACTER_MODELS } from './characters'
 import { CharacterPicker } from './CharacterPicker'
+import { avatarKey } from '../avatar/avatarLogic'
+import type { Avatar } from '../avatar/avatarLogic'
 import { useMyAvatar } from './useMyAvatar'
 
 export function CharacterTab() {
-  const { model: saved, save } = useMyAvatar()
-  // 아직 고르지 않았으면 null. 그동안에는 저장된 캐릭터를 보여 줍니다.
-  const [draft, setDraft] = useState<string | null>(null)
+  const { avatar: saved, save } = useMyAvatar()
+  // 아직 고르지 않았으면 null. 그동안에는 저장된 차림을 보여 줍니다.
+  const [draft, setDraft] = useState<Avatar | null>(null)
   const chosen = draft ?? saved
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const changed = chosen !== null && chosen !== saved
+  const changed = chosen !== null && (!saved || avatarKey(chosen) !== avatarKey(saved))
 
   async function submit() {
     if (!chosen || !changed || busy) return
@@ -45,7 +46,7 @@ export function CharacterTab() {
       />
       <div style={styles.row}>
         <span style={styles.hint}>
-          {chosen ? `${CHARACTER_MODELS.indexOf(chosen) + 1}번 캐릭터${changed ? ' (저장 전)' : ''}` : '불러오는 중…'}
+          {chosen ? (changed ? '바꾼 차림이 아직 저장되지 않았어요' : '지금 입고 있는 차림이에요') : '불러오는 중…'}
         </span>
         <button type="button" style={{ ...styles.button, ...(!changed || busy ? styles.disabled : null) }} disabled={!changed || busy} onClick={submit}>
           {busy ? '저장 중…' : '저장'}

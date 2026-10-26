@@ -61,8 +61,9 @@ import { onMyProfileChanged } from '../profile/characters'
 import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
 import type { Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
+import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
-type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
+type AvatarRow = { id: string; nickname: string; avatar: unknown }
 type Profile = { nickname: string; model: string }
 
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45)
@@ -102,7 +103,7 @@ export function useParticipants(
       for (const row of (data ?? []) as AvatarRow[]) {
         profiles.current.set(row.id, {
           nickname: row.nickname,
-          model: row.avatar?.model ?? 'a',
+          model: avatarKey(avatarFromDb(row.avatar)), // 고른 차림 (#56). 예전 {model} 은 기본 차림
         })
       }
     }

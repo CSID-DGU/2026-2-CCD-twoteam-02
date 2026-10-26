@@ -55,7 +55,7 @@ export type ArmVector = [number, number, number]
 // 화면에 그릴 때 쓰는 값. Presence 와 DB 에서 읽은 것을 합친 결과다.
 export type Participant = PresenceState & {
   nickname: string
-  model: string // public/models/character-<model>.glb
+  model: string // 고른 차림(아바타 키, src/avatar/avatarLogic). 모든 캐릭터가 같은 3D 모델에 스킨만 다름 (#56)
 }
 
 // 위치를 0.25초마다 보낸다. 성능 목표가 "다른 참여자 화면 반영 500ms 이하"라 넉넉하다.

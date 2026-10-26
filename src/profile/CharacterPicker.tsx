@@ -1,111 +1,196 @@
-// 캐릭터 고르는 창: 18종을 3D 화면 하나에 6×3으로 세워 두고, 눌러서 고릅니다. (#131)
+// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입, 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
-// 캐릭터마다 3D 화면(Canvas)을 따로 만들지 않는 이유: 18개가 동시에 돌면 무겁고(#137),
-// 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다.
-// 고른 캐릭터는 뒤에 파란 원이 생기고 걷는 동작을 합니다.
-// 창을 열면 18종을 모두 받아 두므로, 저장한 뒤 지점의 내 캐릭터가 바뀔 때 다시 기다리지 않습니다.
-import { useEffect, useMemo, useRef } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
-import { useAnimations, useGLTF } from '@react-three/drei'
-import type { Group, PerspectiveCamera } from 'three'
-import type { ThreeEvent } from '@react-three/fiber'
-import { CHARACTER_MODELS, modelUrl } from './characters'
+// 왼쪽: 지금 고른 차림의 3D 미리보기(천천히 돌고, 끌어서 돌려 볼 수 있음)
+// 오른쪽: 부위 탭, 부품 목록, 색상표. 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
+//   (3D 화면을 부품마다 만들면 무겁고, 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다. #137)
+// 저장은 바깥(CharacterTab)이 합니다.
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, useAnimations, useGLTF } from '@react-three/drei'
+import type { Group } from 'three'
+import { BASE_MODEL_URL } from './characters'
+import { useEyeSkin } from '../tracking/useEyeSkin'
+import { PARTS, SKIN_PRESETS, avatarKey, randomAvatar } from '../avatar/avatarLogic'
+import type { Avatar, Part, Slot } from '../avatar/avatarLogic'
+import { drawPartThumb } from '../avatar/composeSkin'
 
-const COLS = 6
-const GAP_X = 1.3 // 옆 캐릭터와의 간격
-const GAP_Y = 1.8 // 윗줄과의 간격
 const SCALE = 0.6 // 지점과 같은 크기 (키 약 1.6)
-const FOV = 30
-const MARGIN = 1.05 // 화면 가장자리 여백 비율
-const SELECTED_COLOR = '#3b82f6' // 내 자리 표시와 같은 파랑
-const FADE = 0.15
+const THUMB = 56 // 부품 그림 칸 크기(px)
+const COLOR_DELAY_MS = 150 // 색상표를 끄는 동안에는 이 시간만큼 멈췄을 때 미리보기를 바꿈(매번 스킨을 새로 만들지 않게)
+const SELECTED = '#3b82f6'
 
-const ROWS = Math.ceil(CHARACTER_MODELS.length / COLS)
-const GRID_W = COLS * GAP_X
-const GRID_H = ROWS * GAP_Y
+type ColorKey = 'skin' | 'eyeColor' | 'hairColor' | 'topColor' | 'bottomColor' | 'shoesColor'
+type Tab = { key: string; label: string; slots: { slot: Slot; title?: string }[]; color?: { key: ColorKey; label: string } }
+const TABS: Tab[] = [
+  { key: 'skin', label: '피부', slots: [], color: { key: 'skin', label: '피부색' } },
+  { key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' } },
+  { key: 'face', label: '눈썹·입', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }, { slot: 'mouth', title: '입' }] },
+  { key: 'hair', label: '머리', slots: [{ slot: 'hair' }], color: { key: 'hairColor', label: '머리 색' } },
+  { key: 'top', label: '상의', slots: [{ slot: 'top' }], color: { key: 'topColor', label: '상의 색' } },
+  { key: 'bottom', label: '하의', slots: [{ slot: 'bottom' }], color: { key: 'bottomColor', label: '하의 색' } },
+  { key: 'shoes', label: '신발', slots: [{ slot: 'shoes' }], color: { key: 'shoesColor', label: '신발 색' } },
+]
 
 type Props = {
-  value: string | null // 지금 고른 캐릭터 (아직 모르면 null)
-  onChange: (model: string) => void
+  value: Avatar | null // 지금 고른 차림 (아직 모르면 null)
+  onChange: (avatar: Avatar) => void
 }
 
 export function CharacterPicker({ value, onChange }: Props) {
+  const [tabKey, setTabKey] = useState('skin')
+  const tab = TABS.find((t) => t.key === tabKey)!
+  const pick = (patch: Partial<Avatar>) => value && onChange({ ...value, ...patch })
+
   return (
-    <div style={{ height: 340, borderRadius: 10, overflow: 'hidden', background: '#16181d' }}>
-      <Canvas camera={{ fov: FOV, position: [0, 0, 12] }}>
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        <FitCamera />
-        {CHARACTER_MODELS.map((m, i) => (
-          <Slot
-            key={m}
-            model={m}
-            x={((i % COLS) - (COLS - 1) / 2) * GAP_X}
-            // 캐릭터 발이 기준이라 칸 가운데보다 반 칸 아래에 세웁니다.
-            y={(ROWS / 2 - Math.floor(i / COLS) - 1) * GAP_Y + 0.05}
-            selected={m === value}
-            onPick={onChange}
+    <div style={styles.wrap}>
+      <div style={styles.preview}>
+        <Canvas camera={{ fov: 30, position: [0, 1.0, 4.2] }}>
+          <ambientLight intensity={1.5} />
+          <directionalLight position={[3, 5, 4]} intensity={1.5} />
+          {value && <Preview model={avatarKey(value)} />}
+          <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} autoRotate autoRotateSpeed={1.5} />
+        </Canvas>
+      </div>
+      <div style={styles.side}>
+        <div style={styles.tabs} role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tabKey === t.key}
+              style={{ ...styles.tab, ...(tabKey === t.key ? styles.tabOn : null) }}
+              onClick={() => setTabKey(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+          <button type="button" style={styles.tab} onClick={() => onChange(randomAvatar())} disabled={!value} title="무작위로 꾸미기">
+            🎲
+          </button>
+        </div>
+
+        {value && tab.color && (
+          <ColorField
+            // key: 탭을 바꾸면 그 칸의 색으로 새로 시작
+            key={tab.color.key}
+            label={tab.color.label}
+            value={value[tab.color.key]}
+            presets={tab.color.key === 'skin' ? SKIN_PRESETS : undefined}
+            onChange={(c) => pick({ [tab.color!.key]: c })}
           />
-        ))}
-      </Canvas>
+        )}
+
+        {value &&
+          tab.slots.map(({ slot, title }) => (
+            <div key={slot} style={styles.section}>
+              {title && <span style={styles.label}>{title}</span>}
+              <div style={styles.grid}>
+                {PARTS[slot].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    title={p.name}
+                    aria-label={p.name}
+                    style={{ ...styles.cell, ...(value[slot] === p.id ? styles.cellOn : null) }}
+                    onClick={() => pick({ [slot]: p.id })}
+                  >
+                    {p.tint || p.file ? <PartThumb slot={slot} part={p} avatar={value} /> : <span style={styles.none}>없음</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+      </div>
     </div>
   )
 }
 
-// 창 크기(폰·노트북)에 맞춰 18종이 다 보이도록 카메라 거리를 정합니다.
-function FitCamera() {
-  const camera = useThree((s) => s.camera) as PerspectiveCamera
-  const { width, height } = useThree((s) => s.size)
+// 색상표(아무 색) + 자주 쓰는 색. 끄는 동안에는 잠깐 멈췄을 때만 바깥에 알립니다.
+function ColorField({ label, value, presets, onChange }: { label: string; value: string; presets?: string[]; onChange: (c: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  // 바깥에서 색이 바뀌면(🎲 등) 그 색으로 맞춥니다. (렌더 중에 이전 값과 비교해 고치는 React 권장 방식)
+  const [seen, setSeen] = useState(value)
+  if (value !== seen) {
+    setSeen(value)
+    setDraft(value)
+  }
+  const latest = useRef(onChange)
   useEffect(() => {
-    const half = Math.tan((FOV * Math.PI) / 360) // 화면 절반 높이 / 거리
-    const aspect = width / height
-    const distance = Math.max(GRID_H / 2 / half, GRID_W / 2 / (half * aspect)) * MARGIN
-    camera.position.set(0, 0, distance)
-    camera.lookAt(0, 0, 0)
-  }, [camera, width, height])
-  return null
+    latest.current = onChange
+  })
+  useEffect(() => {
+    if (draft === value) return
+    const t = setTimeout(() => latest.current(draft), COLOR_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [draft, value])
+  return (
+    <div style={styles.colorRow}>
+      <span style={styles.label}>{label}</span>
+      <input type="color" value={draft} onChange={(e) => setDraft(e.target.value)} style={styles.colorInput} aria-label={label} />
+      {presets?.map((c) => (
+        <button
+          key={c}
+          type="button"
+          aria-label={`${label} ${c}`}
+          style={{ ...styles.swatch, background: c, ...(draft === c ? styles.swatchOn : null) }}
+          onClick={() => setDraft(c)}
+        />
+      ))}
+    </div>
+  )
 }
 
-type SlotProps = { model: string; x: number; y: number; selected: boolean; onPick: (model: string) => void }
-
-function Slot({ model, x, y, selected, onPick }: SlotProps) {
-  const ref = useRef<Group>(null!)
-  const { scene, animations } = useGLTF(modelUrl(model))
-  // 지점에 같은 모델이 있을 수 있으므로 복사본을 씁니다.
-  const copy = useMemo(() => scene.clone(true), [scene])
-  const { actions } = useAnimations(animations, ref)
-
+// 부품 그림: 그 부위만 지금 차림의 색으로 그립니다.
+function PartThumb({ slot, part, avatar }: { slot: Slot; part: Part; avatar: Avatar }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const key = avatarKey(avatar)
   useEffect(() => {
-    const action = selected ? actions.walk : actions.idle
-    action?.reset().fadeIn(FADE).play()
-    return () => {
-      action?.fadeOut(FADE)
-    }
-  }, [actions, selected])
+    if (ref.current) void drawPartThumb(ref.current, slot, part, avatar)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 차림이 바뀌었는지는 key 로 봄
+  }, [slot, part, key])
+  return <canvas ref={ref} width={THUMB} height={THUMB} style={{ width: THUMB, height: THUMB }} />
+}
 
-  // 캐릭터에 마우스를 올리면 누를 수 있다는 걸 손가락 커서로 알립니다.
-  const cursor = (e: ThreeEvent<PointerEvent>, value: string) => {
-    ;(e.nativeEvent.target as HTMLElement).style.cursor = value
-  }
-
+// 미리보기 캐릭터: 가만히 서 있는 동작
+function Preview({ model }: { model: string }) {
+  const ref = useRef<Group>(null!)
+  const { scene, animations } = useGLTF(BASE_MODEL_URL)
+  const copy = useMemo(() => scene.clone(true), [scene]) // 지점의 캐릭터와 같은 모델이라 복사본
+  useEyeSkin(copy, model)
+  const { actions } = useAnimations(animations, ref)
+  useEffect(() => {
+    actions.idle?.play()
+  }, [actions])
   return (
-    <group
-      ref={ref}
-      position={[x, y, 0]}
-      onClick={(e) => {
-        e.stopPropagation()
-        onPick(model)
-      }}
-      onPointerOver={(e) => cursor(e, 'pointer')}
-      onPointerOut={(e) => cursor(e, '')}
-    >
-      {selected && (
-        <mesh position={[0, 0.8, -0.4]}>
-          <circleGeometry args={[0.62, 32]} />
-          <meshBasicMaterial color={SELECTED_COLOR} transparent opacity={0.55} />
-        </mesh>
-      )}
+    <group ref={ref}>
       <primitive object={copy} scale={SCALE} />
     </group>
   )
+}
+
+const styles: Record<string, CSSProperties> = {
+  wrap: { display: 'flex', gap: 12, flexWrap: 'wrap' },
+  preview: { width: 220, height: 300, borderRadius: 10, overflow: 'hidden', background: '#16181d', flexShrink: 0 },
+  side: { flex: '1 1 260px', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 },
+  tabs: { display: 'flex', gap: 4, flexWrap: 'wrap' },
+  tab: {
+    padding: '6px 10px', borderRadius: 6, border: '1px solid #374151', background: 'transparent', color: '#cbd5e1',
+    font: 'inherit', fontSize: 13, cursor: 'pointer',
+  },
+  tabOn: { background: '#374151', color: '#fff', fontWeight: 700 },
+  section: { display: 'flex', flexDirection: 'column', gap: 6 },
+  label: { color: '#cbd5e1', fontSize: 13 },
+  grid: { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${THUMB + 12}px, 1fr))`, gap: 6 },
+  cell: {
+    height: THUMB + 12, borderRadius: 8, border: '2px solid transparent', background: '#16181d',
+    display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0,
+  },
+  cellOn: { border: `2px solid ${SELECTED}` },
+  none: { color: '#9aa1ab', fontSize: 12 },
+  colorRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  colorInput: { width: 44, height: 32, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
+  swatch: { width: 26, height: 26, borderRadius: 6, border: '2px solid transparent', cursor: 'pointer', padding: 0 },
+  swatchOn: { border: `2px solid ${SELECTED}` },
 }

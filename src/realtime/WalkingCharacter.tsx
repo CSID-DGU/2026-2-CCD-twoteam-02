@@ -25,6 +25,8 @@ import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
 import { EMOTE_CLIPS, emoteById, emoteSeconds, prepareEmoteAction } from '../space/emotes'
 import { holdStandingPose } from '../space/standStill'
+import { BASE_MODEL_URL } from '../profile/characters'
+import { useEyeSkin } from '../tracking/useEyeSkin'
 
 const SCALE = 0.6 // Player와 같은 크기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
@@ -51,9 +53,10 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   const gait = useRef<Gait>('idle')
   const buf = useRef<Sample[]>([]) // 받은 위치들. 여기서 과거를 꺼내 재생합니다.
   const placed = useRef(false) // 처음 한 번은 받은 위치에 바로 놓습니다.
-  const { scene, animations } = useGLTF(`/models/character-${model}.glb`)
-  // 같은 모델을 여러 사람이 쓸 수 있으므로 복사본을 씁니다.
+  const { scene, animations } = useGLTF(BASE_MODEL_URL)
+  // 같은 모델을 여러 사람이 쓰므로 복사본을 씁니다.
   const copy = useMemo(() => scene.clone(true), [scene])
+  useEyeSkin(copy, model) // 그 사람이 고른 차림의 스킨을 입힘 (#56)
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)
