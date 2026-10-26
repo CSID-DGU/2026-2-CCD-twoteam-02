@@ -24,6 +24,7 @@ const COLOR = {
 
 export default function SeatMap({ occupied, selected, onSelect }: Props) {
   const { w, d } = branch.size
+  const room = branch.meetingRoom // 회의실 하나 (#45)
 
   return (
     <svg
@@ -32,14 +33,12 @@ export default function SeatMap({ occupied, selected, onSelect }: Props) {
       role="group"
       aria-label="좌석 배치도"
     >
-      {branch.rooms.map((r) => (
-        <g key={`room-${r.no}`}>
-          <rect x={r.x - r.w / 2} y={r.z - r.d / 2} width={r.w} height={r.d} fill={COLOR.room} />
-          <text x={r.x} y={r.z} fontSize={0.7} fill="#5b6b7c" textAnchor="middle" dominantBaseline="middle">
-            회의실 {r.no}
-          </text>
-        </g>
-      ))}
+      <g>
+        <rect x={room.x - room.w / 2} y={room.z - room.d / 2} width={room.w} height={room.d} fill={COLOR.room} />
+        <text x={room.x} y={room.z} fontSize={0.7} fill="#5b6b7c" textAnchor="middle" dominantBaseline="middle">
+          회의실
+        </text>
+      </g>
 
       {branch.walls.map((wall, i) => (
         <rect

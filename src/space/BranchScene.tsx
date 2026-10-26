@@ -4,7 +4,7 @@ import { Billboard, OrthographicCamera, PerspectiveCamera } from "@react-three/d
 import { Euler, MathUtils, Matrix4, Quaternion, Vector3 } from "three";
 import type { PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
-import { CHAIR, KIOSK, SEAT, obstaclesOf, roomWalls, spotsOf } from "./layout";
+import { CHAIR, KIOSK, SEAT, meetingDoor, meetingDoorFront, meetingRoomWalls, obstaclesOf, spotsOf } from "./layout";
 import type { BranchLayout, Spot } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
@@ -51,6 +51,8 @@ const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
+const MEETING_TABLE = { radius: 1.2, height: 0.74 }; // 회의실 원형 테이블 (장식. 의자는 회의 화면에서 인원수만큼 놓음, #45)
+const MEETING_SOON = "회의실은 준비 중이에요. 곧 열려요."; // 회의 목록·만들기 창이 생기기 전 안내 (#45)
 
 // 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
 function TopDownCamera({ area }: { area: { w: number; d: number } }) {
@@ -252,6 +254,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
   const [kioskOpen, setKioskOpen] = useState(false); // 키오스크 화면이 떠 있는지
   const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
+  const [nearMeeting, setNearMeeting] = useState(false); // 회의실 문 앞인지 (#45)
+  const meetingFront = useMemo(() => (branch.meetingRoom ? meetingDoorFront(branch.meetingRoom) : undefined), [branch]);
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
   const pos = useRef({ x: branch.spawn.x, z: branch.spawn.z }); // 1인칭 카메라가 따라갈 내 위치
@@ -332,7 +336,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 앉기 전에 DB에 자리를 잡아 봅니다(sit_cafe_seat, 0014). 두 사람이 동시에 눌러도 DB가 한 명만 통과시킵니다.
   // 잡히면 Player 에게 앉으라고 알리고(sitRequest), 실패하면 안내를 띄웁니다.
   const sitRequest = useRef<number | null>(null);
-  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
+  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음, 회의실 준비 중 등)
   const [conflict, setConflict] = useState<{ message: string; seatNo: number } | null>(null); // 다른 자리를 쓰는 중
   const claimSeat = async (no: number) => {
     const { error } = await supabase.rpc("sit_cafe_seat", { p_branch_id: BRANCH_ID, p_seat_number: no });
@@ -433,6 +437,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const walkHint =
     seat !== null
       ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      : nearMeeting // 회의실 문 앞 (#45)
+        ? `회의실 · ${K.interact} 들어가기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
         ? `출입문 · ${K.interact} 로비로 나가기`
       : isCafe
@@ -484,7 +490,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <meshStandardMaterial color="#e8e2d6" />
       </mesh>
 
-      {[...branch.walls, ...branch.rooms.flatMap(roomWalls)].map((w, i) => (
+      {[...branch.walls, ...(branch.meetingRoom ? meetingRoomWalls(branch.meetingRoom) : [])].map((w, i) => (
         <mesh key={i} position={[w.x, 1.25, w.z]}>
           <boxGeometry args={[w.w, 2.5, w.d]} />
           <meshStandardMaterial color="#8a8f98" />
@@ -513,16 +519,36 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </mesh>
       ))}
 
-      {branch.rooms.map((r) => (
-        <mesh
-          key={r.no}
-          position={[r.x, 0.01, r.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[r.w, r.d]} />
-          <meshStandardMaterial color="#c9d6e3" />
-        </mesh>
-      ))}
+      {/* 회의실 (#45): 바닥, 원형 테이블, 서쪽 문과 "회의실" 표지판. 문 앞에서 E 를 누르면 회의에 들어갑니다. */}
+      {branch.meetingRoom && (() => {
+        const r = branch.meetingRoom;
+        const door = meetingDoor(r);
+        return (
+          <group>
+            <mesh position={[r.x, 0.01, r.z]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[r.w, r.d]} />
+              <meshStandardMaterial color="#c9d6e3" />
+            </mesh>
+            <mesh position={[r.x, MEETING_TABLE.height - 0.03, r.z]}>
+              <cylinderGeometry args={[MEETING_TABLE.radius, MEETING_TABLE.radius, 0.06, 48]} />
+              <meshStandardMaterial color="#b98a5a" />
+            </mesh>
+            <mesh position={[r.x, (MEETING_TABLE.height - 0.06) / 2, r.z]}>
+              <cylinderGeometry args={[0.15, 0.25, MEETING_TABLE.height - 0.06, 16]} />
+              <meshStandardMaterial color="#7c5a3a" />
+            </mesh>
+            <mesh position={[door.x, DOOR_HEIGHT / 2, door.z]}>
+              <boxGeometry args={[door.w, DOOR_HEIGHT, door.d]} />
+              <meshStandardMaterial color={nearMeeting ? DOOR_COLOR.near : DOOR_COLOR.idle} />
+            </mesh>
+            {/* 표지판은 좌석 쪽(-X)을 보게 돌립니다. */}
+            <mesh position={[door.x - door.w / 2 - 0.01, DOOR_SIGN.y, door.z]} rotation={[0, -Math.PI / 2, 0]}>
+              <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+              <meshBasicMaterial map={labelTexture("회의실", "#14532d")} transparent />
+            </mesh>
+          </group>
+        );
+      })()}
 
       {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
       {branch.door && (
@@ -587,6 +613,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           exit={branch.door}
           onNearExit={setNearExit}
           onExit={goLobby}
+          meeting={meetingFront}
+          onNearMeeting={setNearMeeting}
+          onMeeting={() => setCafeMessage(MEETING_SOON)}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
