@@ -15,7 +15,7 @@ import { useArmDirections } from "./useArmDirections";
 import { headAngles, mouthOpen, nextEyesClosed } from "./faceSync";
 import { showEyes, useEyeSkin } from "./useEyeSkin";
 import { updateMouth, useMouth } from "./useMouth";
-import { DEFAULT_MODEL, modelUrl } from "../profile/characters";
+import { BASE_MODEL_URL, DEFAULT_MODEL } from "../profile/characters";
 
 const HEAD_NODE = "head";
 const HEAD_FOLLOW = 12; // 머리가 목표 각도를 따라가는 빠르기
@@ -24,12 +24,12 @@ const ARM_FOLLOW = 8; // 팔이 목표 방향을 따라가는 빠르기. 떨림�
 type Props = {
   face: RefObject<FaceState>;
   pose?: RefObject<PoseState>; // 없으면 팔은 움직이지 않습니다.
-  model?: string; // 캐릭터 종류 (a~r). 내 프로필에서 고른 캐릭터 (#131)
+  model?: string; // 캐릭터 차림(아바타 키). 내 프로필에서 고른 차림 (#131·#56)
   showMouth?: boolean; // 입 벌림을 보여 줄지. 회의실에서만 켭니다 (#61)
 };
 
 export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth = false }: Props) {
-  const { scene } = useGLTF(modelUrl(model));
+  const { scene } = useGLTF(BASE_MODEL_URL); // 모든 캐릭터가 같은 모델, 스킨만 다름 (#56)
   // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
   const character = useMemo(() => scene.clone(true), [scene]);
   const eyes = useEyeSkin(character, model);
@@ -66,4 +66,4 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth 
   return <primitive object={character} />;
 }
 
-useGLTF.preload(modelUrl(DEFAULT_MODEL));
+useGLTF.preload(BASE_MODEL_URL);

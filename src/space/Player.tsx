@@ -4,7 +4,8 @@ import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import type { Box, Spot } from './layout'
-import { DEFAULT_MODEL, modelUrl } from '../profile/characters'
+import { BASE_MODEL_URL } from '../profile/characters'
+import { useEyeSkin } from '../tracking/useEyeSkin'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
 import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
 import type { EmoteState } from './emotes'
@@ -27,7 +28,7 @@ const hit = (x: number, z: number, o: Box) =>
   Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R
 
 type Props = {
-  model: string // 내 캐릭터 종류 (a~r, 내 프로필에서 고름 #131)
+  model: string // 내 캐릭터 차림(아바타 키, 내 프로필에서 고름 #131·#56)
   obstacles: Box[]
   spawn: { x: number; z: number }
   spawnHeading?: number // 처음 바라보는 방향(라디안, 0이면 +Z). 문을 지나 왔을 때 보던 방향 그대로 (#150)
@@ -71,9 +72,10 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const nearExit = useRef(false)
   const nearMeeting = useRef(false)
   const seated = useRef<Spot | null>(null)
-  const { scene, animations } = useGLTF(modelUrl(character))
+  const { scene, animations } = useGLTF(BASE_MODEL_URL)
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
   const model = useMemo(() => scene.clone(true), [scene])
+  useEyeSkin(model, character) // 고른 차림의 스킨을 입힘 (#56)
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)
@@ -292,4 +294,4 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   )
 }
 
-useGLTF.preload(modelUrl(DEFAULT_MODEL))
+useGLTF.preload(BASE_MODEL_URL)

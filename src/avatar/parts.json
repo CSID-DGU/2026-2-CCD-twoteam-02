@@ -1,0 +1,128 @@
+{
+  "eyes": [
+    {
+      "id": "basic",
+      "name": "기본",
+      "tint": "/models/Parts/eyes/basic-tint.png",
+      "file": "/models/Parts/eyes/basic.png",
+      "closed": "/models/Parts/eyes/basic-closed.png"
+    },
+    {
+      "id": "big",
+      "name": "큰 눈",
+      "tint": "/models/Parts/eyes/big-tint.png",
+      "file": "/models/Parts/eyes/big.png",
+      "closed": "/models/Parts/eyes/big-closed.png"
+    },
+    {
+      "id": "dot",
+      "name": "점 눈",
+      "tint": "/models/Parts/eyes/dot-tint.png",
+      "closed": "/models/Parts/eyes/dot-closed.png"
+    }
+  ],
+  "brows": [
+    {
+      "id": "none",
+      "name": "없음"
+    },
+    {
+      "id": "straight",
+      "name": "일자",
+      "tint": "/models/Parts/brows/straight-tint.png"
+    },
+    {
+      "id": "thick",
+      "name": "진한",
+      "tint": "/models/Parts/brows/thick-tint.png"
+    }
+  ],
+  "mouth": [
+    {
+      "id": "none",
+      "name": "없음"
+    },
+    {
+      "id": "smile",
+      "name": "웃음",
+      "file": "/models/Parts/mouth/smile.png"
+    },
+    {
+      "id": "line",
+      "name": "일자",
+      "file": "/models/Parts/mouth/line.png"
+    },
+    {
+      "id": "open",
+      "name": "벌린 입",
+      "file": "/models/Parts/mouth/open.png"
+    }
+  ],
+  "hair": [
+    {
+      "id": "none",
+      "name": "없음"
+    },
+    {
+      "id": "short",
+      "name": "짧은 머리",
+      "tint": "/models/Parts/hair/short-tint.png"
+    },
+    {
+      "id": "long",
+      "name": "긴 머리",
+      "tint": "/models/Parts/hair/long-tint.png"
+    },
+    {
+      "id": "buzz",
+      "name": "아주 짧은 머리",
+      "tint": "/models/Parts/hair/buzz-tint.png"
+    }
+  ],
+  "top": [
+    {
+      "id": "tshirt",
+      "name": "반팔 티셔츠",
+      "tint": "/models/Parts/top/tshirt-tint.png"
+    },
+    {
+      "id": "longsleeve",
+      "name": "긴팔 티셔츠",
+      "tint": "/models/Parts/top/longsleeve-tint.png"
+    },
+    {
+      "id": "tank",
+      "name": "민소매",
+      "tint": "/models/Parts/top/tank-tint.png"
+    }
+  ],
+  "bottom": [
+    {
+      "id": "pants",
+      "name": "긴바지",
+      "tint": "/models/Parts/bottom/pants-tint.png"
+    },
+    {
+      "id": "shorts",
+      "name": "반바지",
+      "tint": "/models/Parts/bottom/shorts-tint.png"
+    }
+  ],
+  "shoes": [
+    {
+      "id": "none",
+      "name": "없음"
+    },
+    {
+      "id": "sneakers",
+      "name": "운동화",
+      "tint": "/models/Parts/shoes/sneakers-tint.png",
+      "file": "/models/Parts/shoes/sneakers.png"
+    },
+    {
+      "id": "boots",
+      "name": "부츠",
+      "tint": "/models/Parts/shoes/boots-tint.png"
+    }
+  ]
+}
