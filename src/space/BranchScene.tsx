@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Billboard } from "@react-three/drei";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
-import { CHAIR, KIOSK, SEAT, meetingDoor, meetingDoorFront, meetingRoomWalls, obstaclesOf, spotsOf } from "./layout";
+import { CHAIR, KIOSK, SEAT, meetingDoorFront, obstaclesOf, spotsOf } from "./layout";
 import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
@@ -52,7 +52,6 @@ const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
-const MEETING_TABLE = { radius: 1.2, height: 0.74 }; // 회의실 원형 테이블 (장식. 의자는 회의 화면에서 회의 인원만큼 놓음, #45)
 
 // 지점 화면: 주소의 ?branch= 값(별다방 byeol, 솔카페 sol)으로 배치와 DB 지점 정보를 찾아 그립니다. (#44)
 export function BranchScene() {
@@ -89,7 +88,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [nearExit, setNearExit] = useState(false); // 출입문 앞인지 (E 로 로비로, #150)
   const [nearMeeting, setNearMeeting] = useState(false); // 회의실 문 앞인지 (#45)
   const [meetingOpen, setMeetingOpen] = useState(false); // 회의 목록·만들기 창이 떠 있는지 (#45)
-  const meetingFront = useMemo(() => (branch.meetingRoom ? meetingDoorFront(branch.meetingRoom) : undefined), [branch]);
+  const meetingFront = useMemo(() => (branch.meetingDoor ? meetingDoorFront(branch.meetingDoor) : undefined), [branch]);
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
   // 문을 지나 왔으면 그때 보던 방향 그대로 섭니다(#150). 주소로 바로 들어오면 입구에서 안쪽(-Z)을 봅니다.
@@ -326,7 +325,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <meshStandardMaterial color="#e8e2d6" />
       </mesh>
 
-      {[...branch.walls, ...(branch.meetingRoom ? meetingRoomWalls(branch.meetingRoom) : [])].map((w, i) => (
+      {branch.walls.map((w, i) => (
         <mesh key={i} position={[w.x, 1.25, w.z]}>
           <boxGeometry args={[w.w, 2.5, w.d]} />
           <meshStandardMaterial color="#8a8f98" />
@@ -355,36 +354,23 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </mesh>
       ))}
 
-      {/* 회의실 (#45): 바닥, 원형 테이블, 서쪽 문과 "회의실" 표지판. 문 앞에서 E 를 누르면 회의에 들어갑니다. */}
-      {branch.meetingRoom && (() => {
-        const r = branch.meetingRoom;
-        const door = meetingDoor(r);
-        return (
-          <group>
-            <mesh position={[r.x, 0.01, r.z]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[r.w, r.d]} />
-              <meshStandardMaterial color="#c9d6e3" />
-            </mesh>
-            <mesh position={[r.x, MEETING_TABLE.height - 0.03, r.z]}>
-              <cylinderGeometry args={[MEETING_TABLE.radius, MEETING_TABLE.radius, 0.06, 48]} />
-              <meshStandardMaterial color="#b98a5a" />
-            </mesh>
-            <mesh position={[r.x, (MEETING_TABLE.height - 0.06) / 2, r.z]}>
-              <cylinderGeometry args={[0.15, 0.25, MEETING_TABLE.height - 0.06, 16]} />
-              <meshStandardMaterial color="#7c5a3a" />
-            </mesh>
-            <mesh position={[door.x, DOOR_HEIGHT / 2, door.z]}>
-              <boxGeometry args={[door.w, DOOR_HEIGHT, door.d]} />
-              <meshStandardMaterial color={nearMeeting ? DOOR_COLOR.near : DOOR_COLOR.idle} />
-            </mesh>
-            {/* 표지판은 좌석 쪽(-X)을 보게 돌립니다. */}
-            <mesh position={[door.x - door.w / 2 - 0.01, DOOR_SIGN.y, door.z]} rotation={[0, -Math.PI / 2, 0]}>
-              <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-              <meshBasicMaterial map={labelTexture("회의실", "#14532d")} transparent />
-            </mesh>
-          </group>
-        );
-      })()}
+      {/* 회의실 문 (#45): 동쪽 벽에 붙은 문과 "회의실" 표지판. 앞에서 E 를 누르면 회의 창이 뜹니다. 방은 로비처럼 문 너머라 그리지 않습니다. */}
+      {branch.meetingDoor && (
+        <group>
+          <mesh position={[branch.meetingDoor.x, DOOR_HEIGHT / 2, branch.meetingDoor.z]}>
+            <boxGeometry args={[branch.meetingDoor.w, DOOR_HEIGHT, branch.meetingDoor.d]} />
+            <meshStandardMaterial color={nearMeeting ? DOOR_COLOR.near : DOOR_COLOR.idle} />
+          </mesh>
+          {/* 표지판은 지점 안쪽(-X)을 보게 돌립니다. */}
+          <mesh
+            position={[branch.meetingDoor.x - branch.meetingDoor.w / 2 - 0.01, DOOR_SIGN.y, branch.meetingDoor.z]}
+            rotation={[0, -Math.PI / 2, 0]}
+          >
+            <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+            <meshBasicMaterial map={labelTexture("회의실", "#14532d")} transparent />
+          </mesh>
+        </group>
+      )}
 
       {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
       {branch.door && (

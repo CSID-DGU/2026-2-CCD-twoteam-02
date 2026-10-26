@@ -10,43 +10,26 @@ export type BranchLayout = {
   spawn: { x: number; z: number }
   walls: Box[]
   seats: Seat[]
-  meetingRoom?: Box // 회의실 하나. 좌석 쪽(서쪽) 벽 가운데 문 앞에서 E 로 회의에 들어갑니다. 안은 걸어 들어갈 수 없습니다 (#45)
+  // 회의실 문. 지점 동쪽 벽에 붙은 문이고, 앞에서 E 로 회의에 들어갑니다. 로비처럼 문 너머의 다른 장소라서
+  // 회의실 방 자체는 지점에 그리지 않습니다(위에서 보기에도 안 보임). 문도 부딪히는 상자입니다. (#45)
+  meetingDoor?: Box
   kiosk?: { x: number; z: number }
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
 }
-type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingRoom' | 'kiosk' | 'bar'>
+type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'kiosk' | 'bar'>
 
 export const SEAT = { w: 1.2, d: 0.6 }
 export const KIOSK = { w: 0.6, d: 0.4 }
-const WALL_T = 0.15 // 회의실 벽 두께
-export const MEETING_DOOR = { w: 0.3, d: 1.4 } // 회의실 문 (서쪽 벽에 끼운 판, 두께 × 너비)
-const MEETING_DOOR_REACH = 0.7 // 문 바깥쪽 이 거리 앞에 서면 E 로 들어갈 수 있습니다
+const MEETING_DOOR_REACH = 0.7 // 회의실 문 안쪽(지점 쪽) 이 거리 앞에 서면 E 로 들어갈 수 있습니다
 
-// 회의실 벽 4면. 서쪽 벽 가운데는 문 자리로 비워 두고, 그 자리는 meetingDoor 판이 막습니다.
-export function meetingRoomWalls(r: Box): Box[] {
-  const left = r.x - r.w / 2, right = r.x + r.w / 2
-  const top = r.z - r.d / 2, bottom = r.z + r.d / 2
-  const side = (r.d - MEETING_DOOR.d) / 2
-  return [
-    { x: r.x, z: top, w: r.w, d: WALL_T },
-    { x: r.x, z: bottom, w: r.w, d: WALL_T },
-    { x: right, z: r.z, w: WALL_T, d: r.d },
-    { x: left, z: top + side / 2, w: WALL_T, d: side },
-    { x: left, z: bottom - side / 2, w: WALL_T, d: side },
-  ]
-}
-
-// 회의실 문 판. 부딪히는 상자이기도 해서 안으로 걸어 들어갈 수 없습니다.
-export const meetingDoor = (r: Box): Box => ({ x: r.x - r.w / 2, z: r.z, ...MEETING_DOOR })
-
-// 문 앞 E 를 누르는 자리 (문 바깥, 좌석 쪽)
-export const meetingDoorFront = (r: Box) => ({ x: r.x - r.w / 2 - MEETING_DOOR_REACH, z: r.z })
+// 회의실 문 앞 E 를 누르는 자리 (문의 서쪽, 지점 안)
+export const meetingDoorFront = (door: Box) => ({ x: door.x - door.w / 2 - MEETING_DOOR_REACH, z: door.z })
 
 export function obstaclesOf(b: Branch): Box[] {
   return [
     ...b.walls,
-    ...(b.meetingRoom ? [...meetingRoomWalls(b.meetingRoom), meetingDoor(b.meetingRoom)] : []),
+    ...(b.meetingDoor ? [b.meetingDoor] : []),
     ...b.seats.map((s) => ({ x: s.x, z: s.z, ...SEAT })),
     ...(b.kiosk ? [{ x: b.kiosk.x, z: b.kiosk.z, ...KIOSK }] : []),
     ...(b.bar ? [b.bar] : []),

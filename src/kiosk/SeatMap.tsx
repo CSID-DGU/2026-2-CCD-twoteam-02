@@ -15,8 +15,8 @@ type Props = {
 const COLOR = {
   floor: '#e8e2d6',
   wall: '#8a8f98',
-  room: '#c9d6e3',
   kiosk: '#22c55e',
+  door: '#16a34a', // 회의실 문 (지점 화면의 초록 문)
   free: '#4ade80',
   occupied: '#6b7280',
   selected: '#f59e0b',
@@ -24,7 +24,7 @@ const COLOR = {
 
 export default function SeatMap({ occupied, selected, onSelect }: Props) {
   const { w, d } = branch.size
-  const room = branch.meetingRoom // 회의실 하나 (#45)
+  const meetingDoor = branch.meetingDoor // 회의실 문 (동쪽 벽, #45)
 
   return (
     <svg
@@ -33,13 +33,6 @@ export default function SeatMap({ occupied, selected, onSelect }: Props) {
       role="group"
       aria-label="좌석 배치도"
     >
-      <g>
-        <rect x={room.x - room.w / 2} y={room.z - room.d / 2} width={room.w} height={room.d} fill={COLOR.room} />
-        <text x={room.x} y={room.z} fontSize={0.7} fill="#5b6b7c" textAnchor="middle" dominantBaseline="middle">
-          회의실
-        </text>
-      </g>
-
       {branch.walls.map((wall, i) => (
         <rect
           key={`wall-${i}`}
@@ -50,6 +43,19 @@ export default function SeatMap({ occupied, selected, onSelect }: Props) {
           fill={COLOR.wall}
         />
       ))}
+
+      <g>
+        <rect
+          x={meetingDoor.x - meetingDoor.w / 2}
+          y={meetingDoor.z - meetingDoor.d / 2}
+          width={meetingDoor.w}
+          height={meetingDoor.d}
+          fill={COLOR.door}
+        />
+        <text x={meetingDoor.x - 0.4} y={meetingDoor.z} fontSize={0.6} fill="#2f6b43" textAnchor="end" dominantBaseline="middle">
+          회의실
+        </text>
+      </g>
 
       <g>
         <rect x={branch.kiosk.x - 0.4} y={branch.kiosk.z - 0.3} width={0.8} height={0.6} fill={COLOR.kiosk} />
