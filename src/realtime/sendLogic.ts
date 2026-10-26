@@ -29,12 +29,14 @@ import type { ArmVector, PresenceState } from './participants'
 // 보내는 값의 자릿수. 메시지 길이만 줄이고, 받는 쪽이 실제 각도에 가깝게 그리도록 촘촘하게 둔다.
 export const POSITION_PRECISION = 0.01 // 위치: 1cm
 export const ANGLE_PRECISION = 0.01 // 방향·고개·팔: 약 0.6도
+export const MOUTH_PRECISION = 0.05 // 입 벌림(0~1): 20단계면 충분 (#61)
 
 // 마지막으로 보낸 값에서 이보다 많이 움직여야 보낸다. 가만히 있을 때의 떨림보다 커야 한다.
 export const POSITION_DEADBAND = 0.01 // 위치: 1cm (키보드로 움직여 떨림이 없음)
 export const HEADING_DEADBAND = 0.05 // 몸 방향: 약 3도
 export const HEAD_DEADBAND = 0.05 // 고개 각도: 약 3도 (예전 칸 크기와 같음)
 export const ARM_DEADBAND = 0.05 // 팔 방향(단위 벡터의 각 성분): 약 3도
+export const MOUTH_DEADBAND = 0.1 // 입 벌림: 말하는 동안 크게 오르내리는 값이라 작은 떨림만 거릅니다 (#61)
 
 // toFixed 로 0.30000000000000004 같은 소수 오차를 지워 메시지를 짧게 둔다.
 const round = (value: number, step: number) => Number((Math.round(value / step) * step).toFixed(3))
@@ -48,6 +50,7 @@ export function pack(state: PresenceState): PresenceState {
     ...(state.h === undefined ? {} : { h: round(state.h, ANGLE_PRECISION) }),
     ...(state.head === undefined ? {} : { head: state.head.map((a) => round(a, ANGLE_PRECISION)) as [number, number, number] }),
     ...(state.arms === undefined ? {} : { arms: state.arms.map((v) => v && (v.map((a) => round(a, ANGLE_PRECISION)) as ArmVector)) as PresenceState['arms'] }),
+    ...(state.mouth === undefined ? {} : { mouth: round(state.mouth, MOUTH_PRECISION) }),
   }
 }
 
@@ -74,5 +77,6 @@ export function changedEnough(last: PresenceState | null, now: PresenceState): b
   if ((last.h === undefined) !== (now.h === undefined)) return true
   if (last.h !== undefined && now.h !== undefined && Math.abs(last.h - now.h) > HEADING_DEADBAND) return true
   if (movedBeyond(last.head, now.head, HEAD_DEADBAND)) return true
+  if (Math.abs((last.mouth ?? 0) - (now.mouth ?? 0)) > MOUTH_DEADBAND) return true // 없으면 다문 입(0)으로 봄
   return armsMoved(last.arms, now.arms)
 }

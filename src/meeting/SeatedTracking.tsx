@@ -22,7 +22,8 @@ export function SeatedTracking({ onTracking }: { onTracking: (tracking: MyTracki
 
   return (
     <>
-      <SelfView videoRef={videoRef} face={face} pose={pose} status={status} message={message} />
+      {/* 회의실에서는 입 벌림도 보여 줍니다 (#61) */}
+      <SelfView videoRef={videoRef} face={face} pose={pose} status={status} message={message} showMouth />
       <CameraGuideNotice pose={pose} />
     </>
   )
