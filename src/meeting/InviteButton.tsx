@@ -8,6 +8,9 @@ import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { useChat } from '../chat/chatContext'
 
+// 친구 창에 넘기는 회의: 회의 번호와 지금 그 회의에 있는 사람들. 이미 있는 친구에게는 초대 버튼을 보이지 않습니다.
+export type InviteTarget = { meetingId: number; memberIds: string[] }
+
 type Props = {
   meetingId: number
   friendId: string

@@ -437,7 +437,15 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       {/* 감정표현: 서 있을 때만 (지점과 같음) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={seat !== null || panelOpen} />
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
-      {panel && <InfoPanel key={panelKey(panel)} initial={panel} myId={myId} meetingId={meetingId} onClose={() => setPanel(null)} />}
+      {panel && (
+        <InfoPanel
+          key={panelKey(panel)}
+          initial={panel}
+          myId={myId}
+          invite={{ meetingId, memberIds: people.map((p) => p.userId) }} // 이미 이 회의에 있는 친구는 초대 버튼 대신 "이 회의에 있음"
+          onClose={() => setPanel(null)}
+        />
+      )}
       {voiceNotice && (
         // 처음 마이크를 켤 때 한 번: 목소리가 어떻게 전달되는지 알려 주고 동의를 받습니다.
         <div style={styles.backdrop} onClick={() => setVoiceNotice(false)}>

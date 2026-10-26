@@ -12,11 +12,12 @@ import { displayName, matchUsers, otherOf, relationOf, splitFriendships } from '
 import { useOnline } from '../realtime/onlineContext'
 import { placeLabel } from '../realtime/online'
 import { InviteButton } from '../meeting/InviteButton'
+import type { InviteTarget } from '../meeting/InviteButton'
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
 // onOpenProfile 을 주면 이름을 눌렀을 때 페이지를 옮기지 않고 그 함수를 부릅니다(창 안에서 프로필 열기).
-// inviteMeetingId 를 주면(회의 중에 연 친구 창) 친구마다 "회의에 초대" 버튼이 보입니다. (#45)
-export function FriendsView({ onOpenProfile, inviteMeetingId }: { onOpenProfile?: (userId: string) => void; inviteMeetingId?: number }) {
+// invite 를 주면(회의 중에 연 친구 창) 친구마다 "회의에 초대" 버튼이 보입니다. 이미 그 회의에 있는 친구는 "이 회의에 있음". (#45)
+export function FriendsView({ onOpenProfile, invite }: { onOpenProfile?: (userId: string) => void; invite?: InviteTarget }) {
   const { session } = useSession()
   const myId = session?.user.id ?? ''
   const { nickname: myNickname } = useMyNickname() // 닉네임 원본은 profiles 다
@@ -146,9 +147,12 @@ export function FriendsView({ onOpenProfile, inviteMeetingId }: { onOpenProfile?
               ) : (
                 <span style={styles.muted}>접속 안 함</span>
               )}
-              {inviteMeetingId !== undefined && (
-                <InviteButton meetingId={inviteMeetingId} friendId={otherOf(f, myId)} onMessage={setMessage} />
-              )}
+              {invite &&
+                (invite.memberIds.includes(otherOf(f, myId)) ? (
+                  <span style={styles.muted}>이 회의에 있음</span>
+                ) : (
+                  <InviteButton meetingId={invite.meetingId} friendId={otherOf(f, myId)} onMessage={setMessage} />
+                ))}
               <button
                 type="button"
                 style={styles.ghost}
