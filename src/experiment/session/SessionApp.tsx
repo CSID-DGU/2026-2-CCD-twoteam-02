@@ -85,7 +85,7 @@ function StartScreen({ onStart }: { onStart: (s: SessionProgress) => void }) {
       </fieldset>
       {mode === "experiment" && (
         <fieldset style={styles.fieldset}>
-          <legend>과제 종류 (팀이 정하기 전까지 진행자가 고름)</legend>
+          <legend>과제 종류 (참가자가 고른 것. 세 조건 모두 같은 과제)</legend>
           {(Object.keys(CANDIDATE_LABEL) as Candidate[]).map((k) => (
             <label key={k} style={styles.radio}>
               <input type="radio" checked={taskKind === k} onChange={() => setTaskKind(k)} disabled={!!prev} />
@@ -199,7 +199,7 @@ function ReadyStep({ session, step, onUpdate, onStart }: { session: SessionProgr
           ))}
         </fieldset>
       )}
-      <p style={styles.notice}>아래 문장을 참가자에게 그대로 읽어 주세요. 그다음 "과제 시작"을 누르고 방을 나갑니다.</p>
+      {/* 진행자 지시문("참가자에게 그대로 읽어 주세요")은 참가자도 같은 화면을 보므로 뺐습니다(팀 피드백 2026-10-26). 절차는 문서 3절에. */}
       <blockquote style={styles.quote}>{CONDITION_INTRO[step.condition]}</blockquote>
       <blockquote style={styles.quote}>{TASK_INTRO}</blockquote>
       <button type="button" style={styles.primary} disabled={needChoice} onClick={onStart}>

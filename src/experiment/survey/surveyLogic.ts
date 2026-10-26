@@ -20,12 +20,21 @@ export type Scale =
   | { kind: "choice"; options: string[] }
   | { kind: "text" };
 
-export type Item = { code: string; text: string; scale: Scale; reverse?: boolean }; // reverse는 표시용. 저장은 원 응답 그대로
+export type Item = {
+  code: string;
+  text: string;
+  scale: Scale;
+  reverse?: boolean; // 표시용. 저장은 원 응답 그대로
+  intro?: string; // 질문 앞에 상자로 따로 보여 줄 설명 (예: 바디더블링 정의). 질문과 섞이지 않게 (팀 피드백 2026-10-26)
+  textByPhase?: Partial<Record<Phase, string>>; // 시점별로 다른 문장이 있으면 이것이 우선 (예: B 조건은 상대가 없어 문장을 바꿈)
+  phases?: Phase[]; // 적으면 그 시점에만 보여 줍니다. 없으면 모든 시점
+};
 export type Group = {
   id: string;
   title: string;
   note?: string; // 묶음 위 안내문
   noteByPhase?: Partial<Record<Phase, string>>; // 시점별로 다른 안내문이 있으면 이것이 우선
+  footer?: string; // 묶음 맨 아래 작은 글씨 (저작권 고지처럼 참가자가 먼저 읽을 필요는 없는 것)
   items: Item[];
 };
 
@@ -52,6 +61,12 @@ export const fillPlace = (text: string, phase: Phase) => text.split(PLACE_TOKEN)
 // 묶음 안내문: 시점별 안내가 있으면 그것, 없으면 공통 안내.
 export const noteOf = (g: Group, phase: Phase) => fillPlace(g.noteByPhase?.[phase] ?? g.note ?? "", phase);
 
+// 이 시점에 보여 줄 문항. phases 를 적은 문항은 그 시점에만 나옵니다.
+export const itemsOf = (g: Group, phase: Phase) => g.items.filter((it) => !it.phases || it.phases.includes(phase));
+
+// 문항 문장: 시점별 문장이 있으면 그것, 없으면 공통 문장.
+export const textOf = (it: Item, phase: Phase) => fillPlace(it.textByPhase?.[phase] ?? it.text, phase);
+
 // 같은 참가자·시점·회차·문항이면 마지막 값으로 바꿉니다(한 문항은 한 행). 다른 회차는 그대로 남습니다.
 export function upsertAnswer(list: Answer[], a: Answer): Answer[] {
   const i = list.findIndex((x) => x.participant === a.participant && x.phase === a.phase && x.attempt === a.attempt && x.code === a.code);
@@ -63,7 +78,7 @@ export function upsertAnswer(list: Answer[], a: Answer): Answer[] {
 
 // 묶음의 모든 문항에 답했는지. "text" 문항은 비워도 됩니다(메모).
 export function groupComplete(g: Group, answers: Answer[], phase: Phase, attempt: number): boolean {
-  return g.items.every((it) => it.scale.kind === "text" || answers.some((a) => a.phase === phase && a.attempt === attempt && a.code === it.code));
+  return itemsOf(g, phase).every((it) => it.scale.kind === "text" || answers.some((a) => a.phase === phase && a.attempt === attempt && a.code === it.code));
 }
 
 // 지역 시차가 붙은 ISO 시각 (예: 2026-11-10T14:32:10+09:00). UTC로 적으면 실험 기록과 맞춰 보기 불편해서입니다.

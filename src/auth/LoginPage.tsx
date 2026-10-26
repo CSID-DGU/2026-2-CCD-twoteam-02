@@ -145,6 +145,14 @@ export default function LoginPage({ onSuccess, onGoSignup, onGoForgot }: Props) 
             </button>
           </p>
         )}
+
+        {/* 실험 브랜치 전용: 진행자가 실험 진행 화면(experiment.html)을 주소 없이 찾아가게 (2026-10-27). 로그인 밖 별도 페이지라 라우터가 아닌 a 태그 */}
+        <p style={styles.hint}>
+          진행자용:{' '}
+          <a style={styles.link} href="/experiment.html">실험 진행</a>
+          {' · '}
+          <a style={styles.link} href="/survey.html">설문만</a>
+        </p>
       </form>
     </div>
   )
