@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { useFocusState } from "./useFocusState";
 import type { FocusView } from "./useFocusState";
-import { AWAY_SECONDS, DROWSY_SECONDS, PHONE_SECONDS, RETURN_SECONDS, eyeClosed } from "./focusLogic";
+import { AWAY_SECONDS, DROWSY_DOWN_SECONDS, DROWSY_SECONDS, PHONE_SECONDS, RETURN_SECONDS, eyeClosed } from "./focusLogic";
 import type { FocusInput } from "./focusLogic";
 import type { Baseline } from "./calibration";
 import type { PhoneState } from "../tracking/useTracking";
@@ -23,11 +23,15 @@ import { workerInterval } from "../lib/workerInterval";
 const SAMPLE_MS = 100; // 기록 간격
 const STORAGE_KEY = "scriptTest:v1";
 const BEEP_HZ = 880;
+// 행동 중간 신호(돌아와 앉기)는 카메라 밖에 있는 사람이 들어야 하므로 CUE_INTERVAL_SECONDS 간격으로 CUE_REPEATS번 되풀이합니다.
+// (각본 시험 2026-10-23: 두 명 모두 30초 신호를 못 듣고 돌아오지 않음)
+const CUE_REPEATS = 3;
+const CUE_INTERVAL_SECONDS = 2;
 // 카메라에 잘 잡히게 행동하면 실제보다 높은 정확도가 나오므로, 평소처럼 하도록 안내합니다.
 const NATURAL_NOTE = "평소 하던 대로 하세요. 카메라를 의식해서 잘 보이게 하지 마세요.";
 
 type Saved = { mode: TestMode; plan: number[]; results: TrialResult[]; startedAt: number; knownIds?: number[] }; // knownIds: 시작할 때의 행동 표 (건너뛴 행동과 "새 행동"을 구분하려고. 옛 저장엔 없음)
-type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cueDone: boolean };
+type Running = { trial: number; behavior: Behavior; startMs: number; samples: TrialSample[]; cuesDone: number }; // cuesDone: 중간 신호를 낸 횟수
 
 function loadSaved(): Saved | null {
   try {
@@ -65,13 +69,14 @@ const minutesOf = (ids: number[]) => Math.round(ids.reduce((sum, id) => sum + be
 type Props = {
   face: RefObject<FocusInput>;
   pose: RefObject<{ found: boolean; framed: boolean | null }>;
-  phone: RefObject<PhoneState>; // 휴대폰 감지 결과 (측정 기록용. /tracking은 감지를 항상 켜 둠)
+  phone: RefObject<PhoneState>; // 휴대폰 감지 결과. 판정(실제 공부 화면과 같게)과 측정 기록에 씀 (/tracking은 감지를 항상 켜 둠)
   baseline: Baseline | null; // 보정 기준. 없으면 시작할 수 없습니다(졸음 판정이 보정했을 때만 동작하므로).
 };
 
 export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
-  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline }); // 실제 공부 화면과 같은 판정
-  const guide = useFocusState(face, undefined, pose, { body: pose, baseline }); // 가이드라인도 쓰는 판정
+  // 휴대폰도 판정에 넣습니다. 전에는 기록만 해서 휴대폰 빨간불이 결과에 안 나왔고, 휴대폰 없는 책상에서 4~7초 오인식이 있어도 몰랐습니다(2026-10-23).
+  const plain = useFocusState(face, undefined, undefined, { body: pose, baseline, phone }); // 실제 공부 화면과 같은 판정
+  const guide = useFocusState(face, undefined, pose, { body: pose, baseline, phone }); // 가이드라인도 쓰는 판정
   const [open, setOpen] = useState(() => loadSaved() !== null);
   const [saved, setSaved] = useState<Saved | null>(loadSaved);
   const [running, setRunning] = useState<{ trial: number; behavior: Behavior; startMs: number } | null>(null);
@@ -94,14 +99,14 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
     const ctx = audio.current;
     if (!ctx) return;
     for (let i = 0; i < times; i++) {
-      const at = ctx.currentTime + i * 0.35;
+      const at = ctx.currentTime + i * 0.5;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.frequency.value = BEEP_HZ;
-      gain.gain.value = 0.2;
+      gain.gain.value = 0.5; // 자리를 비운 사람도 들리게 (0.2는 못 들었음)
       osc.connect(gain).connect(ctx.destination);
       osc.start(at);
-      osc.stop(at + 0.25);
+      osc.stop(at + 0.4);
     }
   }
 
@@ -146,9 +151,10 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
       });
       if (run && elapsedMs !== null) {
         run.samples.push({ elapsedMs, plain: judgementOf(plain), guide: judgementOf(guide), found: f.found, closed, phone: phoneFound, pitch: f.pitch ?? 0 });
-        if (run.behavior.cue && !run.cueDone && elapsedMs >= run.behavior.cue.atSeconds * 1000) {
-          run.cueDone = true;
-          beep(2);
+        const cue = run.behavior.cue;
+        if (cue && run.cuesDone < CUE_REPEATS && elapsedMs >= (cue.atSeconds + run.cuesDone * CUE_INTERVAL_SECONDS) * 1000) {
+          run.cuesDone += 1;
+          beep(3);
         }
         if (elapsedMs >= run.behavior.seconds * 1000) finishTrial(run);
       }
@@ -172,7 +178,7 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
         plain.setAllowOtherScreen(true);
         guide.setAllowOtherScreen(true);
       }
-      const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cueDone: false };
+      const run: Running = { trial: saved.results.length + 1, behavior, startMs: Date.now(), samples: [], cuesDone: 0 };
       runRef.current = run;
       setRunning({ trial: run.trial, behavior, startMs: run.startMs });
     };
@@ -266,7 +272,7 @@ export function ScriptTestPanel({ face, pose, phone, baseline }: Props) {
         <div style={styles.big}>
           <div style={{ fontSize: 22, fontWeight: 700 }}>#{running.behavior.id} {running.behavior.name}</div>
           {running.behavior.hint && <div>{running.behavior.hint}</div>}
-          {running.behavior.cue && <div>{running.behavior.cue.atSeconds}초에 소리 두 번: {running.behavior.cue.text}</div>}
+          {running.behavior.cue && <div>{running.behavior.cue.atSeconds}초부터 {CUE_INTERVAL_SECONDS}초마다 {CUE_REPEATS}번 소리(세 번씩): {running.behavior.cue.text}</div>}
           <div style={{ fontSize: 32, fontVariantNumeric: "tabular-nums" }}>
             {Math.max(0, Math.ceil((running.startMs + running.behavior.seconds * 1000 - now) / 1000))}초
           </div>
@@ -338,7 +344,7 @@ function ResultTable({ results }: { results: TrialResult[] }) {
             <tr key={r.behavior.id}>
               <td style={styles.cell}>{r.behavior.id}</td>
               <td style={styles.cell}>{r.behavior.name}</td>
-              <td style={styles.cell}>{r.behavior.expect === "focus" ? "초록" : r.behavior.expect}</td>
+              <td style={styles.cell}>{r.behavior.expect === "focus" ? "초록" : r.behavior.alsoExpect ? `${r.behavior.expect}·${r.behavior.alsoExpect}` : r.behavior.expect}</td>
               <td style={{ ...styles.cell, color: r.plainCorrect < r.n ? "#fbbf24" : undefined }}>{r.plainCorrect}/{r.n}</td>
               <td style={styles.cell}>{r.guideCorrect}/{r.n}</td>
               <td style={styles.cell}>{r.plainFirstYellow.map((s) => s ?? "없음").join(", ")}</td>
@@ -362,7 +368,7 @@ function MeasureTable({ results }: { results: TrialResult[] }) {
   return (
     <>
       <div style={{ marginTop: 6 }}>
-        <b>측정</b> (정답 없음 — 기준값을 정하는 수치) · 지금 기준: 자리 이탈 {AWAY_SECONDS}초 · 졸음 {DROWSY_SECONDS}초 · 휴대폰 {PHONE_SECONDS}초 · 끊김 내성 {RETURN_SECONDS}초
+        <b>측정</b> (정답 없음 — 기준값을 정하는 수치) · 지금 기준: 자리 이탈 {AWAY_SECONDS}초 · 졸음 {DROWSY_SECONDS}초(숙임 {DROWSY_DOWN_SECONDS}초) · 휴대폰 {PHONE_SECONDS}초 · 끊김 내성 {RETURN_SECONDS}초
       </div>
       <table style={styles.table}>
         <thead>

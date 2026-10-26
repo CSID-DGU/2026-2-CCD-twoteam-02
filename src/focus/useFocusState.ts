@@ -17,11 +17,11 @@ export type FocusView = FocusState & {
   setAllowDevices: (value: boolean) => void;
 };
 
-// body: 몸(Pose) 결과 — framed가 null이면 Pose 준비 전·오류라 "모름"으로 넘깁니다.
+// body: 몸(Pose) 결과 — framed가 null이면 Pose 준비 전·오류라 "모름"으로 넘깁니다. lastMotionMs는 팔이 마지막으로 움직인 시각(깨어 있음 신호).
 // baseline: 보정 기준 (없으면 눈 감음 판정 안 함)
 // phone: 휴대폰 감지 결과 (없거나 null이면 휴대폰은 보지 않음)
 export type FocusExtras = {
-  body?: RefObject<{ found: boolean; framed: boolean | null }>;
+  body?: RefObject<{ found: boolean; framed: boolean | null; lastMotionMs?: number | null }>;
   baseline?: Baseline | null;
   phone?: RefObject<{ found: boolean | null }>;
 };
@@ -56,6 +56,7 @@ export function useFocusState(
       const { found, ear, pitch, updatedAt } = face.current;
       const framed = pose?.current.framed ?? null;
       const bodyFound = body ? (body.current.framed === null ? null : body.current.found) : null;
+      const lastMotionMs = body?.current.lastMotionMs ?? null;
       const phoneFound = phone?.current.found ?? null;
       const screen = {
         pageHidden: document.hidden,
@@ -65,7 +66,12 @@ export function useFocusState(
         lastInputMs: lastInputMs.current,
       };
       setState((prev) =>
-        nextFocusState(prev, { found, ear, pitch, framed, bodyFound, baseline, updatedAt, phone: phoneFound }, Date.now(), screen)
+        nextFocusState(
+          prev,
+          { found, ear, pitch, framed, bodyFound, lastMotionMs, baseline, updatedAt, phone: phoneFound },
+          Date.now(),
+          screen
+        )
       );
     });
     return stop;

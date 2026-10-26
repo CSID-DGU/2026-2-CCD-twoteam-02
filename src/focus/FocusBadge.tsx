@@ -2,7 +2,6 @@
 // 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (보류·가이드라인)
 import {
   AWAY_SECONDS,
-  DROWSY_SECONDS,
   OUTFRAME_SECONDS,
   HOLD_LABEL,
   holdReason,
@@ -41,7 +40,7 @@ export default function FocusBadge({
     state.awaySeconds > 0
       ? `얼굴 안 보임 ${Math.floor(state.awaySeconds)}초 / ${AWAY_SECONDS}초`
       : state.closedSeconds > 0
-        ? `눈 감음 ${Math.floor(state.closedSeconds)}초 / ${DROWSY_SECONDS}초`
+        ? `눈 감음 ${Math.floor(state.closedSeconds)}초 / ${state.drowsyLimitSeconds}초` // 기준은 자세에 따라 21초·60초
         : state.outframeSeconds > 0
           ? `머리~가슴 화면 밖 ${Math.floor(state.outframeSeconds)}초 / ${OUTFRAME_SECONDS}초`
           : "";
