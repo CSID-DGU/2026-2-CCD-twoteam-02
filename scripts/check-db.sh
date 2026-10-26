@@ -63,6 +63,7 @@ else:
         src += open(f).read() + "\n"
 
 tables, views, funcs = {}, {}, {}
+func_at = {}  # 함수를 마지막으로 만든 위치. 지웠다가 다시 만든 함수(0022 의 create_meeting 등)를 남기는 데 씁니다.
 
 for m in re.finditer(r'create\s+table\s+public\.(\w+)', src):
     tables[m.group(1)] = True
@@ -82,6 +83,7 @@ for m in re.finditer(r'create\s+(?:or replace\s+)?function\s+public\.(\w+)\s*\((
         else:                  val = '"x"'
         params.append(f'"{pname}":{val}')
     funcs[name] = '{' + ','.join(params) + '}'
+    func_at[name] = m.start()
 
 # drop 된 것은 뺀다
 for m in re.finditer(r'drop\s+view\s+(?:if exists\s+)?public\.(\w+)', src):
@@ -89,7 +91,8 @@ for m in re.finditer(r'drop\s+view\s+(?:if exists\s+)?public\.(\w+)', src):
 for m in re.finditer(r'drop\s+table\s+(?:if exists\s+)?public\.(\w+)', src):
     tables.pop(m.group(1), None)
 for m in re.finditer(r'drop\s+function\s+(?:if exists\s+)?public\.(\w+)', src):
-    funcs.pop(m.group(1), None)
+    if m.start() > func_at.get(m.group(1), -1):  # 지운 뒤 다시 만들지 않은 함수만 뺍니다.
+        funcs.pop(m.group(1), None)
 
 # 트리거 전용 함수는 RPC 로 부를 수 없으므로 확인 대상에서 뺀다.
 for m in re.finditer(r'create\s+(?:or replace\s+)?function\s+public\.(\w+)[^$]*?returns\s+trigger', src, re.S):
