@@ -1,4 +1,4 @@
-// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입, 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
+// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입(다문·벌린), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
 // 왼쪽: 지금 고른 차림의 3D 미리보기(천천히 돌고, 끌어서 돌려 볼 수 있음)
 // 오른쪽: 부위 탭, 부품 목록, 색상표. 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
@@ -25,7 +25,8 @@ type Tab = { key: string; label: string; slots: { slot: Slot; title?: string }[]
 const TABS: Tab[] = [
   { key: 'skin', label: '피부', slots: [], color: { key: 'skin', label: '피부색' } },
   { key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' } },
-  { key: 'face', label: '눈썹·입', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }, { slot: 'mouth', title: '입' }] },
+  { key: 'brows', label: '눈썹', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }] },
+  { key: 'mouth', label: '입', slots: [{ slot: 'mouth', title: '다문 입 (평소)' }, { slot: 'mouthOpen', title: '벌린 입 (회의실에서 말할 때)' }] },
   { key: 'hair', label: '머리', slots: [{ slot: 'hair' }], color: { key: 'hairColor', label: '머리 색' } },
   { key: 'top', label: '상의', slots: [{ slot: 'top' }], color: { key: 'topColor', label: '상의 색' } },
   { key: 'bottom', label: '하의', slots: [{ slot: 'bottom' }], color: { key: 'bottomColor', label: '하의 색' } },

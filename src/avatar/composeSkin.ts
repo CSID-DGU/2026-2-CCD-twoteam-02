@@ -9,8 +9,8 @@
 // 같은 차림(아바타 키)은 한 번만 만들어 모든 캐릭터가 같이 씁니다. 꾸미기 창에서 색을 바꿀 때마다 새 스킨이 생기므로,
 // 오래 안 쓴 것부터 MAX_SKINS 개만 남기고 버립니다.
 import * as THREE from 'three'
-import { LAYERS, SHADE, SKIN_SIZE, UV_FACES, findPart, parseAvatarKey, thumbRects } from './avatarLogic'
-import type { Avatar, Part, Slot } from './avatarLogic'
+import { LAYERS, MOUTH_HD, SHADE, SKIN_SIZE, UV_FACES, findPart, mouthOverlayRect, parseAvatarKey, thumbRects } from './avatarLogic'
+import type { Avatar, Part, Rect, Slot } from './avatarLogic'
 
 export type AvatarSkin = { open: THREE.Texture; closed: THREE.Texture | null }
 
@@ -136,8 +136,8 @@ export function avatarSkin(key: string): Promise<AvatarSkin> {
 const THUMB_GAP = 3 // 면 사이 간격(px, 썸네일 기준)
 export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part: Part, avatar: Avatar) {
   const rects = thumbRects(slot)
-  const color = LAYERS.find((l) => l.slot === slot)!.color
-  const [tint, file] = await Promise.all([part.tint, part.file].map((url) => (url ? loadImage(url) : Promise.resolve(null))))
+  const color = LAYERS.find((l) => l.slot === slot)?.color ?? null // 벌린 입은 스킨에 겹치지 않아 LAYERS 에 없음
+  const [tint, file, hd] = await Promise.all([part.tint, part.file, part.hd].map((url) => (url ? loadImage(url) : Promise.resolve(null))))
   const ctx = target.getContext('2d')!
   ctx.clearRect(0, 0, target.width, target.height)
   // 크게 그린 그림을 작게 줄이므로 부드럽게 줄입니다(건너뛰며 줄이면 가는 선이 끊겨 보임).
@@ -153,7 +153,45 @@ export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part:
     ctx.fillStyle = shaded(avatar.skin, SHADE.front)
     ctx.fillRect(x, y, w, h)
     if (tint && color) ctx.drawImage(tinted(tint, avatar[color], r.x, r.y, r.w, r.h), x, y, w, h)
-    if (file) ctx.drawImage(file, r.x, r.y, r.w, r.h, x, y, w, h)
+    if (hd) drawHd(ctx, hd, r, x, y, w, h)
+    else if (file) ctx.drawImage(file, r.x, r.y, r.w, r.h, x, y, w, h)
     x += w + THUMB_GAP
   }
+}
+
+// 입의 또렷한 그림(Part.hd)에서 스킨의 r 자리에 해당하는 곳을 잘라 그립니다. hd 는 스킨의 MOUTH_HD 범위를 MOUTH_HD.scale 배로 그린 것
+function drawHd(ctx: CanvasRenderingContext2D, hd: HTMLImageElement, r: Rect, x: number, y: number, w: number, h: number) {
+  const s = MOUTH_HD.scale
+  ctx.drawImage(hd, (r.x - MOUTH_HD.x) * s, (r.y - MOUTH_HD.y) * s, r.w * s, r.h * s, x, y, w, h)
+}
+
+// ── 말할 때 덮는 벌린 입 (#61) ─────────────────────────────────────
+// 얼굴의 입 자리를 피부색으로 칠하고 고른 벌린 입을 얹은 작은 그림. 다문 입 위에 덮어 보여 줍니다(useMouth).
+const OVERLAY_SCALE = 4 // 스킨 1픽셀을 4픽셀로 크게 그려 가까이서도 또렷하게
+const overlays = new Map<string, Promise<THREE.Texture>>() // 벌린 입·피부색마다 하나 (가짓수가 적어 버리지 않음)
+export function mouthOverlay(key: string): Promise<THREE.Texture> {
+  const avatar = parseAvatarKey(key)
+  const id = `${avatar.mouthOpen}|${avatar.skin}`
+  let p = overlays.get(id)
+  if (!p) {
+    p = (async () => {
+      const part = findPart('mouthOpen', avatar.mouthOpen)!
+      const url = part.hd ?? part.file // 또렷한 그림이 있으면 그것으로(가까이서 봐도 흐리지 않게)
+      const img = url ? await loadImage(url) : null
+      const r = mouthOverlayRect()
+      const c = canvas(Math.round(r.w * OVERLAY_SCALE), Math.round(r.h * OVERLAY_SCALE))
+      const ctx = c.getContext('2d')!
+      ctx.fillStyle = shaded(avatar.skin, SHADE.front) // 얼굴 앞면과 같은 피부색
+      ctx.fillRect(0, 0, c.width, c.height)
+      ctx.imageSmoothingQuality = 'high'
+      if (img && part.hd) drawHd(ctx, img, r, 0, 0, c.width, c.height)
+      else if (img) ctx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height)
+      const tex = new THREE.CanvasTexture(c)
+      tex.colorSpace = THREE.SRGBColorSpace
+      return tex
+    })()
+    p.catch(() => overlays.delete(id))
+    overlays.set(id, p)
+  }
+  return p
 }

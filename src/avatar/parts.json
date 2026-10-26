@@ -99,23 +99,90 @@
   ],
   "mouth": [
     {
-      "id": "none",
-      "name": "없음"
+      "id": "smirk",
+      "name": "씩 웃는 입",
+      "file": "/models/Parts/mouth/smirk.png",
+      "hd": "/models/Parts/mouth/smirk-hd.png"
     },
     {
       "id": "smile",
-      "name": "웃음",
-      "file": "/models/Parts/mouth/smile.png"
+      "name": "웃는 입",
+      "file": "/models/Parts/mouth/smile.png",
+      "hd": "/models/Parts/mouth/smile-hd.png"
     },
     {
-      "id": "line",
-      "name": "일자",
-      "file": "/models/Parts/mouth/line.png"
+      "id": "slant",
+      "name": "비스듬한 입",
+      "file": "/models/Parts/mouth/slant.png",
+      "hd": "/models/Parts/mouth/slant-hd.png"
     },
     {
-      "id": "open",
-      "name": "벌린 입",
-      "file": "/models/Parts/mouth/open.png"
+      "id": "flat",
+      "name": "일자 입",
+      "file": "/models/Parts/mouth/flat.png",
+      "hd": "/models/Parts/mouth/flat-hd.png"
+    },
+    {
+      "id": "tail",
+      "name": "삐죽 입",
+      "file": "/models/Parts/mouth/tail.png",
+      "hd": "/models/Parts/mouth/tail-hd.png"
+    },
+    {
+      "id": "kiss",
+      "name": "뽀뽀 입",
+      "file": "/models/Parts/mouth/kiss.png",
+      "hd": "/models/Parts/mouth/kiss-hd.png"
+    },
+    {
+      "id": "wavy",
+      "name": "물결 입",
+      "file": "/models/Parts/mouth/wavy.png",
+      "hd": "/models/Parts/mouth/wavy-hd.png"
+    }
+  ],
+  "mouthOpen": [
+    {
+      "id": "grin",
+      "name": "활짝 웃는 입",
+      "file": "/models/Parts/mouthOpen/grin.png",
+      "hd": "/models/Parts/mouthOpen/grin-hd.png"
+    },
+    {
+      "id": "small-o",
+      "name": "작게 벌린 입",
+      "file": "/models/Parts/mouthOpen/small-o.png",
+      "hd": "/models/Parts/mouthOpen/small-o-hd.png"
+    },
+    {
+      "id": "wide",
+      "name": "크게 벌린 입",
+      "file": "/models/Parts/mouthOpen/wide.png",
+      "hd": "/models/Parts/mouthOpen/wide-hd.png"
+    },
+    {
+      "id": "teeth",
+      "name": "이 드러낸 입",
+      "file": "/models/Parts/mouthOpen/teeth.png",
+      "hd": "/models/Parts/mouthOpen/teeth-hd.png"
+    },
+    {
+      "id": "laugh",
+      "name": "웃으며 벌린 입",
+      "file": "/models/Parts/mouthOpen/laugh.png",
+      "hd": "/models/Parts/mouthOpen/laugh-hd.png"
+    },
+    {
+      "id": "gasp",
+      "name": "놀란 입",
+      "file": "/models/Parts/mouthOpen/gasp.png",
+      "hd": "/models/Parts/mouthOpen/gasp-hd.png"
+    },
+    {
+      "id": "fangs",
+      "name": "송곳니 입",
+      "file": "/models/Parts/mouthOpen/fangs.png",
+      "hd": "/models/Parts/mouthOpen/fangs-hd.png"
     }
   ],
   "hair": [

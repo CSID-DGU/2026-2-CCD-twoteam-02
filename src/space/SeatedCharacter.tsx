@@ -42,7 +42,7 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
   const { actions } = useAnimations(animations, animRoot)
   // 이 캐릭터만 쓰는 재질. 눈을 감아도 같은 모델의 다른 캐릭터는 그대로입니다. (#113)
   const skin = useEyeSkin(copy, model)
-  const mouthMesh = useMouth(copy)
+  const mouthMesh = useMouth(copy, model)
 
   useEffect(() => {
     actions.sit?.play()

@@ -34,7 +34,7 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth 
   const character = useMemo(() => scene.clone(true), [scene]);
   const eyes = useEyeSkin(character, model);
   const eyesClosed = useRef(false);
-  const mouth = useMouth(character);
+  const mouth = useMouth(character, model);
   // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)
   const arms = useArmDirections(pose);
 
