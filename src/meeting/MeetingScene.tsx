@@ -9,6 +9,7 @@
 // 친구(F) 창에서 친구를 이 회의에 초대합니다(#45). 내 기록(R)·내 프로필(P)·설정(O) 창도 지점처럼 단축키로 열립니다.
 // 방장(👑, 0023): 방장이 나가면 회의가 모두에게 끝납니다. 나가기 전에 다른 참석자에게 방장을 넘길 수 있습니다.
 // 회의가 끝나면(방장이 끝냄, 오래 끊겨 내보내짐) 안내를 보여 주고 잠시 뒤 지점 회의실 문 앞으로 돌아갑니다.
+// 음성(#46): 같은 회의 사람끼리 브라우저로 직접 목소리를 주고받습니다(useVoice). 마이크는 기본으로 꺼져 있고 M 으로 켭니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -43,6 +44,7 @@ import type { MyTracking } from '../study/SeatedStudy'
 import { MEETING_ROOM, meetingChairs, meetingObstacles, meetingPlace, tableRadius } from './meetingLogic'
 import { SeatedTracking } from './SeatedTracking'
 import { useMeeting } from './useMeeting'
+import { useSignalPort, useVoice } from './useVoice'
 import type { MeetingInfo, MeetingPerson } from './useMeeting'
 
 const WALL_HEIGHT = 2.5
@@ -55,6 +57,7 @@ const ARRIVAL_HEADING = Math.PI // 들어오면 문을 등지고 안쪽(-Z)을 �
 const EXIT_HEADING = -Math.PI / 2 // 지점으로 돌아가면 회의실 문을 등지고 좌석 쪽(-X)을 봅니다.
 const MESSAGE_MS = 4000 // 잠깐 보여 줄 안내(다른 사람이 먼저 앉음 등)
 const ENDED_RETURN_MS = 3000 // 회의가 끝났다는 안내를 보여 준 뒤 지점으로 돌아가기까지
+const VOICE_NOTICE_KEY = 'dooteum.voiceNoticeSeen' // 처음 마이크를 켤 때 보여 주는 안내를 봤는지 (이 브라우저에 기억)
 
 export function MeetingScene() {
   const { id } = useParams()
@@ -72,7 +75,9 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
   const navigate = useNavigate()
   // 내 위치·앉은 의자·고개·눈·팔. 회의 방(meeting:회의번호, 참석자만 들어오는 비공개 방)으로 0.25초마다 보냅니다. 지점과 같은 방식입니다.
   const me = useRef<PresenceState | null>(null)
-  const others = useParticipants(`meeting:${meetingId}`, me, true)
+  const signalRef = useSignalPort() // 같은 회의 방으로 음성 연결 신호도 주고받습니다 (#46)
+  const others = useParticipants(`meeting:${meetingId}`, me, true, signalRef)
+  const voice = useVoice(myId, others.map((o) => o.userId).sort().join(','), signalRef)
   // 다시 읽기 신호: 내가 방장을 넘기면 1 올려 다른 참석자에게 보내고(PresenceState.sync), 나도 다시 읽습니다.
   const [sync, setSync] = useState(0)
   const bumpSync = useCallback(() => setSync((n) => n + 1), [])
@@ -118,6 +123,7 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
       sync={sync}
       onHostChanged={bumpSync}
       onLeave={leave}
+      voice={voice}
     />
   )
 }
@@ -131,11 +137,12 @@ type SpaceProps = {
   meRef: RefObject<PresenceState | null> // 보낼 내 상태 (이름이 Ref 로 끝나야 React 규칙 검사가 ref 로 알아봄)
   sync: number // 다시 읽기 신호 (보낼 내 상태에 실음)
   onHostChanged: () => void // 방장을 넘긴 뒤 부름 (다시 읽기 신호 올리기)
+  voice: ReturnType<typeof useVoice> // 음성: 마이크 켜기·끄기, 말하는 사람
   onLeave: () => void | Promise<void>
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave }: SpaceProps) {
+function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
   const obstacles = useMemo(() => meetingObstacles(info.capacity), [info.capacity])
   const radius = tableRadius(info.capacity)
@@ -146,10 +153,11 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
   const [view, setView] = useWalkView() // 지점에서 쓰던 시점(1인칭·위에서)을 그대로 씁니다.
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지
   const [message, setMessage] = useState('')
+  const [voiceNotice, setVoiceNotice] = useState(false) // 처음 마이크를 켤 때의 안내 창
   // 지점 위 창과 같은 창(친구·내 기록·프로필·설정). 친구 창에는 "회의에 초대" 버튼이 보입니다.
   const [panel, setPanel] = useState<PanelView | null>(null)
   const [leaveAsk, setLeaveAsk] = useState(false) // 방장이 나가려 할 때 묻는 창
-  const panelOpen = panel !== null || leaveAsk // 창이 떠 있으면 캐릭터·시점·단축키를 멈춥니다
+  const panelOpen = panel !== null || leaveAsk || voiceNotice // 창이 떠 있으면 캐릭터·시점·단축키를 멈춥니다
   const isHost = info.hostId === myId
   const pos = useRef({ x: MEETING_ROOM.spawn.x, z: MEETING_ROOM.spawn.z })
   const heading = useRef(ARRIVAL_HEADING) // 1인칭에서 바라보는 방향
@@ -192,6 +200,27 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
     setMessage(`${to.nickname} 님이 이제 방장이에요.`)
     return true
   }
+  // 참석자 목록의 음성 표시: 말하는 중 🔊, 마이크 끔 🔇 (#46)
+  const micOf = (id: string) => (id === myId ? voice.micOn : others.find((o) => o.userId === id)?.mic === true)
+  const voiceMark = (id: string) => (voice.speaking.has(id) ? '🔊 ' : micOf(id) ? '' : '🔇 ')
+
+  // 마이크 켜기·끄기 (버튼·M). 처음 켤 때는 목소리가 어떻게 전달되는지 한 번 알려 줍니다.
+  const turnMic = async (on: boolean) => {
+    const error = await voice.setMic(on)
+    if (error) setMessage(error)
+  }
+  const toggleMic = () => {
+    if (voice.micOn) return void turnMic(false)
+    let seen = false
+    try {
+      seen = localStorage.getItem(VOICE_NOTICE_KEY) === '1'
+    } catch {
+      // 기억하지 못하면 매번 안내합니다.
+    }
+    if (seen) void turnMic(true)
+    else setVoiceNotice(true)
+  }
+
   // 나가기(버튼·L·문 앞 E). 방장이고 다른 사람이 있으면 회의를 끝낼지, 넘기고 나갈지 묻습니다.
   const otherPeople = people.filter((p) => p.userId !== myId)
   const requestLeave = () => {
@@ -226,13 +255,16 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       ...(face ? { mouth: mouthOpen(face) } : {}), // 입 벌림 (회의실에서만 보냄, #61)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
       ...(sync ? { sync } : {}),
+      mic: voice.micOn, // 다른 사람 목록에 🔇 표시 (#46)
     }
   }
 
   // V(설정에서 바꿈): 위에서 보기 ↔ 1인칭 / L: 어디서든 회의 나가기. 창이 떠 있으면 쓰지 않습니다.
-  const leaveKey = useRef(requestLeave) // 키 처리는 한 번만 걸고, 누른 순간의 최신 나가기를 부릅니다.
+  const leaveKey = useRef(requestLeave) // 키 처리는 한 번만 걸고, 누른 순간의 최신 나가기·마이크를 부릅니다.
+  const micKey = useRef(toggleMic)
   useEffect(() => {
     leaveKey.current = requestLeave
+    micKey.current = toggleMic
   })
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -240,6 +272,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.code === getKeymap().view) setView((v) => (v === 'top' ? 'first' : 'top'))
       if (e.code === getKeymap().lobby) leaveKey.current()
+      if (e.code === getKeymap().mic) micKey.current()
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
@@ -255,6 +288,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
     recenter: keyLabel(keymap.recenter),
     lobby: keyLabel(keymap.lobby),
     friends: keyLabel(keymap.friends),
+    mic: keyLabel(keymap.mic),
   }
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panelOpen
@@ -361,6 +395,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
         {people.map((p) => (
           <div key={p.userId} style={styles.person}>
             <span>
+              {voiceMark(p.userId)}
               {p.userId === info.hostId && '👑 '}
               {p.nickname}
               {p.userId === myId && ' (나)'}
@@ -383,9 +418,18 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
         <button type="button" style={styles.leave} onClick={requestLeave}>
           회의 나가기 ({K.lobby})
         </button>
+        <button type="button" style={voice.micOn ? styles.micOn : styles.friends} onClick={toggleMic}>
+          {voice.micOn ? `🎤 마이크 끄기 (${K.mic})` : `🔇 마이크 켜기 (${K.mic})`}
+        </button>
         <button type="button" style={styles.friends} onClick={() => setPanel(panel?.kind === 'friends' ? null : { kind: 'friends' })}>
           친구 초대 ({K.friends})
         </button>
+        {voice.blocked && (
+          // 브라우저가 화면을 누르기 전 소리 재생을 막았을 때
+          <button type="button" style={styles.friends} onClick={voice.unlock}>
+            🔈 눌러서 목소리 듣기
+          </button>
+        )}
       </div>
       {hint && <div style={styles.hint}>{hint}</div>}
       {/* 앉아 있는 동안만 웹캠 트래킹과 오른쪽 아래 내 모습 화면 */}
@@ -394,6 +438,34 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={seat !== null || panelOpen} />
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {panel && <InfoPanel key={panelKey(panel)} initial={panel} myId={myId} meetingId={meetingId} onClose={() => setPanel(null)} />}
+      {voiceNotice && (
+        // 처음 마이크를 켤 때 한 번: 목소리가 어떻게 전달되는지 알려 주고 동의를 받습니다.
+        <div style={styles.backdrop} onClick={() => setVoiceNotice(false)}>
+          <div style={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <p style={{ margin: 0 }}>
+              마이크를 켜면 내 목소리가 이 회의에 있는 사람에게만 브라우저끼리 바로 전달돼요. 서버를 거치지 않고, 녹음하거나 저장하지 않아요.
+            </p>
+            <button
+              type="button"
+              style={styles.confirm}
+              onClick={() => {
+                try {
+                  localStorage.setItem(VOICE_NOTICE_KEY, '1')
+                } catch {
+                  // 기억하지 못해도 이번에는 켭니다.
+                }
+                setVoiceNotice(false)
+                void turnMic(true)
+              }}
+            >
+              마이크 켜기
+            </button>
+            <button type="button" style={styles.ghost} onClick={() => setVoiceNotice(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
       {leaveAsk && (
         // 방장이 나가려 할 때: 회의를 끝내거나, 다른 사람에게 방장을 넘기고 나가거나, 취소
         <div style={styles.backdrop} onClick={() => setLeaveAsk(false)}>
@@ -454,6 +526,11 @@ const styles: Record<string, React.CSSProperties> = {
   dialog: {
     width: 'min(360px, calc(100vw - 32px))', padding: 20, borderRadius: 12, background: '#20232a', color: '#fff',
     font: '14px/1.6 system-ui, sans-serif', display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  confirm: { padding: '8px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10', font: 'inherit', fontWeight: 600, cursor: 'pointer' },
+  micOn: {
+    padding: '8px 14px', borderRadius: 8, border: 'none', background: '#22c55e', color: '#0b1a10',
+    font: '14px system-ui, sans-serif', fontWeight: 600, cursor: 'pointer',
   },
   danger: { padding: '8px 12px', borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer' },
   ghost: { padding: '8px 12px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent', color: '#fff', font: 'inherit', cursor: 'pointer' },
