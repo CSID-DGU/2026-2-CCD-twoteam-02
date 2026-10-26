@@ -26,13 +26,14 @@ type Props = {
   userId: string
   sessionId: string | null // 좌석 이용 기록. 아직 못 읽었으면 null
   condition: StudyCondition // 사용자 실험 조건
+  lockOtherScreen?: boolean // 실험 지점: 공부 시작 창의 다른 탭·앱 사용함을 켠 채 잠금 (#193)
   onStatus: (status: PresenceStatus) => void // 다른 참여자에게 보낼 내 상태
   onDialogChange: (open: boolean) => void // 창이 떠 있는 동안 캐릭터 조작을 막기 위해 알립니다.
   // 내 트래킹 결과를 알립니다. 지점 화면이 다른 참여자에게 내 고개·눈·팔을 보내는 데 씁니다. (#129) 일어나면 null
   onTracking?: (tracking: MyTracking | null) => void
 }
 
-export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onTracking }: Props) {
+export function SeatedStudy({ userId, sessionId, condition, lockOtherScreen, onStatus, onDialogChange, onTracking }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
   // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 휴대폰·학습기기 사용함이 아닐 때만 켭니다.
@@ -101,6 +102,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           loading={loading}
           loadError={loadError}
           addSubject={addSubject}
+          lockOtherScreen={lockOtherScreen}
           onStart={(c) => {
             setChoice(c)
             setDialogOpen(false)
