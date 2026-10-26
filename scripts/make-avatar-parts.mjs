@@ -10,6 +10,7 @@
 //       이름.png        : 색이 고정인 부분 (눈동자, 신발 밑창 등)
 //       이름-closed.png : 눈 감은 그림 (눈 부품만)
 //   눈은 김현이 그린 그림을 도형으로 다시 그린 것이다(EYE_SHAPES). 그 밖의 기본 부품은 시험용으로 단순하게 칠한 것
+//   입(다문 입·벌린 입)은 여기서 만들지 않는다. 김현이 그린 그림을 scripts/clean-mouth-drawings.mjs 로 다듬어 넣는다
 //   public/models/Parts/templates/부위.png : 새 부품을 그릴 때 쓰는 안내 그림 (면마다 색이 다름, README 참고)
 //   src/avatar/parts.json              : 부품 목록. 기본 부품 줄은 새로 쓰고, 팀이 직접 추가한 줄은 그대로 둔다
 //
@@ -292,7 +293,6 @@ function paintEyes(faces, ops, fixed, tint) {
 // ── 기본 부품 ─────────────────────────────────────────────────────
 // 칸마다 [id, 이름, 그리기]. 그리기는 { tint, file, closed } 중 필요한 것을 채운다. 그리기가 null 이면 "없음"
 const DARK = [31, 31, 36]
-const LIPS = [120, 50, 50]
 
 function makeParts(faces) {
   const arms = ['arm-left', 'arm-right']
@@ -307,19 +307,9 @@ function makeParts(faces) {
       ['straight', '일자', (p) => bothEyes(p.tint, faces, 0, -0.9, 1.5, -0.55, gray(200))],
       ['thick', '진한', (p) => bothEyes(p.tint, faces, -0.15, -1.0, 1.6, -0.45, gray(170))],
     ],
-    mouth: [
-      ['none', '없음', null],
-      ['smile', '웃음', (p) => {
-        face(p.file, faces, 3, 6.0, 5, 6.35, LIPS)
-        face(p.file, faces, 2.6, 5.65, 3, 6.0, LIPS)
-        face(p.file, faces, 5, 5.65, 5.4, 6.0, LIPS)
-      }],
-      ['line', '일자', (p) => face(p.file, faces, 3, 6.0, 5, 6.3, LIPS)],
-      ['open', '벌린 입', (p) => {
-        face(p.file, faces, 3.2, 5.8, 4.8, 6.6, [70, 25, 30])
-        face(p.file, faces, 3.5, 6.3, 4.5, 6.6, [200, 90, 100]) // 혀
-      }],
-    ],
+    // 입은 그린 그림을 다듬어 넣으므로(scripts/clean-mouth-drawings.mjs) 여기서는 비워 둔다. parts.json 의 입 줄은 그대로 남는다
+    mouth: [],
+    mouthOpen: [],
     hair: [
       ['none', '없음', null],
       ['short', '짧은 머리', (p) => {

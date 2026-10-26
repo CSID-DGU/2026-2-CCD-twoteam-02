@@ -1,16 +1,17 @@
-// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입, 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
+// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입(다문·벌린), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
-// 왼쪽: 지금 고른 차림의 3D 미리보기(천천히 돌고, 끌어서 돌려 볼 수 있음)
+// 왼쪽: 지금 고른 차림의 3D 미리보기(끌어서 돌려 볼 수 있음. 저절로 돌지는 않음). 벌린 입을 누르면 입을 벌린 모습을 보여 줌
 // 오른쪽: 부위 탭, 부품 목록, 색상표. 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
 //   (3D 화면을 부품마다 만들면 무겁고, 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다. #137)
 // 저장은 바깥(CharacterTab)이 합니다.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { BASE_MODEL_URL } from './characters'
 import { useEyeSkin } from '../tracking/useEyeSkin'
+import { updateMouth, useMouth } from '../tracking/useMouth'
 import { PARTS, SKIN_PRESETS, avatarKey, randomAvatar } from '../avatar/avatarLogic'
 import type { Avatar, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
@@ -25,7 +26,8 @@ type Tab = { key: string; label: string; slots: { slot: Slot; title?: string }[]
 const TABS: Tab[] = [
   { key: 'skin', label: '피부', slots: [], color: { key: 'skin', label: '피부색' } },
   { key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' } },
-  { key: 'face', label: '눈썹·입', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }, { slot: 'mouth', title: '입' }] },
+  { key: 'brows', label: '눈썹', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }] },
+  { key: 'mouth', label: '입', slots: [{ slot: 'mouth', title: '다문 입 (평소)' }, { slot: 'mouthOpen', title: '벌린 입 (회의실에서 말할 때)' }] },
   { key: 'hair', label: '머리', slots: [{ slot: 'hair' }], color: { key: 'hairColor', label: '머리 색' } },
   { key: 'top', label: '상의', slots: [{ slot: 'top' }], color: { key: 'topColor', label: '상의 색' } },
   { key: 'bottom', label: '하의', slots: [{ slot: 'bottom' }], color: { key: 'bottomColor', label: '하의 색' } },
@@ -39,6 +41,7 @@ type Props = {
 
 export function CharacterPicker({ value, onChange }: Props) {
   const [tabKey, setTabKey] = useState('skin')
+  const [talking, setTalking] = useState(false) // 미리보기에 벌린 입을 보여 줄지: 마지막으로 누른 것이 벌린 입이면 켬
   const tab = TABS.find((t) => t.key === tabKey)!
   const pick = (patch: Partial<Avatar>) => value && onChange({ ...value, ...patch })
 
@@ -48,8 +51,8 @@ export function CharacterPicker({ value, onChange }: Props) {
         <Canvas camera={{ fov: 30, position: [0, 1.0, 4.2] }}>
           <ambientLight intensity={1.5} />
           <directionalLight position={[3, 5, 4]} intensity={1.5} />
-          {value && <Preview model={avatarKey(value)} />}
-          <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} autoRotate autoRotateSpeed={1.5} />
+          {value && <Preview model={avatarKey(value)} talking={talking} />}
+          <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} />
         </Canvas>
       </div>
       <div style={styles.side}>
@@ -61,7 +64,10 @@ export function CharacterPicker({ value, onChange }: Props) {
               role="tab"
               aria-selected={tabKey === t.key}
               style={{ ...styles.tab, ...(tabKey === t.key ? styles.tabOn : null) }}
-              onClick={() => setTabKey(t.key)}
+              onClick={() => {
+                setTabKey(t.key)
+                setTalking(false)
+              }}
             >
               {t.label}
             </button>
@@ -94,7 +100,10 @@ export function CharacterPicker({ value, onChange }: Props) {
                     title={p.name}
                     aria-label={p.name}
                     style={{ ...styles.cell, ...(value[slot] === p.id ? styles.cellOn : null) }}
-                    onClick={() => pick({ [slot]: p.id })}
+                    onClick={() => {
+                      pick({ [slot]: p.id })
+                      setTalking(slot === 'mouthOpen')
+                    }}
                   >
                     {p.tint || p.file ? <PartThumb slot={slot} part={p} avatar={value} /> : <span style={styles.none}>없음</span>}
                   </button>
@@ -155,12 +164,14 @@ function PartThumb({ slot, part, avatar }: { slot: Slot; part: Part; avatar: Ava
   return <canvas ref={ref} width={THUMB * ratio} height={THUMB * ratio} style={{ width: THUMB, height: THUMB }} />
 }
 
-// 미리보기 캐릭터: 가만히 서 있는 동작
-function Preview({ model }: { model: string }) {
+// 미리보기 캐릭터: 가만히 서 있는 동작. talking 이면 회의실에서 말할 때처럼 벌린 입을 덮어 보여 줍니다
+function Preview({ model, talking }: { model: string; talking: boolean }) {
   const ref = useRef<Group>(null!)
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   const copy = useMemo(() => scene.clone(true), [scene]) // 지점의 캐릭터와 같은 모델이라 복사본
   useEyeSkin(copy, model)
+  const mouth = useMouth(copy, model)
+  useFrame((_, delta) => updateMouth(mouth, talking ? 1 : 0, delta))
   const { actions } = useAnimations(animations, ref)
   useEffect(() => {
     actions.idle?.play()

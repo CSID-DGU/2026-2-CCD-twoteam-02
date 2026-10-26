@@ -1,6 +1,7 @@
 // 캐릭터 꾸미기 계산 (#56). React·브라우저와 무관한 순수 로직입니다.
 //
-// 캐릭터 = 맨몸(피부색) + 눈(모양·색) + 눈썹 + 입 + 머리(모양·색) + 상의(모양·색) + 하의(모양·색) + 신발(모양·색)
+// 캐릭터 = 맨몸(피부색) + 눈(모양·색) + 눈썹 + 다문 입 + 벌린 입 + 머리(모양·색) + 상의(모양·색) + 하의(모양·색) + 신발(모양·색)
+// 벌린 입은 스킨에 그리지 않고, 회의실에서 말할 때(입 트래킹 #61) 다문 입 위에 덮어 보여 줍니다(src/tracking/useMouth.ts).
 // 부품 목록은 parts.json, 모델의 면 자리는 uvFaces.json (둘 다 scripts/make-avatar-parts.mjs 가 만듦)
 // DB(profiles.avatar)에는 아래 Avatar 그대로 저장합니다(0024). 예전 {model: 'a'} 는 새 기본 차림으로 봅니다.
 //
@@ -8,15 +9,17 @@
 import parts from './parts.json'
 import uvFaces from './uvFaces.json'
 
-export type Slot = 'eyes' | 'brows' | 'mouth' | 'hair' | 'top' | 'bottom' | 'shoes'
+export type Slot = 'eyes' | 'brows' | 'mouth' | 'mouthOpen' | 'hair' | 'top' | 'bottom' | 'shoes'
 // tint: 고른 색을 입힐 그림(흰색·회색), file: 색 고정 그림, closed: 눈 감은 그림(눈만). "없음" 부품은 셋 다 없음
-export type Part = { id: string; name: string; tint?: string; file?: string; closed?: string }
+// hd: 입 둘레(MOUTH_HD)만 4배로 그린 또렷한 그림(입만). 꾸미기 창의 그림과 말할 때 덮는 벌린 입에 씀
+export type Part = { id: string; name: string; tint?: string; file?: string; closed?: string; hd?: string }
 export type Avatar = {
   skin: string // 색은 모두 '#rrggbb'
   eyes: string
   eyeColor: string
   brows: string
-  mouth: string
+  mouth: string // 다문 입
+  mouthOpen: string // 벌린 입 (말할 때)
   hair: string
   hairColor: string
   top: string
@@ -52,6 +55,7 @@ export const DEFAULT_AVATAR: Avatar = {
   eyeColor: '#5b3a1e',
   brows: 'straight',
   mouth: 'smile',
+  mouthOpen: 'laugh',
   hair: 'short',
   hairColor: '#3b2a20',
   top: 'tshirt',
@@ -69,7 +73,7 @@ const FIELDS = Object.keys(DEFAULT_AVATAR) as (keyof Avatar)[]
 const COLOR = /^#[0-9a-f]{6}$/ // DB 제약과 같음
 const ID = /^[a-z0-9-]{1,32}$/
 const PART_FIELDS: Partial<Record<keyof Avatar, Slot>> = {
-  eyes: 'eyes', brows: 'brows', mouth: 'mouth', hair: 'hair', top: 'top', bottom: 'bottom', shoes: 'shoes',
+  eyes: 'eyes', brows: 'brows', mouth: 'mouth', mouthOpen: 'mouthOpen', hair: 'hair', top: 'top', bottom: 'bottom', shoes: 'shoes',
 }
 
 export const findPart = (slot: Slot, id: string) => PARTS[slot].find((p) => p.id === id)
@@ -110,6 +114,7 @@ export function randomAvatar(random: () => number = Math.random): Avatar {
     eyeColor: color(),
     brows: pick(PARTS.brows).id,
     mouth: pick(PARTS.mouth).id,
+    mouthOpen: pick(PARTS.mouthOpen).id,
     hair: pick(PARTS.hair).id,
     hairColor: color(),
     top: pick(PARTS.top).id,
@@ -122,7 +127,7 @@ export function randomAvatar(random: () => number = Math.random): Avatar {
 }
 
 // 썸네일로 보여 줄 자리: 부위마다 대표 면들(나란히 그림). 머리 쪽은 얼굴, 상의는 팔·몸통·팔 앞면, 하의는 두 다리 앞면, 신발은 두 다리 아래쪽
-type Rect = { x: number; y: number; w: number; h: number }
+export type Rect = { x: number; y: number; w: number; h: number }
 const front = (mesh: string, from = 0): Rect => {
   const f = UV_FACES[mesh].find((x) => x.dir === 'front')!
   const y = f.y0 + (f.y1 - f.y0) * from
@@ -134,11 +139,18 @@ const faceArea = (c0: number, r0: number, c1: number, r1: number): Rect => {
   const f = front('head'), cell = f.w / FACE_UNITS
   return { x: f.x + c0 * cell, y: f.y + r0 * cell, w: (c1 - c0) * cell, h: (r1 - r0) * cell }
 }
+// 말할 때 벌린 입을 덮어 보여 줄 얼굴 자리(칸 단위). 다문 입을 다 가리고, 눈(세로 눈의 아래 끝 5.5칸)은 가리지 않는 크기
+export const MOUTH_OVERLAY = { c0: 2, r0: 5.55, c1: 6, r1: 7.55 }
+export const mouthOverlayRect = (): Rect => faceArea(MOUTH_OVERLAY.c0, MOUTH_OVERLAY.r0, MOUTH_OVERLAY.c1, MOUTH_OVERLAY.r1)
+// 입의 또렷한 그림(Part.hd)이 담는 스킨 범위(픽셀)와 배율. 입 썸네일 자리와 덮는 판 자리를 모두 품는다.
+// scripts/clean-mouth-drawings.mjs 의 MOUTH_HD 와 같아야 한다
+export const MOUTH_HD = { x: 160, y: 208, w: 64, h: 36, scale: 4 }
+
 export function thumbRects(slot: Slot): Rect[] {
   if (slot === 'top') return [front('arm-right'), front('torso'), front('arm-left')]
   if (slot === 'bottom') return [front('leg-right'), front('leg-left')]
   if (slot === 'shoes') return [front('leg-right', 0.5), front('leg-left', 0.5)]
   if (slot === 'eyes' || slot === 'brows') return [faceArea(0.6, 2.5, 7.4, 6.3)] // 눈썹~눈 줄
-  if (slot === 'mouth') return [faceArea(2, 4.9, 6, 7.5)] // 입 둘레
+  if (slot === 'mouth' || slot === 'mouthOpen') return [faceArea(2, 5.3, 6, 7.6)] // 입 둘레
   return [front('head')] // 머리카락은 얼굴 전체
 }
