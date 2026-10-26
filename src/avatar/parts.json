@@ -66,6 +66,19 @@
       "tint": "/models/Parts/eyes/pupil-tint.png",
       "file": "/models/Parts/eyes/pupil.png",
       "closed": "/models/Parts/eyes/pupil-closed.png"
+    },
+    {
+      "id": "arch",
+      "name": "아치 눈",
+      "tint": "/models/Parts/eyes/arch-tint.png",
+      "file": "/models/Parts/eyes/arch.png",
+      "closed": "/models/Parts/eyes/arch-closed.png"
+    },
+    {
+      "id": "squint",
+      "name": "꼭 감은 눈",
+      "file": "/models/Parts/eyes/squint.png",
+      "closed": "/models/Parts/eyes/squint-closed.png"
     }
   ],
   "brows": [
