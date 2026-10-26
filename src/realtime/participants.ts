@@ -41,6 +41,9 @@ export type PresenceState = {
   // 따로 알림을 보내지 않고 위치 메시지에 한 칸 더 싣는 것뿐이라, 보고 있는 사람에게만 보인다.
   emote?: string
   emoteSeq?: number
+  // 회의실(#45): 방장 넘기기처럼 회의 정보를 바꾸면 1 올린다. 받은 사람은 이 번호가 바뀌면 DB 에서 회의 정보를 다시 읽는다.
+  // 값 자체를 믿지 않고 "다시 읽어 달라"는 신호로만 쓴다(누가 방장인지는 DB 가 정함).
+  sync?: number
 }
 
 export type ArmVector = [number, number, number]
