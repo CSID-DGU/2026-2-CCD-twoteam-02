@@ -9,6 +9,8 @@
 export const MAX_LENGTH = 100 // 한 번에 보낼 수 있는 글자 수
 export const SEND_GAP_MS = 1000 // 이보다 빨리 연달아 보내지 못함 (도배 방지)
 export const WHISPER_EVENT = 'whisper' // 실시간 방에서 쓰는 메시지 이름
+// 회의 초대 알림 (#45). 같은 친구 방으로 회의 번호만 보냅니다. 받은 쪽이 DB 에서 회의를 확인하고, 들어갈 때도 DB 가 초대를 다시 확인합니다.
+export const INVITE_EVENT = 'meeting-invite'
 
 export type Friend = { id: string; nickname: string }
 
