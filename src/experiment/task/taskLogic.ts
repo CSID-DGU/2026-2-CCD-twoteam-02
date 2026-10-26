@@ -1,6 +1,7 @@
 // 실험 과제의 순수 로직: 문제 생성(① 두 자리 덧셈), 지문(② 오탈자 찾기), 채점, 기록 CSV. 화면(TaskPanel.tsx)과 분리해 Node로 검사합니다.
-// 과제 후보 시험(spike, src/spike/)도 이 파일을 가져다 씁니다. 과제 종류는 아직 팀이 정하지 않았고(둘 다 넣어 실험해 봄), 정해지면 다른 쪽을 지웁니다.
+// 과제 후보 시험(spike, src/spike/)도 이 파일을 가져다 씁니다. 과제는 참가자가 ①·② 중 하나를 고르고 세 조건 모두 같은 것을 합니다(2026-10-27 결정).
 // 설계: docs/사용자-실험-재설계.md 3절 "과제", Issue #191. 남기는 것은 문항·입력·시각 숫자뿐입니다.
+import { TYPO_SOURCES_MORE } from "./typoPassagesMore";
 
 export const CALC_MIN = 10; // 계산 과제 피연산자 범위: 두 자리 수
 export const CALC_MAX = 99;
@@ -36,9 +37,10 @@ export function makeCalcProblem(rand: () => number): CalcProblem {
   }
 }
 
-// ── ② 오탈자 찾기: 짧은 교과서 투 문단에 오탈자 1~3개 ──
+// ── ② 오탈자 찾기: 짧은 교과서 투 문단에 오탈자 1~4개 ──
 // 지문은 저작권 문제가 없도록 직접 썼습니다. 표기 {정답|오타}는 그 자리 글자 하나를 오타로 바꿔 보여 준다는 뜻입니다.
-export const TYPO_SOURCES: string[] = [
+// 1차 60개(아래) + 2차 90개(typoPassagesMore.ts, 더 길고 오타 종류를 섞음) = 150개, 세트당 50개 (2026-10-27).
+const TYPO_SOURCES_FIRST: string[] = [
   "물은 섭씨 0도에서 얼고 100도에서 {끓|끌}는다. 하지만 높은 산에서는 기압이 낮아 더 낮은 온도에서 끓는다. 그래서 산 위에서 밥을 지으면 설익기 {쉽|쉼}다.",
   "조선은 1392년에 이성계가 세운 나라다. 수도는 한양이었고, 유교를 나라의 근본 사상으로 삼{았|앗}다. 세종 때에는 훈민정음이 만들어{졌|젔}다.",
   "식물은 햇빛을 받아 스스로 양분을 만든다. 이 과정을 광합성이라고 부{른|룬}다. 광합성에는 물과 이산화탄소가 필{요|오}하고, 그 결과 산소가 나온다.",
@@ -131,9 +133,10 @@ export function parsePassage(source: string): TypoPassage {
   return { chars, typoAt, correct };
 }
 
+export const TYPO_SOURCES: string[] = [...TYPO_SOURCES_FIRST, ...TYPO_SOURCES_MORE];
 export const TYPO_PASSAGES: TypoPassage[] = TYPO_SOURCES.map(parsePassage);
 
-// 세 조건에서 같은 지문이 다시 나오지 않도록 지문을 세트 3개로 나눕니다(번갈아 배정, 각 20개).
+// 세 조건에서 같은 지문이 다시 나오지 않도록 지문을 세트 3개로 나눕니다(번갈아 배정, 각 50개). 팀원 시험 처리량 분당 2~3지문 × 20분에 맞춘 수.
 export const TYPO_SET_COUNT = 3;
 export const TYPO_SETS: number[][] = Array.from({ length: TYPO_SET_COUNT }, (_, k) => TYPO_PASSAGES.map((_, i) => i).filter((i) => i % TYPO_SET_COUNT === k));
 
