@@ -150,7 +150,9 @@ function PartThumb({ slot, part, avatar }: { slot: Slot; part: Part; avatar: Ava
     if (ref.current) void drawPartThumb(ref.current, slot, part, avatar)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 차림이 바뀌었는지는 key 로 봄
   }, [slot, part, key])
-  return <canvas ref={ref} width={THUMB} height={THUMB} style={{ width: THUMB, height: THUMB }} />
+  // 레티나 화면처럼 화면 배율이 크면 캔버스도 그만큼 크게 그려야 흐리지 않습니다(보이는 크기는 THUMB 그대로).
+  const [ratio] = useState(() => Math.min(3, Math.ceil(window.devicePixelRatio || 1)))
+  return <canvas ref={ref} width={THUMB * ratio} height={THUMB * ratio} style={{ width: THUMB, height: THUMB }} />
 }
 
 // 미리보기 캐릭터: 가만히 서 있는 동작

@@ -9,6 +9,7 @@
 //       이름-tint.png   : 고른 색을 입힐 부분. 흰색·회색으로 그림 (회색이 어두울수록 고른 색도 어둡게)
 //       이름.png        : 색이 고정인 부분 (눈동자, 신발 밑창 등)
 //       이름-closed.png : 눈 감은 그림 (눈 부품만)
+//   눈은 김현이 그린 그림을 도형으로 다시 그린 것이다(EYE_SHAPES). 그 밖의 기본 부품은 시험용으로 단순하게 칠한 것
 //   public/models/Parts/templates/부위.png : 새 부품을 그릴 때 쓰는 안내 그림 (면마다 색이 다름, README 참고)
 //   src/avatar/parts.json              : 부품 목록. 기본 부품 줄은 새로 쓰고, 팀이 직접 추가한 줄은 그대로 둔다
 //
@@ -173,37 +174,124 @@ function bothEyes(buf, faces, dx0, dy0, dx1, dy1, rgb) {
   for (const x of EYES_X) face(buf, faces, x + dx0, 3.8 + dy0, x + dx1, 3.8 + dy1, rgb)
 }
 
+// ── 눈: 도형으로 그리기 ─────────────────────────────────────────────
+// 김현이 프로크리에이트로 그린 눈 10종(10/27)을 원·타원·둥근 네모·선으로 다시 그린 것이다. 크기·굵기·위치는 아래 숫자로 고친다.
+// 한쪽 눈을 그리고 반대쪽은 좌우를 뒤집어 대칭을 맞춘다. 가장자리는 한 픽셀을 4×4 로 나눠 칠해 매끈하게 한다.
+// 좌표: 눈 가운데가 (0, 0), 단위는 스킨 픽셀. x 는 바깥쪽(관자놀이 쪽)이 +, y 는 아래가 +
+// 칠하는 종류: 'black'(동공·속눈썹) · 'white'(흰자·반짝임) · 'ink'(가는 테두리)는 고정 색, 숫자는 눈 색을 입힐 회색 밝기(눈동자)
+const SUPER = 4
+const EYE_CENTER = { x: [2.25, 5.75], y: 4.55 } // 얼굴 칸 단위 (안내 그림의 눈 자리 가운데)
+const EYE_REACH = 20 // 눈 가운데에서 이만큼(px) 안만 칠한다
+const circle = (cx, cy, r) => (x, y) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r
+const ellipse = (cx, cy, rx, ry) => (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1
+const rrect = (cx, cy, hw, hh, r) => (x, y) => {
+  const dx = Math.max(Math.abs(x - cx) - (hw - r), 0), dy = Math.max(Math.abs(y - cy) - (hh - r), 0)
+  return Math.abs(x - cx) <= hw && Math.abs(y - cy) <= hh && dx * dx + dy * dy <= r * r
+}
+const capsule = (x0, y0, x1, y1, w) => (x, y) => {
+  const vx = x1 - x0, vy = y1 - y0, t = Math.max(0, Math.min(1, ((x - x0) * vx + (y - y0) * vy) / (vx * vx + vy * vy)))
+  return (x - x0 - t * vx) ** 2 + (y - y0 - t * vy) ** 2 <= (w / 2) ** 2
+}
+const below = (x0, y0, x1, y1) => (x, y) => (y - y0) * (x1 - x0) - (x - x0) * (y1 - y0) >= 0 // 선 (x0,y0)→(x1,y1) 의 아래쪽
+const and = (...fs) => (x, y) => fs.every((f) => f(x, y))
+const not = (f) => (x, y) => !f(x, y)
+const ring = (cx, cy, r, w) => and(circle(cx, cy, r), not(circle(cx, cy, r - w)))
+// 테두리: 캐릭터 원래 얼굴처럼 색면으로만 그리고, 동그란 눈·속눈썹 눈·나른한 눈만 가늘고 짙은 갈색 테두리를 둔다 (10/27 결정)
+const INK_W = 1.3 // 가는 테두리 굵기
+const lash = (deg, r0 = 10.2, r1 = 15.5) => {
+  const a = (deg * Math.PI) / 180
+  return [capsule(r0 * Math.sin(a), -r0 * Math.cos(a), r1 * Math.sin(a), -r1 * Math.cos(a), 1.8), 'black']
+}
+
+// [id, 이름, 칠하기 목록(나중 것이 위)]
+const EYE_SHAPES = [
+  ['sly', '새침한 눈', () => {
+    const shape = and(circle(0, 1, 11), below(-12, -2, 12, -9)) // 바깥쪽이 높은 눈꺼풀 선
+    return [[shape, 'white'], [and(circle(-3, -1.5, 5.2), shape), 190], [circle(-1.4, -2.6, 1.5), 'white']]
+  }],
+  ['sleepy', '졸린 눈', () => {
+    const shape = and((x, y) => y >= -4, ellipse(0, -4, 13, 9))
+    return [[shape, 'white'], [and(circle(0, -1.5, 4.2), shape), 180]]
+  }],
+  ['oval', '세로 눈', () => [
+    [ellipse(0, 0, 7.5, 14), 'white'], [ellipse(0, 1, 4.6, 8.5), 190], [ellipse(0, 1.5, 2.2, 3.6), 'black'], [circle(1.2, -2.2, 1.3), 'white'],
+  ]],
+  ['ring', '동그란 눈', () => [[circle(0, 0, 11), 'white'], [ring(0, 0, 11, INK_W), 'ink']]],
+  ['lashes', '속눈썹 눈', () => [
+    [circle(0, 0, 11), 'white'], [circle(0, 0.5, 4.2), 170], [circle(1.4, -0.9, 1.1), 'white'], [ring(0, 0, 11, INK_W), 'ink'],
+    lash(18), lash(40), lash(62),
+  ]],
+  ['square', '네모 눈', () => [[rrect(0, 0, 7, 7.5, 2.4), 190]]],
+  ['dot', '콩알 눈', () => [[circle(0, 0.5, 3), 170]]],
+  ['sparkle', '반짝 눈', () => [
+    [rrect(0, 0.5, 8, 8.5, 2.6), 160], [capsule(-2.5, -4.5, 3, 5, 2.2), 'white'],
+    [capsule(6, -7, 11, -11, 1.8), 'black'], [capsule(7.5, -4.5, 13, -5.5, 1.8), 'black'], [capsule(4, -8, 6, -13, 1.8), 'black'],
+  ]],
+  ['lidded', '나른한 눈', () => {
+    const lidY = -3.5 // 눈꺼풀 선. 그 위는 피부가 보임
+    return [
+      [and(circle(0, 0, 11.5), (x, y) => y > lidY), 'white'], [and(circle(0, 3.2, 3.6), (x, y) => y > lidY + 1), 170],
+      [ring(0, 0, 11.5, INK_W), 'ink'], [and(circle(0, 0, 11.5), capsule(-12, lidY, 12, lidY, INK_W)), 'ink'],
+    ]
+  }],
+  ['pupil', '큰 눈동자', () => [[circle(0, 0, 11.5), 'white'], [circle(0, 0.6, 7), 170], [circle(3.4, -3, 2.1), 'white']]],
+]
+const EYE_CLOSED = () => [[capsule(-10, 0, 10, 0, 3), 'black']] // 감은 눈 (모든 눈 공통)
+const EYE_COLORS = { black: [31, 31, 36], white: [255, 255, 255], ink: [70, 45, 40] } // 고정 색: 검정(동공·속눈썹) · 흰색 · 짙은 갈색(가는 테두리)
+
+// 칠하기 목록을 두 눈 자리에 그린다. 고정 색은 fixed 그림에, 눈 색 부분은 tint 그림에
+function paintEyes(faces, ops, fixed, tint) {
+  const f = faces.head.find((x) => x.dir === 'front')
+  const cell = (f.x1 - f.x0) / FACE_UNITS
+  const cy = f.y0 + EYE_CENTER.y * cell
+  for (const [k, ux] of EYE_CENTER.x.entries()) {
+    const cx = f.x0 + ux * cell
+    const side = k === 0 ? -1 : 1 // 그림 왼쪽 눈은 바깥쪽이 -x
+    for (let py = Math.floor(cy - EYE_REACH); py <= cy + EYE_REACH; py++) {
+      for (let px = Math.floor(cx - EYE_REACH); px <= cx + EYE_REACH; px++) {
+        let fixedN = 0, tintN = 0, gray = 0
+        const rgb = [0, 0, 0]
+        for (let sy = 0; sy < SUPER; sy++) {
+          for (let sx = 0; sx < SUPER; sx++) {
+            const x = (px + (sx + 0.5) / SUPER - cx) * side, y = py + (sy + 0.5) / SUPER - cy
+            let kind = null
+            for (const [inside, k2] of ops) if (inside(x, y)) kind = k2
+            if (kind === null) continue
+            if (typeof kind === 'number') {
+              tintN++
+              gray += kind
+            } else {
+              fixedN++
+              for (let c = 0; c < 3; c++) rgb[c] += EYE_COLORS[kind][c]
+            }
+          }
+        }
+        const i = (py * SIZE + px) * 4, n = SUPER * SUPER
+        if (fixedN) {
+          fixed.set([...rgb.map((v) => Math.round(v / fixedN)), Math.round((255 * fixedN) / n)], i)
+        }
+        if (tintN && tint) {
+          const g = Math.round(gray / tintN)
+          tint.set([g, g, g, Math.round((255 * tintN) / n)], i)
+        }
+      }
+    }
+  }
+}
+
 // ── 기본 부품 ─────────────────────────────────────────────────────
 // 칸마다 [id, 이름, 그리기]. 그리기는 { tint, file, closed } 중 필요한 것을 채운다. 그리기가 null 이면 "없음"
 const DARK = [31, 31, 36]
-const WHITE = [255, 255, 255]
 const LIPS = [120, 50, 50]
 
 function makeParts(faces) {
   const arms = ['arm-left', 'arm-right']
   const legs = ['leg-left', 'leg-right']
-  const closedLine = (buf) => bothEyes(buf, faces, 0, 0.6, 1.5, 0.9, DARK) // 감은 눈: 가로줄
   return {
-    eyes: [
-      ['basic', '기본', (p) => {
-        bothEyes(p.tint, faces, 0.25, 0, 1.25, 1.5, gray(230)) // 눈동자 색
-        bothEyes(p.file, faces, 0.5, 0.75, 1.0, 1.5, DARK) // 동공
-        bothEyes(p.file, faces, 0.25, 0, 0.5, 0.25, WHITE) // 반짝임
-        closedLine(p.closed)
-      }],
-      ['big', '큰 눈', (p) => {
-        // 색 고정 그림(file)이 색 입힌 그림(tint) 위에 얹히므로, 흰자는 눈동자 자리를 비우고 그 둘레만 칠한다
-        bothEyes(p.file, faces, 0, -0.25, 0.5, 1.5, WHITE) // 흰자 (눈동자 왼쪽)
-        bothEyes(p.file, faces, 0.5, -0.25, 1.5, 0, WHITE) // 흰자 (눈동자 위)
-        bothEyes(p.tint, faces, 0.5, 0, 1.5, 1.5, gray(230))
-        bothEyes(p.file, faces, 0.75, 0.5, 1.25, 1.25, DARK)
-        closedLine(p.closed)
-      }],
-      ['dot', '점 눈', (p) => {
-        bothEyes(p.tint, faces, 0.5, 0.5, 1.0, 1.25, gray(120)) // 작고 어두운 눈 (고른 색의 어두운 쪽)
-        closedLine(p.closed)
-      }],
-    ],
+    eyes: EYE_SHAPES.map(([id, name, ops]) => [id, name, (p) => {
+      paintEyes(faces, ops(), p.file, p.tint)
+      paintEyes(faces, EYE_CLOSED(), p.closed, null)
+    }]),
     brows: [
       ['none', '없음', null],
       ['straight', '일자', (p) => bothEyes(p.tint, faces, 0, -0.9, 1.5, -0.55, gray(200))],
