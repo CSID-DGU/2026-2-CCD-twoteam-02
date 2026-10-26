@@ -48,6 +48,14 @@ export function meetingObstacles(capacity: number): Box[] {
   return [...MEETING_ROOM.walls, { x: 0, z: 0, w: side, d: side }]
 }
 
+// 회의 진행 시간 표시: 1시간 전에는 분:초("12:05"), 그 뒤로는 시:분:초("01:12:05")
+export function elapsedLabel(startedAt: number, now: number): string {
+  const total = Math.floor(Math.max(0, now - startedAt) / 1000)
+  const two = (n: number) => String(n).padStart(2, '0')
+  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60
+  return h > 0 ? `${two(h)}:${two(m)}:${two(s)}` : `${two(m)}:${two(s)}`
+}
+
 // 친구 탭 접속 상태에 쓰는 "있는 곳" 값. 지점 slug 앞에 붙여 "별다방 회의 중"으로 보이게 합니다.
 export const MEETING_PLACE_PREFIX = 'meeting:'
 export const meetingPlace = (branchSlug: string) => `${MEETING_PLACE_PREFIX}${branchSlug}`

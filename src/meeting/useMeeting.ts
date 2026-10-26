@@ -15,7 +15,7 @@ const HEARTBEAT_MS = 60_000 // 접속 신호 주기. 5분 넘게 없으면 DB �
 const REFRESH_MS = 30_000 // 실시간 방 소식을 놓쳤을 때를 대비해 참석자 목록을 다시 읽는 주기
 
 export type MeetingPerson = { userId: string; nickname: string }
-export type MeetingInfo = { title: string; isPrivate: boolean; capacity: number; hostId: string }
+export type MeetingInfo = { title: string; isPrivate: boolean; capacity: number; hostId: string; createdAt: number } // createdAt: 회의를 연 시각(ms)
 export type MeetingState =
   | { status: 'loading' }
   | { status: 'notMember' } // 회의가 끝났거나, 들어 있지 않은 회의 (주소로 바로 들어온 경우 등)
@@ -48,7 +48,7 @@ export function useMeeting(meetingId: number, myId: string, presentKey: string):
     let alive = true
     const load = async () => {
       const [meeting, members] = await Promise.all([
-        supabase.from('meetings').select('title, is_private, capacity, host_id, ended_at').eq('id', meetingId).maybeSingle(),
+        supabase.from('meetings').select('title, is_private, capacity, host_id, created_at, ended_at').eq('id', meetingId).maybeSingle(),
         supabase.from('meeting_members').select('user_id').eq('meeting_id', meetingId).is('left_at', null),
       ])
       if (!alive) return
@@ -69,7 +69,8 @@ export function useMeeting(meetingId: number, myId: string, presentKey: string):
       const byId = new Map(((avatars.data ?? []) as AvatarRow[]).map((a) => [a.id, a]))
       setState({
         status: 'ready',
-        info: { title: meeting.data.title, isPrivate: meeting.data.is_private, capacity: meeting.data.capacity, hostId: meeting.data.host_id },
+        info: { title: meeting.data.title, isPrivate: meeting.data.is_private, capacity: meeting.data.capacity, hostId: meeting.data.host_id,
+          createdAt: Date.parse(meeting.data.created_at) },
         people: rows.map((r) => ({ userId: r.user_id, nickname: byId.get(r.user_id)?.nickname ?? '…' })),
       })
     }
