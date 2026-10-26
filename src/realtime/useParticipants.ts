@@ -65,15 +65,16 @@ import { changedEnough, pack } from './sendLogic'
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
 type Profile = { nickname: string; model: string }
 
-// room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166)
-export function useParticipants(room: string, me: RefObject<PresenceState | null>) {
+// room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45)
+// isPrivate: 비공개 방. 들어올 수 있는 사람을 DB 정책이 정합니다(회의는 그 회의 참석자만, 0021).
+export function useParticipants(room: string, me: RefObject<PresenceState | null>, isPrivate = false) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
 
   useEffect(() => {
     let alive = true
-    const channel = supabase.channel(room)
+    const channel = supabase.channel(room, isPrivate ? { config: { private: true } } : undefined)
 
     const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -249,7 +250,7 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
       stopProfileListen()
       void channel.unsubscribe()
     }
-  }, [room, me])
+  }, [room, me, isPrivate])
 
   return others
 }

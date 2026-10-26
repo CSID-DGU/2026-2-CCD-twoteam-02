@@ -1,9 +1,11 @@
 // 회의실 문 앞에서 E 를 누르면 뜨는 창 (#45): 열린 회의 목록, 참가, 새 회의 만들기.
+// 새 회의는 인원(2~8)을 꼭 골라야 만들 수 있습니다. 회의실에는 그 수만큼 의자가 놓입니다(0022).
 // 목록에는 이 지점의 공개 회의와 내가 초대받았거나 들어 있는 비공개 회의가 보입니다(list_meetings, 0021).
 // 참가·만들기에 성공하면 onEnter 로 회의 번호를 넘깁니다. 정원·초대 확인은 DB 함수가 합니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
+import { MEETING_CAPACITIES } from './meetingLogic'
 
 type MeetingRow = {
   id: number
@@ -28,6 +30,7 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
   const [busy, setBusy] = useState(false)
   const [title, setTitle] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
+  const [capacity, setCapacity] = useState<number | null>(null) // 고르기 전에는 만들 수 없습니다.
   const [version, setVersion] = useState(0) // 올리면 목록을 다시 읽습니다 (새로고침)
   const reload = () => setVersion((v) => v + 1)
 
@@ -66,20 +69,21 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
   }
 
   const create = async () => {
+    if (capacity === null) return
     setBusy(true)
     setError('')
     const { data, error } = await supabase.rpc('create_meeting', {
       p_branch_id: branchId,
       p_title: title,
       p_private: isPrivate,
+      p_capacity: capacity,
     })
     setBusy(false)
-    const made = (data as { meeting_id: number }[] | null)?.[0]
-    if (error || !made) {
+    if (error || typeof data !== 'number') {
       setError(error?.message ?? '회의를 만들지 못했어요.')
       return
     }
-    onEnter(made.meeting_id)
+    onEnter(data)
   }
 
   return (
@@ -138,9 +142,26 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
           placeholder="회의 이름 (비우면 '닉네임의 회의')"
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing && !busy) void create()
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing && !busy) void create() // 인원을 안 골랐으면 아무 일도 없음
           }}
         />
+        <div style={styles.createRow}>
+          <span style={styles.muted}>인원</span>
+          <div style={styles.toggle} role="radiogroup" aria-label="인원">
+            {MEETING_CAPACITIES.map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={capacity === n}
+                style={{ ...styles.toggleItem, ...styles.capacityItem, ...(capacity === n ? styles.toggleOn : null) }}
+                onClick={() => setCapacity(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={styles.createRow}>
           <div style={styles.toggle} role="radiogroup" aria-label="공개 범위">
             <button type="button" style={{ ...styles.toggleItem, ...(!isPrivate ? styles.toggleOn : null) }} onClick={() => setIsPrivate(false)}>
@@ -150,12 +171,17 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
               🔒 비공개
             </button>
           </div>
-          <button type="button" style={{ ...styles.primary, ...(busy ? styles.off : null) }} disabled={busy} onClick={() => void create()}>
-            만들고 들어가기
+          <button
+            type="button"
+            style={{ ...styles.primary, ...(busy || capacity === null ? styles.off : null) }}
+            disabled={busy || capacity === null}
+            onClick={() => void create()}
+          >
+            {capacity === null ? '인원을 골라 주세요' : '만들고 들어가기'}
           </button>
         </div>
         <span style={styles.muted}>
-          {isPrivate ? '비공개 회의는 초대받은 친구만 들어올 수 있어요.' : '공개 회의는 이 지점의 누구나 들어올 수 있어요.'} 최대 8명.
+          {isPrivate ? '비공개 회의는 초대받은 친구만 들어올 수 있어요.' : '공개 회의는 이 지점의 누구나 들어올 수 있어요.'} 고른 인원만큼 의자가 놓여요.
         </span>
         {error && <span style={styles.error}>{error}</span>}
       </div>
@@ -184,6 +210,7 @@ const styles: Record<string, CSSProperties> = {
   createRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   toggle: { display: 'flex', borderRadius: 6, border: '1px solid #4b5563', overflow: 'hidden' },
   toggleItem: { padding: '6px 12px', border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: 'inherit' },
+  capacityItem: { padding: '6px 10px', minWidth: 32 },
   toggleOn: { background: '#374151', color: '#fff', fontWeight: 600 },
   primary: {
     padding: '6px 12px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10', font: 'inherit',
