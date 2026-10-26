@@ -1,6 +1,6 @@
 // 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입(다문·벌린), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
-// 왼쪽: 지금 고른 차림의 3D 미리보기(천천히 돌고, 끌어서 돌려 볼 수 있음)
+// 왼쪽: 지금 고른 차림의 3D 미리보기(끌어서 돌려 볼 수 있음. 저절로 돌지는 않음)
 // 오른쪽: 부위 탭, 부품 목록, 색상표. 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
 //   (3D 화면을 부품마다 만들면 무겁고, 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다. #137)
 // 저장은 바깥(CharacterTab)이 합니다.
@@ -50,7 +50,7 @@ export function CharacterPicker({ value, onChange }: Props) {
           <ambientLight intensity={1.5} />
           <directionalLight position={[3, 5, 4]} intensity={1.5} />
           {value && <Preview model={avatarKey(value)} />}
-          <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} autoRotate autoRotateSpeed={1.5} />
+          <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} />
         </Canvas>
       </div>
       <div style={styles.side}>
