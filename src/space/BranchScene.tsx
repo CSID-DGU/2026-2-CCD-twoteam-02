@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
-import { Billboard, OrthographicCamera } from "@react-three/drei";
+import { Canvas } from "@react-three/fiber";
+import { Billboard } from "@react-three/drei";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
 import { CHAIR, KIOSK, SEAT, meetingDoor, meetingDoorFront, meetingRoomWalls, obstaclesOf, spotsOf } from "./layout";
 import type { BranchLayout } from "./layout";
@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
+import { TopDownCamera } from "./TopDownCamera";
 import { MeetingDialog } from "../meeting/MeetingDialog";
 import KioskScreen from "../kiosk/KioskScreen";
 import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (#38), 영수증 모양 (#39)
@@ -51,24 +52,7 @@ const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
-const MEETING_TABLE = { radius: 1.2, height: 0.74 }; // 회의실 원형 테이블 (장식. 의자는 회의 화면에서 인원수만큼 놓음, #45)
-
-// 창 크기가 바뀌어도 지점 전체가 화면에 들어오도록 배율을 맞춥니다.
-function TopDownCamera({ area }: { area: { w: number; d: number } }) {
-  const size = useThree((s) => s.size);
-  const zoom = Math.min(
-    size.width / (area.w + 1),
-    size.height / (area.d + 1)
-  );
-  return (
-    <OrthographicCamera
-      makeDefault
-      position={[0, 20, 0]}
-      rotation={[-Math.PI / 2, 0, 0]}
-      zoom={zoom}
-    />
-  );
-}
+const MEETING_TABLE = { radius: 1.2, height: 0.74 }; // 회의실 원형 테이블 (장식. 의자는 회의 화면에서 회의 인원만큼 놓음, #45)
 
 // 지점 화면: 주소의 ?branch= 값(별다방 byeol, 솔카페 sol)으로 배치와 DB 지점 정보를 찾아 그립니다. (#44)
 export function BranchScene() {
