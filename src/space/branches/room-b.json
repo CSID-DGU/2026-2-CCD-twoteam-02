@@ -3,6 +3,7 @@
   "name": "room B",
   "hideOthers": true,
   "experimentSeat": 4,
+  "allowOtherScreen": true,
   "size": {
     "w": 24,
     "d": 16

@@ -6,6 +6,7 @@ import type { Subject } from './useSubjects'
 import { PHONE_SECONDS } from '../focus/focusLogic'
 
 // allowOtherScreen: ⓐ 다른 탭·앱 사용함 (다른 화면 판정 끔), allowDevices: ⓑ 휴대폰·학습기기 사용함 (휴대폰 판정 끔). 따로 켤 수 있습니다. (#172)
+// 실험 지점(지점 JSON allowOtherScreen)에서는 ⓐ를 켠 채 잠급니다. 참가자가 옆 창의 과제 화면을 20분 내내 쓰기 때문입니다. (#193)
 export type StudyChoice = { subject: Subject; allowOtherScreen: boolean; allowDevices: boolean }
 
 type Props = {
@@ -15,12 +16,13 @@ type Props = {
   addSubject: (name: string) => Promise<Subject | string>
   onStart: (choice: StudyChoice) => void
   onCancel: () => void
+  lockOtherScreen?: boolean // 실험 지점: 다른 탭·앱 사용함을 켠 채 잠금 (#193)
 }
 
-export function StartStudyDialog({ subjects, loading, loadError, addSubject, onStart, onCancel }: Props) {
+export function StartStudyDialog({ subjects, loading, loadError, addSubject, onStart, onCancel, lockOtherScreen = false }: Props) {
   const [picked, setPicked] = useState<Subject | null>(null)
   const [newName, setNewName] = useState('')
-  const [allowOtherScreen, setAllowOtherScreen] = useState(false) // 기본은 둘 다 사용 안 함
+  const [allowOtherScreen, setAllowOtherScreen] = useState(lockOtherScreen) // 기본은 둘 다 사용 안 함. 실험 지점은 ⓐ만 켠 채 잠김
   const [allowDevices, setAllowDevices] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -81,10 +83,19 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, onS
         </form>
         {error && <div style={styles.error}>{error}</div>}
 
-        <label style={styles.check}>
-          <input type="checkbox" checked={allowOtherScreen} onChange={(e) => setAllowOtherScreen(e.target.checked)} />{' '}
+        <label style={{ ...styles.check, ...(lockOtherScreen ? styles.checkLocked : null) }}>
+          <input
+            type="checkbox"
+            checked={allowOtherScreen}
+            disabled={lockOtherScreen}
+            onChange={(e) => setAllowOtherScreen(e.target.checked)}
+          />{' '}
           다른 탭·앱 사용함
-          <div style={styles.hint}>켜면 다른 탭·다른 앱을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
+          {lockOtherScreen ? (
+            <div style={styles.hint}>이 지점에서는 옆 창의 과제 화면을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
+          ) : (
+            <div style={styles.hint}>켜면 다른 탭·다른 앱을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
+          )}
         </label>
         <label style={styles.check}>
           <input type="checkbox" checked={allowDevices} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
@@ -139,6 +150,7 @@ const styles: Record<string, CSSProperties> = {
     color: '#fff', font: 'inherit',
   },
   check: { cursor: 'pointer', marginTop: 4 },
+  checkLocked: { cursor: 'default', opacity: 0.8 }, // 잠긴 설정은 누를 수 없음을 보이게
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 },
   primary: {
     padding: '6px 14px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10',

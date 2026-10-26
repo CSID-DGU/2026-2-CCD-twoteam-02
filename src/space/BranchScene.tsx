@@ -535,6 +535,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         userId={session.user.id}
         sessionId={sessionId}
         condition={condition}
+        lockOtherScreen={branch.allowOtherScreen === true}
         onStatus={setStudyStatus}
         onDialogChange={setStudyDialogOpen}
         onTracking={handleTracking}
