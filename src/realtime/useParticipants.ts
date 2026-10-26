@@ -58,8 +58,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import { onMyProfileChanged } from '../profile/characters'
-import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS } from './participants'
-import type { Participant, PresenceState } from './participants'
+import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
+import type { Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
@@ -67,7 +67,13 @@ type Profile = { nickname: string; model: string }
 
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45)
 // isPrivate: 비공개 방. 들어올 수 있는 사람을 DB 정책이 정합니다(회의는 그 회의 참석자만, 0021).
-export function useParticipants(room: string, me: RefObject<PresenceState | null>, isPrivate = false) {
+// signalRef: 같은 방으로 음성 연결 신호도 주고받을 때 (회의실 음성, #46)
+export function useParticipants(
+  room: string,
+  me: RefObject<PresenceState | null>,
+  isPrivate = false,
+  signalRef?: RefObject<SignalPort>,
+) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
@@ -75,6 +81,7 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
   useEffect(() => {
     let alive = true
     const channel = supabase.channel(room, isPrivate ? { config: { private: true } } : undefined)
+    const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
 
     const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -198,6 +205,12 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
         profiles.current.delete(who)
         rebuild()
       })
+      .on('broadcast', { event: SIGNAL_EVENT }, ({ payload }) => {
+        // 음성 연결 신호. 나에게 온 것만 넘긴다.
+        const p = payload as { from?: string; to?: string; data?: unknown } | null
+        if (!port || !p?.from || p.to !== me.current?.userId) return
+        port.receive(p.from, p.data)
+      })
       .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
@@ -208,6 +221,12 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
       .subscribe((status) => {
         if (status !== 'SUBSCRIBED') return
         subscribed = true
+        if (port) {
+          port.send = (to, data) => {
+            const from = me.current?.userId
+            if (from) void channel.send({ type: 'broadcast', event: SIGNAL_EVENT, payload: { from, to, data } })
+          }
+        }
         const id = me.current?.userId
         // presence 는 "누가 있는지"만 담는다. 들어올 때 한 번이면 된다.
         if (id) void channel.track({ userId: id })
@@ -252,9 +271,10 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
       stopProfileListen()
+      if (port) port.send = null
       void channel.unsubscribe()
     }
-  }, [room, me, isPrivate])
+  }, [room, me, isPrivate, signalRef])
 
   return others
 }

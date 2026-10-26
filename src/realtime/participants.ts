@@ -46,6 +46,8 @@ export type PresenceState = {
   // 회의실(#45): 방장 넘기기처럼 회의 정보를 바꾸면 1 올린다. 받은 사람은 이 번호가 바뀌면 DB 에서 회의 정보를 다시 읽는다.
   // 값 자체를 믿지 않고 "다시 읽어 달라"는 신호로만 쓴다(누가 방장인지는 DB 가 정함).
   sync?: number
+  // 회의실 음성(#46): 마이크를 켰는지. 다른 사람 화면의 참석자 목록에 🔇 로 보인다.
+  mic?: boolean
 }
 
 export type ArmVector = [number, number, number]
@@ -85,6 +87,17 @@ export const HELLO_EVENT = 'hello'
 // 들고 있던 값을 지우고 DB 에서 다시 읽는다.
 // 값 자체는 싣지 않는다. 메시지에 실으면 남의 캐릭터·이름을 사칭할 수 있기 때문이다(위 머리말).
 export const PROFILE_EVENT = 'profile'
+
+// 회의실 음성 연결 신호(#46)를 실어 보내는 메시지 이름.
+// WebRTC 연결을 맺으려면 처음에 offer·answer·ICE 같은 신호를 서로 건네야 하는데, 이것도 같은 방(회의 참석자만)으로 보낸다.
+// 받는 사람(to)을 적어 보내고, 받은 쪽은 자기에게 온 것만 쓴다.
+export const SIGNAL_EVENT = 'signal'
+
+// 같은 방으로 음성 연결 신호를 주고받는 통로. 화면이 receive 를 넣어 두고, useParticipants 가 send 를 채운다.
+export type SignalPort = {
+  receive: (from: string, data: unknown) => void
+  send: ((to: string, data: unknown) => void) | null // 방에 들어가기 전에는 null
+}
 
 // 이 시간 동안 소식이 없으면 나간 것으로 보고 화면에서 지운다.
 // 탭을 거칠게 닫으면 나갔다는 알림이 안 올 수 있어 필요하다.
