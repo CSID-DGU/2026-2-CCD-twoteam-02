@@ -49,6 +49,7 @@ export type FaceState = {
   pitch: number;
   roll: number;
   blink: number;
+  jaw: number; // 입 벌린 정도(blendshape jawOpen, 0~1). 회의실 입 트래킹용 (#61)
   ear: number | null; // 눈 크기(EAR). 보정·눈 감음 판정용
   updatedAt: number | null; // 마지막으로 인식한 시각(Date.now). 오래되면 판정에서 "안 보임"으로 봅니다
 };
@@ -75,7 +76,7 @@ export type TrackingStatus = "loading" | "ready" | "error";
 
 // options.phone: 휴대폰 감지를 켤지. 바꿔도 웹캠을 다시 켜지 않습니다(ref로 읽음).
 export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, options: { phone?: boolean } = {}) {
-  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, ear: null, updatedAt: null });
+  const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, jaw: 0, ear: null, updatedAt: null });
   const phone = useRef<PhoneState>({ found: null });
   const phoneWanted = useRef(false);
   const wantPhone = options.phone ?? false;
@@ -105,13 +106,14 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
     const matrix = new THREE.Matrix4();
     const euler = new THREE.Euler();
 
-    // 얼굴: 변환 행렬 → 고개 각도, blendshape → 눈 감긴 정도
+    // 얼굴: 변환 행렬 → 고개 각도, blendshape → 눈 감긴 정도·입 벌린 정도
     function readFace(landmarker: FaceLandmarker, video: HTMLVideoElement, now: number) {
       const result = landmarker.detectForVideo(video, now);
       faceState.updatedAt = Date.now();
       const transform = result.facialTransformationMatrixes?.[0];
       if (!transform) {
         faceState.found = false;
+        faceState.jaw = 0;
         faceState.ear = null;
         return;
       }
@@ -125,6 +127,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       const left = shapes.find((c) => c.categoryName === "eyeBlinkLeft")?.score ?? 0;
       const right = shapes.find((c) => c.categoryName === "eyeBlinkRight")?.score ?? 0;
       faceState.blink = (left + right) / 2;
+      faceState.jaw = shapes.find((c) => c.categoryName === "jawOpen")?.score ?? 0; // 같은 결과에 이미 들어 있어 계산이 늘지 않음 (#61)
       faceState.ear = earOf(result.faceLandmarks?.[0], video.videoWidth || 640, video.videoHeight || 480);
     }
 

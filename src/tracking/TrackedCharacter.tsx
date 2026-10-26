@@ -1,5 +1,5 @@
 // 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 눈 감은 스킨,
-// (pose 를 넘기면) 팔 방향 → 팔 회전
+// (pose 를 넘기면) 팔 방향 → 팔 회전, (showMouth 면) 입 벌림 → 입 모양 (회의실, #61)
 //
 // 캐릭터는 복사본에 이 캐릭터만 쓰는 재질을 입혀 그립니다. 원본을 그대로 쓰면 눈을 감을 때
 // 같은 모델(a)을 쓰는 다른 참여자 캐릭터까지 같이 눈을 감습니다. (#113, useEyeSkin.ts)
@@ -12,8 +12,9 @@ import type { FaceState, PoseState } from "./useTracking";
 import { characterArms } from "./armLogic";
 import { applyArms } from "./armPose";
 import { useArmDirections } from "./useArmDirections";
-import { headAngles, nextEyesClosed } from "./faceSync";
+import { headAngles, mouthOpen, nextEyesClosed } from "./faceSync";
 import { showEyes, useEyeSkin } from "./useEyeSkin";
+import { updateMouth, useMouth } from "./useMouth";
 import { DEFAULT_MODEL, modelUrl } from "../profile/characters";
 
 const HEAD_NODE = "head";
@@ -24,14 +25,16 @@ type Props = {
   face: RefObject<FaceState>;
   pose?: RefObject<PoseState>; // 없으면 팔은 움직이지 않습니다.
   model?: string; // 캐릭터 종류 (a~r). 내 프로필에서 고른 캐릭터 (#131)
+  showMouth?: boolean; // 입 벌림을 보여 줄지. 회의실에서만 켭니다 (#61)
 };
 
-export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL }: Props) {
+export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth = false }: Props) {
   const { scene } = useGLTF(modelUrl(model));
   // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
   const character = useMemo(() => scene.clone(true), [scene]);
   const eyes = useEyeSkin(character, model);
   const eyesClosed = useRef(false);
+  const mouth = useMouth(character);
   // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)
   const arms = useArmDirections(pose);
 
@@ -43,6 +46,8 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL }: Props) {
     // 눈: 감긴 정도에 따라 뜬 스킨과 감은 스킨을 바꿉니다.
     eyesClosed.current = nextEyesClosed(eyesClosed.current, state);
     showEyes(eyes.current, eyesClosed.current);
+    // 입: 벌린 만큼 입 모양을 늘립니다(회의실에서만).
+    updateMouth(mouth, showMouth ? mouthOpen(state) : 0, delta);
 
     // 내 모습 화면은 거울처럼 움직입니다. 얼굴을 놓치면 정면으로 천천히 돌아옵니다.
     const angles = headAngles(state, true);

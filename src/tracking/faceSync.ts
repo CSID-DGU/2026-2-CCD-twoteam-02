@@ -1,4 +1,4 @@
-// 얼굴 트래킹 결과 → 캐릭터 머리 각도·눈 감김 (화면·three.js와 무관한 순수 로직)
+// 얼굴 트래킹 결과 → 캐릭터 머리 각도·눈 감김·입 벌림 (화면·three.js와 무관한 순수 로직)
 //
 // 내 모습 화면(TrackedCharacter)과, 다른 참여자에게 보내는 내 고개·눈(#129)이 같은 계산을 씁니다.
 //
@@ -15,6 +15,11 @@ const MIRROR_ROLL = -1; // 갸웃
 // 예전 판정과 같은 값을 그대로 둡니다. (측정: 정면에서 뜸 11~19%, 감음 50~52%)
 export const BLINK_THRESHOLD = 0.4; // 이 값보다 크면 눈을 감은 것으로 봅니다.
 export const BLINK_OPEN_THRESHOLD = 0.3; // 이 값보다 작아져야 다시 뜬 것으로 봅니다. (깜빡거림 방지)
+
+// 입 벌림 기준 (blendshape jawOpen 점수, #61). 가만히 다물고 있어도 0.0x 정도는 나와서 그 아래는 다문 것으로 봅니다.
+// 말할 때는 대략 0.1~0.4, 크게 벌리면 0.5 넘게 나옵니다. MOUTH_FULL 이상이면 다 벌린 것으로 봅니다.
+export const MOUTH_CLOSED = 0.08;
+export const MOUTH_FULL = 0.5;
 
 export type FaceInput = { found: boolean; yaw: number; pitch: number; roll: number; blink: number };
 export type HeadAngles = { yaw: number; pitch: number; roll: number }; // 캐릭터 머리 회전(라디안)
@@ -34,4 +39,10 @@ export function headAngles(face: FaceInput, mirror: boolean): HeadAngles | null 
 export function nextEyesClosed(prev: boolean, face: FaceInput): boolean {
   const limit = prev ? BLINK_OPEN_THRESHOLD : BLINK_THRESHOLD;
   return face.found && face.blink > limit;
+}
+
+// 캐릭터 입을 벌릴 정도(0 다묾 ~ 1 다 벌림). 얼굴을 못 찾으면 다문 것으로 봅니다. (#61)
+export function mouthOpen(face: { found: boolean; jaw: number }): number {
+  if (!face.found) return 0;
+  return Math.min(1, Math.max(0, (face.jaw - MOUTH_CLOSED) / (MOUTH_FULL - MOUTH_CLOSED)));
 }
