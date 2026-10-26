@@ -36,7 +36,7 @@ import { InfoPanel } from '../menu/InfoPanel'
 import { panelKey } from '../menu/panelTypes'
 import type { PanelView } from '../menu/panelTypes'
 import { useMenuShortcuts } from '../menu/useMenuShortcuts'
-import { headAngles, nextEyesClosed } from '../tracking/faceSync'
+import { headAngles, mouthOpen, nextEyesClosed } from '../tracking/faceSync'
 import { characterArms } from '../tracking/armLogic'
 import type { Direction } from '../tracking/armLogic'
 import type { MyTracking } from '../study/SeatedStudy'
@@ -223,6 +223,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       status: 'idle', // 회의실에서는 집중 판정을 하지 않습니다(표시등 없음).
       ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
+      ...(face ? { mouth: mouthOpen(face) } : {}), // 입 벌림 (회의실에서만 보냄, #61)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
       ...(sync ? { sync } : {}),
     }

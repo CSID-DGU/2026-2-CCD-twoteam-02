@@ -18,9 +18,10 @@ type Props = {
   pose: RefObject<PoseState>;
   status: TrackingStatus;
   message: string;
+  showMouth?: boolean; // 입 벌림도 보여 줄지 (회의실, #61)
 };
 
-export function SelfView({ videoRef, face, pose, status, message }: Props) {
+export function SelfView({ videoRef, face, pose, status, message, showMouth = false }: Props) {
   const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   return (
     <div
@@ -45,7 +46,7 @@ export function SelfView({ videoRef, face, pose, status, message }: Props) {
       >
         <ambientLight intensity={1.5} />
         <directionalLight position={[3, 5, 4]} intensity={1.5} />
-        {model && <TrackedCharacter face={face} pose={pose} model={model} />}
+        {model && <TrackedCharacter face={face} pose={pose} model={model} showMouth={showMouth} />}
       </Canvas>
 
       <div style={{ position: "absolute", top: 6, left: 10 }}>내 모습</div>
