@@ -128,9 +128,17 @@ const front = (mesh: string, from = 0): Rect => {
   const y = f.y0 + (f.y1 - f.y0) * from
   return { x: f.x0, y, w: f.x1 - f.x0, h: f.y1 - y }
 }
+// 얼굴(머리 앞면)의 일부를 8×8 칸 단위로 자른 자리. 눈·입은 얼굴에서 작아서 그 둘레만 잘라 크게 보여 줍니다.
+const FACE_UNITS = 8
+const faceArea = (c0: number, r0: number, c1: number, r1: number): Rect => {
+  const f = front('head'), cell = f.w / FACE_UNITS
+  return { x: f.x + c0 * cell, y: f.y + r0 * cell, w: (c1 - c0) * cell, h: (r1 - r0) * cell }
+}
 export function thumbRects(slot: Slot): Rect[] {
   if (slot === 'top') return [front('arm-right'), front('torso'), front('arm-left')]
   if (slot === 'bottom') return [front('leg-right'), front('leg-left')]
   if (slot === 'shoes') return [front('leg-right', 0.5), front('leg-left', 0.5)]
-  return [front('head')]
+  if (slot === 'eyes' || slot === 'brows') return [faceArea(0.6, 2.5, 7.4, 6.3)] // 눈썹~눈 줄
+  if (slot === 'mouth') return [faceArea(2, 4.9, 6, 7.5)] // 입 둘레
+  return [front('head')] // 머리카락은 얼굴 전체
 }

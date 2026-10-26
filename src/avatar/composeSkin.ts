@@ -140,7 +140,9 @@ export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part:
   const [tint, file] = await Promise.all([part.tint, part.file].map((url) => (url ? loadImage(url) : Promise.resolve(null))))
   const ctx = target.getContext('2d')!
   ctx.clearRect(0, 0, target.width, target.height)
-  ctx.imageSmoothingEnabled = false
+  // 크게 그린 그림을 작게 줄이므로 부드럽게 줄입니다(건너뛰며 줄이면 가는 선이 끊겨 보임).
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
   const totalW = rects.reduce((s, r) => s + r.w, 0)
   const maxH = Math.max(...rects.map((r) => r.h))
   const gaps = THUMB_GAP * (rects.length - 1)
