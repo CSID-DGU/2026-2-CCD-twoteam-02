@@ -7,10 +7,14 @@
 // 닫혀 있을 때 새 귓속말은 10초 보였다가 스르륵 사라지고, "Enter 귓속말"과 안 읽은 개수만 남습니다.
 // 밝은 바닥 위에서도 보이도록 글자 뒤에 어두운 반투명 배경을 깝니다(#211).
 // 입력하는 동안에는 WASD·E·V 가 캐릭터를 움직이지 않습니다(입력칸에서 누른 키는 무시).
+// 회의 초대(#45)는 [초대] 줄로 보이고, [참가]를 누르면 그 회의로 갑니다. 공부 중이면 한 번 더 묻습니다.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useNavigate } from 'react-router'
+import { supabase } from '../lib/supabase'
+import { BRANCH_LAYOUTS } from '../space/branches'
 import { useChat } from './chatContext'
-import type { ChatLine } from './chatContext'
+import type { ChatLine, MeetingInvite } from './chatContext'
 import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget, timeAgo } from './chatLogic'
 
 const SHOW_MS = 10000 // 닫혀 있을 때 새 줄이 보이는 시간
@@ -280,6 +284,17 @@ function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?
   const style = { ...styles.line, ...(pill ? styles.pill : null), opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
   if (line.kind === 'system') return <div style={{ ...style, ...styles.system }}>{line.text}</div>
   const name = line.peer?.nickname ?? '친구'
+  if (line.kind === 'invite' && line.meeting) {
+    return (
+      <div style={{ ...style, color: color ?? WHISPER }}>
+        <span style={styles.tag}>[초대]</span> <span style={styles.who}>{name}:</span>{' '}
+        {BRANCH_LAYOUTS[line.meeting.branchSlug]?.name ?? '지점'} '{line.meeting.title}' 회의에 초대했어요{' '}
+        <JoinButton meeting={line.meeting} hidden={gone} />
+        {line.quiet && <span style={styles.quietMark}> 🔕</span>}
+        {ago && <span style={styles.ago}> · {ago}</span>}
+      </div>
+    )
+  }
   return (
     <div style={{ ...style, color: color ?? WHISPER }}>
       <span style={styles.tag}>{line.kind === 'in' ? '[받음]' : '[보냄]'}</span> <span style={styles.who}>{name}:</span> {line.text}
@@ -289,7 +304,53 @@ function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?
   )
 }
 
+// 초대 줄의 [참가] 버튼. 공부 중이면 자리에서 일어나 공부가 끝나므로 한 번 더 묻습니다.
+// 들어갈 수 있는지(초대·정원·끝난 회의)는 join_meeting 이 확인하고, 안 되면 그 까닭을 로그에 한 줄 남깁니다.
+function JoinButton({ meeting, hidden }: { meeting: MeetingInvite; hidden: boolean }) {
+  const chat = useChat()
+  const navigate = useNavigate()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const join = async () => {
+    setBusy(true)
+    const { error } = await supabase.rpc('join_meeting', { p_meeting_id: meeting.id })
+    setBusy(false)
+    setConfirming(false)
+    if (error) {
+      chat?.note(`회의에 들어가지 못했어요: ${error.message}`)
+      return
+    }
+    navigate(`/meeting/${meeting.id}?branch=${meeting.branchSlug}`)
+  }
+  // 닫힌 로그창은 클릭을 통과시키므로(pointerEvents: none) 버튼만 누를 수 있게 합니다. 사라진 줄의 버튼은 못 누름.
+  const style = { ...styles.join, pointerEvents: hidden ? 'none' : 'auto' } as const
+  if (confirming) {
+    return (
+      <>
+        <span>공부를 끝내고 회의로 갈까요?</span>{' '}
+        <button type="button" style={style} disabled={busy} onMouseDown={(e) => e.preventDefault()} onClick={() => void join()}>이동</button>{' '}
+        <button type="button" style={style} onMouseDown={(e) => e.preventDefault()} onClick={() => setConfirming(false)}>취소</button>
+      </>
+    )
+  }
+  return (
+    <button
+      type="button"
+      style={style}
+      disabled={busy}
+      onMouseDown={(e) => e.preventDefault()} // 입력칸 커서를 뺏지 않게
+      onClick={() => (chat?.studying ? setConfirming(true) : void join())}
+    >
+      참가
+    </button>
+  )
+}
+
 const styles: Record<string, CSSProperties> = {
+  join: {
+    padding: '1px 8px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10',
+    font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+  },
   wrap: {
     position: 'fixed', left: 16, bottom: 16, zIndex: 15, width: 'min(380px, calc(100vw - 32px))',
     display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6,

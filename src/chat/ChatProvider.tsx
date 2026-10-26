@@ -9,6 +9,8 @@
 // 공부 중에 끈 것은 그 공부 동안만이고, 다음 공부를 시작하면 다시 켜집니다. 공부가 끝나면 공부 전 설정으로.
 // 친구에게는 접속 상태로 "방해금지 중"을 알립니다(보낼 때 "알림 없이 전달돼요" 안내용).
 // 그동안 받은 귓속말은 소리 없이 쌓아 두고, 공부가 끝나면 아직 안 읽은 것만 "귓속말 N개"로 한 번 알립니다.
+//
+// 회의 초대 알림(#45)도 같은 친구 방으로 받습니다. 소리·방해금지 규칙은 귓속말과 같습니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -18,8 +20,8 @@ import { useFriends } from '../friends/useFriends'
 import { otherOf } from '../friends/friendsLogic'
 import { useMyStudying, useOnline, useQuietFlag } from '../realtime/onlineContext'
 import { ChatContext } from './chatContext'
-import type { ChatLine } from './chatContext'
-import { MAX_LENGTH, SEND_GAP_MS, WHISPER_EVENT, isQuiet, pairTopic, pickColor } from './chatLogic'
+import type { ChatLine, MeetingInvite } from './chatContext'
+import { INVITE_EVENT, MAX_LENGTH, SEND_GAP_MS, WHISPER_EVENT, isQuiet, pairTopic, pickColor } from './chatLogic'
 import type { Friend } from './chatLogic'
 import { playDing } from './sound'
 
@@ -140,6 +142,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     receiveRef.current = receive
   }, [receive])
 
+  // 회의 초대를 받으면 회의 번호로 DB 에서 회의를 읽어 봅니다. 초대가 저장돼 있어야 비공개 회의가 보이고(0021 RLS),
+  // 끝난 회의거나 안 보이면 알리지 않습니다. 들어갈 때 join_meeting 이 초대를 한 번 더 확인합니다.
+  const receiveInvite = useCallback(
+    async (peerId: string, payload: unknown) => {
+      const meetingId = (payload as { meetingId?: unknown } | null)?.meetingId
+      if (typeof meetingId !== 'number' || !Number.isInteger(meetingId)) return
+      const { data } = await supabase.from('meetings').select('id, title, ended_at, branches(slug)').eq('id', meetingId).maybeSingle()
+      const branch = data?.branches as { slug?: string } | { slug?: string }[] | null | undefined
+      const branchSlug = Array.isArray(branch) ? branch[0]?.slug : branch?.slug
+      if (!data || data.ended_at || !branchSlug) return
+      const meeting: MeetingInvite = { id: data.id, title: data.title, branchSlug }
+      const { friends: fr, quiet: q, muted: m } = latest.current
+      const peer = fr.find((f) => f.id === peerId) ?? { id: peerId, nickname: '친구' }
+      const random = Math.random()
+      update((l) => ({
+        ...withColor(l, peerId, random),
+        lines: [...l.lines, { id: nextLineId++, at: Date.now(), kind: 'invite' as const, peer, text: '', meeting, quiet: q }].slice(-MAX_LINES),
+        unread: l.unread + 1,
+        quietCount: q ? l.quietCount + 1 : l.quietCount,
+      }))
+      if (!q && !m) playDing()
+    },
+    [update],
+  )
+  const receiveInviteRef = useRef(receiveInvite)
+  useEffect(() => {
+    receiveInviteRef.current = receiveInvite
+  }, [receiveInvite])
+
   // 접속 중인 친구마다 둘만의 비공개 방에 들어가고, 나간 친구의 방에서는 나옵니다.
   const channels = useRef(new Map<string, RealtimeChannel>())
   useEffect(() => {
@@ -154,10 +185,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     for (const id of want) {
       if (map.has(id)) continue
       const ch = supabase.channel(pairTopic(myId, id), { config: { private: true, broadcast: { self: false } } })
-      ch.on('broadcast', { event: WHISPER_EVENT }, ({ payload }) => receiveRef.current(id, payload)).subscribe((status, err) => {
-        // 권한 규칙(0019)을 실행하지 않았거나 친구가 아니면 여기로 옵니다.
-        if (status === 'CHANNEL_ERROR') console.warn('귓속말 방에 들어가지 못했습니다:', err?.message ?? '')
-      })
+      ch.on('broadcast', { event: WHISPER_EVENT }, ({ payload }) => receiveRef.current(id, payload))
+        .on('broadcast', { event: INVITE_EVENT }, ({ payload }) => void receiveInviteRef.current(id, payload))
+        .subscribe((status, err) => {
+          // 권한 규칙(0019)을 실행하지 않았거나 친구가 아니면 여기로 옵니다.
+          if (status === 'CHANNEL_ERROR') console.warn('귓속말 방에 들어가지 못했습니다:', err?.message ?? '')
+        })
       map.set(id, ch)
     }
   }, [myId, onlineKey])
@@ -224,6 +257,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [addLine, people, update],
   )
 
+  // 회의 초대 알림 보내기 (#45). 초대 자체는 먼저 DB(invite_to_meeting)에 저장하고, 접속한 친구에게만 이 알림이 갑니다.
+  const sendInvite = useCallback(
+    async (to: string, meetingId: number) => {
+      const ch = channels.current.get(to)
+      const peer = latest.current.friends.find((f) => f.id === to)
+      if (!ch || !peer) return false
+      const result = await ch.send({ type: 'broadcast', event: INVITE_EVENT, payload: { meetingId } })
+      if (result !== 'ok') return false
+      addLine({ kind: 'system', text: `${peer.nickname} 님을 회의에 초대했어요.` })
+      return true
+    },
+    [addLine],
+  )
+
   const setMuted = useCallback((on: boolean) => {
     setMutedState(on)
     try {
@@ -246,6 +293,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setTarget: (id: string | null) => update((l) => ({ ...l, target: id })),
     lastFrom: current.lastFrom,
     send,
+    sendInvite,
     note: (text: string) => addLine({ kind: 'system', text }),
     quiet,
     studying,

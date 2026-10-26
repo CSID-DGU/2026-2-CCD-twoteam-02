@@ -6,6 +6,7 @@
 // 앉아 있는 동안만 웹캠 트래킹(고개·눈·팔)을 켜서 오른쪽 아래 내 모습 화면에 보이고, 다른 참석자에게도 보냅니다.
 // 회의실에서는 공부 타이머·집중 판정을 하지 않습니다.
 // 문 앞에서 E, 또는 L(어디서든)을 누르면 회의에서 나가고 지점 회의실 문 앞으로 돌아갑니다.
+// 친구(F) 창에서 친구를 이 회의에 초대합니다(#45). 내 기록(R)·내 프로필(P)·설정(O) 창도 지점처럼 단축키로 열립니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -29,6 +30,10 @@ import type { Participant, PresenceState } from '../realtime/participants'
 import { useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
+import { InfoPanel } from '../menu/InfoPanel'
+import { panelKey } from '../menu/panelTypes'
+import type { PanelView } from '../menu/panelTypes'
+import { useMenuShortcuts } from '../menu/useMenuShortcuts'
 import { headAngles, nextEyesClosed } from '../tracking/faceSync'
 import { characterArms } from '../tracking/armLogic'
 import type { Direction } from '../tracking/armLogic'
@@ -75,17 +80,6 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
     navigate(`/space?branch=${slug}`, { state: { at: 'meeting', heading: EXIT_HEADING } })
   }, [navigate, slug])
 
-  // L(설정에서 바꿈): 어디서든 회의 나가기
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().lobby || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      void leave()
-    }
-    window.addEventListener('keydown', down)
-    return () => window.removeEventListener('keydown', down)
-  }, [leave])
-
   if (state.status === 'loading') return <Notice text="회의에 들어가는 중…" />
   if (state.status === 'error') return <Notice text={`회의를 불러오지 못했어요: ${state.message}`} slug={slug} />
   if (state.status === 'notMember') return <Notice text="끝났거나 들어 있지 않은 회의예요." slug={slug} />
@@ -93,20 +87,21 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
   // 위쪽 참석자 목록: DB 에 있고 지금 방에 있는 사람 (창을 그냥 닫은 사람은 DB 에 5분 남아 있어도 빼고 보여 줌)
   const present = new Set(others.map((o) => o.userId))
   const people = state.people.filter((p) => p.userId === myId || present.has(p.userId))
-  return <MeetingSpace info={state.info} people={people} others={others} myId={myId} meRef={me} onLeave={() => void leave()} />
+  return <MeetingSpace info={state.info} people={people} others={others} meetingId={meetingId} myId={myId} meRef={me} onLeave={leave} />
 }
 
 type SpaceProps = {
   info: MeetingInfo
   people: MeetingPerson[]
   others: Participant[] // 실시간으로 받은 다른 참석자 (위치·앉은 의자·고개·눈·팔)
+  meetingId: number
   myId: string
   meRef: RefObject<PresenceState | null> // 보낼 내 상태 (이름이 Ref 로 끝나야 React 규칙 검사가 ref 로 알아봄)
-  onLeave: () => void
+  onLeave: () => void | Promise<void>
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps) {
+function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
   const obstacles = useMemo(() => meetingObstacles(info.capacity), [info.capacity])
   const radius = tableRadius(info.capacity)
@@ -117,6 +112,9 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
   const [view, setView] = useWalkView() // 지점에서 쓰던 시점(1인칭·위에서)을 그대로 씁니다.
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지
   const [message, setMessage] = useState('')
+  // 지점 위 창과 같은 창(친구·내 기록·프로필·설정). 친구 창에는 "회의에 초대" 버튼이 보입니다.
+  const [panel, setPanel] = useState<PanelView | null>(null)
+  const panelOpen = panel !== null
   const pos = useRef({ x: MEETING_ROOM.spawn.x, z: MEETING_ROOM.spawn.z })
   const heading = useRef(ARRIVAL_HEADING) // 1인칭에서 바라보는 방향
   const emote = useRef(newEmoteState())
@@ -175,16 +173,19 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
     }
   }
 
-  // V(설정에서 바꿈): 위에서 보기 ↔ 1인칭
+  // V(설정에서 바꿈): 위에서 보기 ↔ 1인칭 / L: 어디서든 회의 나가기. 창이 떠 있으면 쓰지 않습니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().view || e.repeat) return
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || panelOpen) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      setView((v) => (v === 'top' ? 'first' : 'top'))
+      if (e.code === getKeymap().view) setView((v) => (v === 'top' ? 'first' : 'top'))
+      if (e.code === getKeymap().lobby) onLeave()
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [setView])
+  }, [setView, onLeave, panelOpen])
+  // R·F·P·O: 지점과 같은 창 단축키 (같은 키를 다시 누르면 닫힘)
+  useMenuShortcuts({ myId, panel, setPanel })
 
   const keymap = useKeymap()
   const K = {
@@ -193,9 +194,12 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
     emoteWheel: keyLabel(keymap.emoteWheel),
     recenter: keyLabel(keymap.recenter),
     lobby: keyLabel(keymap.lobby),
+    friends: keyLabel(keymap.friends),
   }
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
-  const hint = message
+  const hint = panelOpen
+    ? ''
+    : message
     ? message
     : seat !== null
       ? `${seat}번 자리 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
@@ -210,9 +214,9 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
     <>
       <Canvas>
         {seatChair ? (
-          <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={false} />
+          <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={panelOpen} />
         ) : view === 'first' ? (
-          <WalkCamera posRef={pos} headingRef={heading} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+          <WalkCamera posRef={pos} headingRef={heading} paused={panelOpen} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
         ) : (
           <TopDownCamera area={MEETING_ROOM.size} />
         )}
@@ -269,7 +273,7 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
             emoteRef={emote}
             spots={freeChairs}
             kiosk={NO_KIOSK}
-            frozen={false}
+            frozen={panelOpen}
             onNear={setNear}
             onSeat={handleSeat}
             onNearKiosk={() => {}}
@@ -292,14 +296,21 @@ function MeetingSpace({ info, people, others, myId, meRef, onLeave }: SpaceProps
           {people.length}/{info.capacity}명 · {people.map((p) => p.nickname).join(', ')}
         </span>
       </div>
-      <button type="button" style={styles.leave} onClick={onLeave}>
-        회의 나가기 ({K.lobby})
-      </button>
-      <div style={styles.hint}>{hint}</div>
+      <div style={styles.corner}>
+        <button type="button" style={styles.leave} onClick={onLeave}>
+          회의 나가기 ({K.lobby})
+        </button>
+        <button type="button" style={styles.friends} onClick={() => setPanel(panel?.kind === 'friends' ? null : { kind: 'friends' })}>
+          친구 초대 ({K.friends})
+        </button>
+      </div>
+      {hint && <div style={styles.hint}>{hint}</div>}
       {/* 앉아 있는 동안만 웹캠 트래킹과 오른쪽 아래 내 모습 화면 */}
       {seat !== null && <SeatedTracking onTracking={handleTracking} />}
       {/* 감정표현: 서 있을 때만 (지점과 같음) */}
-      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={seat !== null} />
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={seat !== null || panelOpen} />
+      {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+      {panel && <InfoPanel key={panelKey(panel)} initial={panel} myId={myId} meetingId={meetingId} onClose={() => setPanel(null)} />}
       <ChatOverlay /> {/* 친구 귓속말은 회의 중에도 받습니다 (#49) */}
     </>
   )
@@ -324,9 +335,14 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed', top: 16, left: 16, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 'calc(100vw - 200px)',
     padding: '8px 12px', borderRadius: 8, background: 'rgba(32,35,42,.85)', color: '#fff', font: '13px/1.5 system-ui, sans-serif',
   },
+  corner: { position: 'fixed', top: 16, right: 16, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   leave: {
-    position: 'fixed', top: 16, right: 16, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#ef4444',
+    padding: '8px 14px', borderRadius: 8, border: 'none', background: '#ef4444',
     color: '#fff', font: '14px system-ui, sans-serif', fontWeight: 600, cursor: 'pointer',
+  },
+  friends: {
+    padding: '8px 14px', borderRadius: 8, border: 'none', background: 'rgba(32,35,42,.85)',
+    color: '#fff', font: '14px system-ui, sans-serif', cursor: 'pointer',
   },
   back: {
     padding: '8px 14px', borderRadius: 8, border: '1px solid #4b5563', background: 'transparent', color: '#fff',

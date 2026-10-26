@@ -14,7 +14,8 @@ import { useChat } from '../chat/chatContext'
 
 const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필', settings: '설정' }
 
-export function InfoPanel({ initial, myId, onClose }: { initial: PanelView; myId: string; onClose: () => void }) {
+// meetingId: 회의 중에 연 창이면 그 회의 번호. 친구 창에 "회의에 초대" 버튼이 보입니다. (#45)
+export function InfoPanel({ initial, myId, onClose, meetingId }: { initial: PanelView; myId: string; onClose: () => void; meetingId?: number }) {
   const [stack, setStack] = useState<PanelView[]>([initial]) // 창 안에서 옮겨 다닌 순서 (뒤로 가기용)
   const view = stack[stack.length - 1]
   const open = (next: PanelView) => setStack((s) => [...s, next])
@@ -51,7 +52,9 @@ export function InfoPanel({ initial, myId, onClose }: { initial: PanelView; myId
           </button>
         </header>
         {view.kind === 'records' && <RecordsView />}
-        {view.kind === 'friends' && <FriendsView onOpenProfile={(userId) => open({ kind: 'profile', userId })} />}
+        {view.kind === 'friends' && (
+          <FriendsView onOpenProfile={(userId) => open({ kind: 'profile', userId })} inviteMeetingId={meetingId} />
+        )}
         {view.kind === 'settings' && <SettingsView />}
         {view.kind === 'profile' && (
           <div style={styles.card}>
