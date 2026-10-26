@@ -135,13 +135,17 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
 
     // 나간 사람을 지운다. presence 의 leave 로 알 수 있지만, 탭을 거칠게 닫는 등
     // leave 가 안 올 수도 있어 "한동안 위치가 안 온 사람"도 같이 지운다.
+    // 들고 있던 닉네임·캐릭터도 버린다. 나가 있는 동안(다른 지점·프로필 화면) 캐릭터를 바꾸면
+    // 그 알림(PROFILE_EVENT)은 이 방에 오지 않아서, 다시 들어왔을 때 예전 캐릭터로 보였다.
     function dropGone(leftId?: string) {
       const now = Date.now()
       let changed = false
+      if (leftId) profiles.current.delete(leftId) // 위치를 한 번도 안 보내고 나간 사람도
       for (const [id, last] of lastHeard) {
         if (id === leftId || now - last > STALE_MS) {
           moves.delete(id)
           lastHeard.delete(id)
+          profiles.current.delete(id)
           changed = true
         }
       }
