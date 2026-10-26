@@ -5,7 +5,7 @@
 // 화면들은 누른 순간 getKeymap() 으로 지금 키를 읽고, 키 표시(키캡·안내 문구)는 useKeymap() 으로 바뀌면 다시 그립니다.
 import { useSyncExternalStore } from 'react'
 
-export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'recenter'
+export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'recenter' | 'mic'
 export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
@@ -20,6 +20,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'settings', label: '설정' },
   { action: 'lobby', label: '로비로' },
   { action: 'tracking', label: '트래킹 검증' },
+  { action: 'mic', label: '마이크 켜기·끄기 (회의실)' },
 ]
 
 export const DEFAULT_KEYMAP: Keymap = {
@@ -33,6 +34,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   settings: 'KeyO',
   lobby: 'KeyL',
   tracking: 'KeyT',
+  mic: 'KeyM', // 회의실 음성 (#46)
 }
 
 // 바꿀 수 없는 키: 이동(WASD·방향키), 달리기(Shift), 채팅(Enter), 창 닫기(Esc), 감정표현(1~8), 그 밖의 조작 키

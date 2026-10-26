@@ -71,7 +71,7 @@ export function changedEnough(last: PresenceState | null, now: PresenceState): b
   if (!last) return true
   // 끊어진 값: 하나라도 다르면 보낸다.
   if (last.userId !== now.userId || last.seat !== now.seat || last.status !== now.status) return true
-  if (last.eyes !== now.eyes || last.emote !== now.emote || last.emoteSeq !== now.emoteSeq || last.sync !== now.sync) return true
+  if (last.eyes !== now.eyes || last.emote !== now.emote || last.emoteSeq !== now.emoteSeq || last.sync !== now.sync || last.mic !== now.mic) return true
   // 연속된 값: 기준점에서 기준값 넘게 움직였을 때만.
   if (Math.abs(last.x - now.x) > POSITION_DEADBAND || Math.abs(last.z - now.z) > POSITION_DEADBAND) return true
   if ((last.h === undefined) !== (now.h === undefined)) return true
