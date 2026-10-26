@@ -41,7 +41,7 @@ import { headAngles, mouthOpen, nextEyesClosed } from '../tracking/faceSync'
 import { characterArms } from '../tracking/armLogic'
 import type { Direction } from '../tracking/armLogic'
 import type { MyTracking } from '../study/SeatedStudy'
-import { MEETING_ROOM, meetingChairs, meetingObstacles, meetingPlace, tableRadius } from './meetingLogic'
+import { MEETING_ROOM, elapsedLabel, meetingChairs, meetingObstacles, meetingPlace, tableRadius } from './meetingLogic'
 import { SeatedTracking } from './SeatedTracking'
 import { useMeeting } from './useMeeting'
 import { useSignalPort, useVoice } from './useVoice'
@@ -57,6 +57,7 @@ const ARRIVAL_HEADING = Math.PI // 들어오면 문을 등지고 안쪽(-Z)을 �
 const EXIT_HEADING = -Math.PI / 2 // 지점으로 돌아가면 회의실 문을 등지고 좌석 쪽(-X)을 봅니다.
 const MESSAGE_MS = 4000 // 잠깐 보여 줄 안내(다른 사람이 먼저 앉음 등)
 const ENDED_RETURN_MS = 3000 // 회의가 끝났다는 안내를 보여 준 뒤 지점으로 돌아가기까지
+const ELAPSED_TICK_MS = 1000 // 회의 진행 시간(초까지)을 다시 계산하는 간격
 const VOICE_NOTICE_KEY = 'dooteum.voiceNoticeSeen' // 처음 마이크를 켤 때 보여 주는 안내를 봤는지 (이 브라우저에 기억)
 
 export function MeetingScene() {
@@ -391,7 +392,9 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       {/* 회의 이름과 참석자. 방장에게는 다른 사람 옆에 "방장 넘기기" 버튼이 보입니다. */}
       <div style={styles.info}>
         <strong>{info.isPrivate && '🔒 '}{info.title}</strong>
-        <span style={{ color: '#aab0bb' }}>{people.length}/{info.capacity}명</span>
+        <span style={{ color: '#aab0bb' }}>
+          {people.length}/{info.capacity}명 · <Elapsed startedAt={info.createdAt} />
+        </span>
         {people.map((p) => (
           <div key={p.userId} style={styles.person}>
             <span>
@@ -504,6 +507,16 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       <ChatOverlay /> {/* 친구 귓속말은 회의 중에도 받습니다 (#49) */}
     </>
   )
+}
+
+// 회의 진행 시간. 1초마다 이 글자만 다시 그립니다(회의 화면 전체가 매초 다시 그려지지 않게).
+function Elapsed({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ELAPSED_TICK_MS)
+    return () => clearInterval(t)
+  }, [])
+  return <span title="회의 진행 시간">{elapsedLabel(startedAt, now)}</span>
 }
 
 function Notice({ text, slug }: { text: string; slug?: string }) {
