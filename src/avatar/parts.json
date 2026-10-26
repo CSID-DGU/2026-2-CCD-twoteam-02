@@ -1,24 +1,71 @@
 {
   "eyes": [
     {
-      "id": "basic",
-      "name": "기본",
-      "tint": "/models/Parts/eyes/basic-tint.png",
-      "file": "/models/Parts/eyes/basic.png",
-      "closed": "/models/Parts/eyes/basic-closed.png"
+      "id": "sly",
+      "name": "새침한 눈",
+      "tint": "/models/Parts/eyes/sly-tint.png",
+      "file": "/models/Parts/eyes/sly.png",
+      "closed": "/models/Parts/eyes/sly-closed.png"
     },
     {
-      "id": "big",
-      "name": "큰 눈",
-      "tint": "/models/Parts/eyes/big-tint.png",
-      "file": "/models/Parts/eyes/big.png",
-      "closed": "/models/Parts/eyes/big-closed.png"
+      "id": "sleepy",
+      "name": "졸린 눈",
+      "tint": "/models/Parts/eyes/sleepy-tint.png",
+      "file": "/models/Parts/eyes/sleepy.png",
+      "closed": "/models/Parts/eyes/sleepy-closed.png"
+    },
+    {
+      "id": "oval",
+      "name": "세로 눈",
+      "tint": "/models/Parts/eyes/oval-tint.png",
+      "file": "/models/Parts/eyes/oval.png",
+      "closed": "/models/Parts/eyes/oval-closed.png"
+    },
+    {
+      "id": "ring",
+      "name": "동그란 눈",
+      "file": "/models/Parts/eyes/ring.png",
+      "closed": "/models/Parts/eyes/ring-closed.png"
+    },
+    {
+      "id": "lashes",
+      "name": "속눈썹 눈",
+      "tint": "/models/Parts/eyes/lashes-tint.png",
+      "file": "/models/Parts/eyes/lashes.png",
+      "closed": "/models/Parts/eyes/lashes-closed.png"
+    },
+    {
+      "id": "square",
+      "name": "네모 눈",
+      "tint": "/models/Parts/eyes/square-tint.png",
+      "closed": "/models/Parts/eyes/square-closed.png"
     },
     {
       "id": "dot",
-      "name": "점 눈",
+      "name": "콩알 눈",
       "tint": "/models/Parts/eyes/dot-tint.png",
       "closed": "/models/Parts/eyes/dot-closed.png"
+    },
+    {
+      "id": "sparkle",
+      "name": "반짝 눈",
+      "tint": "/models/Parts/eyes/sparkle-tint.png",
+      "file": "/models/Parts/eyes/sparkle.png",
+      "closed": "/models/Parts/eyes/sparkle-closed.png"
+    },
+    {
+      "id": "lidded",
+      "name": "나른한 눈",
+      "tint": "/models/Parts/eyes/lidded-tint.png",
+      "file": "/models/Parts/eyes/lidded.png",
+      "closed": "/models/Parts/eyes/lidded-closed.png"
+    },
+    {
+      "id": "pupil",
+      "name": "큰 눈동자",
+      "tint": "/models/Parts/eyes/pupil-tint.png",
+      "file": "/models/Parts/eyes/pupil.png",
+      "closed": "/models/Parts/eyes/pupil-closed.png"
     }
   ],
   "brows": [

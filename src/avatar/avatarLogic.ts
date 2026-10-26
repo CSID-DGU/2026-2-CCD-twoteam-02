@@ -48,7 +48,7 @@ export const SHADE: Record<Face['dir'], number> = { top: 255, front: 245, left: 
 
 export const DEFAULT_AVATAR: Avatar = {
   skin: '#f6d1a5',
-  eyes: 'basic',
+  eyes: 'pupil', // 큰 눈동자 (김현 그림, 10/27)
   eyeColor: '#5b3a1e',
   brows: 'straight',
   mouth: 'smile',
