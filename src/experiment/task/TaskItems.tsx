@@ -105,7 +105,8 @@ const styles: Record<string, CSSProperties> = {
   center: { display: "grid", gap: 16, justifyItems: "center", paddingTop: 48 },
   problem: { fontSize: 48, fontVariantNumeric: "tabular-nums" },
   answer: { font: "inherit", fontSize: 40, width: 160, textAlign: "center", padding: "6px 8px", border: "2px solid #bbb", borderRadius: 8 },
-  passage: { fontSize: 22, lineHeight: 2, margin: 0, wordBreak: "keep-all", userSelect: "none" },
-  char: { padding: "2px 1px", borderRadius: 4 },
+  // 글자 사이가 너무 벌어진다는 팀 피드백(2026-10-26)으로 줄 간격 2 → 1.7, 글자 좌우 여백을 없앴습니다. 누르는 영역은 글자 자체.
+  passage: { fontSize: 22, lineHeight: 1.7, margin: 0, wordBreak: "keep-all", userSelect: "none" },
+  char: { padding: "2px 0", borderRadius: 4 },
   marked: { background: "#fde68a", textDecoration: "underline", textDecorationColor: "#d97706" },
 };
