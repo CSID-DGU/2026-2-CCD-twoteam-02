@@ -1,11 +1,15 @@
 // 회의실 문 앞에서 E 를 누르면 뜨는 창 (#45): 열린 회의 목록, 참가, 새 회의 만들기.
 // 새 회의는 인원(2~8)을 꼭 골라야 만들 수 있습니다. 회의실에는 그 수만큼 의자가 놓입니다(0022).
-// 목록에는 이 지점의 공개 회의와 내가 초대받았거나 들어 있는 비공개 회의가 보입니다(list_meetings, 0021).
-// 참가·만들기에 성공하면 onEnter 로 회의 번호를 넘깁니다. 정원·초대 확인은 DB 함수가 합니다.
+// 목록에는 이 지점의 열린 회의가 모두 보이고, 비공개 회의는 🔒 입니다(list_meetings, 0023).
+// 비공개 회의는 만들 때 숫자 4자리 비밀번호를 정합니다. 초대받았거나 방장이면 비밀번호 없이, 아니면 비밀번호를 넣고 들어갑니다.
+// 참가·만들기에 성공하면 onEnter 로 회의 번호를 넘깁니다. 정원·초대·비밀번호 확인은 DB 함수가 합니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { MEETING_CAPACITIES } from './meetingLogic'
+
+const PASSWORD = /^[0-9]{4}$/ // 비공개 회의 비밀번호: 숫자 4자리 (0023 과 같은 규칙)
+const NEED_PASSWORD = 'DT003' // join_meeting 이 "비밀번호를 입력해 주세요" 로 거절할 때의 코드
 
 type MeetingRow = {
   id: number
@@ -16,6 +20,7 @@ type MeetingRow = {
   capacity: number
   invited: boolean
   joined: boolean
+  is_host: boolean
 }
 
 type Props = {
@@ -31,6 +36,9 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
   const [title, setTitle] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [capacity, setCapacity] = useState<number | null>(null) // 고르기 전에는 만들 수 없습니다.
+  const [newPassword, setNewPassword] = useState('') // 새 비공개 회의 비밀번호
+  const [askPassword, setAskPassword] = useState<number | null>(null) // 비밀번호 칸을 연 회의 번호
+  const [password, setPassword] = useState('') // 들어갈 때 넣는 비밀번호
   const [version, setVersion] = useState(0) // 올리면 목록을 다시 읽습니다 (새로고침)
   const reload = () => setVersion((v) => v + 1)
 
@@ -55,21 +63,28 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
     return () => window.removeEventListener('keydown', down)
   }, [onClose])
 
-  const join = async (id: number) => {
+  // 참가. 비밀번호를 넣었으면 같이 보냅니다. 비밀번호가 필요하다고 거절되면 그 회의의 비밀번호 칸을 엽니다.
+  const join = async (id: number, pw?: string) => {
     setBusy(true)
     setError('')
-    const { error } = await supabase.rpc('join_meeting', { p_meeting_id: id })
+    const { error } = await supabase.rpc('join_meeting', { p_meeting_id: id, ...(pw ? { p_password: pw } : {}) })
     setBusy(false)
     if (error) {
+      if (error.code === NEED_PASSWORD) {
+        setAskPassword(id)
+        setPassword('')
+        return
+      }
       setError(error.message)
-      reload() // 그사이 정원이 찼거나 끝났을 수 있어 목록을 새로 읽습니다.
+      if (!pw) reload() // 그사이 정원이 찼거나 끝났을 수 있어 목록을 새로 읽습니다.
       return
     }
     onEnter(id)
   }
 
+  const createBlocked = capacity === null || (isPrivate && !PASSWORD.test(newPassword))
   const create = async () => {
-    if (capacity === null) return
+    if (createBlocked) return
     setBusy(true)
     setError('')
     const { data, error } = await supabase.rpc('create_meeting', {
@@ -77,6 +92,7 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
       p_title: title,
       p_private: isPrivate,
       p_capacity: capacity,
+      p_password: isPrivate ? newPassword : null,
     })
     setBusy(false)
     if (error || typeof data !== 'number') {
@@ -106,26 +122,55 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
           ) : (
             rows.map((m) => {
               const full = m.members >= m.capacity && !m.joined
+              // 비밀번호가 필요한 회의: 비공개인데 초대받지 않았고, 들어 있지도 않고, 방장도 아님
+              const locked = m.is_private && !m.invited && !m.joined && !m.is_host
               return (
-                <div key={m.id} style={styles.row}>
-                  <div style={styles.rowText}>
-                    <span style={styles.rowTitle}>
-                      {m.is_private && '🔒 '}
-                      {m.title}
-                      {m.invited && !m.joined && <span style={styles.badge}>초대받음</span>}
-                    </span>
-                    <span style={styles.muted}>
-                      {m.host_nickname} · {m.members}/{m.capacity}명
-                    </span>
+                <div key={m.id} style={styles.rowWrap}>
+                  <div style={styles.row}>
+                    <div style={styles.rowText}>
+                      <span style={styles.rowTitle}>
+                        {m.is_private && '🔒 '}
+                        {m.title}
+                        {m.invited && !m.joined && <span style={styles.badge}>초대받음</span>}
+                      </span>
+                      <span style={styles.muted}>
+                        {m.host_nickname} · {m.members}/{m.capacity}명
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ ...styles.primary, ...(full || busy ? styles.off : null) }}
+                      disabled={full || busy}
+                      onClick={() => (locked ? setAskPassword(askPassword === m.id ? null : m.id) : void join(m.id))}
+                    >
+                      {m.joined ? '돌아가기' : full ? '가득 참' : '참가'}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    style={{ ...styles.primary, ...(full || busy ? styles.off : null) }}
-                    disabled={full || busy}
-                    onClick={() => void join(m.id)}
-                  >
-                    {m.joined ? '돌아가기' : full ? '가득 참' : '참가'}
-                  </button>
+                  {askPassword === m.id && (
+                    <div style={styles.passwordRow}>
+                      <input
+                        style={{ ...styles.input, ...styles.passwordInput }}
+                        value={password}
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="비밀번호 4자리"
+                        autoFocus
+                        onChange={(e) => setPassword(e.target.value.replace(/[^0-9]/g, ''))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && PASSWORD.test(password) && !busy) void join(m.id, password)
+                        }}
+                        aria-label="회의 비밀번호"
+                      />
+                      <button
+                        type="button"
+                        style={{ ...styles.primary, ...(busy || !PASSWORD.test(password) ? styles.off : null) }}
+                        disabled={busy || !PASSWORD.test(password)}
+                        onClick={() => void join(m.id, password)}
+                      >
+                        들어가기
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })
@@ -173,15 +218,29 @@ export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
           </div>
           <button
             type="button"
-            style={{ ...styles.primary, ...(busy || capacity === null ? styles.off : null) }}
-            disabled={busy || capacity === null}
+            style={{ ...styles.primary, ...(busy || createBlocked ? styles.off : null) }}
+            disabled={busy || createBlocked}
             onClick={() => void create()}
           >
-            {capacity === null ? '인원을 골라 주세요' : '만들고 들어가기'}
+            {capacity === null ? '인원을 골라 주세요' : createBlocked ? '비밀번호 4자리를 정해 주세요' : '만들고 들어가기'}
           </button>
         </div>
+        {isPrivate && (
+          <input
+            style={{ ...styles.input, ...styles.passwordInput }}
+            value={newPassword}
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="비밀번호 숫자 4자리"
+            onChange={(e) => setNewPassword(e.target.value.replace(/[^0-9]/g, ''))}
+            aria-label="새 회의 비밀번호"
+          />
+        )}
         <span style={styles.muted}>
-          {isPrivate ? '비공개 회의는 초대받은 친구만 들어올 수 있어요.' : '공개 회의는 이 지점의 누구나 들어올 수 있어요.'} 고른 인원만큼 의자가 놓여요.
+          {isPrivate
+            ? '비공개 회의는 비밀번호를 아는 사람과 초대받은 친구만 들어올 수 있어요.'
+            : '공개 회의는 이 지점의 누구나 들어올 수 있어요.'}{' '}
+          고른 인원만큼 의자가 놓이고, 만든 사람이 방장(👑)이에요.
         </span>
         {error && <span style={styles.error}>{error}</span>}
       </div>
@@ -200,6 +259,9 @@ const styles: Record<string, CSSProperties> = {
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   label: { fontWeight: 700 },
   list: { display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' },
+  rowWrap: { display: 'flex', flexDirection: 'column', gap: 4 },
+  passwordRow: { display: 'flex', gap: 6, paddingLeft: 10 },
+  passwordInput: { width: 140, letterSpacing: 4 },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 10px', borderRadius: 8, background: '#2a2e37' },
   rowText: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   rowTitle: { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
