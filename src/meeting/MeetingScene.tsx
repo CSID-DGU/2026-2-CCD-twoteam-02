@@ -7,6 +7,8 @@
 // 회의실에서는 공부 타이머·집중 판정을 하지 않습니다.
 // 문 앞에서 E, 또는 L(어디서든)을 누르면 회의에서 나가고 지점 회의실 문 앞으로 돌아갑니다.
 // 친구(F) 창에서 친구를 이 회의에 초대합니다(#45). 내 기록(R)·내 프로필(P)·설정(O) 창도 지점처럼 단축키로 열립니다.
+// 방장(👑, 0023): 방장이 나가면 회의가 모두에게 끝납니다. 나가기 전에 다른 참석자에게 방장을 넘길 수 있습니다.
+// 회의가 끝나면(방장이 끝냄, 오래 끊겨 내보내짐) 안내를 보여 주고 잠시 뒤 지점 회의실 문 앞으로 돌아갑니다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -52,6 +54,7 @@ const NO_KIOSK = { x: 1000, z: 1000 } // 회의실에는 키오스크가 없습�
 const ARRIVAL_HEADING = Math.PI // 들어오면 문을 등지고 안쪽(-Z)을 봅니다.
 const EXIT_HEADING = -Math.PI / 2 // 지점으로 돌아가면 회의실 문을 등지고 좌석 쪽(-X)을 봅니다.
 const MESSAGE_MS = 4000 // 잠깐 보여 줄 안내(다른 사람이 먼저 앉음 등)
+const ENDED_RETURN_MS = 3000 // 회의가 끝났다는 안내를 보여 준 뒤 지점으로 돌아가기까지
 
 export function MeetingScene() {
   const { id } = useParams()
@@ -70,24 +73,53 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
   // 내 위치·앉은 의자·고개·눈·팔. 회의 방(meeting:회의번호, 참석자만 들어오는 비공개 방)으로 0.25초마다 보냅니다. 지점과 같은 방식입니다.
   const me = useRef<PresenceState | null>(null)
   const others = useParticipants(`meeting:${meetingId}`, me, true)
-  const presentKey = others.map((o) => o.userId).sort().join(',')
+  // 다시 읽기 신호: 내가 방장을 넘기면 1 올려 다른 참석자에게 보내고(PresenceState.sync), 나도 다시 읽습니다.
+  const [sync, setSync] = useState(0)
+  const bumpSync = useCallback(() => setSync((n) => n + 1), [])
+  const presentKey = `${sync}|` + others.map((o) => `${o.userId}:${o.sync ?? 0}`).sort().join(',')
   const state = useMeeting(meetingId, myId, presentKey)
   useOnlinePlace(meetingPlace(slug)) // 친구 탭에 "별다방 회의 중"
 
+  const backToBranch = useCallback(
+    () => navigate(`/space?branch=${slug}`, { state: { at: 'meeting', heading: EXIT_HEADING } }),
+    [navigate, slug],
+  )
+  // 나가기. 방장이면 DB 가 회의를 모두에게 끝냅니다(0023).
   const leave = useCallback(async () => {
     const { error } = await supabase.rpc('leave_meeting')
     if (error) console.error('회의에서 나가지 못했습니다:', error.message) // 못 나가도 5분 뒤 DB 가 내보냅니다.
-    navigate(`/space?branch=${slug}`, { state: { at: 'meeting', heading: EXIT_HEADING } })
-  }, [navigate, slug])
+    backToBranch()
+  }, [backToBranch])
+
+  // 회의가 끝났으면 잠시 안내를 보여 준 뒤 지점으로 돌아갑니다.
+  const ended = state.status === 'ended'
+  useEffect(() => {
+    if (!ended) return
+    const t = setTimeout(backToBranch, ENDED_RETURN_MS)
+    return () => clearTimeout(t)
+  }, [ended, backToBranch])
 
   if (state.status === 'loading') return <Notice text="회의에 들어가는 중…" />
   if (state.status === 'error') return <Notice text={`회의를 불러오지 못했어요: ${state.message}`} slug={slug} />
   if (state.status === 'notMember') return <Notice text="끝났거나 들어 있지 않은 회의예요." slug={slug} />
+  if (state.status === 'ended') return <Notice text="회의가 끝났어요. 잠시 뒤 지점으로 돌아가요." slug={slug} />
 
   // 위쪽 참석자 목록: DB 에 있고 지금 방에 있는 사람 (창을 그냥 닫은 사람은 DB 에 5분 남아 있어도 빼고 보여 줌)
   const present = new Set(others.map((o) => o.userId))
   const people = state.people.filter((p) => p.userId === myId || present.has(p.userId))
-  return <MeetingSpace info={state.info} people={people} others={others} meetingId={meetingId} myId={myId} meRef={me} onLeave={leave} />
+  return (
+    <MeetingSpace
+      info={state.info}
+      people={people}
+      others={others}
+      meetingId={meetingId}
+      myId={myId}
+      meRef={me}
+      sync={sync}
+      onHostChanged={bumpSync}
+      onLeave={leave}
+    />
+  )
 }
 
 type SpaceProps = {
@@ -97,11 +129,13 @@ type SpaceProps = {
   meetingId: number
   myId: string
   meRef: RefObject<PresenceState | null> // 보낼 내 상태 (이름이 Ref 로 끝나야 React 규칙 검사가 ref 로 알아봄)
+  sync: number // 다시 읽기 신호 (보낼 내 상태에 실음)
+  onHostChanged: () => void // 방장을 넘긴 뒤 부름 (다시 읽기 신호 올리기)
   onLeave: () => void | Promise<void>
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }: SpaceProps) {
+function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
   const obstacles = useMemo(() => meetingObstacles(info.capacity), [info.capacity])
   const radius = tableRadius(info.capacity)
@@ -114,7 +148,9 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
   const [message, setMessage] = useState('')
   // 지점 위 창과 같은 창(친구·내 기록·프로필·설정). 친구 창에는 "회의에 초대" 버튼이 보입니다.
   const [panel, setPanel] = useState<PanelView | null>(null)
-  const panelOpen = panel !== null
+  const [leaveAsk, setLeaveAsk] = useState(false) // 방장이 나가려 할 때 묻는 창
+  const panelOpen = panel !== null || leaveAsk // 창이 떠 있으면 캐릭터·시점·단축키를 멈춥니다
+  const isHost = info.hostId === myId
   const pos = useRef({ x: MEETING_ROOM.spawn.x, z: MEETING_ROOM.spawn.z })
   const heading = useRef(ARRIVAL_HEADING) // 1인칭에서 바라보는 방향
   const emote = useRef(newEmoteState())
@@ -145,6 +181,24 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
     }
     sitRequest.current = no
   }
+  // 방장 넘기기 (방장만). 넘긴 뒤 다시 읽기 신호를 올려 모두가 새 방장을 알게 합니다.
+  const transferHost = async (to: MeetingPerson) => {
+    const { error } = await supabase.rpc('transfer_meeting_host', { p_user: to.userId })
+    if (error) {
+      setMessage(error.message)
+      return false
+    }
+    onHostChanged()
+    setMessage(`${to.nickname} 님이 이제 방장이에요.`)
+    return true
+  }
+  // 나가기(버튼·L·문 앞 E). 방장이고 다른 사람이 있으면 회의를 끝낼지, 넘기고 나갈지 묻습니다.
+  const otherPeople = people.filter((p) => p.userId !== myId)
+  const requestLeave = () => {
+    if (isHost && otherPeople.length > 0) setLeaveAsk(true)
+    else void onLeave()
+  }
+
   const handleSeat = (no: number | null) => {
     if (no === null) void supabase.rpc('stand_meeting_seat') // 일어나면 의자를 놓습니다.
     setSeat(no)
@@ -170,22 +224,27 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
       ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
+      ...(sync ? { sync } : {}),
     }
   }
 
   // V(설정에서 바꿈): 위에서 보기 ↔ 1인칭 / L: 어디서든 회의 나가기. 창이 떠 있으면 쓰지 않습니다.
+  const leaveKey = useRef(requestLeave) // 키 처리는 한 번만 걸고, 누른 순간의 최신 나가기를 부릅니다.
+  useEffect(() => {
+    leaveKey.current = requestLeave
+  })
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || panelOpen) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.code === getKeymap().view) setView((v) => (v === 'top' ? 'first' : 'top'))
-      if (e.code === getKeymap().lobby) onLeave()
+      if (e.code === getKeymap().lobby) leaveKey.current()
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [setView, onLeave, panelOpen])
-  // R·F·P·O: 지점과 같은 창 단축키 (같은 키를 다시 누르면 닫힘)
-  useMenuShortcuts({ myId, panel, setPanel })
+  }, [setView, panelOpen])
+  // R·F·P·O: 지점과 같은 창 단축키 (같은 키를 다시 누르면 닫힘). 방장 나가기 창이 떠 있으면 쓰지 않습니다.
+  useMenuShortcuts({ myId, panel, setPanel, disabled: leaveAsk })
 
   const keymap = useKeymap()
   const K = {
@@ -261,8 +320,12 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
           </mesh>
         ))}
 
-        {/* 다른 참석자: 앉은 사람은 의자에, 서 있는 사람은 받은 위치에 그립니다(지점과 같음). 표시등은 없습니다. */}
-        <OtherParticipants others={others} spots={chairs} showStatus={false} />
+        {/* 다른 참석자: 앉은 사람은 의자에, 서 있는 사람은 받은 위치에 그립니다(지점과 같음). 표시등은 없고, 방장 이름 앞에 👑 */}
+        <OtherParticipants
+          others={others.map((o) => (o.userId === info.hostId ? { ...o, nickname: `👑 ${o.nickname}` } : o))}
+          spots={chairs}
+          showStatus={false}
+        />
 
         {myModel && (
           <Player
@@ -280,7 +343,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
             onKiosk={() => {}}
             exit={MEETING_ROOM.door}
             onNearExit={setNearExit}
-            onExit={onLeave}
+            onExit={requestLeave}
             canSit={() => false} // 늘 DB 에 의자를 먼저 잡아 봅니다(onSitBlocked → claimSeat → sitRef).
             onSitBlocked={(no) => void claimSeat(no)}
             sitRef={sitRequest}
@@ -290,14 +353,33 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
         )}
       </Canvas>
 
+      {/* 회의 이름과 참석자. 방장에게는 다른 사람 옆에 "방장 넘기기" 버튼이 보입니다. */}
       <div style={styles.info}>
         <strong>{info.isPrivate && '🔒 '}{info.title}</strong>
-        <span style={{ color: '#aab0bb' }}>
-          {people.length}/{info.capacity}명 · {people.map((p) => p.nickname).join(', ')}
-        </span>
+        <span style={{ color: '#aab0bb' }}>{people.length}/{info.capacity}명</span>
+        {people.map((p) => (
+          <div key={p.userId} style={styles.person}>
+            <span>
+              {p.userId === info.hostId && '👑 '}
+              {p.nickname}
+              {p.userId === myId && ' (나)'}
+            </span>
+            {isHost && p.userId !== myId && (
+              <button
+                type="button"
+                style={styles.small}
+                onClick={() => {
+                  if (window.confirm(`${p.nickname} 님에게 방장을 넘길까요?`)) void transferHost(p)
+                }}
+              >
+                방장 넘기기
+              </button>
+            )}
+          </div>
+        ))}
       </div>
       <div style={styles.corner}>
-        <button type="button" style={styles.leave} onClick={onLeave}>
+        <button type="button" style={styles.leave} onClick={requestLeave}>
           회의 나가기 ({K.lobby})
         </button>
         <button type="button" style={styles.friends} onClick={() => setPanel(panel?.kind === 'friends' ? null : { kind: 'friends' })}>
@@ -311,6 +393,33 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, onLeave }:
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={seat !== null || panelOpen} />
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {panel && <InfoPanel key={panelKey(panel)} initial={panel} myId={myId} meetingId={meetingId} onClose={() => setPanel(null)} />}
+      {leaveAsk && (
+        // 방장이 나가려 할 때: 회의를 끝내거나, 다른 사람에게 방장을 넘기고 나가거나, 취소
+        <div style={styles.backdrop} onClick={() => setLeaveAsk(false)}>
+          <div style={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <p style={{ margin: 0 }}>방장이 나가면 회의가 모두에게 끝나요.</p>
+            <button type="button" style={styles.danger} onClick={() => void onLeave()}>
+              회의 끝내기
+            </button>
+            <span style={{ color: '#aab0bb', fontSize: 13 }}>또는 방장을 넘기고 나가기</span>
+            {otherPeople.map((p) => (
+              <button
+                key={p.userId}
+                type="button"
+                style={styles.ghost}
+                onClick={async () => {
+                  if (await transferHost(p)) void onLeave()
+                }}
+              >
+                {p.nickname} 님에게 넘기고 나가기
+              </button>
+            ))}
+            <button type="button" style={styles.ghost} onClick={() => setLeaveAsk(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
       <ChatOverlay /> {/* 친구 귓속말은 회의 중에도 받습니다 (#49) */}
     </>
   )
@@ -335,6 +444,18 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed', top: 16, left: 16, display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 'calc(100vw - 200px)',
     padding: '8px 12px', borderRadius: 8, background: 'rgba(32,35,42,.85)', color: '#fff', font: '13px/1.5 system-ui, sans-serif',
   },
+  person: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  small: {
+    padding: '1px 8px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent', color: '#fff',
+    font: '12px system-ui, sans-serif', cursor: 'pointer',
+  },
+  backdrop: { position: 'fixed', inset: 0, zIndex: 20, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.45)' },
+  dialog: {
+    width: 'min(360px, calc(100vw - 32px))', padding: 20, borderRadius: 12, background: '#20232a', color: '#fff',
+    font: '14px/1.6 system-ui, sans-serif', display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  danger: { padding: '8px 12px', borderRadius: 6, border: 'none', background: '#ef4444', color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer' },
+  ghost: { padding: '8px 12px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent', color: '#fff', font: 'inherit', cursor: 'pointer' },
   corner: { position: 'fixed', top: 16, right: 16, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 },
   leave: {
     padding: '8px 14px', borderRadius: 8, border: 'none', background: '#ef4444',
