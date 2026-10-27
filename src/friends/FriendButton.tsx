@@ -9,6 +9,7 @@ import { useSession } from '../auth/useSession'
 import { otherOf, relationOf } from './friendsLogic'
 import { useFriends } from './useFriends'
 import { WhisperButton } from '../chat/WhisperButton'
+import { GroupInviteButton } from '../chat/GroupInviteButton'
 
 export function FriendButton({ otherId }: { otherId: string }) {
   const { session } = useSession()
@@ -56,6 +57,7 @@ export function FriendButton({ otherId }: { otherId: string }) {
           <>
             <span style={styles.friend}>✓ 친구</span>
             <WhisperButton friendId={otherId} />
+            <GroupInviteButton friendId={otherId} onMessage={setMessage} />
           </>
         )}
       </div>

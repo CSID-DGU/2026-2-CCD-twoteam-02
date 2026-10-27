@@ -58,8 +58,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import { onMyProfileChanged } from '../profile/characters'
-import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
-import type { Participant, PresenceState, SignalPort } from './participants'
+import { CHAT_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
+import type { ChatPort, Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
@@ -69,11 +69,13 @@ type Profile = { nickname: string; model: string }
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45)
 // isPrivate: 비공개 방. 들어올 수 있는 사람을 DB 정책이 정합니다(회의는 그 회의 참석자만, 0021).
 // signalRef: 같은 방으로 음성 연결 신호도 주고받을 때 (회의실 음성, #46)
+// chatRef: 같은 방으로 채팅도 주고받을 때 (회의 채팅, #298)
 export function useParticipants(
   room: string,
   me: RefObject<PresenceState | null>,
   isPrivate = false,
   signalRef?: RefObject<SignalPort>,
+  chatRef?: RefObject<ChatPort>,
 ) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
@@ -83,6 +85,7 @@ export function useParticipants(
     let alive = true
     const channel = supabase.channel(room, isPrivate ? { config: { private: true } } : undefined)
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
+    const chatPort = chatRef?.current // 채팅 통로 (회의실만)
 
     const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -212,6 +215,12 @@ export function useParticipants(
         if (!port || !p?.from || p.to !== me.current?.userId) return
         port.receive(p.from, p.data)
       })
+      .on('broadcast', { event: CHAT_EVENT }, ({ payload }) => {
+        // 회의 채팅. 받은 그대로 넘기고, 글자 확인은 채팅 쪽(ChatProvider)이 한다.
+        const from = (payload as { from?: unknown } | null)?.from
+        if (!chatPort || typeof from !== 'string' || from === me.current?.userId) return
+        chatPort.receive(from, payload)
+      })
       .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
@@ -226,6 +235,13 @@ export function useParticipants(
           port.send = (to, data) => {
             const from = me.current?.userId
             if (from) void channel.send({ type: 'broadcast', event: SIGNAL_EVENT, payload: { from, to, data } })
+          }
+        }
+        if (chatPort) {
+          chatPort.send = async (text) => {
+            const from = me.current?.userId
+            if (!from) return false
+            return (await channel.send({ type: 'broadcast', event: CHAT_EVENT, payload: { from, text } })) === 'ok'
           }
         }
         const id = me.current?.userId
@@ -273,9 +289,10 @@ export function useParticipants(
       clearInterval(sweepTimer)
       stopProfileListen()
       if (port) port.send = null
+      if (chatPort) chatPort.send = null
       void channel.unsubscribe()
     }
-  }, [room, me, isPrivate, signalRef])
+  }, [room, me, isPrivate, signalRef, chatRef])
 
   return others
 }

@@ -1,4 +1,4 @@
-// 친구 화면 (/friends): 친구 찾기·요청, 받은 요청 수락·거절, 보낸 요청 취소, 친구 목록·삭제.
+// 친구 화면 (/friends): 친구 찾기·요청, 받은 요청 수락·거절, 보낸 요청 취소, 친구 목록·삭제, 채팅 그룹(#298).
 // 새 요청이 와도 실시간으로 뜨지는 않습니다. 화면을 열 때와 새로고침 버튼으로 갱신합니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
@@ -13,6 +13,9 @@ import { useOnline } from '../realtime/onlineContext'
 import { placeLabel } from '../realtime/online'
 import { InviteButton } from '../meeting/InviteButton'
 import type { InviteTarget } from '../meeting/InviteButton'
+import { useChat } from '../chat/chatContext'
+import { GroupInviteButton } from '../chat/GroupInviteButton'
+import type { OnlineEntry } from '../realtime/onlineContext'
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
 // onOpenProfile 을 주면 이름을 눌렀을 때 페이지를 옮기지 않고 그 함수를 부릅니다(창 안에서 프로필 열기).
@@ -153,6 +156,7 @@ export function FriendsView({ onOpenProfile, invite }: { onOpenProfile?: (userId
                 ) : (
                   <InviteButton meetingId={invite.meetingId} friendId={otherOf(f, myId)} onMessage={setMessage} />
                 ))}
+              <GroupInviteButton friendId={otherOf(f, myId)} onMessage={setMessage} />
               <button
                 type="button"
                 style={styles.ghost}
@@ -167,7 +171,76 @@ export function FriendsView({ onOpenProfile, invite }: { onOpenProfile?: (userId
           ))
         )}
       </Section>
+
+      <GroupSection online={online} />
     </div>
+  )
+}
+
+// 채팅 그룹 (#298): 오버워치 파티처럼 한 사람은 그룹 하나에만 있습니다.
+// 친구 줄의 "그룹 초대"로 초대하고, 받은 사람이 수락하면 들어옵니다. 여기서는 받은 초대, 내 그룹 멤버, 나가기를 보여 줍니다.
+// 그룹 채팅은 로비·지점·회의의 채팅창(Enter)에서 Tab 으로 [그룹]을 골라 합니다.
+// 그룹은 ChatProvider 가 들고 있어서(useChat) 여기서 바꾸면 채팅창에도 바로 반영됩니다.
+function GroupSection({ online }: { online: Map<string, OnlineEntry> }) {
+  const chat = useChat()
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (!chat?.enabled) return null
+  const { group } = chat
+
+  async function run(action: () => Promise<string>) {
+    setBusy(true)
+    setMessage('')
+    setMessage(await action())
+    setBusy(false)
+  }
+
+  const accept = (inviterId: string, nickname: string) => {
+    if (group && !window.confirm(`지금 그룹을 나가고 ${nickname} 님의 그룹으로 갈까요?`)) return
+    void run(() => chat.acceptGroupInvite(inviterId))
+  }
+
+  return (
+    <Section title={group ? `그룹 · 나 포함 ${group.members.length + 1}명` : '그룹'}>
+      {chat.groupError && <p style={styles.error}>{chat.groupError}</p>}
+      {message && <p style={styles.error}>{message}</p>}
+      {chat.groupInvites.map((inv) => (
+        <div key={inv.inviterId} style={styles.item}>
+          <span style={styles.groupName}>{displayName(inv.nickname, inv.inviterId)} 님의 그룹 초대</span>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button type="button" style={styles.primary} disabled={busy} onClick={() => accept(inv.inviterId, inv.nickname)}>수락</button>
+            <button type="button" style={styles.ghost} disabled={busy} onClick={() => void run(() => chat.declineGroupInvite(inv.inviterId))}>거절</button>
+          </div>
+        </div>
+      ))}
+      {group ? (
+        <>
+          <p style={styles.muted}>
+            {group.members.map((m, i) => (
+              <span key={m.id}>
+                {i > 0 && ', '}
+                {online.has(m.id) && '🟢 '}
+                {displayName(m.nickname, m.id)}
+              </span>
+            ))}
+          </p>
+          <button
+            type="button"
+            style={{ ...styles.ghost, alignSelf: 'flex-start' }}
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm('그룹에서 나갈까요? 한 명만 남으면 그룹이 없어져요.')) void run(chat.leaveGroup)
+            }}
+          >
+            그룹 나가기
+          </button>
+        </>
+      ) : (
+        <p style={styles.muted}>
+          친구 목록의 "👥 그룹 초대"로 친구를 부르면 그룹이 생겨요. 그룹은 하나만 들어갈 수 있고, 채팅창에서 [그룹]으로 다 같이 이야기해요.
+        </p>
+      )}
+    </Section>
   )
 }
 
@@ -230,4 +303,5 @@ const styles: Record<string, CSSProperties> = {
   nameButton: { padding: 0, border: 'none', background: 'transparent', font: 'inherit', cursor: 'pointer', textAlign: 'left' },
   nameLink: { color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,.3)' },
   error: { color: '#f87171', margin: 0 },
+  groupName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 }

@@ -1,13 +1,15 @@
-// 오버워치식 귓속말 로그창 (#49). 로비·지점 왼쪽 아래에 겹쳐 띄웁니다.
+// 오버워치식 귓속말·그룹 채팅 로그창 (#49, #298). 로비·지점 왼쪽 아래에 겹쳐 띄웁니다.
 //
 // Enter: 채팅창 열기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
-// Tab: 접속 중인 친구를 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기
+// Tab: 접속 중인 친구와 그룹을 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기
 // 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다(적던 글이 있거나 스크롤하는 중이면 기다림).
 // 열면 이번 접속의 대화(최대 100줄)를 모두 보여 주고 마우스 휠로 올려 볼 수 있습니다. 줄 끝에 몇 분 전인지 붙입니다(#211).
 // 닫혀 있을 때 새 귓속말은 10초 보였다가 스르륵 사라지고, "Enter 귓속말"과 안 읽은 개수만 남습니다.
 // 밝은 바닥 위에서도 보이도록 글자 뒤에 어두운 반투명 배경을 깝니다(#211).
 // 입력하는 동안에는 WASD·E·V 가 캐릭터를 움직이지 않습니다(입력칸에서 누른 키는 무시).
 // 회의 초대(#45)는 [초대] 줄로 보이고, [참가]를 누르면 그 회의로 갑니다. 공부 중이면 한 번 더 묻습니다.
+// 그룹 초대(#298)는 [그룹 초대] 줄로 보이고 [수락] [거절]을 누릅니다. 이미 그룹이 있으면 옮겨 갈지 한 번 더 묻습니다.
+// 그룹·회의 채팅(#298)은 [그룹] [회의] 태그와 말한 사람으로 보입니다.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useNavigate } from 'react-router'
@@ -79,12 +81,12 @@ export function ChatOverlay() {
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLButtonElement || t instanceof HTMLSelectElement) return
       e.preventDefault()
       if (document.pointerLockElement) document.exitPointerLock()
-      // 받는 친구를 미리 골라 둡니다: 지금 고른 친구 → 마지막으로 귓속말한 친구 → 첫 친구
+      // 받는 사람을 미리 골라 둡니다: 지금 고른 곳 → 마지막으로 나에게 말을 건 곳 → 첫 번째
       const c = chatRef.current
       if (c) {
-        const pick = defaultTarget(c.target, c.lastFrom, c.online)
+        const pick = defaultTarget(c.target, c.lastFrom, c.recipients)
         if (pick !== c.target) c.setTarget(pick)
-        c.refreshFriends() // 로그인 뒤 새로 생긴 친구도 보이게 친구 목록을 다시 읽음
+        c.refreshFriends() // 로그인 뒤 새로 생긴 친구·그룹도 보이게 목록을 다시 읽음
       }
       setOpen(true)
       setFading(false)
@@ -143,7 +145,7 @@ export function ChatOverlay() {
   }
 
   const submit = async () => {
-    const checked = checkMessage(draft, chat.target, chat.online)
+    const checked = checkMessage(draft, chat.target, chat.recipients)
     if (!checked.ok) {
       if (checked.error) chat.note(checked.error)
       else close() // 빈 칸에서 Enter: 닫기
@@ -170,7 +172,7 @@ export function ChatOverlay() {
       close()
     } else if (e.key === 'Tab') {
       e.preventDefault()
-      const next = nextTarget(chat.target, chat.online)
+      const next = nextTarget(chat.target, chat.recipients)
       if (next) chat.setTarget(next)
       else chat.note('지금 접속한 친구가 없어요.')
     }
@@ -187,7 +189,7 @@ export function ChatOverlay() {
     touch()
   }
 
-  const target = chat.online.find((f) => f.id === chat.target)
+  const target = chat.recipients.find((r) => r.key === chat.target)
   // 열면 대화 전부(스크롤), 닫혀 있으면 방금 온 줄만. 오래된 줄은 투명해졌다가(스르륵) 빠집니다.
   const shown = open
     ? chat.lines
@@ -199,7 +201,7 @@ export function ChatOverlay() {
         shown.length > 0 && (
           <div ref={logBox} style={styles.logOpen} onScroll={onScroll}>
             {shown.map((l) => (
-              <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={false} ago={timeAgo(l.at, now)} />
+              <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={false} ago={timeAgo(l.at, now)} />
             ))}
           </div>
         )
@@ -207,7 +209,7 @@ export function ChatOverlay() {
         <div style={styles.log}>
           {/* 닫혀 있을 때는 줄마다 배경을 깔아, 줄이 사라질 때 배경도 같이 사라지게 합니다. */}
           {shown.map((l) => (
-            <Line key={l.id} line={l} color={l.peer ? chat.colors[l.peer.id] : undefined} gone={now - l.at >= SHOW_MS} pill />
+            <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={now - l.at >= SHOW_MS} pill />
           ))}
         </div>
       )}
@@ -216,10 +218,10 @@ export function ChatOverlay() {
         <>
           <div style={styles.inputRow}>
             <span
-              style={{ ...styles.chip, color: (target && chat.colors[target.id]) || WHISPER }}
-              title="Tab: 받는 친구 바꾸기"
+              style={{ ...styles.chip, color: (target && chat.colors[target.key]) || WHISPER }}
+              title="Tab: 받는 사람 바꾸기"
             >
-              {target ? `${target.nickname}에게` : '받는 친구 없음'}
+              {!target ? '받는 사람 없음' : target.kind === 'friend' ? `${target.name}에게` : `[${target.name}]에`}
             </span>
             <input
               ref={input}
@@ -227,13 +229,13 @@ export function ChatOverlay() {
               style={styles.input}
               value={draft}
               maxLength={MAX_LENGTH}
-              placeholder="할 말을 적고 Enter · Tab 친구 바꾸기 · Esc 닫기"
+              placeholder="할 말을 적고 Enter · Tab 받는 사람 바꾸기 · Esc 닫기"
               onChange={(e) => {
                 setDraft(e.target.value)
                 touch()
               }}
               onKeyDown={onKey}
-              aria-label="귓속말 입력"
+              aria-label="채팅 입력"
             />
           </div>
           <div style={styles.controls}>
@@ -269,7 +271,7 @@ export function ChatOverlay() {
         </>
       ) : (
         <div style={styles.bar}>
-          <span style={styles.hint}>💬 Enter 귓속말</span>
+          <span style={styles.hint}>💬 Enter 채팅</span>
           {chat.unread > 0 && <span style={styles.badge}>{chat.unread}</span>}
           {chat.quiet && <span style={styles.hint}>🔕 방해금지{chat.studying ? ' (공부 중)' : ''}</span>}
         </div>
@@ -278,12 +280,39 @@ export function ChatOverlay() {
   )
 }
 
+// 줄 색: 그룹·회의 채팅이면 그 방의 색, 귓속말·초대면 그 친구의 색
+function lineColor(line: ChatLine, colors: Record<string, string>) {
+  if (line.room) return colors[line.room.key]
+  return line.peer ? colors[line.peer.id] : undefined
+}
+
 // 받은 줄은 [받음], 보낸 줄은 [보냄] 태그로 방향을 보여 줍니다(오버워치식). 그 친구와의 줄은 모두 같은 색입니다.
+// 그룹·회의 채팅은 [그룹] [회의] 태그와 말한 사람으로 보여 주고, 그 방의 줄은 모두 같은 색입니다 (#298).
 // ago: 몇 분 전인지 (열었을 때만. 닫혀 있을 때는 새 줄만 10초 보이므로 붙이지 않음)
 function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean; ago?: string }) {
   const style = { ...styles.line, ...(pill ? styles.pill : null), opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
   if (line.kind === 'system') return <div style={{ ...style, ...styles.system }}>{line.text}</div>
+  if (line.room) {
+    return (
+      <div style={{ ...style, color: color ?? WHISPER }}>
+        <span style={styles.tag}>{line.room.kind === 'group' ? '[그룹]' : '[회의]'}</span>{' '}
+        <span style={styles.who}>{line.kind === 'out' ? '나' : (line.peer?.nickname ?? '누군가')}:</span> {line.text}
+        {line.quiet && <span style={styles.quietMark}> 🔕</span>}
+        {ago && <span style={styles.ago}> · {ago}</span>}
+      </div>
+    )
+  }
   const name = line.peer?.nickname ?? '친구'
+  if (line.kind === 'groupInvite' && line.peer) {
+    return (
+      <div style={{ ...style, color: color ?? WHISPER }}>
+        <span style={styles.tag}>[그룹 초대]</span> <span style={styles.who}>{name}:</span> 그룹에 초대했어요{' '}
+        <GroupInviteActions inviterId={line.peer.id} nickname={name} hidden={gone} />
+        {line.quiet && <span style={styles.quietMark}> 🔕</span>}
+        {ago && <span style={styles.ago}> · {ago}</span>}
+      </div>
+    )
+  }
   if (line.kind === 'invite' && line.meeting) {
     return (
       <div style={{ ...style, color: color ?? WHISPER }}>
@@ -301,6 +330,65 @@ function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?
       {line.quiet && <span style={styles.quietMark}> 🔕</span>}
       {ago && <span style={styles.ago}> · {ago}</span>}
     </div>
+  )
+}
+
+// 그룹 초대 줄의 [수락] [거절] 버튼 (#298). 이미 그룹이 있으면 옮겨 갈지 한 번 더 묻습니다.
+// 누르고 나면(또는 5분이 지나면) 버튼 대신 결과를 보여 줍니다. 들어갈 수 있는지는 DB(accept_chat_group_invite)가 확인합니다.
+function GroupInviteActions({ inviterId, nickname, hidden }: { inviterId: string; nickname: string; hidden: boolean }) {
+  const chat = useChat()
+  const [state, setState] = useState<'ready' | 'confirm' | 'busy' | 'joined' | 'declined'>('ready')
+  if (!chat) return null
+  if (state === 'joined') return <span style={styles.ago}>들어감</span>
+  if (state === 'declined') return <span style={styles.ago}>거절함</span>
+  // 친구 화면에서 이미 처리했거나 사라진 초대 (5분이 지난 초대는 수락할 때 DB 가 알려 주고 목록에서 빠짐)
+  if (!chat.groupInvites.some((i) => i.inviterId === inviterId)) {
+    return <span style={styles.ago}>지난 초대</span>
+  }
+  const accept = async () => {
+    setState('busy')
+    const error = await chat.acceptGroupInvite(inviterId)
+    if (error) {
+      chat.note(error)
+      setState('ready')
+      return
+    }
+    setState('joined')
+  }
+  const decline = async () => {
+    setState('busy')
+    const error = await chat.declineGroupInvite(inviterId)
+    if (error) chat.note(error)
+    setState(error ? 'ready' : 'declined')
+  }
+  // 닫힌 로그창은 클릭을 통과시키므로(pointerEvents: none) 버튼만 누를 수 있게 합니다. 사라진 줄의 버튼은 못 누름.
+  const style = { ...styles.join, pointerEvents: hidden ? 'none' : 'auto' } as const
+  const ghost = { ...style, ...styles.joinGhost }
+  const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault() // 입력칸 커서를 뺏지 않게
+  if (state === 'confirm') {
+    return (
+      <>
+        <span>지금 그룹을 나가고 {nickname} 님의 그룹으로 갈까요?</span>{' '}
+        <button type="button" style={style} onMouseDown={keepFocus} onClick={() => void accept()}>이동</button>{' '}
+        <button type="button" style={ghost} onMouseDown={keepFocus} onClick={() => setState('ready')}>취소</button>
+      </>
+    )
+  }
+  return (
+    <>
+      <button
+        type="button"
+        style={style}
+        disabled={state === 'busy'}
+        onMouseDown={keepFocus}
+        onClick={() => (chat.group ? setState('confirm') : void accept())}
+      >
+        수락
+      </button>{' '}
+      <button type="button" style={ghost} disabled={state === 'busy'} onMouseDown={keepFocus} onClick={() => void decline()}>
+        거절
+      </button>
+    </>
   )
 }
 
@@ -351,6 +439,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '1px 8px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10',
     font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
   },
+  joinGhost: { background: 'rgba(255,255,255,.15)', color: '#fff' }, // [거절]·[취소]
   wrap: {
     position: 'fixed', left: 16, bottom: 16, zIndex: 15, width: 'min(380px, calc(100vw - 32px))',
     display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6,

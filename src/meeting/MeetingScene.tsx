@@ -32,6 +32,7 @@ import { useParticipants } from '../realtime/useParticipants'
 import type { Participant, PresenceState } from '../realtime/participants'
 import { useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
+import { useChatPort, useMeetingChat } from '../chat/useMeetingChat'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import { InfoPanel } from '../menu/InfoPanel'
 import { panelKey } from '../menu/panelTypes'
@@ -77,7 +78,9 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
   // 내 위치·앉은 의자·고개·눈·팔. 회의 방(meeting:회의번호, 참석자만 들어오는 비공개 방)으로 0.25초마다 보냅니다. 지점과 같은 방식입니다.
   const me = useRef<PresenceState | null>(null)
   const signalRef = useSignalPort() // 같은 회의 방으로 음성 연결 신호도 주고받습니다 (#46)
-  const others = useParticipants(`meeting:${meetingId}`, me, true, signalRef)
+  const chatPort = useChatPort() // 같은 회의 방으로 회의 채팅도 주고받습니다 (#298)
+  const others = useParticipants(`meeting:${meetingId}`, me, true, signalRef, chatPort)
+  useMeetingChat(meetingId, others, chatPort) // 채팅창 Tab 목록에 [회의]
   const voice = useVoice(myId, others.map((o) => o.userId).sort().join(','), signalRef)
   // 다시 읽기 신호: 내가 방장을 넘기면 1 올려 다른 참석자에게 보내고(PresenceState.sync), 나도 다시 읽습니다.
   const [sync, setSync] = useState(0)
@@ -504,7 +507,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
           </div>
         </div>
       )}
-      <ChatOverlay /> {/* 친구 귓속말은 회의 중에도 받습니다 (#49) */}
+      <ChatOverlay /> {/* 친구 귓속말·그룹 채팅은 회의 중에도 받고, 회의 채팅도 여기서 합니다 (#49, #298) */}
     </>
   )
 }
