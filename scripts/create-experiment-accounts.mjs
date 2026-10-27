@@ -1,4 +1,4 @@
-// 사용자 실험 참가자 계정을 실험 전용 Supabase 프로젝트에 한 번에 만듭니다. (#194)
+// 사용자 실험 참가자 계정과 기록 재생용 팀원 계정을 실험 전용 Supabase 프로젝트에 한 번에 만듭니다. (#194, #195)
 //
 // 실행 (내 컴퓨터에서만). 키를 명령줄에 그대로 쓰면 셸 기록에 남으므로 read -s 로 안 보이게 입력합니다:
 //   read -rs "SUPABASE_SERVICE_ROLE_KEY?Secret 키: " && export SUPABASE_SERVICE_ROLE_KEY
@@ -23,12 +23,20 @@ const OUT_FILE = join(homedir(), 'twoteam-experiment-accounts.csv') // 저장소
 const EMAIL_DOMAIN = 'twoteam.test' // .test 는 실제 메일이 갈 수 없는 예약 도메인
 const PARTICIPANTS = 24 // 본 실험 참가자 P01~P24 (조건 순서 6가지 × 4명)
 
-// 만들 계정 목록. 예비 실험·팀원 재생용이 필요해지면 여기에 더하고 다시 돌립니다.
+// C 조건 기록 재생용 팀원 계정 (#195). /replay 화면에서 이 계정으로 로그인해 18·19·20번 자리 기록을 하나씩 재생합니다.
+// 닉네임은 참가자 화면의 캐릭터 이름표로 보이므로 room A 화면의 이름표(videoStore.ts 의 DEFAULT_PEERS)와 같게 둡니다.
+// 이름을 바꾸려면 두 곳을 같이 바꿉니다. (이미 만든 계정은 프로필 화면에서 닉네임을 바꿉니다)
+const REPLAY_NICKNAMES = ['참여자 1', '참여자 2', '참여자 3']
+
+// 만들 계정 목록. 예비 실험용이 필요해지면 여기에 더하고 다시 돌립니다.
 const pad = (n) => String(n).padStart(2, '0')
-const ACCOUNTS = Array.from({ length: PARTICIPANTS }, (_, i) => ({
-  email: `p${pad(i + 1)}@${EMAIL_DOMAIN}`,
-  nickname: `P${pad(i + 1)}`, // 실험 진행 화면의 참가자 번호와 같은 꼴
-}))
+const ACCOUNTS = [
+  ...Array.from({ length: PARTICIPANTS }, (_, i) => ({
+    email: `p${pad(i + 1)}@${EMAIL_DOMAIN}`,
+    nickname: `P${pad(i + 1)}`, // 실험 진행 화면의 참가자 번호와 같은 꼴
+  })),
+  ...REPLAY_NICKNAMES.map((nickname, i) => ({ email: `r${pad(i + 1)}@${EMAIL_DOMAIN}`, nickname })),
+]
 
 const dryRun = process.argv.includes('--dry-run')
 
