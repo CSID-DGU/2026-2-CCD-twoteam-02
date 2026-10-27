@@ -10,6 +10,7 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { BASE_MODEL_URL } from './characters'
+import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
 import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
@@ -214,7 +215,7 @@ function PartThumb({ slot, part, avatar }: { slot: Slot; part: Part; avatar: Ava
   return <canvas ref={ref} width={THUMB * ratio} height={THUMB * ratio} style={{ width: THUMB, height: THUMB }} />
 }
 
-// 미리보기 캐릭터: 가만히 서 있는 동작. talking 이면 회의실에서 말할 때처럼 벌린 입을, eyesClosed 면 감은 눈을 보여 줍니다
+// 미리보기 캐릭터: 가만히 서 있는 자세(지점과 같이 흔들지 않음, #244). talking 이면 회의실에서 말할 때처럼 벌린 입을, eyesClosed 면 감은 눈을 보여 줍니다
 function Preview({ model, talking, eyesClosed }: { model: string; talking: boolean; eyesClosed: boolean }) {
   const ref = useRef<Group>(null!)
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
@@ -227,6 +228,7 @@ function Preview({ model, talking, eyesClosed }: { model: string; talking: boole
   })
   const { actions } = useAnimations(animations, ref)
   useEffect(() => {
+    holdStandingPose(actions.idle)
     actions.idle?.play()
   }, [actions])
   return (
