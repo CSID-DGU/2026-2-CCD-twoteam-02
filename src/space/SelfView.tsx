@@ -19,9 +19,10 @@ type Props = {
   status: TrackingStatus;
   message: string;
   showMouth?: boolean; // 입 벌림도 보여 줄지 (회의실, #61)
+  paused?: boolean; // 공부 중지 중 (웹캠 꺼짐, #236)
 };
 
-export function SelfView({ videoRef, face, pose, status, message, showMouth = false }: Props) {
+export function SelfView({ videoRef, face, pose, status, message, showMouth = false, paused = false }: Props) {
   const { model } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131)
   return (
     <div
@@ -50,7 +51,11 @@ export function SelfView({ videoRef, face, pose, status, message, showMouth = fa
       </Canvas>
 
       <div style={{ position: "absolute", top: 6, left: 10 }}>내 모습</div>
-      {status !== "ready" && (
+      {paused ? (
+        <div style={{ position: "absolute", inset: "auto 0 0 0", padding: "6px 10px", background: "rgba(0,0,0,.6)" }}>
+          ⏸ 중지 중 · 웹캠이 꺼져 있어요
+        </div>
+      ) : status !== "ready" && (
         <div
           style={{
             position: "absolute",
