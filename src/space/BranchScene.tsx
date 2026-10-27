@@ -539,6 +539,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         onStatus={setStudyStatus}
         onDialogChange={setStudyDialogOpen}
         onTracking={handleTracking}
+        showCamera={recordSeat !== null}
       />
     )}
     <PerfReadout perf={perf} />
