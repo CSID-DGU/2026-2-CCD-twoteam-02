@@ -542,7 +542,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
     )}
     <PerfReadout perf={perf} />
-    {recordSeat !== null && <RecordControls meRef={me} branch={branch.id} seat={recordSeat} />}
+    {recordSeat !== null && <RecordControls meRef={me} trackingRef={myTracking} branch={branch.id} seat={recordSeat} />}
     {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 지점(혼자 공부)에서는 인원 수도 숨깁니다. (#47, #198) */}
     {!hidden && (
       <div

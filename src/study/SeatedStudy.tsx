@@ -20,7 +20,8 @@ import type { Baseline } from '../focus/calibration'
 import type { StudyCondition } from './condition'
 
 // 다른 참여자에게 보낼 내 트래킹 결과. 지점 화면이 읽어 고개·눈·팔을 보냅니다.
-export type MyTracking = { face: RefObject<FaceState>; arms: RefObject<UserArms> }
+// video: 트래킹이 켠 웹캠 화면. 기록 모드(#190)가 같은 영상을 함께 녹화하는 데 씁니다.
+export type MyTracking = { face: RefObject<FaceState>; arms: RefObject<UserArms>; video: RefObject<HTMLVideoElement | null> }
 
 type Props = {
   userId: string
@@ -55,7 +56,7 @@ export function SeatedStudy({ userId, sessionId, condition, lockOtherScreen, onS
     if (!choice || !calibrated) onStatus('idle')
   }, [choice, calibrated, onStatus])
   useEffect(() => {
-    onTracking?.({ face, arms })
+    onTracking?.({ face, arms, video: videoRef })
     return () => onTracking?.(null)
   }, [face, arms, onTracking])
   // 일어나서 이 화면이 사라지면 창도 닫힌 것으로 알립니다.
