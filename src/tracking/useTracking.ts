@@ -3,6 +3,7 @@
 // 다른 탭으로 가서 페이지가 숨겨지면 화면 반복(requestAnimationFrame)이 멈추므로, 그동안은 워커 신호로
 // HIDDEN_TICK_MS마다 한 번씩 인식합니다. (다른 탭·앱 사용함 + 다른 탭에서도 자리 이탈·졸음을 판정하기 위해)
 // 휴대폰 감지(물체 감지)는 options.phone이 켜져 있을 때만 초당 PHONE_HZ번 합니다. (휴대폰·학습기기 사용함이 아닐 때만 필요)
+// options.paused(공부 중지, #236)이면 웹캠을 완전히 끄고(카메라 불 꺼짐) 인식을 멈춥니다. 모델은 그대로 두고, 풀리면 웹캠만 다시 켭니다.
 // 결과는 매 프레임 바뀌므로 state가 아니라 ref에 담고, 쓰는 곳(캐릭터·집중 판정·가이드라인)이 필요한 값만 가져갑니다.
 // 웹캠 영상은 이 브라우저 안에서만 처리되고 어디로도 전송되지 않습니다.
 // 배경 확인(카메라가 돌아갔는지)은 1초마다 영상을 작게 줄여 칸별 평균 밝기 숫자로만 읽고, 그림은 남기지 않습니다.
@@ -75,7 +76,8 @@ export type PhoneState = {
 export type TrackingStatus = "loading" | "ready" | "error";
 
 // options.phone: 휴대폰 감지를 켤지. 바꿔도 웹캠을 다시 켜지 않습니다(ref로 읽음).
-export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, options: { phone?: boolean } = {}) {
+// options.paused: 웹캠을 끄고 인식을 멈출지 (공부 중지)
+export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, options: { phone?: boolean; paused?: boolean } = {}) {
   const face = useRef<FaceState>({ found: false, yaw: 0, pitch: 0, roll: 0, blink: 0, jaw: 0, ear: null, updatedAt: null });
   const phone = useRef<PhoneState>({ found: null });
   const phoneWanted = useRef(false);
@@ -83,6 +85,15 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
   useEffect(() => {
     phoneWanted.current = wantPhone;
   }, [wantPhone]);
+  // 중지: 아래 반복이 읽는 값(pausedRef)과, 웹캠을 끄고 켜는 함수(camera, 반복을 준비할 때 채움)
+  const pausedRef = useRef(false);
+  const camera = useRef<{ pause: () => void; resume: () => void } | null>(null);
+  const wantPaused = options.paused ?? false;
+  useEffect(() => {
+    pausedRef.current = wantPaused;
+    if (wantPaused) camera.current?.pause();
+    else camera.current?.resume();
+  }, [wantPaused]);
   const pose = useRef<PoseState>({
     found: false, left: null, right: null, framed: null, guidePoints: null,
     bgSame: null, bgScore: null, bgSpread: null, bgCells: 0, wristsInView: false, lastMotionMs: null,
@@ -200,17 +211,65 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       }
     }
 
+    // 웹캠 켜기. 켜는 동안 취소·중지되면 바로 다시 끕니다.
+    async function openCamera(video: HTMLVideoElement) {
+      const opened = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+        audio: false,
+      });
+      if (cancelled || pausedRef.current) {
+        opened.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      stream = opened;
+      video.srcObject = stream;
+      await video.play();
+    }
+
+    // 중지 동안 남은 인식 값으로 판정·표시하지 않게 "모름"으로 비웁니다.
+    function clearResults() {
+      faceState.found = false;
+      faceState.jaw = 0;
+      faceState.ear = null;
+      faceState.updatedAt = null;
+      poseState.found = false;
+      poseState.left = null;
+      poseState.right = null;
+      poseState.framed = null;
+      poseState.guidePoints = null;
+      poseState.bgSame = null;
+      poseState.lastMotionMs = null;
+      phoneState.found = null;
+    }
+
     async function start() {
       const video = videoRef.current;
       if (!video) return;
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: false,
-      });
+      let opening: Promise<void> | null = null;
+      camera.current = {
+        pause() {
+          stream?.getTracks().forEach((track) => track.stop()); // 카메라 불이 꺼집니다.
+          stream = undefined;
+          video.srcObject = null;
+          clearResults();
+        },
+        resume() {
+          if (stream || opening) return;
+          opening = openCamera(video)
+            .catch((error: unknown) => {
+              if (cancelled) return;
+              setStatus("error");
+              setMessage(error instanceof Error ? error.message : String(error));
+            })
+            .finally(() => {
+              opening = null;
+            });
+        },
+      };
+
+      if (!pausedRef.current) await openCamera(video);
       if (cancelled) return;
-      video.srcObject = stream;
-      await video.play();
 
       const fileset = await FilesetResolver.forVisionTasks(WASM_URL);
       faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
@@ -248,7 +307,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       let lastBackground = 0;
       // 인식 한 번. 보일 때는 화면 반복(loop)이, 숨겨졌을 때는 워커 신호가 부릅니다.
       const step = () => {
-        if (cancelled || !faceLandmarker) return;
+        if (cancelled || !faceLandmarker || pausedRef.current) return;
         if (video.readyState >= 2) {
           const now = performance.now();
           if (video.currentTime !== lastVideoTime) {
@@ -342,6 +401,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
 
     return () => {
       cancelled = true;
+      camera.current = null;
       cancelAnimationFrame(frameId);
       stopHidden?.();
       stream?.getTracks().forEach((track) => track.stop());
