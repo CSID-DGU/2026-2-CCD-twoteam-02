@@ -15,6 +15,7 @@ import { useArmDirections } from "./useArmDirections";
 import { headAngles, mouthOpen, nextEyesClosed } from "./faceSync";
 import { useSkin } from "./useSkin";
 import { showEyes, updateMouth, useFace } from "./useFace";
+import { useHair } from "./useHair";
 import { BASE_MODEL_URL, DEFAULT_MODEL } from "../profile/characters";
 
 const HEAD_NODE = "head";
@@ -33,6 +34,7 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth 
   // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
   const character = useMemo(() => scene.clone(true), [scene]);
   useSkin(character, model);
+  useHair(character, model);
   const faceView = useFace(character, model);
   const eyesClosed = useRef(false);
   // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)

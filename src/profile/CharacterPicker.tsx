@@ -13,6 +13,7 @@ import { BASE_MODEL_URL } from './characters'
 import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
+import { useHair } from '../tracking/useHair'
 import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
 import type { Avatar, LayoutField, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
@@ -156,7 +157,7 @@ export function CharacterPicker({ value, onChange }: Props) {
                       setBlink(slot === 'closedEyes')
                     }}
                   >
-                    {p.tint || p.file ? <PartThumb slot={slot} part={p} avatar={value} /> : <span style={styles.none}>없음</span>}
+                    {p.tint || p.file || p.model ? <PartThumb slot={slot} part={p} avatar={value} /> : <span style={styles.none}>없음</span>}
                   </button>
                 ))}
               </div>
@@ -221,6 +222,7 @@ function Preview({ model, talking, eyesClosed }: { model: string; talking: boole
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   const copy = useMemo(() => scene.clone(true), [scene]) // 지점의 캐릭터와 같은 모델이라 복사본
   useSkin(copy, model)
+  useHair(copy, model)
   const face = useFace(copy, model)
   useFrame((_, delta) => {
     updateMouth(face, talking ? 1 : 0, delta)

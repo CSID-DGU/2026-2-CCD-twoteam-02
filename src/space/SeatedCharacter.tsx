@@ -11,6 +11,7 @@ import type { Group } from 'three'
 import { useSkin } from '../tracking/useSkin'
 import { applyArms } from '../tracking/armPose'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
+import { useHair } from '../tracking/useHair'
 import { BASE_MODEL_URL } from '../profile/characters'
 import type { ArmVector } from '../realtime/participants'
 import type { Spot } from './layout'
@@ -42,6 +43,7 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
   const { actions } = useAnimations(animations, animRoot)
   // 이 캐릭터만 쓰는 재질과 얼굴 판. 눈을 감아도 같은 모델의 다른 캐릭터는 그대로입니다. (#113)
   useSkin(copy, model)
+  useHair(copy, model)
   const face = useFace(copy, model)
 
   useEffect(() => {

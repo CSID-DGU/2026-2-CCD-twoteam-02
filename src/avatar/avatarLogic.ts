@@ -15,7 +15,17 @@ export type Slot = 'eyes' | 'closedEyes' | 'brows' | 'mouth' | 'mouthOpen' | 'ha
 // tint: 고른 색을 입힐 그림(흰색·회색), file: 색 고정 그림. "없음" 부품은 둘 다 없음
 // 얼굴 부품(FACE_SLOTS)의 그림은 스티커: 얼굴 한 변 = FACE_PX 크기, 그림 가운데 = 기본 자리. 눈은 오른쪽 눈 하나만 그림
 // box: 스티커에서 실제로 칠해진 범위(가운데 기준 [왼, 위, 오른, 아래], px). 눈과 입이 겹치지 않게 막을 때 씀
-export type Part = { id: string; name: string; tint?: string; file?: string; box?: [number, number, number, number] }
+// model: 머리에 붙이는 입체 부품(머리카락, #296)의 3D 모델 파일(.gltf·.glb). Blockbench 로 머리 뼈 좌표(가로 -4~4, 세로 0~8,
+//        얼굴 쪽 +z)에 맞춰 만들어 내보낸 것(1칸 = 1/16). modelScale: 붙일 때 키우는 배수(기본 16, 다른 단위로 만든 모델만 적음)
+export type Part = {
+  id: string
+  name: string
+  tint?: string
+  file?: string
+  box?: [number, number, number, number]
+  model?: string
+  modelScale?: number
+}
 // 눈·눈썹·입 위치와 크기(#293). 모두 정수 단계. 눈 간격은 +가 넓게, 높이는 +가 위로, 크기는 +가 크게. 눈썹 간격은 눈을 따라감
 export type LayoutField = 'eyeX' | 'eyeY' | 'eyeSize' | 'browY' | 'browSize' | 'mouthY' | 'mouthSize'
 export type Avatar = {

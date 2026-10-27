@@ -14,6 +14,7 @@
 //   기본 부품은 시험용으로 단순하게 칠한 것이다
 //   눈(뜬 눈·감은 눈)·입(다문 입·벌린 입)은 여기서 만들지 않는다. 김현이 그린 그림을 scripts/import-face-drawings.mjs 로 넣는다
 //   public/models/Parts/templates/부위.png : 새 부품을 그릴 때 쓰는 안내 그림 (면마다 색이 다름, README 참고)
+//   art/hair/머리-시작.bbmodel        : Blockbench 로 머리카락을 만들 때 여는 시작 파일. 머리 크기 상자와 기본 머리들(HAIR_BOXES)이 들어 있음
 //   src/avatar/parts.json              : 부품 목록. 기본 부품 줄은 새로 쓰고, 팀이 직접 추가한 줄은 그대로 둔다
 //                                        스티커 부품에는 그림이 실제로 칠해진 범위(box: 가운데 기준 [왼, 위, 오른, 아래])를 적는다.
 //                                        화면이 눈과 입이 겹치지 않게 막을 때 쓴다
@@ -178,8 +179,118 @@ function face(buf, faces, x0, y0, x1, y1, rgb) {
   rect(buf, f.x0 + x0 * cw, f.y0 + y0 * ch, f.x0 + x1 * cw, f.y0 + y1 * ch, rgb)
 }
 
+// ── 입체 부품 (머리카락, #296) ─────────────────────────────────────────
+// 머리(head) 뼈 안쪽 좌표: 가로 -4~4, 세로 0(턱)~8(정수리), 앞(얼굴)이 z = +4. 상자 하나 = [가로, 세로, 깊이, 가운데 x, y, z]
+// 화면이 이 모델을 머리에 붙이고, 고른 머리 색을 입히고, 면 방향마다 밝기를 다르게 칠한다(useHair).
+// 나중에 Blockbench 로 만든 모델로 바꾸거나 더하면 된다(public/models/Parts/README.md).
+const cap = [[8.8, 1.8, 8.8, 0, 8.5, 0]] // 정수리를 덮는 판
+const HAIR_BOXES = {
+  short: [...cap, [8.8, 3.2, 0.7, 0, 6.6, -4.35], [0.7, 2.6, 8.8, 4.35, 6.9, 0], [0.7, 2.6, 8.8, -4.35, 6.9, 0],
+    [3.2, 1.6, 0.6, -2.6, 7.2, 4.35], [2.6, 1.1, 0.6, 0.2, 7.45, 4.35], [2.4, 1.9, 0.6, 2.9, 7.05, 4.35]], // 앞머리 계단
+  long: [...cap, [8.8, 10, 0.9, 0, 3.6, -4.4], [0.9, 8.6, 6, 4.45, 4.3, -1.4], [0.9, 8.6, 6, -4.45, 4.3, -1.4],
+    [0.9, 6.6, 2.8, 4.45, 5.3, 2.9], [0.9, 6.6, 2.8, -4.45, 5.3, 2.9], [8.8, 1.4, 0.6, 0, 7.4, 4.35]],
+  buzz: [[8.4, 0.7, 8.4, 0, 8.35, 0], [8.4, 2.2, 0.4, 0, 7, -4.2], [0.4, 1.6, 8.4, 4.2, 7.4, 0], [0.4, 1.6, 8.4, -4.2, 7.4, 0],
+    [8.4, 0.6, 0.4, 0, 7.75, 4.2]],
+  spiky: [[8.6, 1.4, 8.6, 0, 8.3, 0], [8.6, 2.4, 0.6, 0, 7, -4.3], [8.6, 1, 0.6, 0, 7.6, 4.3],
+    [2.2, 2.6, 2.2, -2.6, 9.9, 1.8], [2.2, 3.4, 2.2, 0.2, 10.3, 1.4], [2.2, 2.4, 2.2, 2.8, 9.8, 1.9],
+    [2.2, 3, 2.2, -1.6, 10.1, -1.8], [2.2, 2.6, 2.2, 1.9, 9.9, -1.6]],
+  bun: [...cap, [8.8, 3.2, 0.7, 0, 6.6, -4.35], [0.7, 2.6, 8.8, 4.35, 6.9, 0], [0.7, 2.6, 8.8, -4.35, 6.9, 0],
+    [8.8, 1.2, 0.6, 0, 7.5, 4.35], [3.6, 3.2, 3.6, 0, 10.6, -1.2]],
+}
+
+// 상자 목록 → glTF 파일 (모델 하나, 재질 'tint' 하나. 버퍼는 파일 안에 base64 로). 새 라이브러리 없이 직접 쓴다
+// Blockbench 가 내보내는 것과 같게 머리 1칸을 1/16 로 줄여 쓴다(화면이 16배 키워 붙임, partModel.MODEL_UNIT)
+const BB_UNIT = 16
+function writeBoxGltf(file, boxes) {
+  const pos = [], nor = [], idx = []
+  // 면마다 [법선, 네 꼭짓점(-1·+1 로 표시)]
+  const FACES = [
+    [[1, 0, 0], [[1, -1, -1], [1, 1, -1], [1, 1, 1], [1, -1, 1]]],
+    [[-1, 0, 0], [[-1, -1, 1], [-1, 1, 1], [-1, 1, -1], [-1, -1, -1]]],
+    [[0, 1, 0], [[-1, 1, 1], [1, 1, 1], [1, 1, -1], [-1, 1, -1]]],
+    [[0, -1, 0], [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1]]],
+    [[0, 0, 1], [[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]]],
+    [[0, 0, -1], [[1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1]]],
+  ]
+  for (const [w, h, d, cx, cy, cz] of boxes) {
+    for (const [n, corners] of FACES) {
+      const base = pos.length / 3
+      for (const [sx, sy, sz] of corners) {
+        pos.push((cx + (sx * w) / 2) / BB_UNIT, (cy + (sy * h) / 2) / BB_UNIT, (cz + (sz * d) / 2) / BB_UNIT)
+        nor.push(...n)
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3)
+    }
+  }
+  const f32 = (a) => Buffer.from(new Float32Array(a).buffer)
+  const posBuf = f32(pos), norBuf = f32(nor), idxBuf = Buffer.from(new Uint16Array(idx).buffer)
+  const pad = (b) => Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)])
+  const bin = Buffer.concat([pad(posBuf), pad(norBuf), pad(idxBuf)])
+  const min = [0, 1, 2].map((k) => Math.min(...pos.filter((_, i) => i % 3 === k)))
+  const max = [0, 1, 2].map((k) => Math.max(...pos.filter((_, i) => i % 3 === k)))
+  const gltf = {
+    asset: { version: '2.0', generator: 'make-avatar-parts.mjs' },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ mesh: 0, name: 'hair' }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: 0 }] }],
+    materials: [{ name: 'tint', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 } }],
+    buffers: [{ byteLength: bin.length, uri: `data:application/octet-stream;base64,${bin.toString('base64')}` }],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: posBuf.length, target: 34962 },
+      { buffer: 0, byteOffset: pad(posBuf).length, byteLength: norBuf.length, target: 34962 },
+      { buffer: 0, byteOffset: pad(posBuf).length + pad(norBuf).length, byteLength: idxBuf.length, target: 34963 },
+    ],
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: pos.length / 3, type: 'VEC3', min, max },
+      { bufferView: 1, componentType: 5126, count: nor.length / 3, type: 'VEC3' },
+      { bufferView: 2, componentType: 5123, count: idx.length, type: 'SCALAR' },
+    ],
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(gltf) + '\n')
+}
+
+// Blockbench 시작 파일(.bbmodel, Blockbench 의 프로젝트 파일 = JSON). 빈 '내 머리' 묶음 + 머리 확인용 상자 + 얼굴 쪽 표시 + 기본 머리들(묶음마다)
+// '내 머리' 묶음만 내보내진다(나머지 묶음은 export: false). 사용법은 art/hair/사용법.md
+// Blockbench 좌표는 픽셀 단위이고 머리 뼈 좌표와 숫자가 같다(머리 = -4~4, 0~8, -4~4). 얼굴은 +Z(남쪽, South)
+const HAIR_NAMES = { short: '짧은 머리', long: '긴 머리', buzz: '아주 짧은 머리', spiky: '삐죽 머리', bun: '똥머리' }
+function writeHairStarter(file) {
+  const uuid = () => crypto.randomUUID()
+  const side = { uv: [0, 0, 1, 1] } // 그림을 정하지 않은 면 (texture: null 로 두면 Blockbench 가 면을 숨김)
+  const cube = (name, from, to, color, visibility = true) => ({
+    name, box_uv: false, rescale: false, locked: false, from, to, autouv: 0, color, origin: [0, 0, 0], visibility,
+    faces: { north: side, east: side, south: side, west: side, up: side, down: side }, type: 'cube', uuid: uuid(),
+  })
+  const group = (name, cubes, visibility = true, exported = false) => ({
+    name, origin: [0, 0, 0], color: 0, uuid: uuid(), export: exported, isOpen: false, locked: false, visibility, autouv: 0,
+    children: cubes.map((c) => c.uuid),
+  })
+  const elements = [], outliner = []
+  outliner.push({ ...group('내 머리 (이 묶음 안의 상자만 내보내짐)', [], true, true), isOpen: true })
+  // 머리 확인용: 얼굴 쪽에 코처럼 작은 상자를 붙여 앞을 알 수 있게. 내보내지 않음
+  const head = [cube('머리 (확인용)', [-4, 0, -4], [4, 8, 4], 1), cube('얼굴 쪽 표시', [-1, 3, 4], [1, 4.5, 5], 2)]
+  elements.push(...head)
+  outliner.push(group('머리 확인용 (내보내지 않음)', head))
+  for (const [id, boxes] of Object.entries(HAIR_BOXES)) {
+    const visible = id === 'short' // 처음에는 짧은 머리만 보이게. 나머지는 눈 아이콘을 눌러 보기
+    const cubes = boxes.map(([w, h, d, cx, cy, cz], k) =>
+      cube(`${id}-${k + 1}`, [cx - w / 2, cy - h / 2, cz - d / 2], [cx + w / 2, cy + h / 2, cz + d / 2], 0, visible))
+    elements.push(...cubes)
+    outliner.push(group(`예시: ${HAIR_NAMES[id]} (내보내지 않음)`, cubes, visible))
+  }
+  const project = {
+    meta: { format_version: '4.10', model_format: 'free', box_uv: false },
+    name: '머리-시작', model_identifier: '', resolution: { width: 16, height: 16 },
+    elements, outliner, textures: [],
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(project, null, 1) + '\n')
+}
+
 // ── 기본 부품 ─────────────────────────────────────────────────────
 // 칸마다 [id, 이름, 그리기]. 그리기는 { tint, file } 중 필요한 것을 채운다. 그리기가 null 이면 "없음"
+// 그리기 대신 상자 목록(배열)이면 입체 부품: 모델 파일(.gltf)을 만들어 목록에 model 로 적는다
 const DARK = [31, 31, 36]
 
 function makeParts(faces) {
@@ -199,21 +310,14 @@ function makeParts(faces) {
     ],
     mouth: [],
     mouthOpen: [],
+    // 머리카락은 머리에 붙이는 입체 부품(#296). 그리기 대신 상자 목록(HAIR_BOXES)을 주면 3D 모델 파일(.gltf)로 만든다
     hair: [
       ['none', '없음', null],
-      ['short', '짧은 머리', (p) => {
-        cover(p.tint, faces, ['head'], { sides: [0, 0.25], top: true, only: ['top', 'left', 'right'] })
-        cover(p.tint, faces, ['head'], { sides: [0, 0.4], only: ['back'] })
-        cover(p.tint, faces, ['head'], { sides: [0, 0.12], only: ['front'] })
-      }],
-      ['long', '긴 머리', (p) => {
-        cover(p.tint, faces, ['head'], { sides: [0, 0.8], top: true, only: ['top', 'left', 'right'] })
-        cover(p.tint, faces, ['head'], { sides: [0, 1], only: ['back'] })
-        cover(p.tint, faces, ['head'], { sides: [0, 0.16], only: ['front'] })
-      }],
-      ['buzz', '아주 짧은 머리', (p) => {
-        cover(p.tint, faces, ['head'], { sides: [0, 0.1], top: true })
-      }],
+      ['short', '짧은 머리', HAIR_BOXES.short],
+      ['long', '긴 머리', HAIR_BOXES.long],
+      ['buzz', '아주 짧은 머리', HAIR_BOXES.buzz],
+      ['spiky', '삐죽 머리', HAIR_BOXES.spiky],
+      ['bun', '똥머리', HAIR_BOXES.bun],
     ],
     top: [
       ['tshirt', '반팔 티셔츠', (p) => {
@@ -266,7 +370,10 @@ for (const [slot, items] of Object.entries(makeParts(faces))) {
   for (const [id, name, draw] of items) {
     generated.add(`${slot}/${id}`)
     const item = { id, name }
-    if (draw) {
+    if (Array.isArray(draw)) {
+      writeBoxGltf(path.join(OUT, slot, `${id}.gltf`), draw)
+      item.model = `/models/Parts/${slot}/${id}.gltf`
+    } else if (draw) {
       const p = { tint: blank(w, h), file: blank(w, h) }
       draw(p)
       for (const [kind, suffix] of [['tint', '-tint'], ['file', '']]) {
@@ -323,6 +430,7 @@ const templates = {
   shoes: template(legs, [0.55, 1]),
 }
 for (const [name, buf] of Object.entries(templates)) writePng(path.join(OUT, 'templates', `${name}.png`), buf)
+writeHairStarter(path.join(ROOT, 'art/hair/머리-시작.bbmodel'))
 
 // 목록: 기본 부품 줄은 새로 쓰고, 팀이 직접 추가한 부품(그 밖의 id)은 그대로 둡니다.
 const old = fs.existsSync(LIST) ? JSON.parse(fs.readFileSync(LIST, 'utf8')) : {}
