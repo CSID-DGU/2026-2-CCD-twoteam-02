@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 // 얼굴 캔버스(2048×2048)에 크게 그린 눈·입 그림을 스티커 부품으로 넣기 (#293)
 //
-// 김현이 notes/그리기-안내/그리기-틀-2048.png 를 밑그림으로 깔고 부품마다 레이어를 따로 그려 2048×2048 그대로 내보낸 PNG 를 받는다.
+// art/face-guide/그리기-틀-2048.png 를 밑그림으로 깔고 부품마다 레이어를 따로 그려 2048×2048 그대로 내보낸 PNG 를 받는다(art/README.md).
 // 크게 그렸으니 선은 다듬지 않고 그대로 쓴다. 하는 일:
 //   1) 바탕: 그림 가장자리에 닿는 칸(입·눈 바깥)은 투명하게. 배경 레이어를 켠 채 흰 바탕으로 내보내도 된다.
 //      선 가장자리의 반쯤 섞인 픽셀은 선 색 + 그만큼의 투명도로 바꿔, 피부 위에 얹어도 흰 테두리가 남지 않게 한다.
 //   2) 칸 채우기(fill): 색을 칠하지 않고 선만 그린 그림은, 선으로 막힌 칸마다 색을 정해 채운다.
 //      칸 번호는 칸의 가운데가 위에 있는 것부터(같으면 왼쪽부터) 1, 2, 3 … 이다. 칠해 온 그림은 그린 색 그대로 둔다.
-//   3) 파랑(눈동자)은 사용자가 고른 눈 색을 입힐 그림(-tint)으로 따로 뺀다. 진한 파랑일수록 고른 색도 진하게.
+//   3) 파랑·하늘색(눈동자 등)은 사용자가 고른 눈 색을 입힐 그림(-tint)으로 따로 뺀다. 진할수록 고른 색도 진하게.
+//      눈은 한쪽만 그린다. 왼쪽 눈 자리에 그렸으면 좌우를 뒤집어 오른쪽 눈 그림으로 만든다(화면이 다시 뒤집어 왼쪽 눈을 그림).
 //   4) 그 부품의 기본 자리(EYE_HOME·MOUTH_HOME, 2048 기준)를 가운데로 잘라 반 크기(얼굴 한 변 = 1024)의 스티커 그림으로 저장하고
 //      src/avatar/parts.json 에 넣는다. 그림이 칠해진 범위(box)도 적는다.
 //
-// 쓰는 법: node scripts/import-face-drawings.mjs 그림폴더 [내보낼폴더]
+// 쓰는 법: node scripts/import-face-drawings.mjs [그림폴더] [내보낼폴더]
+//   그림폴더를 빼면 art/face-drawings (원본 그림을 모아 두는 곳).
 //   내보낼폴더를 주면 그 폴더에만 그림을 쓰고 parts.json 은 고치지 않는다(시험해 볼 때).
-// 원본 그림은 저장소에 올리지 않는다(김현 컴퓨터의 notes/). 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다.
+// 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다.
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
@@ -24,15 +26,32 @@ const LIST = path.join(ROOT, 'src/avatar/parts.json')
 const W = 2048 // 그린 얼굴 캔버스 한 변
 const SIZE = W // writePng 기본 크기
 // 기본 자리(2048 기준, 얼굴 1칸 = 256px). avatarLogic.EYE_HOME·MOUTH_HOME 의 두 배
-const HOME = { eyes: { x: 1472, y: 1120 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
+const HOME = { eyes: { x: 1472, y: 1120 }, closedEyes: { x: 1472, y: 1120 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
 // 스티커 그림 크기(얼굴 1024 기준). 2048 그림에서는 이 두 배를 잘라 반으로 줄인다. make-avatar-parts 와 같음
-const STICKER = { eyes: [320, 320], mouth: [512, 256], mouthOpen: [512, 256] }
+const STICKER = { eyes: [320, 320], closedEyes: [320, 320], mouth: [512, 256], mouthOpen: [512, 256] }
 const LINE = [31, 31, 36] // 선 색
 // 칸 채우기 색 (김현 10/27: 혀는 붉은색, 입 안은 까만색)
 const FILL = { teeth: [255, 255, 255], inside: [35, 25, 30], tongue: [214, 52, 64], white: [255, 255, 255] }
 
-// 넣을 그림. file: 그림 파일, closed: 감은 눈 그림(눈만), fill: 칸 번호 순서대로 채울 색(선만 그린 그림)
+// 넣을 그림. 칸: eyes(뜬 눈)·closedEyes(감은 눈)·mouth(다문 입)·mouthOpen(벌린 입). fill: 칸 번호 순서대로 채울 색(선만 그린 그림)
 const DRAWINGS = [
+  { file: '새 눈3.png', slot: 'eyes', id: 'tall', name: '길쭉한 눈' },
+  { file: '새 눈4.png', slot: 'eyes', id: 'side-glance', name: '곁눈질 눈' },
+  { file: '새 눈5.png', slot: 'eyes', id: 'blank', name: '멍한 눈' },
+  { file: '새 눈6.png', slot: 'eyes', id: 'sparkle', name: '초롱초롱 눈' },
+  { file: '새 눈7.png', slot: 'eyes', id: 'lidded', name: '나른한 눈' },
+  { file: '새 눈8.png', slot: 'eyes', id: 'sleepy', name: '졸린 눈' },
+  { file: '새 눈9.png', slot: 'eyes', id: 'almond', name: '아몬드 눈' },
+  { file: '새 눈11.png', slot: 'eyes', id: 'crying', name: '우는 눈' },
+  { file: '새 눈12.png', slot: 'eyes', id: 'half', name: '심드렁한 눈' },
+  { file: '새 눈13.png', slot: 'eyes', id: 'tiny-ring', name: '작은 동그라미 눈' },
+  { file: '새 눈14.png', slot: 'eyes', id: 'dot', name: '점 눈' },
+  { file: '새 눈1.png', slot: 'closedEyes', id: 'lash-arch', name: '속눈썹 감은 눈' },
+  { file: '새 눈2.png', slot: 'closedEyes', id: 'lash-flat', name: '속눈썹 일자 눈' },
+  { file: '새 눈10.png', slot: 'closedEyes', id: 'smile', name: '웃는 감은 눈' },
+  { file: '새 눈15.png', slot: 'closedEyes', id: 'squint', name: '꼭 감은 눈' },
+  { file: '새 눈16.png', slot: 'closedEyes', id: 'line', name: '일자 감은 눈' },
+  { file: '새 눈17.png', slot: 'closedEyes', id: 'thick-line', name: '굵은 일자 감은 눈' },
   { file: '새 입1.png', slot: 'mouthOpen', id: 'round-o', name: '동그랗게 벌린 입', fill: ['teeth', 'inside', 'tongue'] },
   { file: '새 입2.png', slot: 'mouthOpen', id: 'big-smile', name: '활짝 벌린 입', fill: ['teeth', 'inside', 'inside', 'tongue'] },
   { file: '새 입3.png', slot: 'mouth', id: 'soft-smile', name: '살짝 웃는 입' },
@@ -127,11 +146,12 @@ function convert(file, slot, fill = []) {
   const { w, h, rgba } = readPng(file)
   if (w !== W || h !== W) throw new Error(`${file}: ${W}×${W} 그림이어야 합니다 (지금 ${w}×${h})`)
   const N = W * W
-  // 픽셀마다: 진하기(검정 선), 파랑(눈 색 자리)인지
+  if (slot === 'eyes' || slot === 'closedEyes') mirrorIfLeft(rgba)
+  // 픽셀마다: 진하기(검정 선), 파랑·하늘색(눈 색 자리)인지
   const dark = new Float32Array(N), blue = new Uint8Array(N)
   for (let i = 0; i < N; i++) {
     const [r, g, b] = rgba.subarray(i * 4, i * 4 + 3), a = rgba[i * 4 + 3] / 255
-    if (b > r + 50 && b > g + 50) { blue[i] = 1; continue }
+    if (b > r + 50 && a > 0.05) { blue[i] = 1; continue }
     const chroma = Math.max(r, g, b) - Math.min(r, g, b)
     dark[i] = chroma > 60 ? 0 : a * (1 - (r + g + b) / 765) // 색이 있는 칠(혀·입 안)은 선이 아님
   }
@@ -174,7 +194,7 @@ function convert(file, slot, fill = []) {
   let hasTint = false
   for (let i = 0; i < N; i++) {
     const [r, g, b] = rgba.subarray(i * 4, i * 4 + 3), a = rgba[i * 4 + 3] / 255
-    if (blue[i]) { // 눈 색 자리: 파랑의 밝기를 회색으로
+    if (blue[i]) { // 눈 색 자리: 파랑·하늘색의 밝기를 회색으로
       tint.set([b * a, b * a, b * a, a], i * 4)
       hasTint = true
       continue
@@ -213,6 +233,17 @@ function convert(file, slot, fill = []) {
   return { fixed: shrink(fixed), tint: hasTint ? shrink(tint) : null }
 }
 
+// 그림이 얼굴 왼쪽 반에 있으면(왼쪽 눈 자리에 그림) 좌우를 뒤집어 오른쪽 눈 자리로 옮긴다
+function mirrorIfLeft(rgba) {
+  let sum = 0, n = 0
+  for (let i = 0; i < W * W; i++) if (rgba[i * 4 + 3] > 30) { sum += i % W; n++ }
+  if (!n || sum / n >= W / 2) return
+  for (let y = 0; y < W; y++) for (let x = 0; x < W / 2; x++) {
+    const a = (y * W + x) * 4, b = (y * W + W - 1 - x) * 4
+    for (let c = 0; c < 4; c++) { const t = rgba[a + c]; rgba[a + c] = rgba[b + c]; rgba[b + c] = t }
+  }
+}
+
 // 그림이 칠해진 범위 (가운데 기준 [왼, 위, 오른, 아래], 스티커 픽셀)
 function boxOf(bufs, w, h) {
   let x0 = w, y0 = h, x1 = 0, y1 = 0
@@ -224,11 +255,8 @@ function boxOf(bufs, w, h) {
 }
 
 // ── 만들기 ─────────────────────────────────────────────────────────
-const [dir, outArg] = process.argv.slice(2)
-if (!dir) {
-  console.error('쓰는 법: node scripts/import-face-drawings.mjs 그림폴더 [내보낼폴더]')
-  process.exit(1)
-}
+const [dirArg, outArg] = process.argv.slice(2)
+const dir = dirArg ?? path.join(ROOT, 'art/face-drawings')
 const OUT = outArg ? path.resolve(outArg) : path.join(ROOT, 'public/models/Parts')
 // macOS 파일 이름은 한글이 풀어 쓴 형태(NFD)라 NFC 로 맞춰 찾는다
 const files = new Map(fs.readdirSync(dir).map((f) => [f.normalize('NFC'), path.join(dir, f)]))
@@ -249,12 +277,6 @@ for (const d of DRAWINGS) {
     writePng(path.join(OUT, d.slot, `${d.id}-tint.png`), open.tint, w, h)
     item.tint = `/models/Parts/${d.slot}/${d.id}-tint.png`
     bufs.push(open.tint)
-  }
-  if (d.closed) {
-    const closed = convert(find(d.closed), d.slot)
-    writePng(path.join(OUT, d.slot, `${d.id}-closed.png`), closed.fixed, w, h)
-    item.closed = `/models/Parts/${d.slot}/${d.id}-closed.png`
-    bufs.push(closed.fixed)
   }
   item.box = boxOf(bufs, w, h)
   console.log(`${d.file} → ${d.slot}/${d.id} (${d.name})`)

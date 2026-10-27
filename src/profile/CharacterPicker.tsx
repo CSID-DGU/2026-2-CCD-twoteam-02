@@ -1,6 +1,6 @@
-// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색·위치·크기), 눈썹, 입(다문·벌린·위치·크기), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
+// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(뜬 눈·감은 눈·색·위치·크기), 눈썹, 입(다문·벌린·위치·크기), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
-// 왼쪽: 지금 고른 차림의 3D 미리보기(끌어서 돌려 볼 수 있음. 저절로 돌지는 않음). 벌린 입을 누르면 입을 벌린 모습을 보여 줌
+// 왼쪽: 지금 고른 차림의 3D 미리보기(끌어서 돌려 볼 수 있음. 저절로 돌지는 않음). 벌린 입·감은 눈을 누르면 그 모습을 보여 줌
 // 오른쪽: 부위 탭, 부품 목록, 색상표, 눈·입 위치·크기 막대(#293). 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
 //   (3D 화면을 부품마다 만들면 무겁고, 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다. #137)
 // 저장은 바깥(CharacterTab)이 합니다.
@@ -10,9 +10,10 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { BASE_MODEL_URL } from './characters'
+import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
-import { updateMouth, useFace } from '../tracking/useFace'
-import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
+import { showEyes, updateMouth, useFace } from '../tracking/useFace'
+import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
 import type { Avatar, LayoutField, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
 
@@ -33,10 +34,14 @@ type Tab = {
 const TABS: Tab[] = [
   { key: 'skin', label: '피부', slots: [], color: { key: 'skin', label: '피부색' } },
   {
-    key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' },
+    key: 'eyes', label: '눈', slots: [{ slot: 'eyes', title: '뜬 눈' }, { slot: 'closedEyes', title: '감은 눈 (깜빡일 때)' }],
+    color: { key: 'eyeColor', label: '눈 색' }, // 고른 뜬 눈에 색을 입히는 곳(하늘색으로 그린 곳)이 있을 때만 보임
     layout: [['eyeX', '간격', '좁게', '넓게'], ['eyeY', '높이', '아래', '위'], ['eyeSize', '크기', '작게', '크게']],
   },
-  { key: 'brows', label: '눈썹', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }] },
+  {
+    key: 'brows', label: '눈썹', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요. 간격은 눈을 따라가요)' }],
+    layout: [['browY', '높이', '아래', '위'], ['browSize', '크기', '작게', '크게']],
+  },
   {
     key: 'mouth', label: '입', slots: [{ slot: 'mouth', title: '다문 입 (평소)' }, { slot: 'mouthOpen', title: '벌린 입 (회의실에서 말할 때)' }],
     layout: [['mouthY', '높이', '아래', '위'], ['mouthSize', '크기', '작게', '크게']],
@@ -55,6 +60,7 @@ type Props = {
 export function CharacterPicker({ value, onChange }: Props) {
   const [tabKey, setTabKey] = useState('skin')
   const [talking, setTalking] = useState(false) // 미리보기에 벌린 입을 보여 줄지: 마지막으로 누른 것이 벌린 입이면 켬
+  const [blink, setBlink] = useState(false) // 미리보기에 감은 눈을 보여 줄지: 마지막으로 누른 것이 감은 눈이면 켬
   const tab = TABS.find((t) => t.key === tabKey)!
   // 부품을 바꿔 눈과 입이 겹치게 되면 겹치지 않게 위치를 맞춥니다(fitLayout)
   const pick = (patch: Partial<Avatar>) => value && onChange(fitLayout({ ...value, ...patch }))
@@ -65,7 +71,7 @@ export function CharacterPicker({ value, onChange }: Props) {
         <Canvas camera={{ fov: 30, position: [0, 1.0, 4.2] }}>
           <ambientLight intensity={1.5} />
           <directionalLight position={[3, 5, 4]} intensity={1.5} />
-          {value && <Preview model={avatarKey(value)} talking={talking} />}
+          {value && <Preview model={avatarKey(value)} talking={talking} eyesClosed={blink} />}
           <OrbitControls target={[0, 0.85, 0]} enablePan={false} enableZoom={false} />
         </Canvas>
       </div>
@@ -81,6 +87,7 @@ export function CharacterPicker({ value, onChange }: Props) {
               onClick={() => {
                 setTabKey(t.key)
                 setTalking(false)
+                setBlink(false)
               }}
             >
               {t.label}
@@ -91,7 +98,7 @@ export function CharacterPicker({ value, onChange }: Props) {
           </button>
         </div>
 
-        {value && tab.color && (
+        {value && tab.color && (tab.key !== 'eyes' || findPart('eyes', value.eyes)?.tint) && (
           <ColorField
             // key: 탭을 바꾸면 그 칸의 색으로 새로 시작
             key={tab.color.key}
@@ -146,6 +153,7 @@ export function CharacterPicker({ value, onChange }: Props) {
                     onClick={() => {
                       pick({ [slot]: p.id })
                       setTalking(slot === 'mouthOpen')
+                      setBlink(slot === 'closedEyes')
                     }}
                   >
                     {p.tint || p.file ? <PartThumb slot={slot} part={p} avatar={value} /> : <span style={styles.none}>없음</span>}
@@ -207,16 +215,20 @@ function PartThumb({ slot, part, avatar }: { slot: Slot; part: Part; avatar: Ava
   return <canvas ref={ref} width={THUMB * ratio} height={THUMB * ratio} style={{ width: THUMB, height: THUMB }} />
 }
 
-// 미리보기 캐릭터: 가만히 서 있는 동작. talking 이면 회의실에서 말할 때처럼 벌린 입을 덮어 보여 줍니다
-function Preview({ model, talking }: { model: string; talking: boolean }) {
+// 미리보기 캐릭터: 가만히 서 있는 자세(지점과 같이 흔들지 않음, #244). talking 이면 회의실에서 말할 때처럼 벌린 입을, eyesClosed 면 감은 눈을 보여 줍니다
+function Preview({ model, talking, eyesClosed }: { model: string; talking: boolean; eyesClosed: boolean }) {
   const ref = useRef<Group>(null!)
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   const copy = useMemo(() => scene.clone(true), [scene]) // 지점의 캐릭터와 같은 모델이라 복사본
   useSkin(copy, model)
   const face = useFace(copy, model)
-  useFrame((_, delta) => updateMouth(face, talking ? 1 : 0, delta))
+  useFrame((_, delta) => {
+    updateMouth(face, talking ? 1 : 0, delta)
+    showEyes(face, eyesClosed)
+  })
   const { actions } = useAnimations(animations, ref)
   useEffect(() => {
+    holdStandingPose(actions.idle)
     actions.idle?.play()
   }, [actions])
   return (
