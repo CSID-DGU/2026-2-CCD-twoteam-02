@@ -12,12 +12,15 @@ import type { PanelView } from './panelTypes'
 import { SettingsView } from './SettingsView'
 import { useChat } from '../chat/chatContext'
 import type { InviteTarget } from '../meeting/InviteButton'
+import { WorldMap } from '../map/WorldMap'
+import type { MapHere } from '../map/WorldMap'
 
-const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필', settings: '설정' }
+const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필', settings: '설정', map: '전체 지도' }
 
 // invite: 회의 중에 연 창이면 그 회의(번호·지금 있는 사람). 친구 창에 "회의에 초대" 버튼이 보입니다. (#45)
-type Props = { initial: PanelView; myId: string; onClose: () => void; invite?: InviteTarget }
-export function InfoPanel({ initial, myId, onClose, invite }: Props) {
+// here: 지금 내가 있는 곳과 위치. 전체 지도에 내 화살표를 그립니다. (#300)
+type Props = { initial: PanelView; myId: string; onClose: () => void; invite?: InviteTarget; here?: MapHere }
+export function InfoPanel({ initial, myId, onClose, invite, here }: Props) {
   const [stack, setStack] = useState<PanelView[]>([initial]) // 창 안에서 옮겨 다닌 순서 (뒤로 가기용)
   const view = stack[stack.length - 1]
   const open = (next: PanelView) => setStack((s) => [...s, next])
@@ -41,7 +44,7 @@ export function InfoPanel({ initial, myId, onClose, invite }: Props) {
   return (
     <div style={styles.backdrop} onClick={onClose}>
       {/* 창 안을 눌러도 닫히지 않게 합니다. */}
-      <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
+      <div style={view.kind === 'map' ? { ...styles.panel, ...styles.wide } : styles.panel} onClick={(e) => e.stopPropagation()}>
         <header style={styles.header}>
           {stack.length > 1 && (
             <button type="button" style={styles.ghost} onClick={back}>
@@ -58,6 +61,7 @@ export function InfoPanel({ initial, myId, onClose, invite }: Props) {
           <FriendsView onOpenProfile={(userId) => open({ kind: 'profile', userId })} invite={invite} />
         )}
         {view.kind === 'settings' && <SettingsView />}
+        {view.kind === 'map' && <WorldMap here={here} />}
         {view.kind === 'profile' && (
           <div style={styles.card}>
             <ProfileView key={view.userId} userId={view.userId} isMe={view.userId === myId} />
@@ -76,6 +80,7 @@ const styles: Record<string, CSSProperties> = {
     padding: 20, borderRadius: 12, background: '#16181d', color: '#fff', font: '14px/1.6 system-ui, sans-serif',
     display: 'flex', flexDirection: 'column', gap: 12,
   },
+  wide: { width: 'min(1100px, calc(100vw - 32px))' }, // 전체 지도는 넓게
   header: { display: 'flex', alignItems: 'center', gap: 8 },
   card: { padding: 16, borderRadius: 12, background: '#20232a' },
   title: { margin: 0, fontSize: 18, flex: 1, color: '#fff' }, // 전역 h2 색(index.css)이 라이트 모드에서 검정이라 직접 지정

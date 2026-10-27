@@ -9,6 +9,7 @@ import type { KeyAction } from './keymap'
 
 // 창을 여는 단축키. 같은 키를 한 번 더 누르면 닫습니다. 실제 키는 getKeymap() 에서 읽습니다.
 export const PANEL_KEYS: { action: KeyAction & PanelView['kind']; label: string }[] = [
+  { action: 'map', label: '전체 지도' },
   { action: 'records', label: '내 기록' },
   { action: 'friends', label: '친구' },
   { action: 'profile', label: '내 프로필' },
