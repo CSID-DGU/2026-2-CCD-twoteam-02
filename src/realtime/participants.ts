@@ -99,6 +99,16 @@ export type SignalPort = {
   send: ((to: string, data: unknown) => void) | null // 방에 들어가기 전에는 null
 }
 
+// 회의 채팅(#298)을 실어 보내는 메시지 이름. 회의에 있는 사람끼리는 같은 방(참석자만)에서 이야기한다.
+// 보낸 사람(from)을 적어 보내고, 메시지는 저장하지 않는다.
+export const CHAT_EVENT = 'chat'
+
+// 같은 방으로 채팅을 주고받는 통로. 채팅(useMeetingChat)이 receive 를 넣어 두고, useParticipants 가 send 를 채운다.
+export type ChatPort = {
+  receive: (from: string, payload: unknown) => void
+  send: ((text: string) => Promise<boolean>) | null // 방에 들어가기 전에는 null
+}
+
 // 이 시간 동안 소식이 없으면 나간 것으로 보고 화면에서 지운다.
 // 탭을 거칠게 닫으면 나갔다는 알림이 안 올 수 있어 필요하다.
 // 가만히 서 있어도 RESEND_IDLE_MS 마다 한 번은 보내므로, 그보다 넉넉히 잡는다.
