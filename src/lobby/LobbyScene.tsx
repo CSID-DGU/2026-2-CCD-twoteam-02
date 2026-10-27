@@ -28,7 +28,7 @@ import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import { LOBBY_CHANNEL } from '../realtime/participants'
 import type { PresenceState } from '../realtime/participants'
-import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
+import { useOnlinePlace } from '../realtime/onlineContext'
 import { LOBBY_PLACE } from '../realtime/online'
 import lobby from './lobby.json'
 
@@ -101,9 +101,8 @@ export default function LobbyScene({ onEnter }: Props) {
   // 실험 B 조건(혼자 공부)은 지점(room B)에서만 숨깁니다(#198). 로비에서는 모두 보입니다.
   // (experiment 는 실험 전용 Supabase 프로젝트를 쓰므로 로비에 개발 테스트 중인 팀원이 섞이지 않습니다)
   const others = useParticipants(LOBBY_CHANNEL, me)
-  // 사이트 전체 접속 상태에 "로비에 있음"으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
+  // 사이트 전체 접속 상태에 "로비에 있음"으로 표시합니다. (#176)
   useOnlinePlace(LOBBY_PLACE)
-  const onlineCount = useOnline().size
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
@@ -224,16 +223,9 @@ export default function LobbyScene({ onEnter }: Props) {
       </Canvas>
 
       {(message || hint) && <div style={hintBox}>{message || hint}</div>}
-      {/* 전체 접속자 수 (나 포함, #176) */}
-      {onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      {/* 전체 접속자 수 표시(#176)는 실험 브랜치에서 뺐습니다. (팀 결정 2026-10-27) */}
     </>
   )
-}
-
-const onlineBox: React.CSSProperties = {
-  position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
-  padding: '6px 12px', borderRadius: 999, background: 'rgba(32,35,42,.85)', color: '#fff',
-  font: '13px system-ui, sans-serif', fontVariantNumeric: 'tabular-nums',
 }
 
 const hintBox: React.CSSProperties = {

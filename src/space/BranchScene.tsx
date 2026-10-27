@@ -239,7 +239,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const me = useRef<PresenceState | null>(null);
   // 사용자 실험 조건 (docs/사용자-실험-재설계.md, #47). 지점마다 정해져 있습니다(#198).
   //   visible(C): 다른 참여자가 보이고 나도 보입니다.
-  //   hidden(B 지점, 혼자 공부): 다른 참여자·표시등·접속 인원 수를 모두 숨기고, 나도 남에게 보이지 않습니다.
+  //   hidden(B 지점, 혼자 공부): 다른 참여자·표시등을 모두 숨기고, 나도 남에게 보이지 않습니다.
   //     내 위치를 지점 방에 보내지 않고, 사이트 전체 접속 상태에서도 나를 뺍니다.
   //   내 트래킹·타이머·기록은 두 조건 모두 그대로 동작합니다.
   const condition = conditionOf(branch);
@@ -544,23 +544,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     )}
     <PerfReadout perf={perf} />
     {recordSeat !== null && <RecordControls meRef={me} trackingRef={myTracking} branch={branch.id} seat={recordSeat} />}
-    {/* 이 지점 접속 인원 (나 포함, #176). 실험 B 지점(혼자 공부)에서는 인원 수도 숨깁니다. (#47, #198) */}
-    {!hidden && (
-      <div
-        style={{
-          position: "fixed",
-          top: 76,
-          left: 16,
-          padding: "6px 10px",
-          borderRadius: 8,
-          background: "rgba(32,35,42,.85)",
-          color: "#fff",
-          font: "13px system-ui, sans-serif",
-        }}
-      >
-        이 지점 접속 인원 {others.length + 1}명
-      </div>
-    )}
+    {/* 이 지점 접속 인원 표시(#176)는 실험 지점에서 뺐습니다. 참가자는 맞은편 캐릭터로만 함께 있는 사람을 봅니다. (팀 결정 2026-10-27) */}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
       <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
