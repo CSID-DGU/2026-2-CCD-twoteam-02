@@ -17,6 +17,7 @@ import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { WalkCamera } from "./WalkCamera";
+import { Minimap } from "./Minimap";
 import { SeatedStudy } from "../study/SeatedStudy";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
@@ -305,14 +306,17 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           paused={studyDialogOpen || panelOpen}
         />
       ) : view === "first" ? (
-        <WalkCamera
-          posRef={pos}
-          headingRef={heading}
-          paused={kioskOpen || panelOpen || conflict !== null || meetingOpen}
-          onLockChange={setLocked}
-          emoteRef={emote}
-          suspendLookRef={suspendLook}
-        />
+        <>
+          <WalkCamera
+            posRef={pos}
+            headingRef={heading}
+            paused={kioskOpen || panelOpen || conflict !== null || meetingOpen}
+            onLockChange={setLocked}
+            emoteRef={emote}
+            suspendLookRef={suspendLook}
+          />
+          <Minimap area={branch.size} posRef={pos} headingRef={heading} /> {/* 걸을 때만 뜨는 미니맵 (#290) */}
+        </>
       ) : (
         <TopDownCamera area={branch.size} />
       )}

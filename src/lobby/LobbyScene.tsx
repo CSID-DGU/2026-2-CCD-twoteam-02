@@ -16,6 +16,7 @@ import { useThree } from '@react-three/fiber'
 import { useLocation } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
+import { Minimap } from '../space/Minimap'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { useSession } from '../auth/useSession'
 import { InfoPanel } from '../menu/InfoPanel'
@@ -172,7 +173,14 @@ export default function LobbyScene({ onEnter }: Props) {
   return (
     <>
       <Canvas>
-        {view === 'first' ? <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} /> : <FitCamera />}
+        {view === 'first' ? (
+          <>
+            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <Minimap area={lobby.size} posRef={pos} headingRef={heading} /> {/* 걸을 때만 뜨는 미니맵 (#290) */}
+          </>
+        ) : (
+          <FitCamera />
+        )}
         <ambientLight intensity={1.2} />
         <directionalLight position={[6, 12, 4]} intensity={0.6} />
 
