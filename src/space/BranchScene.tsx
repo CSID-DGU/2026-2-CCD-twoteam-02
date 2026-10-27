@@ -103,7 +103,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
-  const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지
+  const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지 (중지 중 포함: 캐릭터·시점·단축키를 막음)
+  const [studyPaused, setStudyPaused] = useState(false); // 공부 중지 중 (#236). 안내 문구와 메뉴의 나가기 버튼에 씀
   // 지점 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 자리·타이머가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null);
   const panelOpen = panel !== null;
@@ -291,7 +292,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict || meetingOpen ? "" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict || meetingOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -454,6 +455,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         condition={condition}
         onStatus={setStudyStatus}
         onDialogChange={setStudyDialogOpen}
+        onPausedChange={setStudyPaused}
         onTracking={handleTracking}
       />
     )}
@@ -498,7 +500,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       suspendLookRef={suspendLook}
       disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || seat !== null}
     />
-    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={goLobby} onTracking={goTracking} />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}

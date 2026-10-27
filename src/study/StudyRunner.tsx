@@ -10,7 +10,7 @@ import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
-import { endSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
+import { endSegments, pauseSegments, resumeSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
 import type { Segment, SegmentState } from './segmentLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
@@ -33,6 +33,8 @@ type Props = {
   phone: RefObject<PhoneState> // 휴대폰 감지 (휴대폰·학습기기 사용함이 아닐 때만 판정에 씀)
   baseline: Baseline | null // 보정 기준 (건너뛰면 null)
   onRecalibrate: () => void
+  paused: boolean // 중지 중 (#236). 바뀌면 웹캠·판정을 끄고 켜는 것은 바깥(SeatedStudy)이 합니다.
+  onPausedChange: (paused: boolean) => void
   choice: StudyChoice
   userId: string
   sessionId: string // 지금 앉아 있는 좌석 이용 기록(seat_sessions.id)
@@ -41,8 +43,8 @@ type Props = {
   onChangeSubject: () => void
 }
 
-export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
-  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone })
+export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused, onPausedChange, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
+  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone, paused })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.
@@ -52,21 +54,42 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
   }, [focus.studyMs])
 
   // 보류 중(의심)이면 다른 참여자에게도 노란불로 보입니다. 산만하면 내 화면에만 보이게 되돌릴 수 있습니다. (2026-10-21)
-  const hold = holdReason(focus)
+  // 중지한 시각(경과 시간 표시용)과 다시 시작한 시각.
+  // 다시 시작한 직후 첫 판정(0.1초)이 나오기 전까지는 중지 직전의 판정 값이 남아 있어(stale) 쓰지 않습니다.
+  // 그대로 쓰면 노란불이 잠깐 남에게 보이거나, 띠가 중지 전 노란불에서 이어집니다.
+  const [pausedAt, setPausedAt] = useState<number | null>(null)
+  const [resumedAt, setResumedAt] = useState<number | null>(null)
+  const stale = resumedAt !== null && (focus.lastMs ?? 0) < resumedAt
+  const judging = !paused && !stale
+
+  // 중지 중에는 표시등을 끕니다(idle, 앉기만 하고 공부 전과 같음). 남에게는 쉬는 이유를 보이지 않습니다.
+  const hold = judging ? holdReason(focus) : null
   useEffect(() => {
-    onStatus(hold ? 'hold' : focus.status)
-  }, [focus.status, hold, onStatus])
+    onStatus(paused ? 'idle' : hold ? 'hold' : stale ? 'focus' : focus.status)
+  }, [paused, stale, focus.status, hold, onStatus])
+
+  // 이 화면이 중지 중에 사라지면(창 닫기 등) 중지도 풀어 둡니다. 남아 있으면 다음 공부의 웹캠이 꺼진 채 시작됩니다.
+  useEffect(() => () => onPausedChange(false), [onPausedChange])
+
+  // 중지 중에는 1초마다 다시 그려 경과 시간을 올립니다.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!paused) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [paused])
 
   // 판정이 새로 나올 때마다(0.1초) 상태 구간을 이어 갑니다. (저장은 아래 5분 저장과 같이)
   // 값이 바뀔 때만 부르면 안 됩니다. 빨간불 동안은 값이 그대로라 불리지 않고, 돌아왔을 때 컴퓨터가 잠든 것으로 보여
   // 빨강이 빈칸이 되고 띠가 끊겼습니다(2026-10-26). focus 는 판정마다 새 객체라 매번 불립니다.
+  // 중지 중과 다시 시작한 직후(stale)에는 모으지 않습니다. 그 사이는 pauseSegments·resumeSegments 가 맡습니다.
   const segments = useRef<SegmentState | null>(null)
   useEffect(() => {
-    if (!segments.current) return
+    if (!segments.current || !judging) return
     segments.current = stepSegments(segments.current, {
       now: Date.now(), status: focus.status, studyMs: focus.studyMs, pendingMs: focus.pendingMs, hold,
     })
-  }, [focus, hold])
+  }, [focus, hold, judging])
 
   useEffect(() => {
     let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
@@ -142,13 +165,48 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
     }
   }, [userId, sessionId, choice, condition])
 
-  const { color, text } = hold ? { color: '#facc15', text: HOLD_LABEL[hold] } : LABEL[focus.status]
+  const pause = () => {
+    const at = Date.now()
+    if (segments.current) segments.current = pauseSegments(segments.current, at)
+    setPausedAt(at)
+    setNow(at)
+    onPausedChange(true)
+  }
+  const resume = () => {
+    const at = Date.now()
+    if (segments.current) segments.current = resumeSegments(segments.current, at, studyMs.current)
+    setPausedAt(null)
+    setResumedAt(at)
+    onPausedChange(false)
+  }
+
+  if (paused) {
+    // 중지 중: 보류 시간은 버려지므로 확정 시간만 보여 줍니다. 다시 맞추기·과목 바꾸기는 숨깁니다.
+    return (
+      <div style={styles.bar}>
+        <span>📘 {choice.subject.name}</span>
+        <span style={styles.time}>{formatDuration(focus.studyMs)}</span>
+        <span style={{ color: '#f87171' }}>
+          ⏸ 중지 중 · <span style={styles.time}>{formatDuration(Math.max(now - (pausedAt ?? now), 0))}</span>
+        </span>
+        {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
+        <button type="button" style={{ ...styles.button, ...styles.resume }} onClick={resume}>
+          ▶ 다시 시작
+        </button>
+      </div>
+    )
+  }
+
+  const { color, text } = hold ? { color: '#facc15', text: HOLD_LABEL[hold] } : LABEL[stale ? 'focus' : focus.status]
   return (
     <div style={styles.bar}>
       <span>📘 {choice.subject.name}</span>
-      <span style={styles.time}>{formatDuration(shownStudyMs(focus))}</span>
+      <span style={styles.time}>{formatDuration(stale ? focus.studyMs : shownStudyMs(focus))}</span>
       <span style={{ color }}>{text}</span>
       {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
+      <button type="button" style={styles.button} onClick={pause}>
+        ⏸ 중지
+      </button>
       <button type="button" style={styles.button} onClick={onRecalibrate}>
         다시 맞추기
       </button>
@@ -165,6 +223,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 12, padding: '6px 14px', borderRadius: 8,
     background: 'rgba(32,35,42,.9)', color: '#fff', font: '14px system-ui, sans-serif',
   },
+  resume: { borderColor: '#22c55e', color: '#4ade80', fontWeight: 600 },
   time: { fontVariantNumeric: 'tabular-nums', fontWeight: 600 }, // 숫자 폭을 같게 해서 시간이 흔들리지 않게
   button: {
     padding: '2px 8px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent',
