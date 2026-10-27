@@ -507,7 +507,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
-    {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
+    {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
     {conflict && (
       // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
       <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>

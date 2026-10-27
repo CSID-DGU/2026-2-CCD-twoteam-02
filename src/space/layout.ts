@@ -16,6 +16,7 @@ export type BranchLayout = {
   kiosk?: { x: number; z: number }
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
+  mapSprite?: string // 전체 지도에서 지붕 대신 쓸 건물 그림 (public/ 기준 주소, 선택). 없으면 색 칠한 지붕 (#300)
 }
 type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'kiosk' | 'bar'>
 

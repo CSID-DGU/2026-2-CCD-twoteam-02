@@ -126,6 +126,7 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
       onHostChanged={bumpSync}
       onLeave={leave}
       voice={voice}
+      place={meetingPlace(slug)}
     />
   )
 }
@@ -141,10 +142,11 @@ type SpaceProps = {
   onHostChanged: () => void // 방장을 넘긴 뒤 부름 (다시 읽기 신호 올리기)
   voice: ReturnType<typeof useVoice> // 음성: 마이크 켜기·끄기, 말하는 사람
   onLeave: () => void | Promise<void>
+  place: string // 전체 지도에서 내가 있는 곳 (meeting:지점slug, #300)
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice }: SpaceProps) {
+function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
   const obstacles = useMemo(() => meetingObstacles(info.capacity), [info.capacity])
   const radius = tableRadius(info.capacity)
@@ -163,6 +165,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
   const isHost = info.hostId === myId
   const pos = useRef({ x: MEETING_ROOM.spawn.x, z: MEETING_ROOM.spawn.z })
   const heading = useRef(ARRIVAL_HEADING) // 1인칭에서 바라보는 방향
+  const bodyHeading = useRef(ARRIVAL_HEADING) // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 전체 지도의 내 화살표 (#300)
   const emote = useRef(newEmoteState())
   const suspendLook = useRef(false)
   const sitRequest = useRef<number | null>(null) // 의자를 잡은 뒤 "이 의자에 앉아라" 요청 (Player 가 읽음)
@@ -239,6 +242,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
   const handleMove = (x: number, z: number, h: number) => {
     pos.current.x = x
     pos.current.z = z
+    bodyHeading.current = h
     const tracking = seat === null ? null : myTracking.current
     const face = tracking?.face.current ?? null
     const angles = face ? headAngles(face, false) : null
@@ -450,6 +454,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
           initial={panel}
           myId={myId}
           invite={{ meetingId, memberIds: people.map((p) => p.userId) }} // 이미 이 회의에 있는 친구는 초대 버튼 대신 "이 회의에 있음"
+          here={{ place, pos, heading: bodyHeading }} // 전체 지도의 내 위치 (#300)
           onClose={() => setPanel(null)}
         />
       )}

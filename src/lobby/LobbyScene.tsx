@@ -259,7 +259,7 @@ export default function LobbyScene({ onEnter }: Props) {
       {locked && <div style={crosshair} />}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
-      {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} onClose={() => setPanel(null)} />}
+      {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: LOBBY_PLACE, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
   )
 }
