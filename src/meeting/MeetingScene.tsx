@@ -21,6 +21,7 @@ import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from '../space/branches'
 import { CHAIR } from '../space/layout'
 import { SeatCamera } from '../space/SeatCamera'
 import { WalkCamera } from '../space/WalkCamera'
+import { Minimap } from '../space/Minimap'
 import { TopDownCamera } from '../space/TopDownCamera'
 import { Player } from '../space/Player'
 import { EmoteControls } from '../space/EmoteControls'
@@ -311,7 +312,10 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
         {seatChair ? (
           <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={panelOpen} />
         ) : view === 'first' ? (
-          <WalkCamera posRef={pos} headingRef={heading} paused={panelOpen} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+          <>
+            <WalkCamera posRef={pos} headingRef={heading} paused={panelOpen} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <Minimap area={MEETING_ROOM.size} posRef={pos} headingRef={heading} /> {/* 걸을 때만 뜨는 미니맵 (#290) */}
+          </>
         ) : (
           <TopDownCamera area={MEETING_ROOM.size} />
         )}
