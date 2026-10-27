@@ -60,6 +60,7 @@ src/
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처
+art/                   캐릭터 눈·입 원본 그림(2048 얼굴 캔버스)과 그리기 밑그림. scripts/import-face-drawings.mjs 로 부품을 만든다
 prototype/             초기 Python 트래킹 프로토타입 (참고용)
 docs/                  제안서·주간발표 자료
 ```

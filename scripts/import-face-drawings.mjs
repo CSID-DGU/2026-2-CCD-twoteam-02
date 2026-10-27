@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 얼굴 캔버스(2048×2048)에 크게 그린 눈·입 그림을 스티커 부품으로 넣기 (#293)
 //
-// 김현이 notes/그리기-안내/그리기-틀-2048.png 를 밑그림으로 깔고 부품마다 레이어를 따로 그려 2048×2048 그대로 내보낸 PNG 를 받는다.
+// art/face-guide/그리기-틀-2048.png 를 밑그림으로 깔고 부품마다 레이어를 따로 그려 2048×2048 그대로 내보낸 PNG 를 받는다(art/README.md).
 // 크게 그렸으니 선은 다듬지 않고 그대로 쓴다. 하는 일:
 //   1) 바탕: 그림 가장자리에 닿는 칸(입·눈 바깥)은 투명하게. 배경 레이어를 켠 채 흰 바탕으로 내보내도 된다.
 //      선 가장자리의 반쯤 섞인 픽셀은 선 색 + 그만큼의 투명도로 바꿔, 피부 위에 얹어도 흰 테두리가 남지 않게 한다.
@@ -12,9 +12,10 @@
 //   4) 그 부품의 기본 자리(EYE_HOME·MOUTH_HOME, 2048 기준)를 가운데로 잘라 반 크기(얼굴 한 변 = 1024)의 스티커 그림으로 저장하고
 //      src/avatar/parts.json 에 넣는다. 그림이 칠해진 범위(box)도 적는다.
 //
-// 쓰는 법: node scripts/import-face-drawings.mjs 그림폴더 [내보낼폴더]
+// 쓰는 법: node scripts/import-face-drawings.mjs [그림폴더] [내보낼폴더]
+//   그림폴더를 빼면 art/face-drawings (원본 그림을 모아 두는 곳).
 //   내보낼폴더를 주면 그 폴더에만 그림을 쓰고 parts.json 은 고치지 않는다(시험해 볼 때).
-// 원본 그림은 저장소에 올리지 않는다(김현 컴퓨터의 notes/). 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다.
+// 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다.
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
@@ -254,11 +255,8 @@ function boxOf(bufs, w, h) {
 }
 
 // ── 만들기 ─────────────────────────────────────────────────────────
-const [dir, outArg] = process.argv.slice(2)
-if (!dir) {
-  console.error('쓰는 법: node scripts/import-face-drawings.mjs 그림폴더 [내보낼폴더]')
-  process.exit(1)
-}
+const [dirArg, outArg] = process.argv.slice(2)
+const dir = dirArg ?? path.join(ROOT, 'art/face-drawings')
 const OUT = outArg ? path.resolve(outArg) : path.join(ROOT, 'public/models/Parts')
 // macOS 파일 이름은 한글이 풀어 쓴 형태(NFD)라 NFC 로 맞춰 찾는다
 const files = new Map(fs.readdirSync(dir).map((f) => [f.normalize('NFC'), path.join(dir, f)]))
