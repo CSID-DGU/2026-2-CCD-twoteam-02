@@ -1,8 +1,8 @@
-// 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 눈 감은 스킨,
-// (pose 를 넘기면) 팔 방향 → 팔 회전, (showMouth 면) 입 벌림 → 입 모양 (회의실, #61)
+// 트래킹 결과를 캐릭터에 반영합니다: 고개 각도 → 머리 회전, 눈 감김 → 얼굴 판의 감은 눈,
+// (pose 를 넘기면) 팔 방향 → 팔 회전, (showMouth 면) 입 벌림 → 얼굴 판의 벌린 입 (회의실, #61)
 //
-// 캐릭터는 복사본에 이 캐릭터만 쓰는 재질을 입혀 그립니다. 원본을 그대로 쓰면 눈을 감을 때
-// 같은 모델(a)을 쓰는 다른 참여자 캐릭터까지 같이 눈을 감습니다. (#113, useEyeSkin.ts)
+// 캐릭터는 복사본에 이 캐릭터만 쓰는 재질과 얼굴 판을 붙여 그립니다. 원본을 그대로 쓰면 눈을 감을 때
+// 같은 모델(a)을 쓰는 다른 참여자 캐릭터까지 같이 눈을 감습니다. (#113, useSkin.ts·useFace.ts)
 import { useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
@@ -13,8 +13,8 @@ import { characterArms } from "./armLogic";
 import { applyArms } from "./armPose";
 import { useArmDirections } from "./useArmDirections";
 import { headAngles, mouthOpen, nextEyesClosed } from "./faceSync";
-import { showEyes, useEyeSkin } from "./useEyeSkin";
-import { updateMouth, useMouth } from "./useMouth";
+import { useSkin } from "./useSkin";
+import { showEyes, updateMouth, useFace } from "./useFace";
 import { BASE_MODEL_URL, DEFAULT_MODEL } from "../profile/characters";
 
 const HEAD_NODE = "head";
@@ -32,9 +32,9 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth 
   const { scene } = useGLTF(BASE_MODEL_URL); // 모든 캐릭터가 같은 모델, 스킨만 다름 (#56)
   // 지점의 내 캐릭터(Player)와 같은 모델이므로 복사본을 씁니다.
   const character = useMemo(() => scene.clone(true), [scene]);
-  const eyes = useEyeSkin(character, model);
+  useSkin(character, model);
+  const faceView = useFace(character, model);
   const eyesClosed = useRef(false);
-  const mouth = useMouth(character, model);
   // 떨림을 걸러낸 팔 방향 (armLogic.ts 참고)
   const arms = useArmDirections(pose);
 
@@ -43,11 +43,11 @@ export function TrackedCharacter({ face, pose, model = DEFAULT_MODEL, showMouth 
     if (!head) return;
     const state = face.current;
 
-    // 눈: 감긴 정도에 따라 뜬 스킨과 감은 스킨을 바꿉니다.
+    // 눈: 감긴 정도에 따라 뜬 눈과 감은 눈을 바꿉니다.
     eyesClosed.current = nextEyesClosed(eyesClosed.current, state);
-    showEyes(eyes.current, eyesClosed.current);
-    // 입: 벌린 만큼 입 모양을 늘립니다(회의실에서만).
-    updateMouth(mouth, showMouth ? mouthOpen(state) : 0, delta);
+    showEyes(faceView, eyesClosed.current);
+    // 입: 충분히 벌리면 벌린 입으로 바꿉니다(회의실에서만).
+    updateMouth(faceView, showMouth ? mouthOpen(state) : 0, delta);
 
     // 내 모습 화면은 거울처럼 움직입니다. 얼굴을 놓치면 정면으로 천천히 돌아옵니다.
     const angles = headAngles(state, true);
