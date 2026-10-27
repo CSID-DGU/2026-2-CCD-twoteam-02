@@ -103,6 +103,21 @@ export function takeSegments(state: SegmentState, now: number): { rows: Segment[
   return { rows, next: { ...state, open, done: [] } }
 }
 
+// 중지(#236): 지금까지의 구간을 닫고 중지 구간을 엽니다. 중지 중에는 stepSegments 를 부르지 않습니다.
+// 노란불 중에 눌렀으면 노란불 시작부터 중지로 봅니다. 그 시간은 타이머에도 안 들어갑니다(useFocusState 가 보류를 버림).
+// (자리를 비우려다 누른 것이라 사유가 중지인 것이 맞고, 버튼을 보느라 생긴 "졸음 0.3초" 같은 조각도 남지 않습니다, 2026-10-26)
+export function pauseSegments(state: SegmentState, now: number): SegmentState {
+  const startedAt = state.holdSince ?? now
+  const done = state.open ? close(state.done, state.open.kind, state.open.startedAt, startedAt) : state.done
+  return { ...state, open: { kind: 'paused', startedAt }, holdSince: null, lastNow: now, done }
+}
+
+// 다시 시작: 중지 구간을 닫고 새로 모읍니다. 판정도 새로 시작하므로(useFocusState) 이전 값과 이어 보지 않습니다.
+export function resumeSegments(state: SegmentState, now: number, studyMs: number): SegmentState {
+  const done = state.open ? close(state.done, state.open.kind, state.open.startedAt, now) : state.done
+  return { ...startSegments(now, studyMs), done }
+}
+
 // 공부를 끝낼 때(일어나기, 과목 바꾸기, 창 닫기): 지금까지의 구간을 닫습니다.
 // 노란불인 채로 끝나면 그 시간은 결과가 정해지지 않았으므로 빈칸으로 둡니다. 타이머에도 안 들어가 초록 합계는 그대로 맞습니다.
 // (빨강으로 닫으면 일어나는 순간 눈을 한 번 깜빡여도 "졸음 0.3초"가 남았습니다, 2026-10-26)
