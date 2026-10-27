@@ -5,12 +5,12 @@
 // - 부품: 흰색·회색으로 그린 그림(tint)에 고른 색을 곱해 입히고(곱하기 = 흰색은 고른 색 그대로, 회색은 그만큼 어둡게),
 //         색이 고정인 그림(file)을 그 위에 얹습니다.
 // 얼굴: 눈썹·눈·입은 스킨에 그리지 않고 얼굴 앞 판에 얹을 투명 그림(faceTexture)을 따로 만듭니다(useFace).
-//   부품 그림(스티커)을 고른 위치·크기(avatarLogic.faceLayout)에 놓습니다. 눈은 감은 그림, 입은 벌린 그림으로 바꾼 것도 만듭니다.
+//   부품 그림(스티커)을 고른 위치·크기(avatarLogic.faceLayout)에 놓습니다. 뜬 눈을 감은 눈으로, 다문 입을 벌린 입으로 바꾼 것도 만듭니다.
 //
 // 같은 차림(아바타 키)은 한 번만 만들어 모든 캐릭터가 같이 씁니다. 꾸미기 창에서 색을 바꿀 때마다 새 그림이 생기므로,
 // 오래 안 쓴 것부터 정해진 개수만 남기고 버립니다.
 import * as THREE from 'three'
-import { FACE_PX, FACE_SLOTS, LAYERS, SHADE, SKIN_SIZE, UV_FACES, faceLayout, faceThumbRect, findPart, isFaceSlot, parseAvatarKey, thumbRects } from './avatarLogic'
+import { FACE_PX, FACE_SLOTS, HOME_LAYOUT, LAYERS, SHADE, SKIN_SIZE, UV_FACES, faceLayout, faceThumbRect, findPart, isFaceSlot, parseAvatarKey, thumbRects } from './avatarLogic'
 import type { Avatar, Part, Slot, Spot } from './avatarLogic'
 
 const MAX_SKINS = 40
@@ -120,22 +120,19 @@ async function composeSkin(key: string): Promise<THREE.Texture> {
 export const avatarSkin = (key: string) => cached(skins, MAX_SKINS, key, () => composeSkin(key))
 
 // ── 얼굴 (#293) ───────────────────────────────────────────────────
-type Sticker = { tint: HTMLImageElement | null; file: HTMLImageElement | null; closed: HTMLImageElement | null; color: string | null }
+type Sticker = { tint: HTMLImageElement | null; file: HTMLImageElement | null; color: string | null }
 async function loadSticker(slot: Slot, avatar: Avatar): Promise<Sticker> {
   const part = findPart(slot, avatar[slot as keyof Avatar] as string)!
   const color = FACE_SLOTS.find((f) => f.slot === slot)!.color
-  const [tint, file, closed] = await Promise.all([loadOrNull(part.tint), loadOrNull(part.file), loadOrNull(part.closed)])
-  return { tint, file, closed, color: color ? avatar[color] : null }
+  const [tint, file] = await Promise.all([loadOrNull(part.tint), loadOrNull(part.file)])
+  return { tint, file, color: color ? avatar[color] : null }
 }
 
-// 스티커 하나를 얼굴 좌표 at 에 놓습니다(그림 가운데 = at). mirror 면 좌우를 뒤집어(왼쪽 눈·눈썹). closed 면 감은 눈 그림
-function drawSticker(ctx: CanvasRenderingContext2D, s: Sticker, at: Spot, mirror: boolean, closed = false) {
+// 스티커 하나를 얼굴 좌표 at 에 놓습니다(그림 가운데 = at). mirror 면 좌우를 뒤집어(왼쪽 눈·눈썹)
+function drawSticker(ctx: CanvasRenderingContext2D, s: Sticker, at: Spot, mirror: boolean) {
   const imgs: CanvasImageSource[] = []
-  if (closed && s.closed) imgs.push(s.closed)
-  else {
-    if (s.tint && s.color) imgs.push(tinted(s.tint, s.color))
-    if (s.file) imgs.push(s.file)
-  }
+  if (s.tint && s.color) imgs.push(tinted(s.tint, s.color))
+  if (s.file) imgs.push(s.file)
   ctx.save()
   ctx.translate(at.x, at.y)
   ctx.scale(mirror ? -at.scale : at.scale, at.scale)
@@ -147,11 +144,12 @@ function drawSticker(ctx: CanvasRenderingContext2D, s: Sticker, at: Spot, mirror
 }
 
 // 차림의 눈썹·두 눈·입을 얼굴 좌표(FACE_PX)로 그립니다. 호출하는 쪽이 ctx 의 배율을 정합니다.
-// only: 그 부위만 그림(썸네일), eyesClosed: 감은 눈, talking: 다문 입 대신 벌린 입
+// only: 그 부위만 그림(썸네일), eyesClosed: 뜬 눈 대신 감은 눈, talking: 다문 입 대신 벌린 입
 async function drawFace(ctx: CanvasRenderingContext2D, avatar: Avatar, opts: { only?: Slot; eyesClosed?: boolean; talking?: boolean; part?: Part } = {}) {
   const L = faceLayout(avatar)
   const mouthSlot: Slot = opts.talking ? 'mouthOpen' : 'mouth'
-  const slots: Slot[] = opts.only ? [opts.only] : ['brows', 'eyes', mouthSlot]
+  const eyeSlot: Slot = opts.eyesClosed ? 'closedEyes' : 'eyes'
+  const slots: Slot[] = opts.only ? [opts.only] : ['brows', eyeSlot, mouthSlot]
   // 썸네일은 고를 부품(part)으로 바꿔 그림
   const a = opts.part && opts.only ? { ...avatar, [opts.only]: opts.part.id } : avatar
   const stickers = await Promise.all(slots.map((slot) => loadSticker(slot, a)))
@@ -160,10 +158,9 @@ async function drawFace(ctx: CanvasRenderingContext2D, avatar: Avatar, opts: { o
   slots.forEach((slot, i) => {
     const s = stickers[i]
     if (slot === 'mouth' || slot === 'mouthOpen') return drawSticker(ctx, s, L.mouth, false)
-    const at = slot === 'eyes' ? L.eye : L.brow
-    const closed = slot === 'eyes' && opts.eyesClosed
-    drawSticker(ctx, s, at, false, closed)
-    drawSticker(ctx, s, { ...at, x: FACE_PX - at.x }, true, closed)
+    const at = slot === 'brows' ? L.brow : L.eye
+    drawSticker(ctx, s, at, false)
+    drawSticker(ctx, s, { ...at, x: FACE_PX - at.x }, true)
   })
 }
 
@@ -194,7 +191,7 @@ export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part:
     const r = faceThumbRect(slot)
     const scale = Math.min(target.width / r.w, target.height / r.h)
     const w = r.w * scale, h = r.h * scale, x = (target.width - w) / 2, y = (target.height - h) / 2
-    const home = { ...avatar, eyeX: 0, eyeY: 0, eyeSize: 0, mouthY: 0, mouthSize: 0 } // 썸네일은 기본 자리로
+    const home = { ...avatar, ...HOME_LAYOUT } // 썸네일은 기본 자리로
     const c = canvas(target.width, target.height)
     const fctx = c.getContext('2d')!
     fctx.fillStyle = shaded(avatar.skin, SHADE.front)
