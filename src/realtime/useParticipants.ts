@@ -57,6 +57,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
+import { workerInterval } from '../lib/workerInterval'
 import { onMyProfileChanged } from '../profile/characters'
 import { HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, STALE_MS } from './participants'
 import type { Participant, PresenceState } from './participants'
@@ -65,13 +66,33 @@ import { changedEnough, pack } from './sendLogic'
 type AvatarRow = { id: string; nickname: string; avatar: { model?: string } }
 type Profile = { nickname: string; model: string }
 
+// 기록 재생 화면(#195)이 쓰는 선택 설정. 지점·로비 화면은 넘기지 않으므로 동작이 그대로입니다.
+export type ParticipantsOptions = {
+  onSend?: (atMs: number) => void // 내 상태를 실제로 보낸 시각(Date.now)을 알려 줍니다. 전송 끊김 기록용
+  // 보내는 반복을 Web Worker 타이머(workerInterval)로 돌립니다. 창이 가려져도 브라우저가 반복을 늦추지 않게 합니다.
+  background?: boolean
+}
+
+// ms 마다 fn 을 부르고, 멈추는 함수를 돌려줍니다.
+function every(ms: number, fn: () => void, background: boolean): () => void {
+  if (background) return workerInterval(ms, fn)
+  const id = setInterval(fn, ms)
+  return () => clearInterval(id)
+}
+
 // room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166)
 // 빈 문자열이면 방에 들어가지 않습니다. 실험 B 조건(혼자 공부)은 남도 안 보이고 나도 안 보여야 해서
 // 내 위치를 보내지도, 남의 위치를 받지도 않습니다. (#47, docs/사용자-실험-재설계.md)
-export function useParticipants(room: string, me: RefObject<PresenceState | null>) {
+export function useParticipants(room: string, me: RefObject<PresenceState | null>, options: ParticipantsOptions = {}) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
+  const { background = false } = options
+  // 쓰는 쪽이 다시 그려질 때마다 onSend 가 새 함수가 되므로, ref 에 담아 방에 다시 들어가지 않게 한다.
+  const onSend = useRef(options.onSend)
+  useEffect(() => {
+    onSend.current = options.onSend
+  })
 
   useEffect(() => {
     if (!room) return
@@ -163,6 +184,7 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
       lastSent = state
       lastSentAt = Date.now()
       void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: pack(state) })
+      onSend.current?.(lastSentAt)
     }
 
     // 들어왔다고 알린다. 받은 사람들이 자기 위치로 답해 준다.
@@ -218,21 +240,21 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
     // "값이 그대로면 안 보낸다" 가 트래픽을 아끼는 대신, 가만히 선 사람이
     // 남에게 늦게 보이는 원인이 된다. RESEND_IDLE_MS 가 그 최대 지연이다.
     // 기준값보다 작게 움직이고 멈춘 경우도 이 재전송으로 따라잡는다.
-    const timer = setInterval(() => {
+    const stopTimer = every(SEND_INTERVAL_MS, () => {
       const state = me.current
       if (!subscribed || !state) return
       if (!changedEnough(lastSent, state) && Date.now() - lastSentAt < RESEND_IDLE_MS) return
       sendNow()
-    }, SEND_INTERVAL_MS)
+    }, background)
 
     // 구독이 끝난 뒤에야 내 상태(me.current)가 채워질 수 있다.
     // 그러면 위 subscribe 안의 track 이 건너뛰어지므로, 들어갈 때까지 다시 시도한다.
-    const joinTimer = setInterval(() => {
+    const stopJoinTimer = every(SEND_INTERVAL_MS, () => {
       const id = me.current?.userId
       if (!subscribed || !id || members.has(id)) return
       void channel.track({ userId: id })
       sayHello()
-    }, SEND_INTERVAL_MS)
+    }, background)
 
     // 소식이 끊긴 사람을 치운다.
     const sweepTimer = setInterval(() => dropGone(), STALE_MS)
@@ -246,13 +268,13 @@ export function useParticipants(room: string, me: RefObject<PresenceState | null
 
     return () => {
       alive = false
-      clearInterval(timer)
-      clearInterval(joinTimer)
+      stopTimer()
+      stopJoinTimer()
       clearInterval(sweepTimer)
       stopProfileListen()
       void channel.unsubscribe()
     }
-  }, [room, me])
+  }, [room, me, background])
 
   return others
 }

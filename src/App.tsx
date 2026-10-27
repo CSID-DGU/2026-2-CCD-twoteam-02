@@ -13,6 +13,7 @@ import EmailChangedPage from './auth/EmailChangedPage'
 import LogoutButton from './auth/LogoutButton'
 import LobbyScene from './lobby/LobbyScene'
 import { VideoRoom } from './videoRoom/VideoRoom'
+import { ReplayPage } from './replay/ReplayPage'
 import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
 
 
@@ -94,6 +95,16 @@ function AppRoutes() {
         element={
           <Protected>
             <VideoRoom />
+          </Protected>
+        }
+      />
+      {/* 기록 재생 화면 (#195): C 조건 팀원 캐릭터를 재생하는 진행자용 화면이라 버튼 없이 주소(/replay)로만 들어갑니다. */}
+      <Route
+        path="/replay"
+        element={
+          <Protected>
+            <ReplayPage />
+            <LogoutButton style={{ ...cornerButton, top: 16 }} />
           </Protected>
         }
       />
