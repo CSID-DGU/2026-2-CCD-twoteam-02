@@ -199,9 +199,10 @@ function download(name: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+// 기록 모드에서는 오른쪽 아래 내 모습 화면이 카메라 화면만큼 넓어지므로(약 480px) 겹치지 않게 폭을 줄입니다.
 const styles: Record<string, CSSProperties> = {
   box: {
-    position: 'fixed', left: 16, bottom: 16, zIndex: 12, display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 'calc(100vw - 260px)',
+    position: 'fixed', left: 16, bottom: 16, zIndex: 12, display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 'calc(100vw - 530px)',
     padding: '6px 10px', borderRadius: 8, background: 'rgba(32,35,42,.85)', color: '#fff', font: '13px system-ui, sans-serif',
   },
   dot: { color: '#ef4444' },
