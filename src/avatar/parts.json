@@ -5,80 +5,152 @@
       "name": "새침한 눈",
       "tint": "/models/Parts/eyes/sly-tint.png",
       "file": "/models/Parts/eyes/sly.png",
-      "closed": "/models/Parts/eyes/sly-closed.png"
+      "closed": "/models/Parts/eyes/sly-closed.png",
+      "box": [
+        -101,
+        -66,
+        101,
+        105
+      ]
     },
     {
       "id": "sleepy",
       "name": "졸린 눈",
       "tint": "/models/Parts/eyes/sleepy-tint.png",
       "file": "/models/Parts/eyes/sleepy.png",
-      "closed": "/models/Parts/eyes/sleepy-closed.png"
+      "closed": "/models/Parts/eyes/sleepy-closed.png",
+      "box": [
+        -114,
+        -35,
+        114,
+        44
+      ]
     },
     {
       "id": "oval",
       "name": "세로 눈",
       "tint": "/models/Parts/eyes/oval-tint.png",
       "file": "/models/Parts/eyes/oval.png",
-      "closed": "/models/Parts/eyes/oval-closed.png"
+      "closed": "/models/Parts/eyes/oval-closed.png",
+      "box": [
+        -101,
+        -123,
+        101,
+        123
+      ]
     },
     {
       "id": "ring",
       "name": "동그란 눈",
       "file": "/models/Parts/eyes/ring.png",
-      "closed": "/models/Parts/eyes/ring-closed.png"
+      "closed": "/models/Parts/eyes/ring-closed.png",
+      "box": [
+        -101,
+        -97,
+        101,
+        97
+      ]
     },
     {
       "id": "lashes",
       "name": "속눈썹 눈",
       "tint": "/models/Parts/eyes/lashes-tint.png",
       "file": "/models/Parts/eyes/lashes.png",
-      "closed": "/models/Parts/eyes/lashes-closed.png"
+      "closed": "/models/Parts/eyes/lashes-closed.png",
+      "box": [
+        -101,
+        -137,
+        128,
+        97
+      ]
     },
     {
       "id": "square",
       "name": "네모 눈",
       "tint": "/models/Parts/eyes/square-tint.png",
-      "closed": "/models/Parts/eyes/square-closed.png"
+      "closed": "/models/Parts/eyes/square-closed.png",
+      "box": [
+        -101,
+        -66,
+        101,
+        66
+      ]
     },
     {
       "id": "dot",
       "name": "콩알 눈",
       "tint": "/models/Parts/eyes/dot-tint.png",
-      "closed": "/models/Parts/eyes/dot-closed.png"
+      "closed": "/models/Parts/eyes/dot-closed.png",
+      "box": [
+        -101,
+        -22,
+        101,
+        31
+      ]
     },
     {
       "id": "sparkle",
       "name": "반짝 눈",
       "tint": "/models/Parts/eyes/sparkle-tint.png",
       "file": "/models/Parts/eyes/sparkle.png",
-      "closed": "/models/Parts/eyes/sparkle-closed.png"
+      "closed": "/models/Parts/eyes/sparkle-closed.png",
+      "box": [
+        -101,
+        -122,
+        122,
+        79
+      ]
     },
     {
       "id": "lidded",
       "name": "나른한 눈",
       "tint": "/models/Parts/eyes/lidded-tint.png",
       "file": "/models/Parts/eyes/lidded.png",
-      "closed": "/models/Parts/eyes/lidded-closed.png"
+      "closed": "/models/Parts/eyes/lidded-closed.png",
+      "box": [
+        -101,
+        -101,
+        101,
+        101
+      ]
     },
     {
       "id": "pupil",
       "name": "큰 눈동자",
       "tint": "/models/Parts/eyes/pupil-tint.png",
       "file": "/models/Parts/eyes/pupil.png",
-      "closed": "/models/Parts/eyes/pupil-closed.png"
+      "closed": "/models/Parts/eyes/pupil-closed.png",
+      "box": [
+        -101,
+        -101,
+        101,
+        101
+      ]
     },
     {
       "id": "arch",
       "name": "아치 눈",
       "tint": "/models/Parts/eyes/arch-tint.png",
       "file": "/models/Parts/eyes/arch.png",
-      "closed": "/models/Parts/eyes/arch-closed.png"
+      "closed": "/models/Parts/eyes/arch-closed.png",
+      "box": [
+        -101,
+        -101,
+        101,
+        97
+      ]
     },
     {
       "id": "squint",
       "name": "꼭 감은 눈",
       "file": "/models/Parts/eyes/squint.png",
-      "closed": "/models/Parts/eyes/squint-closed.png"
+      "closed": "/models/Parts/eyes/squint-closed.png",
+      "box": [
+        -101,
+        -85,
+        101,
+        85
+      ]
     }
   ],
   "brows": [
@@ -89,100 +161,182 @@
     {
       "id": "straight",
       "name": "일자",
-      "tint": "/models/Parts/brows/straight-tint.png"
+      "tint": "/models/Parts/brows/straight-tint.png",
+      "box": [
+        -96,
+        -23,
+        96,
+        23
+      ]
     },
     {
       "id": "thick",
       "name": "진한",
-      "tint": "/models/Parts/brows/thick-tint.png"
+      "tint": "/models/Parts/brows/thick-tint.png",
+      "box": [
+        -115,
+        -35,
+        109,
+        35
+      ]
     }
   ],
   "mouth": [
     {
-      "id": "smirk",
-      "name": "씩 웃는 입",
-      "file": "/models/Parts/mouth/smirk.png",
-      "hd": "/models/Parts/mouth/smirk-hd.png"
+      "id": "soft-smile",
+      "name": "살짝 웃는 입",
+      "file": "/models/Parts/mouth/soft-smile.png",
+      "box": [
+        -183,
+        -40,
+        169,
+        33
+      ]
     },
     {
-      "id": "smile",
-      "name": "웃는 입",
-      "file": "/models/Parts/mouth/smile.png",
-      "hd": "/models/Parts/mouth/smile-hd.png"
+      "id": "tongue-out",
+      "name": "메롱 입",
+      "file": "/models/Parts/mouth/tongue-out.png",
+      "box": [
+        -144,
+        -77,
+        187,
+        95
+      ]
     },
     {
-      "id": "slant",
-      "name": "비스듬한 입",
-      "file": "/models/Parts/mouth/slant.png",
-      "hd": "/models/Parts/mouth/slant-hd.png"
-    },
-    {
-      "id": "flat",
-      "name": "일자 입",
-      "file": "/models/Parts/mouth/flat.png",
-      "hd": "/models/Parts/mouth/flat-hd.png"
-    },
-    {
-      "id": "tail",
-      "name": "삐죽 입",
-      "file": "/models/Parts/mouth/tail.png",
-      "hd": "/models/Parts/mouth/tail-hd.png"
-    },
-    {
-      "id": "kiss",
-      "name": "뽀뽀 입",
-      "file": "/models/Parts/mouth/kiss.png",
-      "hd": "/models/Parts/mouth/kiss-hd.png"
+      "id": "beam",
+      "name": "환하게 웃는 입",
+      "file": "/models/Parts/mouth/beam.png",
+      "box": [
+        -149,
+        -68,
+        141,
+        37
+      ]
     },
     {
       "id": "wavy",
       "name": "물결 입",
       "file": "/models/Parts/mouth/wavy.png",
-      "hd": "/models/Parts/mouth/wavy-hd.png"
+      "box": [
+        -128,
+        -47,
+        128,
+        39
+      ]
+    },
+    {
+      "id": "frown",
+      "name": "시무룩한 입",
+      "file": "/models/Parts/mouth/frown.png",
+      "box": [
+        -162,
+        -32,
+        150,
+        68
+      ]
     }
   ],
   "mouthOpen": [
     {
-      "id": "grin",
-      "name": "활짝 웃는 입",
-      "file": "/models/Parts/mouthOpen/grin.png",
-      "hd": "/models/Parts/mouthOpen/grin-hd.png"
+      "id": "round-o",
+      "name": "동그랗게 벌린 입",
+      "file": "/models/Parts/mouthOpen/round-o.png",
+      "box": [
+        -81,
+        -116,
+        88,
+        116
+      ]
     },
     {
-      "id": "small-o",
-      "name": "작게 벌린 입",
-      "file": "/models/Parts/mouthOpen/small-o.png",
-      "hd": "/models/Parts/mouthOpen/small-o-hd.png"
+      "id": "big-smile",
+      "name": "활짝 벌린 입",
+      "file": "/models/Parts/mouthOpen/big-smile.png",
+      "box": [
+        -204,
+        -87,
+        202,
+        75
+      ]
     },
     {
-      "id": "wide",
+      "id": "wide-open",
       "name": "크게 벌린 입",
-      "file": "/models/Parts/mouthOpen/wide.png",
-      "hd": "/models/Parts/mouthOpen/wide-hd.png"
+      "file": "/models/Parts/mouthOpen/wide-open.png",
+      "box": [
+        -146,
+        -99,
+        157,
+        107
+      ]
     },
     {
-      "id": "teeth",
-      "name": "이 드러낸 입",
-      "file": "/models/Parts/mouthOpen/teeth.png",
-      "hd": "/models/Parts/mouthOpen/teeth-hd.png"
+      "id": "tongue-open",
+      "name": "혀 내민 입",
+      "file": "/models/Parts/mouthOpen/tongue-open.png",
+      "box": [
+        -99,
+        -115,
+        74,
+        117
+      ]
+    },
+    {
+      "id": "drool",
+      "name": "침 흘리는 입",
+      "file": "/models/Parts/mouthOpen/drool.png",
+      "box": [
+        -119,
+        -96,
+        136,
+        116
+      ]
+    },
+    {
+      "id": "teeth-grin",
+      "name": "이 보이게 웃는 입",
+      "file": "/models/Parts/mouthOpen/teeth-grin.png",
+      "box": [
+        -135,
+        -89,
+        113,
+        91
+      ]
+    },
+    {
+      "id": "clench",
+      "name": "이 악문 입",
+      "file": "/models/Parts/mouthOpen/clench.png",
+      "box": [
+        -162,
+        -104,
+        166,
+        87
+      ]
     },
     {
       "id": "laugh",
-      "name": "웃으며 벌린 입",
+      "name": "깔깔 웃는 입",
       "file": "/models/Parts/mouthOpen/laugh.png",
-      "hd": "/models/Parts/mouthOpen/laugh-hd.png"
+      "box": [
+        -130,
+        -83,
+        154,
+        82
+      ]
     },
     {
-      "id": "gasp",
-      "name": "놀란 입",
-      "file": "/models/Parts/mouthOpen/gasp.png",
-      "hd": "/models/Parts/mouthOpen/gasp-hd.png"
-    },
-    {
-      "id": "fangs",
-      "name": "송곳니 입",
-      "file": "/models/Parts/mouthOpen/fangs.png",
-      "hd": "/models/Parts/mouthOpen/fangs-hd.png"
+      "id": "bucktooth",
+      "name": "앞니 입",
+      "file": "/models/Parts/mouthOpen/bucktooth.png",
+      "box": [
+        -118,
+        -98,
+        117,
+        96
+      ]
     }
   ],
   "hair": [

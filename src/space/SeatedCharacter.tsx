@@ -8,9 +8,9 @@ import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import { MathUtils } from 'three'
 import type { Group } from 'three'
-import { showEyes, useEyeSkin } from '../tracking/useEyeSkin'
+import { useSkin } from '../tracking/useSkin'
 import { applyArms } from '../tracking/armPose'
-import { updateMouth, useMouth } from '../tracking/useMouth'
+import { showEyes, updateMouth, useFace } from '../tracking/useFace'
 import { BASE_MODEL_URL } from '../profile/characters'
 import type { ArmVector } from '../realtime/participants'
 import type { Spot } from './layout'
@@ -40,9 +40,9 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
   // 같은 모델을 여러 자리에 둘 수 있도록 복사본을 씁니다.
   const copy = useMemo(() => scene.clone(true), [scene])
   const { actions } = useAnimations(animations, animRoot)
-  // 이 캐릭터만 쓰는 재질. 눈을 감아도 같은 모델의 다른 캐릭터는 그대로입니다. (#113)
-  const skin = useEyeSkin(copy, model)
-  const mouthMesh = useMouth(copy, model)
+  // 이 캐릭터만 쓰는 재질과 얼굴 판. 눈을 감아도 같은 모델의 다른 캐릭터는 그대로입니다. (#113)
+  useSkin(copy, model)
+  const face = useFace(copy, model)
 
   useEffect(() => {
     actions.sit?.play()
@@ -50,8 +50,8 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
 
   // 앉기 동작(sit)은 머리·팔을 움직이지 않으므로 직접 돌려도 겹치지 않습니다.
   useFrame((_, delta) => {
-    showEyes(skin.current, eyes)
-    updateMouth(mouthMesh, mouth, delta)
+    showEyes(face, eyes)
+    updateMouth(face, mouth, delta)
     applyArms(copy, { armLeft: toDir(arms?.[0]), armRight: toDir(arms?.[1]) }, 1 - Math.exp(-ARM_FOLLOW * delta))
     const node = copy.getObjectByName(HEAD_NODE)
     if (!node) return

@@ -5,7 +5,8 @@ import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import type { Box, Spot } from './layout'
 import { BASE_MODEL_URL } from '../profile/characters'
-import { useEyeSkin } from '../tracking/useEyeSkin'
+import { useSkin } from '../tracking/useSkin'
+import { useFace } from '../tracking/useFace'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
 import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
 import type { EmoteState } from './emotes'
@@ -75,7 +76,8 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
   const model = useMemo(() => scene.clone(true), [scene])
-  useEyeSkin(model, character) // 고른 차림의 스킨을 입힘 (#56)
+  useSkin(model, character) // 고른 차림의 스킨을 입힘 (#56)
+  useFace(model, character) // 눈썹·눈·입 (#293)
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)

@@ -1,7 +1,7 @@
-// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색), 눈썹, 입(다문·벌린), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
+// 캐릭터 꾸미기 창 (#131 → #56): 피부색, 눈(모양·색·위치·크기), 눈썹, 입(다문·벌린·위치·크기), 머리(모양·색), 상의·하의·신발(모양·색)을 골라 입혀 봅니다.
 //
 // 왼쪽: 지금 고른 차림의 3D 미리보기(끌어서 돌려 볼 수 있음. 저절로 돌지는 않음). 벌린 입을 누르면 입을 벌린 모습을 보여 줌
-// 오른쪽: 부위 탭, 부품 목록, 색상표. 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
+// 오른쪽: 부위 탭, 부품 목록, 색상표, 눈·입 위치·크기 막대(#293). 부품 그림(썸네일)은 3D 화면을 여러 개 띄우지 않고 2D 캔버스에 그 부위만 그립니다.
 //   (3D 화면을 부품마다 만들면 무겁고, 브라우저가 한 번에 열 수 있는 3D 화면 수(보통 16개)도 넘습니다. #137)
 // 저장은 바깥(CharacterTab)이 합니다.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -10,10 +10,10 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
 import { BASE_MODEL_URL } from './characters'
-import { useEyeSkin } from '../tracking/useEyeSkin'
-import { updateMouth, useMouth } from '../tracking/useMouth'
-import { PARTS, SKIN_PRESETS, avatarKey, randomAvatar } from '../avatar/avatarLogic'
-import type { Avatar, Part, Slot } from '../avatar/avatarLogic'
+import { useSkin } from '../tracking/useSkin'
+import { updateMouth, useFace } from '../tracking/useFace'
+import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
+import type { Avatar, LayoutField, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
 
 const SCALE = 0.6 // 지점과 같은 크기 (키 약 1.6)
@@ -22,12 +22,25 @@ const COLOR_DELAY_MS = 150 // 색상표를 끄는 동안에는 이 시간만큼 
 const SELECTED = '#3b82f6'
 
 type ColorKey = 'skin' | 'eyeColor' | 'hairColor' | 'topColor' | 'bottomColor' | 'shoesColor'
-type Tab = { key: string; label: string; slots: { slot: Slot; title?: string }[]; color?: { key: ColorKey; label: string } }
+// layout: 그 탭에서 조절하는 위치·크기 막대 [칸, 이름, 왼쪽 끝 글, 오른쪽 끝 글]
+type Tab = {
+  key: string
+  label: string
+  slots: { slot: Slot; title?: string }[]
+  color?: { key: ColorKey; label: string }
+  layout?: [LayoutField, string, string, string][]
+}
 const TABS: Tab[] = [
   { key: 'skin', label: '피부', slots: [], color: { key: 'skin', label: '피부색' } },
-  { key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' } },
+  {
+    key: 'eyes', label: '눈', slots: [{ slot: 'eyes' }], color: { key: 'eyeColor', label: '눈 색' },
+    layout: [['eyeX', '간격', '좁게', '넓게'], ['eyeY', '높이', '아래', '위'], ['eyeSize', '크기', '작게', '크게']],
+  },
   { key: 'brows', label: '눈썹', slots: [{ slot: 'brows', title: '눈썹 (머리 색을 따라요)' }] },
-  { key: 'mouth', label: '입', slots: [{ slot: 'mouth', title: '다문 입 (평소)' }, { slot: 'mouthOpen', title: '벌린 입 (회의실에서 말할 때)' }] },
+  {
+    key: 'mouth', label: '입', slots: [{ slot: 'mouth', title: '다문 입 (평소)' }, { slot: 'mouthOpen', title: '벌린 입 (회의실에서 말할 때)' }],
+    layout: [['mouthY', '높이', '아래', '위'], ['mouthSize', '크기', '작게', '크게']],
+  },
   { key: 'hair', label: '머리', slots: [{ slot: 'hair' }], color: { key: 'hairColor', label: '머리 색' } },
   { key: 'top', label: '상의', slots: [{ slot: 'top' }], color: { key: 'topColor', label: '상의 색' } },
   { key: 'bottom', label: '하의', slots: [{ slot: 'bottom' }], color: { key: 'bottomColor', label: '하의 색' } },
@@ -43,7 +56,8 @@ export function CharacterPicker({ value, onChange }: Props) {
   const [tabKey, setTabKey] = useState('skin')
   const [talking, setTalking] = useState(false) // 미리보기에 벌린 입을 보여 줄지: 마지막으로 누른 것이 벌린 입이면 켬
   const tab = TABS.find((t) => t.key === tabKey)!
-  const pick = (patch: Partial<Avatar>) => value && onChange({ ...value, ...patch })
+  // 부품을 바꿔 눈과 입이 겹치게 되면 겹치지 않게 위치를 맞춥니다(fitLayout)
+  const pick = (patch: Partial<Avatar>) => value && onChange(fitLayout({ ...value, ...patch }))
 
   return (
     <div style={styles.wrap}>
@@ -72,7 +86,7 @@ export function CharacterPicker({ value, onChange }: Props) {
               {t.label}
             </button>
           ))}
-          <button type="button" style={styles.tab} onClick={() => onChange(randomAvatar())} disabled={!value} title="무작위로 꾸미기">
+          <button type="button" style={styles.tab} onClick={() => onChange(fitLayout(randomAvatar()))} disabled={!value} title="무작위로 꾸미기">
             🎲
           </button>
         </div>
@@ -86,6 +100,35 @@ export function CharacterPicker({ value, onChange }: Props) {
             presets={tab.color.key === 'skin' ? SKIN_PRESETS : undefined}
             onChange={(c) => pick({ [tab.color!.key]: c })}
           />
+        )}
+
+        {value && tab.layout && (
+          <div style={styles.section}>
+            {tab.layout.map(([field, label, low, high]) => (
+              <label key={field} style={styles.sliderRow}>
+                <span style={styles.sliderLabel}>{label}</span>
+                <span style={styles.sliderEnd}>{low}</span>
+                <input
+                  type="range"
+                  min={LAYOUT[field].min}
+                  max={LAYOUT[field].max}
+                  step={1}
+                  value={value[field]}
+                  // 눈과 입이 겹치거나 얼굴 밖으로 나가는 곳에서는 더 가지 않고 멈춥니다(moveLayout)
+                  onChange={(e) => onChange(moveLayout(value, field, Number(e.target.value)))}
+                  style={styles.slider}
+                />
+                <span style={styles.sliderEnd}>{high}</span>
+              </label>
+            ))}
+            <button
+              type="button"
+              style={{ ...styles.tab, alignSelf: 'flex-start' }}
+              onClick={() => onChange(fitLayout(Object.assign({ ...value }, ...tab.layout!.map(([f]) => ({ [f]: 0 })))))}
+            >
+              기본 자리로
+            </button>
+          </div>
         )}
 
         {value &&
@@ -169,9 +212,9 @@ function Preview({ model, talking }: { model: string; talking: boolean }) {
   const ref = useRef<Group>(null!)
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   const copy = useMemo(() => scene.clone(true), [scene]) // 지점의 캐릭터와 같은 모델이라 복사본
-  useEyeSkin(copy, model)
-  const mouth = useMouth(copy, model)
-  useFrame((_, delta) => updateMouth(mouth, talking ? 1 : 0, delta))
+  useSkin(copy, model)
+  const face = useFace(copy, model)
+  useFrame((_, delta) => updateMouth(face, talking ? 1 : 0, delta))
   const { actions } = useAnimations(animations, ref)
   useEffect(() => {
     actions.idle?.play()
@@ -202,6 +245,10 @@ const styles: Record<string, CSSProperties> = {
   },
   cellOn: { border: `2px solid ${SELECTED}` },
   none: { color: '#9aa1ab', fontSize: 12 },
+  sliderRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  sliderLabel: { color: '#cbd5e1', fontSize: 13, width: 32, flexShrink: 0 },
+  sliderEnd: { color: '#9aa1ab', fontSize: 12, width: 26, textAlign: 'center', flexShrink: 0 },
+  slider: { flex: 1, minWidth: 0, accentColor: SELECTED },
   colorRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   colorInput: { width: 44, height: 32, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
   swatch: { width: 26, height: 26, borderRadius: 6, border: '2px solid transparent', cursor: 'pointer', padding: 0 },
