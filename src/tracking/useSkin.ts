@@ -31,7 +31,8 @@ export function useSkin(root: THREE.Object3D, model: string) {
     const own = new Map<THREE.Material, THREE.Material>();
     const originals: [THREE.Mesh, THREE.Material][] = [];
     root.traverse((o) => {
-      if (!(o instanceof THREE.Mesh) || Array.isArray(o.material) || o.name === "face") return; // 얼굴 판(useFace)은 따로
+      // 얼굴 판(useFace)·머리카락(useHair)은 자기 재질을 따로 씀
+      if (!(o instanceof THREE.Mesh) || Array.isArray(o.material) || o.name === "face" || o.userData.ownMaterial) return;
       const original = o.material as THREE.Material;
       let copy = own.get(original);
       if (!copy) {

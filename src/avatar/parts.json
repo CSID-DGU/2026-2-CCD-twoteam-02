@@ -388,17 +388,37 @@
     {
       "id": "short",
       "name": "짧은 머리",
-      "tint": "/models/Parts/hair/short-tint.png"
+      "model": "/models/Parts/hair/short.gltf"
     },
     {
       "id": "long",
       "name": "긴 머리",
-      "tint": "/models/Parts/hair/long-tint.png"
+      "model": "/models/Parts/hair/long.gltf"
     },
     {
       "id": "buzz",
       "name": "아주 짧은 머리",
-      "tint": "/models/Parts/hair/buzz-tint.png"
+      "model": "/models/Parts/hair/buzz.gltf"
+    },
+    {
+      "id": "spiky",
+      "name": "삐죽 머리",
+      "model": "/models/Parts/hair/spiky.gltf"
+    },
+    {
+      "id": "bun",
+      "name": "똥머리",
+      "model": "/models/Parts/hair/bun.gltf"
+    },
+    {
+      "id": "bob",
+      "name": "일반 단발",
+      "model": "/models/Parts/hair/bob.gltf"
+    },
+    {
+      "id": "bob-textured",
+      "name": "텍스처 단발",
+      "model": "/models/Parts/hair/bob-textured.gltf"
     }
   ],
   "top": [

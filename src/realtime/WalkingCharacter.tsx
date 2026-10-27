@@ -28,6 +28,7 @@ import { holdStandingPose } from '../space/standStill'
 import { BASE_MODEL_URL } from '../profile/characters'
 import { useSkin } from '../tracking/useSkin'
 import { useFace } from '../tracking/useFace'
+import { useHair } from '../tracking/useHair'
 
 const SCALE = 0.6 // Player와 같은 크기
 const TURN = 12 // 방향 전환 빠르기 (Player와 같은 값)
@@ -59,6 +60,7 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   const copy = useMemo(() => scene.clone(true), [scene])
   useSkin(copy, model) // 그 사람이 고른 차림의 스킨을 입힘 (#56)
   useFace(copy, model) // 눈썹·눈·입 (#293)
+  useHair(copy, model) // 입체 머리카락 (#296)
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)

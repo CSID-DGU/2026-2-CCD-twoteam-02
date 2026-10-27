@@ -12,6 +12,7 @@
 import * as THREE from 'three'
 import { FACE_PX, FACE_SLOTS, HOME_LAYOUT, LAYERS, SHADE, SKIN_SIZE, UV_FACES, faceLayout, faceThumbRect, findPart, isFaceSlot, parseAvatarKey, thumbRects } from './avatarLogic'
 import type { Avatar, Part, Slot, Spot } from './avatarLogic'
+import { drawModelThumb } from './partModel'
 
 const MAX_SKINS = 40
 const MAX_FACES = 60 // 얼굴 그림은 차림마다 눈(뜸·감음) × 입(다묾·벌림) 4장까지
@@ -183,6 +184,8 @@ export const faceTexture = (key: string, eyesClosed: boolean, talking: boolean) 
 // 스킨 부품은 대표 면들을 나란히, 얼굴 부품은 기본 자리에 놓은 얼굴에서 그 둘레만. 지금 차림의 색으로, 맨몸 위에 얹은 모습
 const THUMB_GAP = 3 // 면 사이 간격(px, 썸네일 기준)
 export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part: Part, avatar: Avatar) {
+  const color = LAYERS.find((l) => l.slot === slot)?.color ?? null
+  if (part.model) return drawModelThumb(target, part, avatar.skin, color ? avatar[color] : '#ffffff') // 입체 부품(머리카락)
   const ctx = target.getContext('2d')!
   // 크게 그린 그림을 작게 줄이므로 부드럽게 줄입니다(건너뛰며 줄이면 가는 선이 끊겨 보임).
   ctx.imageSmoothingEnabled = true
@@ -209,7 +212,6 @@ export async function drawPartThumb(target: HTMLCanvasElement, slot: Slot, part:
     return
   }
   const rects = thumbRects(slot)
-  const color = LAYERS.find((l) => l.slot === slot)?.color ?? null
   const [tint, file] = await Promise.all([loadOrNull(part.tint), loadOrNull(part.file)])
   ctx.clearRect(0, 0, target.width, target.height)
   const totalW = rects.reduce((s, r) => s + r.w, 0)

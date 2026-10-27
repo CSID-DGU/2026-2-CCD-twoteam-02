@@ -7,6 +7,7 @@ import type { Box, Spot } from './layout'
 import { BASE_MODEL_URL } from '../profile/characters'
 import { useSkin } from '../tracking/useSkin'
 import { useFace } from '../tracking/useFace'
+import { useHair } from '../tracking/useHair'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
 import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
 import type { EmoteState } from './emotes'
@@ -78,6 +79,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const model = useMemo(() => scene.clone(true), [scene])
   useSkin(model, character) // 고른 차림의 스킨을 입힘 (#56)
   useFace(model, character) // 눈썹·눈·입 (#293)
+  useHair(model, character) // 입체 머리카락 (#296)
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)
