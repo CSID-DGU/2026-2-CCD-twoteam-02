@@ -7,6 +7,7 @@ import { keyCap, menuBox, menuDivider, menuRow, menuRowMinor, menuStack } from '
 import type { PanelView } from './panelTypes'
 import { PANEL_KEYS } from './shortcuts'
 import { keyLabel, useKeymap } from './keymap'
+import { useIsTeam } from '../report/useIsTeam'
 
 type Props = {
   myId: string
@@ -17,6 +18,7 @@ type Props = {
 
 export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
   const keys = useKeymap()
+  const team = useIsTeam(myId)
   return (
     <div style={menuStack}>
       <nav style={menuBox}>
@@ -51,6 +53,12 @@ export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
         <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'report' })}>
           신고하기
         </button>
+        {/* 팀에게만: 모인 신고를 보는 창. 팀인지는 team_members 에 내 행이 있는지로 정합니다. */}
+        {team && (
+          <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'reports' })}>
+            신고 목록
+          </button>
+        )}
         {onTracking && (
           <button type="button" style={menuRowMinor} onClick={onTracking}>
             <span style={keyCap}>{keyLabel(keys.tracking)}</span>
