@@ -93,15 +93,19 @@ create table public.reports (
   samples    jsonb not null default '[]'::jsonb
              check (jsonb_typeof(samples) = 'array' and pg_column_size(samples) <= 16384),
   checked_at timestamptz,                                                          -- 팀이 확인함 (null = 미확인)
-  checked_by uuid references auth.users (id) on delete set null
+  checked_by uuid references auth.users (id) on delete set null,
+  constraint reports_detail_only_judgment check (detail is null or kind = 'judgment')  -- 보조 선택은 판정 오류에만
 );
 
 create index reports_created_idx on public.reports (created_at desc);
 
 alter table public.reports enable row level security;
 
+-- insert 도 칸 단위로 준다. 표 전체에 주면 신고를 넣으면서 checked_at(확인함)·created_at 을 직접 정할 수 있어,
+-- 처음부터 "확인함"으로 넣은 신고가 팀의 미확인 목록에서 빠진다.
 revoke all on public.reports from anon, authenticated;
-grant select, insert on public.reports to authenticated;
+grant select on public.reports to authenticated;
+grant insert (user_id, kind, detail, message, context, samples) on public.reports to authenticated;
 grant update (checked_at, checked_by) on public.reports to authenticated;
 
 create policy "내 신고를 쓴다"
@@ -112,10 +116,11 @@ create policy "내 신고 또는 팀이면 본다"
   on public.reports for select to authenticated
   using (user_id = (select auth.uid()) or public.is_team());
 
+-- checked_by 에는 비우거나 자기 id 만 넣을 수 있다 (남의 이름으로 확인한 것처럼 남기지 못하게)
 create policy "팀만 확인 표시를 바꾼다"
   on public.reports for update to authenticated
   using (public.is_team())
-  with check (public.is_team());
+  with check (public.is_team() and (checked_by is null or checked_by = (select auth.uid())));
 
 comment on table public.team_members is '신고 목록을 볼 수 있는 팀원 (#121). SQL Editor 에서만 등록한다';
 comment on table public.reports is '오판·버그 신고 (#121). 영상 없이 글자와 판정 수치만. 팀만 전체를 보고 확인 표시를 한다';
