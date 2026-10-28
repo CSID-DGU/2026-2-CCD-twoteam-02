@@ -37,7 +37,7 @@ export function buildInsert(args: {
     kind: draft.kind,
     detail: draft.kind === 'judgment' ? draft.detail : null,
     message: draft.message,
-    context: buildContext({ page, search, userAgent, study: currentStudyContext(), last: samples[samples.length - 1] ?? null }),
+    context: buildContext({ page, search, userAgent, study: currentStudyContext(nowMs), last: samples[samples.length - 1] ?? null }),
     samples,
   }
 }

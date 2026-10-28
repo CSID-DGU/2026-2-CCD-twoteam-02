@@ -32,6 +32,7 @@ const ring: (Sample | undefined)[] = new Array(SAMPLE_CAPACITY)
 let writeAt = 0 // 다음에 쓸 칸
 let count = 0 // 들어 있는 줄 수 (최대 SAMPLE_CAPACITY)
 let study: StudyContext | null = null
+let studyEndedAt: number | null = null // 공부 화면이 사라진 시각. null = 아직 공부 중
 
 export function pushSample(sample: Sample): void {
   ring[writeAt] = sample
@@ -50,11 +51,22 @@ export function recentSamples(nowMs: number): Sample[] {
   return ordered.filter((s) => s.at > nowMs - SAMPLE_WINDOW_MS)
 }
 
+// 공부를 시작하면(또는 허용 설정이 바뀌면) 맥락을 새로 둡니다.
 export function setStudyContext(ctx: StudyContext | null): void {
   study = ctx
+  studyEndedAt = null
 }
 
-export function currentStudyContext(): StudyContext | null {
+// 공부 화면이 사라질 때. 바로 지우지 않고 시각만 적어 둡니다.
+// 일어난 직후 신고에도 샘플과 같은 30초 동안은 좌석·허용 설정이 붙어야 수치와 짝이 맞기 때문입니다.
+export function endStudyContext(endedAtMs: number): void {
+  studyEndedAt = endedAtMs
+}
+
+// 공부 중이거나 끝난 지 30초 안이면 맥락, 아니면 null (샘플과 같은 기준: endedAt > now - 30000)
+export function currentStudyContext(nowMs: number): StudyContext | null {
+  if (study === null) return null
+  if (studyEndedAt !== null && !(studyEndedAt > nowMs - SAMPLE_WINDOW_MS)) return null
   return study
 }
 

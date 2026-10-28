@@ -5,7 +5,7 @@ import type { RefObject } from 'react'
 import type { FocusInput, FocusState } from '../focus/focusLogic'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
 import { workerInterval } from '../lib/workerInterval'
-import { pushSample, setStudyContext } from './recentSamples'
+import { endStudyContext, pushSample, setStudyContext } from './recentSamples'
 import type { Sample } from './recentSamples'
 import { round2, toDegrees } from './reportLogic'
 
@@ -30,9 +30,10 @@ export function useSampleRecorder(args: {
     latest.current = { focus, hold }
   }, [focus, hold])
 
+  // 사라질 때 지우지 않고 끝난 시각만 적습니다. 일어난 직후 30초 안의 신고에도 좌석·허용 설정이 붙습니다.
   useEffect(() => {
     setStudyContext({ allowOtherScreen, allowDevices, sessionId })
-    return () => setStudyContext(null)
+    return () => endStudyContext(Date.now())
   }, [allowOtherScreen, allowDevices, sessionId])
 
   // 다른 탭에 가 있어도 제 주기로 돌도록 워커 신호를 씁니다 (useFocusState 와 같은 방식).
