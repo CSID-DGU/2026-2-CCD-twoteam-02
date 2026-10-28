@@ -47,6 +47,10 @@ export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
           <span style={keyCap}>{keyLabel(keys.settings)}</span>
           설정
         </button>
+        {/* 오판·버그 신고 (#121). 단축키 없음 */}
+        <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'report' })}>
+          신고하기
+        </button>
         {onTracking && (
           <button type="button" style={menuRowMinor} onClick={onTracking}>
             <span style={keyCap}>{keyLabel(keys.tracking)}</span>
