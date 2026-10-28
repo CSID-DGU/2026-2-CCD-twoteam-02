@@ -16,6 +16,7 @@ import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
+import { useSampleRecorder } from '../report/useSampleRecorder'
 
 // 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (표시등 색과 같은 규칙, space/status.ts)
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
@@ -67,6 +68,9 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     onStatus(paused ? 'idle' : hold ? 'hold' : stale ? 'focus' : focus.status)
   }, [paused, stale, focus.status, hold, onStatus])
+
+  // 신고 창이 꺼내 쓸 최근 30초 수치 (#121). 영상은 없고 판정 수치만 1초마다 남깁니다.
+  useSampleRecorder({ face, pose, phone, focus, hold, paused, allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices, sessionId })
 
   // 이 화면이 중지 중에 사라지면(창 닫기 등) 중지도 풀어 둡니다. 남아 있으면 다음 공부의 웹캠이 꺼진 채 시작됩니다.
   useEffect(() => () => onPausedChange(false), [onPausedChange])
