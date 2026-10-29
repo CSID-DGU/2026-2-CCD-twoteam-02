@@ -94,15 +94,20 @@ export function disposePartModel(obj: THREE.Object3D) {
 let thumbRenderer: THREE.WebGLRenderer | null = null
 const THUMB_CAMERA = new THREE.PerspectiveCamera(30, 1, 1, 200)
 const THUMB_TOP = 11.2 // 기본 구도가 담는 높이: 턱(0) ~ 정수리 위(11.2). 가운데(5.6)를 바라봅니다.
+const THUMB_FIT_TOP = 12.5 // 기본 구도에서 잘리지 않고 보이는 가장 높은 곳 (똥머리·삐죽 머리 정도)
+const THUMB_FIT_SIDE = 6 // 기본 구도에서 잘리지 않고 보이는 가장 바깥 (가운데에서 옆으로)
 const THUMB_OFFSET = new THREE.Vector3(9, 6.4, 26) // 바라보는 곳에서 카메라까지
 
-// 기본 구도로 찍되, 턱 아래로 내려오는 머리(땋은 머리·긴 머리)는 그만큼 카메라를 물려 끝까지 보이게 합니다.
+// 기본 구도로 찍되, 턱 아래로 내려오거나(땋은 머리·긴 머리) 아주 높이 올라가거나 옆으로 넓은 머리(양쪽 똥머리)는
+// 그만큼 카메라를 물려 끝까지 보이게 합니다.
 function frameThumb(model: THREE.Object3D) {
   const box = new THREE.Box3().setFromObject(model)
-  const bottom = Math.min(0, box.min.y)
-  const top = bottom < 0 ? Math.max(THUMB_TOP, box.max.y) : THUMB_TOP
+  const fits = box.min.y >= 0 && box.max.y <= THUMB_FIT_TOP
+  const bottom = fits ? 0 : Math.min(0, box.min.y)
+  const top = fits ? THUMB_TOP : Math.max(THUMB_TOP, box.max.y)
   const centerY = (bottom + top) / 2
-  THUMB_CAMERA.position.copy(THUMB_OFFSET).multiplyScalar((top - bottom) / THUMB_TOP)
+  const side = Math.max(-box.min.x, box.max.x) / THUMB_FIT_SIDE
+  THUMB_CAMERA.position.copy(THUMB_OFFSET).multiplyScalar(Math.max((top - bottom) / THUMB_TOP, side))
   THUMB_CAMERA.position.y += centerY
   THUMB_CAMERA.lookAt(0, centerY, 0)
 }

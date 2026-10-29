@@ -429,6 +429,16 @@
       "id": "twin-braids-textured",
       "name": "양갈래 땋은 머리 (텍스처)",
       "model": "/models/Parts/hair/twin-braids-textured.gltf"
+    },
+    {
+      "id": "space-buns",
+      "name": "양쪽 똥머리",
+      "model": "/models/Parts/hair/space-buns.gltf"
+    },
+    {
+      "id": "space-buns-textured",
+      "name": "양쪽 똥머리 (텍스처)",
+      "model": "/models/Parts/hair/space-buns-textured.gltf"
     }
   ],
   "top": [
