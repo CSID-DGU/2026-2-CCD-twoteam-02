@@ -62,6 +62,7 @@ const PLAZA = world as PlazaLayout
 const PLACED = placeBuildings(PLAZA, BRANCH_LAYOUTS, console.warn)
 const OBSTACLES = plazaObstacles(PLAZA, PLACED)
 const ENTRIES = PLACED.map((b) => b.entry)
+const LIT_LAMPS = PLAZA.lamps.filter((l) => l.light) // 밤에 점광원을 켜는 가로등 (world.json 의 light)
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
 
 type Branch = { id: number; slug: string; name: string }
@@ -225,7 +226,7 @@ export default function WorldScene({ onEnter }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         <FpsProbe onSample={handleFps} />
-        <WorldSky /> {/* 하늘·해·달·별과 빛 (#316) */}
+        <WorldSky lamps={LIT_LAMPS} /> {/* 하늘·해·달·별과 빛 (#316) */}
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />

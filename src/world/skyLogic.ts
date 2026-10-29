@@ -15,6 +15,8 @@
 //   위치: 해가 지나는 길을 위상만큼 늦게 따른다고 봅니다(시간각 = 해 시간각 − 2π·위상).
 //   적위는 해의 적위 × cos(2π·위상) 으로 둡니다. 삭이면 해와 같고 보름이면 반대라, 겨울 보름달이 높이 뜨는 것도 맞습니다.
 //   실제 궤도와 몇 도 다르지만 보이는 모양과 뜨는 때가 맞습니다.
+//   달빛은 달 고도 0~5° 에서 서서히 세지고, 달 그림은 고도 0°~−1° 에서 서서히 사라집니다(지평선 아래로 안 비침).
+//   달의 밝은 쪽은 화면에서 해가 있는 쪽을 봅니다(moonLitAngle).
 //
 // ── 3D 방향 ─────────────────────────────────────────────────────────
 //   (고도 a, 방위 z) → x = cos a · sin z, y = sin a, z3 = −cos a · cos z  (3D 는 −Z 가 북쪽)
@@ -33,14 +35,18 @@ const NIGHT_FULL_DEG = -12 // 이 고도 아래면 완전한 밤
 const SUN_FULL_DEG = 10 // 해 고도가 이만큼 오르면 햇빛이 다 셈
 const SUN_WHITE_DEG = 15 // 해 고도가 이만큼이면 햇빛이 흰색 (낮으면 주황)
 const SUN_INTENSITY = 0.9
-const SUN_LOW = '#ffb070' // 해가 낮을 때 햇빛 색
-const SUN_HIGH = '#ffffff'
+// 색은 0xrrggbb 숫자. 매 프레임 색 문자열을 만들고 해석하지 않으려고 숫자로 둡니다.
+const SUN_LOW = 0xffb070 // 해가 낮을 때 햇빛 색
+const SUN_HIGH = 0xffffff
 const MOON_INTENSITY = 0.25 // 보름달 빛 세기 (위상·밤 정도를 곱함)
-const MOON_COLOR = '#9fb8ff'
+const MOON_FULL_DEG = 5 // 달 고도가 이만큼 오르면 달빛이 다 셈 (지는 달빛이 뚝 끊기지 않게)
+const MOON_HIDE_DEG = -1 // 달 그림이 고도 0° 부터 이 고도까지 서서히 사라짐
+const MOON_COLOR = 0x9fb8ff
 const AMBIENT_DAY = 1.0
 const AMBIENT_NIGHT = 0.45 // "분위기만 밤": 밤에도 땅·길·캐릭터가 또렷하게
-const AMBIENT_DAY_COLOR = '#ffffff'
-const AMBIENT_NIGHT_COLOR = '#8fa3d6'
+const AMBIENT_DAY_COLOR = 0xffffff
+const AMBIENT_NIGHT_COLOR = 0x8fa3d6
+const LIT_ANGLE_MIN = 0.01 // 화면 위 해 쪽 방향이 이보다 짧으면(그믐·보름 무렵) 달을 돌리지 않음
 const STARS_FROM = 0.6 // 밤 정도가 이 값을 넘으면 별이 나타나기 시작
 
 export type SkyPos = { altitude: number; azimuth: number } // 라디안, 방위 북 0·동 +π/2
@@ -51,13 +57,14 @@ export type SkyState = {
   sun: SkyPos
   moon: SkyPos & { phase: number; lit: number }
   night: number // 0 낮 ~ 1 밤
-  light: { dir: Vec3; intensity: number; color: string } // 방향광: 빛이 오는 쪽(해 또는 달) 방향
-  ambient: { intensity: number; color: string }
+  light: { dir: Vec3; intensity: number; color: number } // 방향광: 빛이 오는 쪽(해 또는 달) 방향. 색은 0xrrggbb
+  ambient: { intensity: number; color: number }
   glow: number // 가로등·창문 빛남 0~1
   stars: number // 별 투명도 0~1
   // 달의 어두운 부분(그림자) 투명도 0~1. 밤에만 보입니다. 낮에 그리면 삭 무렵 해 옆에 어두운 원반이 생깁니다.
   // 밤에는 불투명하게 그려 달 뒤의 별이 비치지 않게 합니다.
   moonShade: number
+  moonShow: number // 달 그림 투명도 0~1. 달이 지평선 아래로 내려가면 0
 }
 
 const RAD = Math.PI / 180
@@ -65,11 +72,10 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 const smooth = (t: number) => t * t * (3 - 2 * t)
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
-// 두 색(#rrggbb)을 t 만큼 섞습니다.
-function mix(a: string, b: string, t: number): string {
-  const p = (c: string, i: number) => parseInt(c.slice(1 + i * 2, 3 + i * 2), 16)
-  const ch = (i: number) => Math.round(lerp(p(a, i), p(b, i), t)).toString(16).padStart(2, '0')
-  return `#${ch(0)}${ch(1)}${ch(2)}`
+// 두 색(0xrrggbb)을 t 만큼 섞습니다.
+export function mix(a: number, b: number, t: number): number {
+  const ch = (shift: number) => Math.round(lerp((a >> shift) & 0xff, (b >> shift) & 0xff, t)) << shift
+  return ch(16) | ch(8) | ch(0)
 }
 
 // 해의 적위와 시간각 (라디안). NOAA 근사식
@@ -121,24 +127,47 @@ export function moonPhase(ms: number): { phase: number; lit: number } {
   return { phase, lit: (1 - Math.cos(2 * Math.PI * phase)) / 2 }
 }
 
-export function moonPosition(ms: number): SkyPos {
-  const { decl, hourAngle } = solar(ms)
-  const { phase } = moonPhase(ms)
+// 해의 적위·시간각과 달 위상으로 달 위치를 정합니다. (skyState 가 해 계산을 한 번만 하도록 나눔)
+function moonFrom(sol: { decl: number; hourAngle: number }, phase: number): SkyPos {
   const turn = 2 * Math.PI * phase
-  return altAz(hourAngle - turn, decl * Math.cos(turn))
+  return altAz(sol.hourAngle - turn, sol.decl * Math.cos(turn))
 }
 
-export function toDirection(p: SkyPos): Vec3 {
+export function moonPosition(ms: number): SkyPos {
+  return moonFrom(solar(ms), moonPhase(ms).phase)
+}
+
+// out 을 주면 새 객체를 만들지 않고 거기에 담습니다(매 프레임 부르는 곳용).
+export function toDirection(p: SkyPos, out: Vec3 = { x: 0, y: 0, z: 0 }): Vec3 {
   const c = Math.cos(p.altitude)
-  return { x: c * Math.sin(p.azimuth), y: Math.sin(p.altitude), z: -c * Math.cos(p.azimuth) }
+  out.x = c * Math.sin(p.azimuth)
+  out.y = Math.sin(p.altitude)
+  out.z = -c * Math.cos(p.azimuth)
+  return out
+}
+
+// 달 판을 돌릴 각도(라디안, 화면 오른쪽 0·반시계 +). 달 그림은 오른쪽이 밝게 그리므로, 이 각도만큼 돌리면 밝은 쪽이 해를 봅니다.
+// sun·moon 은 카메라 기준 좌표(x 오른쪽, y 위)의 단위 방향. 해 방향에서 달 방향 성분을 빼면 화면에서 달 → 해 쪽이 남습니다.
+// 해와 달이 거의 같은 쪽이거나 정반대면(그믐·보름 무렵) 방향이 정해지지 않아 prev 를 그대로 씁니다.
+export function moonLitAngle(sun: Vec3, moon: Vec3, prev: number): number {
+  const dot = sun.x * moon.x + sun.y * moon.y + sun.z * moon.z
+  const tx = sun.x - moon.x * dot
+  const ty = sun.y - moon.y * dot
+  const tz = sun.z - moon.z * dot
+  if (Math.hypot(tx, ty, tz) < LIT_ANGLE_MIN) return prev
+  return Math.atan2(ty, tx)
 }
 
 export function skyState(ms: number): SkyState {
-  const sun = sunPosition(ms)
-  const moon = { ...moonPosition(ms), ...moonPhase(ms) }
+  const sol = solar(ms)
+  const sun = altAz(sol.hourAngle, sol.decl)
+  const ph = moonPhase(ms)
+  const moon = { ...moonFrom(sol, ph.phase), ...ph }
   const sunDeg = sun.altitude / RAD
+  const moonDeg = moon.altitude / RAD
   const night = smooth(clamp01((NIGHT_START_DEG - sunDeg) / (NIGHT_START_DEG - NIGHT_FULL_DEG)))
   // 해가 떠 있으면 해 쪽에서, 지면 달 쪽에서 비춤. 해가 지평선을 지나는 순간 둘 다 0 이라 바뀌어도 튀지 않음
+  const moonShow = smooth(clamp01((moonDeg - MOON_HIDE_DEG) / -MOON_HIDE_DEG))
   const light =
     sunDeg > 0
       ? {
@@ -148,7 +177,7 @@ export function skyState(ms: number): SkyState {
         }
       : {
           dir: toDirection(moon),
-          intensity: moon.altitude > 0 ? MOON_INTENSITY * moon.lit * night : 0,
+          intensity: MOON_INTENSITY * moon.lit * night * smooth(clamp01(moonDeg / MOON_FULL_DEG)),
           color: MOON_COLOR,
         }
   return {
@@ -159,7 +188,8 @@ export function skyState(ms: number): SkyState {
     ambient: { intensity: lerp(AMBIENT_DAY, AMBIENT_NIGHT, night), color: mix(AMBIENT_DAY_COLOR, AMBIENT_NIGHT_COLOR, night) },
     glow: night,
     stars: clamp01((night - STARS_FROM) / (1 - STARS_FROM)),
-    moonShade: night,
+    moonShade: night * moonShow,
+    moonShow,
   }
 }
 
