@@ -168,6 +168,19 @@ export default function WorldScene({ onEnter }: Props) {
     setPerf((p) => ({ ...p, fps, minFps: warm ? Math.min(p.minFps ?? fps, fps) : p.minFps }))
   }
 
+  // 열린 건물인지. 목록을 아직 못 읽었으면 열린 것으로 보고, E 를 누를 때 tryEnter 가 다시 확인합니다.
+  const isOpen = (slug: string) => branches === null || branches.some((x) => x.slug === slug)
+  // 안 연 건물 입구에서는 Player 가 입구 자리에 앉히지(숨기지) 않게 하고 "준비 중"만 띄웁니다.
+  // (앉히면 캐릭터가 사라지고 E 를 다시 누를 때까지 움직일 수 없음)
+  const canEnter = (no: number) => {
+    const b = PLACED.find((p) => p.no === no)
+    return !b || isOpen(b.slug)
+  }
+  const blockedEnter = (no: number) => {
+    const b = PLACED.find((p) => p.no === no)
+    if (b) setMessage(`${b.name}은 아직 준비 중입니다.`)
+  }
+
   const nearBuilding = PLACED.find((b) => b.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
@@ -204,7 +217,7 @@ export default function WorldScene({ onEnter }: Props) {
         <Lamps lamps={PLAZA.lamps} />
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
-          <Building key={b.slug} b={b} open={branches === null || branches.some((x) => x.slug === b.slug)} near={near === b.no} />
+          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
         ))}
 
         {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 광장에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
@@ -227,8 +240,13 @@ export default function WorldScene({ onEnter }: Props) {
             frozen={panel !== null}
             onNearKiosk={() => {}}
             onKiosk={() => {}}
-            onNear={setNear}
+            onNear={(no) => {
+              setNear(no)
+              if (no === null) setMessage('') // 입구에서 벗어나면 "준비 중" 안내를 내림
+            }}
             onSeat={(no) => void tryEnter(no)}
+            canSit={canEnter}
+            onSitBlocked={blockedEnter}
             onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z
