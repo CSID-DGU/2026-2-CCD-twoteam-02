@@ -36,10 +36,10 @@ export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
         {onLobby && (
           <>
             <div style={menuDivider} />
-            {/* 버튼으로 나가도 보던 방향 그대로 로비의 그 지점 문 앞에 섭니다. (#150) */}
+            {/* 버튼으로 나가도 보던 방향 그대로 광장의 그 건물 입구 앞에 섭니다. (#150, #315) */}
             <button type="button" style={menuRow} onClick={onLobby}>
               <span style={keyCap}>{keyLabel(keys.lobby)}</span>
-              로비로
+              광장으로
             </button>
           </>
         )}

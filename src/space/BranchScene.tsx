@@ -52,7 +52,7 @@ import type { PresenceStatus } from "./status";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
-const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "로비" 표지판
+const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "광장" 표지판
 const DOOR_COLOR = { idle: "#4ade80", near: "#f59e0b" }; // 로비 문과 같은 색
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 const BAR_HEIGHT = 1.0; // 커피 바 카운터 높이
@@ -260,7 +260,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     return () => window.removeEventListener("keydown", down);
   }, [kioskOpen, panelOpen, meetingOpen, setView]);
 
-  // 로비로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 로비 문 앞에 섭니다(#150).
+  // 광장으로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 광장의 이 건물 입구 앞에 섭니다(#150, #315).
   const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
   // 트래킹 검증 화면으로 (#250). 다른 주소라 지점 화면이 닫히므로 키는 서 있을 때만 받습니다.
   const goTracking = () => navigate("/tracking");
@@ -286,7 +286,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       : nearMeeting // 회의실 문 앞 (#45)
         ? `회의실 · ${K.interact} 들어가기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
-        ? `출입문 · ${K.interact} 로비로 나가기`
+        ? `출입문 · ${K.interact} 광장으로 나가기`
       : isCafe
         ? near !== null
           ? `${near}번 좌석 · ${K.interact} 앉기`
@@ -444,9 +444,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </group>
       )}
 
-      {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
+      {/* 출입문: 남쪽 벽에 붙은 문과 "광장" 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
       {branch.door && branch.theme?.door ? (
-        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="로비" door={branch.theme.door} along="x" />
+        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="광장" door={branch.theme.door} along="x" />
       ) : branch.door && (
         <group>
           <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>
@@ -456,7 +456,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           {/* 표지판은 문 안쪽 면(지점 쪽, -Z)을 보게 반 바퀴 돌립니다. */}
           <mesh position={[branch.door.x, DOOR_SIGN.y, branch.door.z - branch.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
             <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-            <meshBasicMaterial map={labelTexture("로비", "#14532d")} transparent />
+            <meshBasicMaterial map={labelTexture("광장", "#14532d")} transparent />
           </mesh>
         </group>
       )}

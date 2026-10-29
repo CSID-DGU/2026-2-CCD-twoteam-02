@@ -1,11 +1,12 @@
-// 전체 지도 (#300): 로비 광장과 지점 건물을 한 장에 그립니다. 창(InfoPanel)에서 G 로 엽니다.
+// 전체 지도 (#300): 광장과 지점 건물을 한 장에 그립니다. 창(InfoPanel)에서 G 로 엽니다.
 //
-// 배치는 mapLogic.ts 가 로비 문 목록과 지점 JSON 으로 계산하므로, 지점을 추가하면 지도에 저절로 나타납니다.
+// 배치는 mapLogic.ts 가 광장 배치(world.json)와 지점 JSON 으로 계산하므로 3D 광장과 같은 모양입니다. (#315)
 // 처음에는 건물 지붕과 이름·접속 인원만 보이고, 커서를 올리거나 누르면 지붕이 투명해지며 안(책상·좌석 등)이 보입니다.
 // 3D 를 쓰지 않고 SVG(벡터 그림)로 그립니다. 단위는 m 이고 viewBox 가 지도 전체라 창 크기에 맞춰 늘고 줄어듭니다.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
-import lobbyLayout from '../lobby/lobby.json'
+import world from '../world/world.json'
+import type { PlazaLayout } from '../world/worldLogic'
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { KIOSK, SEAT, CHAIR, spotsOf } from '../space/layout'
 import type { Box } from '../space/layout'
@@ -24,18 +25,16 @@ export type MapHere = {
   mySeat?: number | null
 }
 
-const WORLD = buildWorld(lobbyLayout, BRANCH_LAYOUTS, MEETING_ROOM.size) // 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만
+const WORLD = buildWorld(world as PlazaLayout, BRANCH_LAYOUTS, MEETING_ROOM.size) // 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만
 
-const ROOF_COLORS = ['#a0463c', '#3f6e9e', '#6b8e3a', '#8a5a9e', '#b07a2e', '#3e8a85'] // 지점 순서대로 지붕 색
 const MEETING_ROOF = '#5b5f6b'
 const WALL = '#5d4a3a'
 const FLOOR = '#e8e2d6' // 3D 바닥과 같은 색
 const DESK = '#b98a5a' // 3D 책상과 같은 색
 const CHAIR_COLOR = '#4a5160'
 const DOOR = '#2e9e4f' // 3D 문과 비슷한 초록
-const ROAD = '#d9a85b'
-const ROAD_INNER = '#e9c27f'
-const ROAD_W = 2.6 // 길 너비 (m)
+const WATER = '#6fbbe0' // 분수 물
+const STONE = '#a9a196' // 분수 테두리
 const ARROW = 1.8 // 내 화살표 길이 (m)
 const MEETING_TABLE_SEATS = 6 // 회의실 안 원형 테이블 크기(인원 기준, 지도용)
 
@@ -45,7 +44,7 @@ export function WorldMap({ here }: { here?: MapHere }) {
   const keys = useKeymap()
   const me = here ? findPlace(WORLD, here.place) : null
   const [hovered, setHovered] = useState<string | null>(null)
-  // 눌러서 열어 둔 건물 (터치 화면용). 처음에는 내가 있는 건물을 열어 둡니다. (로비는 지붕이 없음, 회의실은 그 지점 건물)
+  // 눌러서 열어 둔 건물 (터치 화면용). 처음에는 내가 있는 건물을 열어 둡니다. (광장은 지붕이 없음, 회의실은 그 지점 건물)
   const [pinned, setPinned] = useState<string | null>(() => WORLD.branches.find((b) => b === me || b.meeting === me)?.place ?? null)
   const open = (place: string) => hovered === place || pinned === place
 
@@ -90,16 +89,8 @@ export function WorldMap({ here }: { here?: MapHere }) {
 
         <rect x={b.x - b.w / 2} y={b.z - b.d / 2} width={b.w} height={b.d} fill="url(#map-grass)" />
 
-        {/* 길: 로비 문 → 지점 출입문 */}
-        {WORLD.roads.map((road, i) => {
-          const d = road.map((p, j) => `${j ? 'L' : 'M'}${p.x} ${p.z}`).join(' ')
-          return (
-            <g key={i} fill="none" strokeLinejoin="round" strokeLinecap="square">
-              <path d={d} stroke={ROAD} strokeWidth={ROAD_W} />
-              <path d={d} stroke={ROAD_INNER} strokeWidth={ROAD_W * 0.6} />
-            </g>
-          )
-        })}
+        {/* 광장 돌바닥과 건물 입구로 가는 돌길 */}
+        <Plaza count={counts.get(WORLD.lobby.place) ?? 0} />
 
         {WORLD.trees.map((t, i) => (
           <g key={i} transform={`translate(${t.x} ${t.z})`}>
@@ -108,8 +99,6 @@ export function WorldMap({ here }: { here?: MapHere }) {
             <circle cx="-0.2" cy="-0.22" r="0.45" fill="#46994d" />
           </g>
         ))}
-
-        <Lobby count={counts.get(WORLD.lobby.place) ?? 0} />
 
         {WORLD.branches.map((br) => (
           <Branch
@@ -151,15 +140,19 @@ function arrowPoints(l: number) {
 
 const rectProps = (r: Rect) => ({ x: r.x - r.w / 2, y: r.z - r.d / 2, width: r.w, height: r.d })
 
-function Lobby({ count }: { count: number }) {
+// 광장: 돌바닥, 돌길, 가운데 분수, 이름표
+function Plaza({ count }: { count: number }) {
   const l = WORLD.lobby
+  const f = WORLD.fountain
   return (
     <g>
-      <rect {...rectProps(l.rect)} fill="url(#map-plaza)" stroke="#8a7a5e" strokeWidth="0.3" />
-      {lobbyLayout.doors.map((d) => (
-        <rect key={d.no} {...rectProps(boxToMap(l, { x: d.x, z: -l.rect.d / 2, w: d.w, d: 0.5 }))} fill={DOOR} />
+      {WORLD.paths.map((p, i) => (
+        <rect key={i} {...rectProps(p)} fill="url(#map-plaza)" />
       ))}
-      <Label x={l.rect.x} z={l.rect.z + l.rect.d / 2 - 2.6} name="로비 광장" count={count} />
+      <rect {...rectProps(l.rect)} fill="url(#map-plaza)" stroke="#8a7a5e" strokeWidth="0.3" />
+      <circle cx={f.x} cy={f.z} r={f.r} fill={STONE} />
+      <circle cx={f.x} cy={f.z} r={f.r * 0.85} fill={WATER} />
+      <Label x={l.rect.x} z={l.rect.z + l.rect.d / 2 - 2.6} name="광장" count={count} />
     </g>
   )
 }
@@ -176,7 +169,7 @@ type BranchProps = {
 
 function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: BranchProps) {
   const { layout } = branch
-  const roof = ROOF_COLORS[branch.index % ROOF_COLORS.length]
+  const roof = branch.roof // 3D 광장의 지붕 색과 같음
   const box = (bx: Box) => rectProps(boxToMap(branch, bx))
   return (
     <g
