@@ -449,6 +449,16 @@
       "id": "ponytail-textured",
       "name": "포니테일 (텍스처)",
       "model": "/models/Parts/hair/ponytail-textured.gltf"
+    },
+    {
+      "id": "spiky-up",
+      "name": "부스스 세운 머리",
+      "model": "/models/Parts/hair/spiky-up.gltf"
+    },
+    {
+      "id": "spiky-up-textured",
+      "name": "부스스 세운 머리 (텍스처)",
+      "model": "/models/Parts/hair/spiky-up-textured.gltf"
     }
   ],
   "top": [

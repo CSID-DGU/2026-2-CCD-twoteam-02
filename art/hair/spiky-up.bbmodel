@@ -1,0 +1,2196 @@
+{
+	"meta": {
+		"format_version": "4.10",
+		"model_format": "free",
+		"box_uv": false
+	},
+	"name": "spiky-up",
+	"model_identifier": "",
+	"resolution": {
+		"width": 16,
+		"height": 16
+	},
+	"elements": [
+		{
+			"name": "정수리",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.4,
+				7.6,
+				-4.4
+			],
+			"to": [
+				4.4,
+				9.2,
+				4.4
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "ddf268d9-57e2-46fc-ad5d-a22f46fdf440"
+		},
+		{
+			"name": "뒤통수",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.4,
+				2.5,
+				-4.85
+			],
+			"to": [
+				4.4,
+				8.6,
+				-3.95
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "ae754b7c-bd41-4cc6-9ebe-78f064ee5ee2"
+		},
+		{
+			"name": "앞 머리선",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.4,
+				7,
+				4.05
+			],
+			"to": [
+				4.4,
+				8.6,
+				4.65
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "92f608cb-a061-4c98-9322-afd719a6c6fd"
+		},
+		{
+			"name": "앞 잔머리 1",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-3.6,
+				6.6,
+				4.1
+			],
+			"to": [
+				-2.2,
+				7.2,
+				4.6
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "11f57d75-5775-47bc-ae64-4398d46379f3"
+		},
+		{
+			"name": "앞 잔머리 2",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-0.6,
+				6.7,
+				4.1
+			],
+			"to": [
+				0.8,
+				7.2,
+				4.6
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "b85f9b4d-8cde-4737-98f9-e82ecac0f5dd"
+		},
+		{
+			"name": "앞 잔머리 3",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				2,
+				6.5,
+				4.1
+			],
+			"to": [
+				3.4,
+				7.2,
+				4.6
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "bfe0a65a-4e36-47a6-b24a-433796acc61b"
+		},
+		{
+			"name": "옆머리 R",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				4,
+				5,
+				-4.4
+			],
+			"to": [
+				4.7,
+				8.6,
+				3
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "1e84049e-8729-4b2d-b009-7eaf38a07bec"
+		},
+		{
+			"name": "옆 앞쪽 R",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				4,
+				5.6,
+				3
+			],
+			"to": [
+				4.7,
+				8.6,
+				4.5
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "d905c339-acd7-4ab0-a85d-795a03e8906a"
+		},
+		{
+			"name": "옆 삐침 R",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				4.1,
+				7.8,
+				-1.6
+			],
+			"to": [
+				4.9,
+				9.6,
+				0.8
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				4.5,
+				7.8,
+				-0.4
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "e8174a2c-966b-4483-abfd-f25028b30832",
+			"rotation": [
+				0,
+				0,
+				-30
+			]
+		},
+		{
+			"name": "옆머리 L",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.7,
+				5,
+				-4.4
+			],
+			"to": [
+				-4,
+				8.6,
+				3
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "d0436717-585a-463f-b343-0b7970c7fcfe"
+		},
+		{
+			"name": "옆 앞쪽 L",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.7,
+				5.6,
+				3
+			],
+			"to": [
+				-4,
+				8.6,
+				4.5
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "5a149cfd-c858-44b2-a794-10333e51cba9"
+		},
+		{
+			"name": "옆 삐침 L",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.9,
+				7.8,
+				-1.6
+			],
+			"to": [
+				-4.1,
+				9.6,
+				0.8
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-4.5,
+				7.8,
+				-0.4
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "aad513f0-f7f4-4eb7-8775-15c1a75b5ea6",
+			"rotation": [
+				0,
+				0,
+				30
+			]
+		},
+		{
+			"name": "윗머리 덩어리 1",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4.25,
+				8.6,
+				1.35
+			],
+			"to": [
+				-2.35,
+				12.2,
+				3.65
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-3.3,
+				8.6,
+				2.5
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "9a323d49-7233-4c25-9c30-0b90e31af95d",
+			"rotation": [
+				18,
+				0,
+				22
+			]
+		},
+		{
+			"name": "윗머리 덩어리 2",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-2.55,
+				8.6,
+				1.55
+			],
+			"to": [
+				-0.65,
+				13,
+				3.85
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-1.6,
+				8.6,
+				2.7
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "fe8c4b3a-ae2c-412e-a8eb-05cd096a97c7",
+			"rotation": [
+				20,
+				0,
+				8
+			]
+		},
+		{
+			"name": "윗머리 덩어리 3",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-0.75,
+				8.6,
+				1.65
+			],
+			"to": [
+				1.15,
+				13.4,
+				3.95
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0.2,
+				8.6,
+				2.8
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "eaee83fc-1ba0-4b29-a129-28904a53238a",
+			"rotation": [
+				22,
+				0,
+				-4
+			]
+		},
+		{
+			"name": "윗머리 덩어리 4",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				1.05,
+				8.6,
+				1.45
+			],
+			"to": [
+				2.95,
+				12.8,
+				3.75
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				2,
+				8.6,
+				2.6
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "1eae5c49-a4f8-4e2f-bd48-0c5bfbc08933",
+			"rotation": [
+				18,
+				0,
+				-14
+			]
+		},
+		{
+			"name": "윗머리 덩어리 5",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				2.55,
+				8.6,
+				1.15
+			],
+			"to": [
+				4.45,
+				11.8,
+				3.45
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				3.5,
+				8.6,
+				2.3
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "5d4e517b-612b-4841-b570-399d6a62ec39",
+			"rotation": [
+				14,
+				0,
+				-26
+			]
+		},
+		{
+			"name": "윗머리 덩어리 6",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-3.95,
+				8.6,
+				-0.95
+			],
+			"to": [
+				-2.05,
+				11.6,
+				1.35
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-3,
+				8.6,
+				0.2
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "a69cdde3-4ce4-45a0-86d4-e32cdaa7855d",
+			"rotation": [
+				10,
+				0,
+				18
+			]
+		},
+		{
+			"name": "윗머리 덩어리 7",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-1.95,
+				8.6,
+				-0.75
+			],
+			"to": [
+				-0.05,
+				12.4,
+				1.55
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-1,
+				8.6,
+				0.4
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "b6891d71-822f-44a3-b47c-adde7649ade5",
+			"rotation": [
+				12,
+				0,
+				6
+			]
+		},
+		{
+			"name": "윗머리 덩어리 8",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				0.05,
+				8.6,
+				-0.95
+			],
+			"to": [
+				1.95,
+				12.2,
+				1.35
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				1,
+				8.6,
+				0.2
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "a5f26f89-1a1d-4cb9-8737-f9895ee2f5f0",
+			"rotation": [
+				10,
+				0,
+				-8
+			]
+		},
+		{
+			"name": "윗머리 덩어리 9",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				2.05,
+				8.6,
+				-1.15
+			],
+			"to": [
+				3.95,
+				11.4,
+				1.15
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				3,
+				8.6,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "108a0112-7f92-4cbc-b4a5-2840ce193b67",
+			"rotation": [
+				8,
+				0,
+				-20
+			]
+		},
+		{
+			"name": "윗머리 덩어리 10",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-3.35,
+				8.6,
+				-3.55
+			],
+			"to": [
+				-1.45,
+				11,
+				-1.25
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				-2.4,
+				8.6,
+				-2.4
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "1b71ed83-56b7-4417-adf0-5a5e0af373d5",
+			"rotation": [
+				-4,
+				0,
+				14
+			]
+		},
+		{
+			"name": "윗머리 덩어리 11",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-0.95,
+				8.6,
+				-3.75
+			],
+			"to": [
+				0.95,
+				11.4,
+				-1.45
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				0,
+				8.6,
+				-2.6
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "f35081c1-cab3-43e7-ae78-20d34e751388",
+			"rotation": [
+				-2,
+				0,
+				-2
+			]
+		},
+		{
+			"name": "윗머리 덩어리 12",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				1.45,
+				8.6,
+				-3.55
+			],
+			"to": [
+				3.35,
+				10.8,
+				-1.25
+			],
+			"autouv": 0,
+			"color": 0,
+			"origin": [
+				2.4,
+				8.6,
+				-2.4
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "3c1e780f-208e-452e-b151-328a221f4ec8",
+			"rotation": [
+				-4,
+				0,
+				-14
+			]
+		},
+		{
+			"name": "머리 (확인용)",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-4,
+				0,
+				-4
+			],
+			"to": [
+				4,
+				8,
+				4
+			],
+			"autouv": 0,
+			"color": 1,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "8db0433b-4260-411f-ae39-99cd64f5f3d5"
+		},
+		{
+			"name": "얼굴 쪽 표시",
+			"box_uv": false,
+			"rescale": false,
+			"locked": false,
+			"from": [
+				-1,
+				3,
+				4
+			],
+			"to": [
+				1,
+				4.5,
+				5
+			],
+			"autouv": 0,
+			"color": 2,
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"visibility": true,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"east": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"west": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"up": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				},
+				"down": {
+					"uv": [
+						0,
+						0,
+						1,
+						1
+					]
+				}
+			},
+			"type": "cube",
+			"uuid": "1a98d2bc-6bc4-4eca-8c13-8d1f0f173b5c"
+		}
+	],
+	"outliner": [
+		{
+			"name": "내 머리 (이 묶음 안의 상자만 내보내짐)",
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"color": 0,
+			"uuid": "c2b944ff-38d0-42a1-91e1-78376d259d53",
+			"export": true,
+			"isOpen": true,
+			"locked": false,
+			"visibility": true,
+			"autouv": 0,
+			"children": [
+				{
+					"name": "바탕",
+					"origin": [
+						0,
+						0,
+						0
+					],
+					"color": 0,
+					"uuid": "023a291a-e387-470b-b847-b816b6c1f2a3",
+					"export": true,
+					"mirror_uv": false,
+					"isOpen": true,
+					"locked": false,
+					"visibility": true,
+					"autouv": 0,
+					"children": [
+						"ddf268d9-57e2-46fc-ad5d-a22f46fdf440",
+						"ae754b7c-bd41-4cc6-9ebe-78f064ee5ee2"
+					]
+				},
+				{
+					"name": "앞 머리선",
+					"origin": [
+						0,
+						0,
+						0
+					],
+					"color": 0,
+					"uuid": "9ba5fcdd-4cdc-4960-8e8a-6e96e26a339e",
+					"export": true,
+					"mirror_uv": false,
+					"isOpen": true,
+					"locked": false,
+					"visibility": true,
+					"autouv": 0,
+					"children": [
+						"92f608cb-a061-4c98-9322-afd719a6c6fd",
+						"11f57d75-5775-47bc-ae64-4398d46379f3",
+						"b85f9b4d-8cde-4737-98f9-e82ecac0f5dd",
+						"bfe0a65a-4e36-47a6-b24a-433796acc61b"
+					]
+				},
+				{
+					"name": "옆머리",
+					"origin": [
+						0,
+						0,
+						0
+					],
+					"color": 0,
+					"uuid": "fd002bb4-dc3c-4ba7-bfad-142208a41c8a",
+					"export": true,
+					"mirror_uv": false,
+					"isOpen": true,
+					"locked": false,
+					"visibility": true,
+					"autouv": 0,
+					"children": [
+						"1e84049e-8729-4b2d-b009-7eaf38a07bec",
+						"d905c339-acd7-4ab0-a85d-795a03e8906a",
+						"e8174a2c-966b-4483-abfd-f25028b30832",
+						"d0436717-585a-463f-b343-0b7970c7fcfe",
+						"5a149cfd-c858-44b2-a794-10333e51cba9",
+						"aad513f0-f7f4-4eb7-8775-15c1a75b5ea6"
+					]
+				},
+				{
+					"name": "윗머리",
+					"origin": [
+						0,
+						0,
+						0
+					],
+					"color": 0,
+					"uuid": "692487dd-f5a4-41d8-8ace-0281e97c2736",
+					"export": true,
+					"mirror_uv": false,
+					"isOpen": true,
+					"locked": false,
+					"visibility": true,
+					"autouv": 0,
+					"children": [
+						"9a323d49-7233-4c25-9c30-0b90e31af95d",
+						"fe8c4b3a-ae2c-412e-a8eb-05cd096a97c7",
+						"eaee83fc-1ba0-4b29-a129-28904a53238a",
+						"1eae5c49-a4f8-4e2f-bd48-0c5bfbc08933",
+						"5d4e517b-612b-4841-b570-399d6a62ec39",
+						"a69cdde3-4ce4-45a0-86d4-e32cdaa7855d",
+						"b6891d71-822f-44a3-b47c-adde7649ade5",
+						"a5f26f89-1a1d-4cb9-8737-f9895ee2f5f0",
+						"108a0112-7f92-4cbc-b4a5-2840ce193b67",
+						"1b71ed83-56b7-4417-adf0-5a5e0af373d5",
+						"f35081c1-cab3-43e7-ae78-20d34e751388",
+						"3c1e780f-208e-452e-b151-328a221f4ec8"
+					]
+				}
+			]
+		},
+		{
+			"name": "머리 확인용 (내보내지 않음)",
+			"origin": [
+				0,
+				0,
+				0
+			],
+			"color": 0,
+			"uuid": "d7a29d13-613f-4634-83f1-282bd6856e97",
+			"export": false,
+			"isOpen": false,
+			"locked": false,
+			"visibility": true,
+			"autouv": 0,
+			"children": [
+				"8db0433b-4260-411f-ae39-99cd64f5f3d5",
+				"1a98d2bc-6bc4-4eca-8c13-8d1f0f173b5c"
+			]
+		}
+	],
+	"textures": []
+}
