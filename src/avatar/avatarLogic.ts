@@ -81,7 +81,7 @@ export const DEFAULT_AVATAR: Avatar = {
   brows: 'straight',
   mouth: 'soft-smile', // 살짝 웃는 입 (김현 그림, 10/27)
   mouthOpen: 'big-smile', // 활짝 벌린 입
-  hair: 'short',
+  hair: 'none', // 머리카락 없음 (10/30 김현: 기본 머리 5종·단발·단색 버전을 지우고 텍스처 머리만 남김)
   hairColor: '#3b2a20',
   top: 'tshirt',
   topColor: '#4f86f7',

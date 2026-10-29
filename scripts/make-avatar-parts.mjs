@@ -311,13 +311,9 @@ function makeParts(faces) {
     mouth: [],
     mouthOpen: [],
     // 머리카락은 머리에 붙이는 입체 부품(#296). 그리기 대신 상자 목록(HAIR_BOXES)을 주면 3D 모델 파일(.gltf)로 만든다
+    // 코드로 만든 기본 머리는 지우고(10/30) Blockbench 로 만든 머리만 쓴다. HAIR_BOXES 는 머리-시작.bbmodel 의 예시로만 남김
     hair: [
       ['none', '없음', null],
-      ['short', '짧은 머리', HAIR_BOXES.short],
-      ['long', '긴 머리', HAIR_BOXES.long],
-      ['buzz', '아주 짧은 머리', HAIR_BOXES.buzz],
-      ['spiky', '삐죽 머리', HAIR_BOXES.spiky],
-      ['bun', '똥머리', HAIR_BOXES.bun],
     ],
     top: [
       ['tshirt', '반팔 티셔츠', (p) => {
