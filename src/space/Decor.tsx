@@ -6,9 +6,9 @@ import { useFrame } from '@react-three/fiber'
 import { DoubleSide, Path, Shape } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, DINER_DESK, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
-import type { BranchTheme, FanSpot, Frame, Globe, Menu, RingTable as RingTableSpec, SharedTable, Shelf, Tree } from './theme'
-import { POSTER_PX, checkerTexture, menuTexture, signTexture, tileTexture } from './patternTexture'
+import { ARCH_DOOR, BOOTH, DINER_DESK, MARBLE_TABLE, MUSHROOM, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import type { Booth, BranchTheme, FanSpot, Frame, Globe, Menu, Mushroom, RingTable as RingTableSpec, SharedTable, Shelf, Tree } from './theme'
+import { POSTER_PX, checkerTexture, marbleTexture, menuTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -37,6 +37,8 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
       {theme.ceiling?.globes?.map((g, i) => <GlobeLamp key={i} globe={g} height={h} />)}
       {theme.tree && <OliveTree tree={theme.tree} />}
       {theme.shelves?.map((sh, i) => <WallShelf key={i} shelf={sh} />)}
+      {theme.booth && theme.booths?.map((b, i) => <CircleBooth key={i} booth={b} leather={theme.booth!.leather} marble={theme.booth!.marble} />)}
+      {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
     </group>
   )
 }
@@ -386,10 +388,24 @@ function GlobeLamp({ globe, height }: { globe: Globe; height: number }) {
         <cylinderGeometry args={[GLOBE.cordR, GLOBE.cordR, cordH, 6]} />
         <meshStandardMaterial color="#222222" />
       </mesh>
-      <mesh position={[0, globe.y, 0]}>
-        <sphereGeometry args={[GLOBE.r, 20, 14]} />
-        <meshStandardMaterial color="#fff6e6" emissive="#ffe6c2" emissiveIntensity={1.1} />
-      </mesh>
+      {globe.style === 'disc' ? (
+        <>
+          {/* 원반 갓: 납작한 원통, 아래에 작은 전구 */}
+          <mesh position={[0, globe.y + 0.04, 0]}>
+            <cylinderGeometry args={[GLOBE.r * 1.6, GLOBE.r * 1.6, 0.02, 32]} />
+            <meshStandardMaterial color="#e8e6e2" metalness={0.3} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, globe.y - 0.04, 0]}>
+            <sphereGeometry args={[GLOBE.r * 0.45, 14, 10]} />
+            <meshStandardMaterial color="#fff6e6" emissive="#ffe6c2" emissiveIntensity={1.2} />
+          </mesh>
+        </>
+      ) : (
+        <mesh position={[0, globe.y, 0]}>
+          <sphereGeometry args={[GLOBE.r, 20, 14]} />
+          <meshStandardMaterial color="#fff6e6" emissive="#ffe6c2" emissiveIntensity={1.1} />
+        </mesh>
+      )}
       {globe.light && <pointLight position={[0, globe.y, 0]} color="#ffdcae" intensity={GLOBE.intensity} distance={GLOBE.distance} decay={2} />}
     </group>
   )
@@ -597,13 +613,106 @@ function WoodDoor({
       {[face, -face].map((zz, i) => (
         <mesh key={i} position={[len / 2 - 0.18, W.knobY, zz + (i ? -1 : 1) * W.knobR * 0.6]}>
           <sphereGeometry args={[W.knobR, 12, 10]} />
-          <meshStandardMaterial color="#c8a25a" metalness={0.8} roughness={0.3} />
+          <meshStandardMaterial color={door.knob ?? '#c8a25a'} metalness={0.8} roughness={0.3} />
         </mesh>
       ))}
       <mesh position={[0, W.signY, -face]} rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[W.signW, signH]} />
         <meshBasicMaterial map={signTexture({ text: label, bg: door.signBg, style: 'plain' })} />
       </mesh>
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------
+// 라운지 테마 소품 (흑요 라운지)
+// ---------------------------------------------------------------
+const LEATHER = { roughness: 0.45, metalness: 0.05 }
+
+// 반지름 inner~outer, 각도 from~to 인 부채꼴 고리 모양 (xy 평면). 원형 부스의 방석·등받이 바닥 모양
+function arcBand(inner: number, outer: number, from: number, to: number) {
+  const s = new Shape()
+  s.absarc(0, 0, outer, from, to, false)
+  s.absarc(0, 0, inner, to, from, true)
+  s.closePath()
+  return s
+}
+
+// 원형 부스 + 가운데 대리석 테이블. 부스는 열린 쪽(open)을 빼고 C 모양으로 테이블을 감쌉니다.
+// 부스는 장애물이 아닙니다(의자·소파와 같음). 그래야 부스 뒤에서도 안쪽 자리에 앉을 수 있습니다.
+export function CircleBooth({ booth, leather, marble }: { booth: Booth; leather: string; marble: [string, string] }) {
+  const B = BOOTH
+  // 방향 규칙: 자리 각도 a 는 바닥에서 (sin a, cos a) 방향. x 축으로 -90° 눕힌 모양 평면의 점 (cos φ, sin φ) 는
+  // 바닥의 (cos φ, -sin φ) 로 가므로, 같은 방향이 되려면 φ = a - π/2 입니다.
+  const toShape = (a: number) => a - Math.PI / 2
+  const from = toShape(booth.open + B.gap) // 열린 쪽 양옆(gap)을 빼고 반대편으로 돌아 감쌈
+  const to = toShape(booth.open + Math.PI * 2 - B.gap)
+  const seat = useMemo(() => arcBand(BOOTH.seatIn, BOOTH.seatOut, from, to), [from, to]) // BOOTH 는 상수라 의존성에 안 넣음
+  const back = useMemo(() => arcBand(BOOTH.seatOut, BOOTH.backOut, from, to), [from, to])
+  const T = MARBLE_TABLE
+  return (
+    <group position={[booth.x, 0, booth.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[seat, { depth: B.seatH, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2, curveSegments: 40 }]} />
+        <meshStandardMaterial color={leather} {...LEATHER} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[back, { depth: B.backH, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2, curveSegments: 40 }]} />
+        <meshStandardMaterial color={leather} {...LEATHER} />
+      </mesh>
+      {/* 대리석 테이블: 받침 원판 + 기둥 + 상판(윗면에 대리석 결) */}
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[T.baseR, T.baseR, 0.04, 24]} />
+        <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
+      </mesh>
+      <mesh position={[0, (T.height - T.topT) / 2, 0]}>
+        <cylinderGeometry args={[T.stemR, T.stemR, T.height - T.topT, 16]} />
+        <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
+      </mesh>
+      <mesh position={[0, T.height - T.topT / 2, 0]}>
+        <cylinderGeometry args={[T.r, T.r, T.topT, 40]} />
+        <meshStandardMaterial color={marble[0]} roughness={0.25} metalness={0.1} />
+      </mesh>
+      <mesh position={[0, T.height + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[T.r, 40]} />
+        <meshStandardMaterial map={marbleTexture(marble)} roughness={0.2} metalness={0.1} />
+      </mesh>
+    </group>
+  )
+}
+
+// 부스 안 자리 표시: 방석 위 얇은 가죽 판. 가까이·내 자리면 강조색으로 바뀌어 어디에 앉는지 보입니다
+export function SeatPad({ x, z, color }: { x: number; z: number; color: string }) {
+  return (
+    <mesh position={[x, BOOTH.seatH + 0.03, z]}>
+      <cylinderGeometry args={[0.2, 0.2, 0.03, 20]} />
+      <meshStandardMaterial color={color} {...LEATHER} />
+    </mesh>
+  )
+}
+
+// 버섯 조명: 가는 기둥 + 위가 둥근 반구 갓. 갓 아래가 빛나고 light 면 주변도 비춥니다
+function MushroomLamp({ lamp }: { lamp: Mushroom }) {
+  const M = MUSHROOM
+  return (
+    <group position={[lamp.x, lamp.y, lamp.z]}>
+      <mesh position={[0, 0.01, 0]}>
+        <cylinderGeometry args={[0.05, 0.06, 0.02, 16]} />
+        <meshStandardMaterial color="#b9bcc2" metalness={0.8} roughness={0.25} />
+      </mesh>
+      <mesh position={[0, M.stemH / 2, 0]}>
+        <cylinderGeometry args={[M.stemR, M.stemR, M.stemH, 8]} />
+        <meshStandardMaterial color="#b9bcc2" metalness={0.8} roughness={0.25} />
+      </mesh>
+      <mesh position={[0, M.stemH, 0]}>
+        <sphereGeometry args={[M.capR, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color="#c9ccd2" metalness={0.85} roughness={0.2} side={DoubleSide} />
+      </mesh>
+      <mesh position={[0, M.stemH - 0.01, 0]}>
+        <sphereGeometry args={[0.04, 10, 8]} />
+        <meshStandardMaterial color="#fff1d6" emissive="#ffd8a0" emissiveIntensity={1.4} />
+      </mesh>
+      {lamp.light && <pointLight position={[0, M.stemH - 0.05, 0]} color="#ffd2a0" intensity={M.intensity} distance={M.distance} decay={2} />}
     </group>
   )
 }
