@@ -13,7 +13,7 @@ import { useHeartbeat } from './auth/useHeartbeat'
 import ForgotPasswordPage from './auth/ForgotPasswordPage'
 import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
-import LobbyScene from './lobby/LobbyScene'
+import WorldScene from './world/WorldScene'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
@@ -75,15 +75,15 @@ function AppRoutes() {
       />
       {/* 이메일 변경 확인 메일의 링크가 돌아오는 곳. 로그인 상태가 애매할 수 있어 울타리 밖에 둡니다. */}
       <Route path="/email-changed" element={<EmailChangedPage onGoLogin={() => navigate('/login')} />} />
-      {/* 첫 화면은 로비입니다. 지점 문으로 들어가면 그 지점 공간으로 갑니다. */}
+      {/* 첫 화면은 광장입니다(#315). 지점 건물 입구로 들어가면 그 지점 공간으로 갑니다. */}
       <Route
         path="/"
         element={
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}>
-              <LobbyScene onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
+              <WorldScene onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
             </div>
-            {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로그아웃)는 LobbyScene 이 그립니다. (#70, #208) */}
+            {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로그아웃)는 WorldScene 이 그립니다. (#70, #208) */}
           </Protected>
         }
       />
