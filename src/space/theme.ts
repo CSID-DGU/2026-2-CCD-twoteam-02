@@ -12,17 +12,56 @@ export type Frame = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; text: s
 // 가구 모양. diner = 크롬 테두리·다리가 있는 테이블과 등받이 소파. 없으면 상자 책상·의자.
 // tables: 여러 자리가 같이 쓰는 긴 높은 테이블(바 테이블). 이 안에 있는 자리는 개별 책상을 그리지 않는다. 높은 의자(tall) 자리용.
 export type SharedTable = { x: number; z: number; w: number; d: number }
-export type Furniture = { style: 'diner'; accent: string; chrome: string; trim?: string; tables?: SharedTable[] } // accent: 소파 등받이 흰 띠, chrome: 다리·기둥, trim: 상판 테두리 색(없으면 chrome)
+// 고리 테이블: 가운데(나무 등)를 둘러싼 둥근 테이블. inner~outer 반지름 사이가 상판
+export type RingTable = { x: number; z: number; inner: number; outer: number }
+// style: diner = 크롬 다리·소파, wood = 원목 다리·원목 의자·원목 부스(자리마다 seats[].chair 로 고름)
+// accent: 소파 흰 띠·부스 쿠션 색, chrome: 다리·기둥 색, trim: 상판 테두리 색(없으면 chrome)
+export type Furniture = { style: 'diner' | 'wood'; accent: string; chrome: string; trim?: string; tables?: SharedTable[]; rings?: RingTable[] }
 
-// 자리가 공용 테이블 안에 있는지 (개별 책상을 그릴지 정하는 데 씀)
-export function insideTable(seat: { x: number; z: number }, tables?: SharedTable[]): boolean {
-  return (tables ?? []).some((t) => Math.abs(seat.x - t.x) <= t.w / 2 && Math.abs(seat.z - t.z) <= t.d / 2)
+// 자리가 공용 테이블(긴 테이블 또는 고리 테이블) 안에 있는지 (개별 책상을 그릴지 정하는 데 씀)
+export function insideTable(seat: { x: number; z: number }, tables?: SharedTable[], rings?: RingTable[]): boolean {
+  const inRect = (tables ?? []).some((t) => Math.abs(seat.x - t.x) <= t.w / 2 && Math.abs(seat.z - t.z) <= t.d / 2)
+  const inRing = (rings ?? []).some((r) => {
+    const dist = Math.hypot(seat.x - r.x, seat.z - r.z)
+    return dist >= r.inner && dist <= r.outer
+  })
+  return inRect || inRing
 }
 
+// 고리 테이블 둘레에 count 자리를 고르게 놓습니다. 책상 자리는 상판 가운데 반지름, rot 은 가운데를 바라봄.
+// (의자는 spotsOf 가 rot 반대쪽으로 0.65 떨어뜨려 놓으므로 상판 바깥에 앉게 됩니다)
+export function ringSeats(ring: RingTable, count: number, startNo: number, startAngle = 0): { no: number; x: number; z: number; rot: number }[] {
+  const r = (ring.inner + ring.outer) / 2
+  return Array.from({ length: count }, (_, i) => {
+    const a = startAngle + (i * 2 * Math.PI) / count
+    const x = ring.x + Math.sin(a) * r
+    const z = ring.z + Math.cos(a) * r
+    return { no: startNo + i, x: round3(x), z: round3(z), rot: round3(a + Math.PI) }
+  })
+}
+const round3 = (v: number) => Math.round(v * 1000) / 1000
+
+// 올리브 나무: 둥근 화분 테두리 + 줄기 + 가지 + 잎 덩어리. 가운데 고리 테이블 안에 둡니다
+export type Tree = { x: number; z: number; potR: number; height: number }
+// 벽 선반: 원목 판 rows 줄 + 판마다 작은 그릇·꽃병. face 는 선반이 보는 쪽(벽 안쪽)
+export type Shelf = { x: number; z: number; face: Frame['face']; w: number; rows: number }
+// 둥근 전구 조명: 줄에 매달린 흰 구. light 면 실제 빛(pointLight)도 냄 (많으면 느려져 일부만)
+export type Globe = { x: number; z: number; y: number; light?: boolean }
+
 export type BranchTheme = {
-  floor?: { pattern: 'checker'; colors: [string, string]; cell: number } // cell: 체크 한 칸 크기(m)
+  // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
+  floor?: { pattern: 'checker' | 'brick'; colors: [string, string]; cell: number }
   wall?: { color: string; neon?: string } // neon: 벽 위쪽 네온 띠 색 (없으면 안 그림)
-  ceiling?: { color: string; height?: number; fans?: FanSpot[]; lamps?: { x: number; z: number }[] } // height: 천장·벽 높이(기본 2.5), lamps: 펜던트 조명 자리
+  ceiling?: {
+    color: string
+    height?: number // 천장·벽 높이(기본 2.5)
+    fans?: FanSpot[]
+    lamps?: { x: number; z: number }[] // 크롬 돔 펜던트 조명
+    globes?: Globe[] // 둥근 전구 조명
+    grid?: { color: string; step: number; y: number } // 천장 아래 철제 격자 (step 간격, y 높이)
+  }
+  tree?: Tree
+  shelves?: Shelf[]
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
@@ -30,7 +69,8 @@ export type BranchTheme = {
   chair?: string // 의자 기본색. 가까이·내 자리 강조색은 테마와 무관
   furniture?: Furniture
   light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
-  door?: { color: string; chrome: string; signBg: string } // 출입문·회의실 문 색, 크롬 테두리, 양철 간판 표지판 색. 앞에 서면 주황 강조는 그대로
+  // 출입문·회의실 문. style: arch = 아치형 크롬 틀(기본), wood = 원목 문 + 둥근 손잡이. 앞에 서면 주황 강조는 그대로
+  door?: { style?: 'arch' | 'wood'; color: string; chrome: string; signBg: string }
 }
 
 
@@ -106,6 +146,13 @@ export function stoolBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
   return (theme?.counter?.stools ?? []).map((s) => ({ x: s.x, z: s.z, ...STOOL.box }))
 }
 
+// 나무·고리 테이블 가운데는 걸어 들어가지 못하게: 고리 안쪽 지름만큼의 상자 (고리 상판은 자리 책상 상자가 막음)
+export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: number; d: number }[] {
+  const rings = (theme?.furniture?.rings ?? []).map((r) => ({ x: r.x, z: r.z, w: r.inner * 2, d: r.inner * 2 }))
+  const tree = theme?.tree && !rings.length ? [{ x: theme.tree.x, z: theme.tree.z, w: theme.tree.potR * 2, d: theme.tree.potR * 2 }] : []
+  return [...rings, ...tree]
+}
+
 // 천장 팬: 허브 원통 + 날개 상자 4개, 초당 회전 수
 export const FAN = { hubR: 0.06, hubH: 0.3, bladeL: 0.7, bladeW: 0.14, bladeT: 0.03, turnsPerSec: 1.5 }
 
@@ -124,3 +171,11 @@ export const TALL_DESK_HEIGHT = 1.05
 
 // 테마 문(아치형): 문판 높이는 문 높이 - 아치 반지름, 위는 반원. 크롬 틀 두께와 창(반원) 비율
 export const ARCH_DOOR = { frameR: 0.035, windowRatio: 0.78, signW: 0.7, signY: 0.9 }
+
+// 원목 의자: 방석 + 다리 4개 + 등받이(세로 판 두 개와 가로 판). 원목 부스: 받침 상자 + 높은 등받이 + 쿠션 2개
+export const WOOD_CHAIR = { w: 0.44, d: 0.42, seatH: 0.45, seatT: 0.05, legR: 0.02, backH: 0.42, backT: 0.04 }
+export const WOOD_BOOTH = { w: 0.6, d: 0.5, seatH: 0.45, backH: 0.65, backT: 0.12, cushion: { w: 0.24, h: 0.24, t: 0.08 } }
+// 원목 문: 문판 + 문틀 + 둥근 손잡이
+export const WOOD_DOOR = { frameT: 0.08, knobR: 0.05, knobY: 1.0, signW: 0.7, signY: 1.6 }
+// 둥근 전구: 반지름, 빛 세기·거리
+export const GLOBE = { r: 0.2, cordR: 0.008, intensity: 4, distance: 6 }
