@@ -5,9 +5,9 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_STOOL, DINER_DESK, FAN, FRAME, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
-import type { BranchTheme, FanSpot, Frame, SharedTable } from './theme'
-import { POSTER_PX, checkerTexture, signTexture, tileTexture } from './patternTexture'
+import { ARCH_DOOR, BAR_STOOL, DINER_DESK, FAN, FRAME, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, ceilingHeightOf, framePose, wallPose } from './theme'
+import type { BranchTheme, FanSpot, Frame, Menu, SharedTable } from './theme'
+import { POSTER_PX, checkerTexture, menuTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -23,35 +23,80 @@ type Size = { w: number; d: number }
 
 export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
   if (!theme) return null
+  const h = ceilingHeightOf(theme)
   return (
     <group>
-      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} />}
-      {theme.ceiling?.fans?.map((f, i) => <CeilingFan key={i} spot={f} />)}
-      {theme.wall?.neon && <NeonStrip color={theme.wall.neon} size={size} />}
+      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} height={h} />}
+      {theme.ceiling?.fans?.map((f, i) => <CeilingFan key={i} spot={f} height={h} />)}
+      {theme.ceiling?.lamps?.map((l, i) => <PendantLamp key={i} x={l.x} z={l.z} height={h} />)}
+      {theme.wall?.neon && <NeonStrip color={theme.wall.neon} size={size} height={h} />}
       {theme.frames?.map((f, i) => <WallFrame key={i} frame={f} />)}
+      {theme.menu && <MenuBoard menu={theme.menu} />}
     </group>
   )
 }
 
 // 천장: 아래를 보는 평면. planeGeometry 의 앞면은 +z 라 x 축으로 +90° 돌리면 앞면이 -y(아래)를 봅니다.
-function Ceiling({ color, size }: { color: string; size: Size }) {
+function Ceiling({ color, size, height }: { color: string; size: Size; height: number }) {
   return (
-    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, WALL_HEIGHT, 0]}>
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]}>
       <planeGeometry args={[size.w, size.d]} />
       <meshStandardMaterial color={color} />
     </mesh>
   )
 }
 
+// 펜던트 조명: 천장에서 줄로 내려온 크롬 돔(아래가 열린 반구). 아랫면이 따뜻하게 빛나고 pointLight 로 주변도 비춥니다.
+function PendantLamp({ x, z, height }: { x: number; z: number; height: number }) {
+  const L = LAMP
+  const cordH = height - L.y
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, L.y + cordH / 2, 0]}>
+        <cylinderGeometry args={[L.cordR, L.cordR, cordH, 6]} />
+        <meshStandardMaterial color="#9aa0aa" metalness={CHROME.metalness} roughness={CHROME.roughness} />
+      </mesh>
+      {/* 돔: 위쪽 반구(phi 0~π/2)라 아래가 열려 있습니다 */}
+      <mesh position={[0, L.y, 0]}>
+        <sphereGeometry args={[L.domeR, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial color="#d8dce4" metalness={0.7} roughness={0.3} side={2} />
+      </mesh>
+      {/* 돔 안 전구: 빛나는 작은 구 */}
+      <mesh position={[0, L.y - 0.02, 0]}>
+        <sphereGeometry args={[L.domeR * 0.55, 12, 8]} />
+        <meshStandardMaterial color="#fff4d6" emissive="#ffd9a0" emissiveIntensity={1.2} />
+      </mesh>
+      <pointLight position={[0, L.y - 0.1, 0]} color="#ffe2b8" intensity={L.intensity} distance={L.distance} decay={2} />
+    </group>
+  )
+}
+
+// 메뉴판: 벽에 붙는 큰 판 (커피 바 뒤 등)
+function MenuBoard({ menu }: { menu: Menu }) {
+  const p = wallPose(menu.x, menu.z, menu.face, menu.y, WALL_THICKNESS / 2 + 0.02)
+  return (
+    <group position={[p.x, p.y, p.z]} rotation={[0, p.rotY, 0]}>
+      <mesh position={[0, 0, -0.015]}>
+        <boxGeometry args={[menu.w + 0.08, menu.h + 0.08, 0.03]} />
+        <meshStandardMaterial color="#c8ccd4" metalness={CHROME.metalness} roughness={CHROME.roughness} />
+      </mesh>
+      <mesh>
+        <planeGeometry args={[menu.w, menu.h]} />
+        <meshBasicMaterial map={menuTexture({ title: menu.title, items: menu.items, bg: menu.bg, color: menu.color, w: menu.w, h: menu.h })} />
+      </mesh>
+    </group>
+  )
+}
+
 // 천장 팬: 허브 원통에 날개 4개. 매 프레임 y 축으로 돌립니다.
-function CeilingFan({ spot }: { spot: FanSpot }) {
+function CeilingFan({ spot, height }: { spot: FanSpot; height: number }) {
   const group = useRef<Group>(null)
   const scale = spot.scale ?? 1
   useFrame((_, dt) => {
     if (group.current) group.current.rotation.y += (dt * FAN.turnsPerSec * Math.PI * 2) / scale // 큰 팬은 천천히
   })
   return (
-    <group ref={group} position={[spot.x, WALL_HEIGHT - (FAN.hubH * scale) / 2, spot.z]} scale={scale}>
+    <group ref={group} position={[spot.x, height - (FAN.hubH * scale) / 2, spot.z]} scale={scale}>
       <mesh>
         <cylinderGeometry args={[FAN.hubR, FAN.hubR, FAN.hubH, 12]} />
         <meshStandardMaterial color={FAN_COLOR} />
@@ -69,8 +114,8 @@ function CeilingFan({ spot }: { spot: FanSpot }) {
 }
 
 // 네온 띠: 벽 위쪽 안쪽을 따라 네 변. 후처리가 없어 번지지는 않고 그림자 없는 밝은 띠로 보입니다.
-function NeonStrip({ color, size }: { color: string; size: Size }) {
-  const y = WALL_HEIGHT - NEON.dropFromCeiling
+function NeonStrip({ color, size, height }: { color: string; size: Size; height: number }) {
+  const y = height - NEON.dropFromCeiling
   const inset = WALL_THICKNESS / 2 + NEON.size / 2 + 0.01 // 벽 안쪽 면에서 조금 띄움
   const hx = size.w / 2 - inset
   const hz = size.d / 2 - inset
@@ -231,22 +276,45 @@ export function DinerDesk({
   )
 }
 
-// 소파(부스 의자): 방석 + 등받이 + 등받이 위 띠. rot 방향(책상 쪽)을 보고, 등받이는 그 반대쪽에 둡니다.
-export function Sofa({ x, z, rot, color, accent }: { x: number; z: number; rot: number; color: string; accent: string }) {
+// 소파(부스 의자): 양끝이 둥근 방석 + 양끝이 둥근 등받이 + 둥근 흰 띠. rot 방향(책상 쪽)을 보고, 등받이는 그 반대쪽에 둡니다.
+// raise 가 있으면 그만큼 받침 위에 올립니다(높은 자리).
+export function Sofa({ x, z, rot, color, accent, raise = 0 }: { x: number; z: number; rot: number; color: string; accent: string; raise?: number }) {
   const S = SOFA
+  const seatR = S.d / 2 // 방석 양끝 반지름
+  const backR = S.backT / 2 // 등받이 양끝 반지름
+  const backZ = -S.d / 2 + S.backT / 2
   return (
-    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+    <group position={[x, raise, z]} rotation={[0, rot, 0]}>
+      {raise > 0 && (
+        <mesh position={[0, -raise / 2, 0]}>
+          <boxGeometry args={[S.w, raise, S.d]} />
+          <meshStandardMaterial color={S.plinth} />
+        </mesh>
+      )}
+      {/* 방석: 가운데 상자 + 양끝 원통 */}
       <mesh position={[0, S.seatH / 2, 0]}>
-        <boxGeometry args={[S.w, S.seatH, S.d]} />
+        <boxGeometry args={[S.w - seatR * 2, S.seatH, S.d]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      {/* 등받이: 책상 반대쪽(-z) 끝 */}
-      <mesh position={[0, S.seatH + S.backH / 2, -S.d / 2 + S.backT / 2]}>
-        <boxGeometry args={[S.w, S.backH, S.backT]} />
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * (S.w / 2 - seatR), S.seatH / 2, 0]}>
+          <cylinderGeometry args={[seatR, seatR, S.seatH, 16]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
+      {/* 등받이: 가운데 상자 + 양끝 세로 원통, 위에 가로 원통(흰 띠) */}
+      <mesh position={[0, S.seatH + S.backH / 2, backZ]}>
+        <boxGeometry args={[S.w - backR * 2, S.backH, S.backT]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0, S.seatH + S.backH + S.stripeH / 2, -S.d / 2 + S.backT / 2]}>
-        <boxGeometry args={[S.w, S.stripeH, S.backT]} />
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * (S.w / 2 - backR), S.seatH + S.backH / 2, backZ]}>
+          <cylinderGeometry args={[backR, backR, S.backH, 12]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
+      <mesh position={[0, S.seatH + S.backH, backZ]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[backR, backR, S.w, 12]} />
         <meshStandardMaterial color={accent} />
       </mesh>
     </group>

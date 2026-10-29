@@ -8,7 +8,7 @@ import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
-import { DEFAULT_COLORS, colorsOf, insideTable } from "./theme";
+import { DEFAULT_COLORS, ceilingHeightOf, colorsOf, insideTable } from "./theme";
 import { checkerTexture } from "./patternTexture";
 import { BarStool, BarTable, Counter, Decor, DinerDesk, Sofa, ThemedDoor } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
@@ -88,6 +88,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
   const floorPattern = branch.theme?.floor; // 체크 바닥이면 텍스처, 아니면 기본색
   const furniture = branch.theme?.furniture; // 다이너 테이블·소파 (없으면 상자 책상·의자)
+  const wallH = ceilingHeightOf(branch.theme); // 벽·천장 높이 (테마에 없으면 2.5)
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
@@ -348,8 +349,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       </mesh>
 
       {branch.walls.map((w, i) => (
-        <mesh key={i} position={[w.x, 1.25, w.z]}>
-          <boxGeometry args={[w.w, 2.5, w.d]} />
+        <mesh key={i} position={[w.x, wallH / 2, w.z]}>
+          <boxGeometry args={[w.w, wallH, w.d]} />
           <meshStandardMaterial color={colors.wall} />
         </mesh>
       ))}
@@ -378,10 +379,10 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         return furniture ? (
-          c.tall ? ( // 높은 자리는 둥근 바 스툴, 아니면 부스 소파
+          c.tall && insideTable(c, furniture.tables) ? ( // 바 테이블 자리는 둥근 바 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
             <BarStool key={c.no} x={c.x} z={c.z} color={chairColor} chrome={furniture.chrome} />
           ) : (
-            <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} />
+            <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} raise={c.y ?? 0} />
           )
         ) : (
           <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>

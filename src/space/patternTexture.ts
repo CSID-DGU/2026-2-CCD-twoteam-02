@@ -74,6 +74,52 @@ export function tileTexture(tile: string, grout: string, cells: number, repeat: 
 export type SignSpec = { text: string; bg: string; style?: 'plain' | 'badge' | 'ribbon' | 'tin'; sub?: string }
 const SIGN = { cream: '#f3e9d2', dark: '#2b2b2b', white: '#ffffff', checker: ['#1a1a1a', '#f4f4f4'] as const }
 
+// 메뉴판: 어두운 판에 제목과 [이름 … 값] 줄. 비율은 판 크기(w:h)를 따릅니다.
+export const MENU_PX = 128 // 1m 당 픽셀
+export function menuTexture(spec: { title: string; items: [string, string][]; bg: string; color: string; w: number; h: number }): CanvasTexture {
+  const key = `menu|${spec.title}|${spec.items.map((i) => i.join('=')).join(';')}|${spec.bg}|${spec.color}|${spec.w}|${spec.h}`
+  let texture = cache.get(key)
+  if (!texture) {
+    const W = Math.round(spec.w * MENU_PX)
+    const H = Math.round(spec.h * MENU_PX)
+    const { canvas, ctx } = makeCanvas(W, H)
+    ctx.fillStyle = spec.bg
+    ctx.fillRect(0, 0, W, H)
+    ctx.strokeStyle = spec.color
+    ctx.lineWidth = 4
+    ctx.strokeRect(8, 8, W - 16, H - 16)
+    ctx.fillStyle = spec.color
+    ctx.textBaseline = 'middle'
+    const titleH = Math.round(H * 0.22)
+    ctx.textAlign = 'center'
+    ctx.font = `bold ${Math.round(titleH * 0.6)}px system-ui, sans-serif`
+    ctx.fillText(spec.title, W / 2, titleH / 2 + 8, W - 40)
+    // 줄: 왼쪽 이름, 오른쪽 값, 사이는 점선
+    const rows = Math.max(spec.items.length, 1)
+    const rowH = (H - titleH - 16) / rows
+    ctx.font = `${Math.round(Math.min(rowH * 0.55, 40))}px system-ui, sans-serif`
+    spec.items.forEach(([name, value], i) => {
+      const y = titleH + rowH * (i + 0.5)
+      ctx.textAlign = 'left'
+      ctx.fillText(name, 40, y, W * 0.6)
+      ctx.textAlign = 'right'
+      ctx.fillText(value, W - 40, y, W * 0.3)
+      const nameW = ctx.measureText(name).width
+      ctx.save()
+      ctx.setLineDash([3, 6])
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(40 + nameW + 12, y + 6)
+      ctx.lineTo(W - 40 - ctx.measureText(value).width - 12, y + 6)
+      ctx.stroke()
+      ctx.restore()
+    })
+    texture = finish(canvas)
+    cache.set(key, texture)
+  }
+  return texture
+}
+
 export function signTexture(spec: SignSpec): CanvasTexture {
   const style = spec.style ?? 'plain'
   const key = `sign|${style}|${spec.text}|${spec.sub ?? ''}|${spec.bg}`
