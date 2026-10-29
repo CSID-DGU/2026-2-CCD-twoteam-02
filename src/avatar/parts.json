@@ -404,6 +404,11 @@
       "id": "spiky-up-textured",
       "name": "부스스 세운 머리 (텍스처)",
       "model": "/models/Parts/hair/spiky-up-textured.gltf"
+    },
+    {
+      "id": "side-swept-textured",
+      "name": "옆으로 넘긴 머리 (텍스처)",
+      "model": "/models/Parts/hair/side-swept-textured.gltf"
     }
   ],
   "top": [
