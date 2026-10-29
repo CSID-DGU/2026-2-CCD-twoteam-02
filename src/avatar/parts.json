@@ -439,6 +439,16 @@
       "id": "space-buns-textured",
       "name": "양쪽 똥머리 (텍스처)",
       "model": "/models/Parts/hair/space-buns-textured.gltf"
+    },
+    {
+      "id": "ponytail",
+      "name": "포니테일",
+      "model": "/models/Parts/hair/ponytail.gltf"
+    },
+    {
+      "id": "ponytail-textured",
+      "name": "포니테일 (텍스처)",
+      "model": "/models/Parts/hair/ponytail-textured.gltf"
     }
   ],
   "top": [
