@@ -231,7 +231,7 @@
     },
     "ceiling": {
       "color": "#1c1c1e",
-      "height": 3.0,
+      "height": 3.4,
       "globes": [
         {
           "x": -5.0,
@@ -363,8 +363,8 @@
       "trim": "#151515"
     },
     "light": {
-      "ambient": 0.5,
-      "sun": 0.45,
+      "ambient": 0.62,
+      "sun": 0.55,
       "color": "#ffe3c4"
     },
     "door": {
