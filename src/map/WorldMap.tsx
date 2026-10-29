@@ -35,6 +35,7 @@ const WATER = '#6fbbe0' // 분수 물
 const STONE = '#a9a196' // 분수 테두리
 const ARROW = 1.8 // 내 화살표 길이 (m)
 const MEETING_LABEL_GAP = 2.6 // 건물 이름표 아래 "회의 중" 이름표까지 (m)
+const FLOOR_LABEL_GAP = 2 // 여러 층 건물: 건물 이름표 위로 층 이름표를 쌓는 간격 (m, 건물 8m 안에 들게)
 
 export function WorldMap({ here }: { here?: MapHere }) {
   const people = useOnline()
@@ -43,7 +44,9 @@ export function WorldMap({ here }: { here?: MapHere }) {
   const me = here ? findPlace(WORLD, here.place) : null
   const [hovered, setHovered] = useState<string | null>(null)
   // 눌러서 열어 둔 건물 (터치 화면용). 처음에는 내가 있는 건물을 열어 둡니다. (광장은 지붕이 없음, 회의실은 그 지점 건물)
-  const [pinned, setPinned] = useState<string | null>(() => WORLD.branches.find((b) => b === me || b.meeting === me)?.place ?? null)
+  const [pinned, setPinned] = useState<string | null>(
+    () => WORLD.branches.find((b) => b === me || b.meeting === me || b.floors.some((f) => f === me || f.meeting === me))?.place ?? null,
+  )
   const open = (place: string) => hovered === place || pinned === place
 
   // 내 화살표: 위치·방향은 ref 라서 그릴 때마다 읽어 옮깁니다. (지도를 연 동안은 캐릭터가 멈춰 있지만, 열린 순간의 값을 읽으려고)
@@ -103,7 +106,8 @@ export function WorldMap({ here }: { here?: MapHere }) {
             key={br.place}
             branch={br}
             count={counts.get(br.place) ?? 0}
-            meetingCount={br.meeting ? (counts.get(br.meeting.place) ?? 0) : 0}
+            meetingCount={[br.meeting, ...br.floors.map((f) => f.meeting)].reduce((n, m) => n + (m ? (counts.get(m.place) ?? 0) : 0), 0)}
+            floorCounts={br.floors.map((f) => counts.get(f.place) ?? 0)}
             open={open(br.place)}
             mySeat={here && here.place === br.place ? (here.mySeat ?? null) : null}
             onHover={(on) => setHovered(on ? br.place : null)}
@@ -158,14 +162,15 @@ function Plaza({ count }: { count: number }) {
 type BranchProps = {
   branch: MapBranch
   count: number
-  meetingCount: number
+  meetingCount: number // 이 건물 모든 층의 회의실 인원
+  floorCounts: number[] // 위층 지점별 인원 (branch.floors 순서)
   open: boolean
   mySeat: number | null
   onHover: (on: boolean) => void
   onPin: () => void
 }
 
-function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: BranchProps) {
+function Branch({ branch, count, meetingCount, floorCounts, open, mySeat, onHover, onPin }: BranchProps) {
   const { layout } = branch
   const roof = branch.roof // 3D 광장의 지붕 색과 같음
   const box = (bx: Box) => rectProps(boxToMap(branch, bx))
@@ -193,7 +198,11 @@ function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: B
       {layout.door && <rect {...box(layout.door)} fill={DOOR} />}
       {layout.meetingDoor && <rect {...box(layout.meetingDoor)} fill={DOOR} />}
       <Label x={branch.rect.x} z={branch.rect.z} name={branch.name} count={count} />
-      {branch.meeting && meetingCount > 0 && (
+      {/* 위층 지점: 지도에는 1층 안만 그리고, 건물 이름표 위에 층 이름표를 쌓습니다. */}
+      {branch.floors.map((f, i) => (
+        <Label key={f.place} x={branch.rect.x} z={branch.rect.z - FLOOR_LABEL_GAP * (branch.floors.length - i)} name={`${f.level}F ${f.name}`} count={floorCounts[i]} small />
+      ))}
+      {meetingCount > 0 && (
         // 회의실은 광장·지도에 따로 없어서, 그 지점 건물 이름표 아래에 회의 인원만 띄웁니다.
         <Label x={branch.rect.x} z={branch.rect.z + MEETING_LABEL_GAP} name="회의 중" count={meetingCount} small />
       )}
