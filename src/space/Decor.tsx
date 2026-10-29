@@ -6,9 +6,10 @@ import { useFrame } from '@react-three/fiber'
 import { DoubleSide, Path, Shape } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_TOP, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import { ARCH_DOOR, BAR_TOP, ELEVATOR, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
 import type { BackBar, Bar, Booth, BranchTheme, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
-import { POSTER_PX, checkerTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
+import { LABEL_PX, labelTexture } from './labelTexture'
+import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -48,6 +49,30 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
       {theme.wall?.band && <MosaicBand band={theme.wall.band} size={size} />}
       {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
     </group>
+  )
+}
+
+// 바닥: 테마 무늬(체크·벽돌·콘크리트) 텍스처, 없으면 color 한 색. 지점과 회의실이 같이 씁니다.
+export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor']; size: Size; color: string }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[size.w, size.d]} />
+      {floor?.pattern === 'concrete' ? (
+        // 콘크리트 텍스처 한 장이 cell(m) 크기라, 면 전체에 (면 ÷ cell)번 반복합니다.
+        <meshStandardMaterial roughness={0.9} map={concreteTexture(floor.colors, { x: size.w / floor.cell, y: size.d / floor.cell })} />
+      ) : floor?.pattern === 'brick' ? (
+        // 벽돌 텍스처는 가로 4개(cell 길이) × 세로 16줄(cell/4 높이)이라, 면 전체에 (면 ÷ 텍스처 한 장 크기)번 반복합니다.
+        <meshStandardMaterial
+          roughness={0.85}
+          map={brickTexture(floor.colors, { x: size.w / (floor.cell * 4), y: size.d / ((floor.cell / 4) * 16) })}
+        />
+      ) : floor ? (
+        // 체크 텍스처는 8×8칸이라, 면 전체에 (면 크기 ÷ 칸 크기 ÷ 8)번 반복합니다.
+        <meshStandardMaterial map={checkerTexture(floor.colors, 8, { x: size.w / (floor.cell * 8), y: size.d / (floor.cell * 8) })} />
+      ) : (
+        <meshStandardMaterial color={color} />
+      )}
+    </mesh>
   )
 }
 
@@ -1012,6 +1037,59 @@ function MosaicBand({ band, size }: { band: NonNullable<NonNullable<BranchTheme[
           <meshStandardMaterial map={mosaicTexture(band.colors, { x: sd.len / 2, y: band.h / 2 })} roughness={0.4} />
         </mesh>
       ))}
+    </group>
+  )
+}
+
+// 엘리베이터 문 (지점 안, 서쪽·동쪽 벽). 앞에 서면 문짝이 주황으로 바뀌고 부름 버튼이 켜집니다.
+// label: 층 표시판 글자 (지금 층, "2F"). 무리(group)를 벽에서 지점 안쪽(+Z)을 보게 돌려 그립니다.
+export function ElevatorDoor({ box, height, near, nearColor, label }: { box: Box; height: number; near: boolean; nearColor: string; label: string }) {
+  const E = ELEVATOR
+  const alongZ = box.d > box.w // 서쪽·동쪽 벽이면 문 너비가 z 쪽
+  const len = alongZ ? box.d : box.w
+  const thick = alongZ ? box.w : box.d
+  // 안쪽을 보는 방향: 서쪽 벽이면 +X(π/2), 동쪽 벽이면 -X, 북쪽 벽이면 +Z(0), 남쪽 벽이면 -Z
+  const rotY = alongZ ? (box.x < 0 ? Math.PI / 2 : -Math.PI / 2) : box.z < 0 ? 0 : Math.PI
+  const face = thick / 2
+  const panelW = len / 2 - E.gap
+  const sign = labelTexture(label, '#111111', '#f59e0b')
+  const signH = (E.indicator.w * LABEL_PX.h) / LABEL_PX.w
+  return (
+    <group position={[box.x, 0, box.z]} rotation={[0, rotY, 0]}>
+      {/* 크롬 틀: 양쪽 기둥 + 위 가로대 */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * (len / 2 + E.frameW / 2), height / 2, face]}>
+          <boxGeometry args={[E.frameW, height, E.panelT * 2]} />
+          <meshStandardMaterial color="#c9ccd2" {...CHROME} />
+        </mesh>
+      ))}
+      <mesh position={[0, height + E.frameW / 2, face]}>
+        <boxGeometry args={[len + E.frameW * 2, E.frameW, E.panelT * 2]} />
+        <meshStandardMaterial color="#c9ccd2" {...CHROME} />
+      </mesh>
+      {/* 문짝 두 장 (가운데 틈) */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * (panelW / 2 + E.gap), height / 2, face + E.panelT / 2]}>
+          <boxGeometry args={[panelW, height, E.panelT]} />
+          <meshStandardMaterial color={near ? nearColor : '#a9adb3'} metalness={0.7} roughness={0.35} />
+        </mesh>
+      ))}
+      {/* 층 표시판 */}
+      <mesh position={[0, height + E.frameW + E.indicator.y, face + 0.01]}>
+        <planeGeometry args={[E.indicator.w, signH]} />
+        <meshBasicMaterial map={sign} transparent />
+      </mesh>
+      {/* 부름 버튼: 판 + 둥근 버튼 */}
+      <group position={[len / 2 + E.frameW + E.button.out, E.button.y, face]}>
+        <mesh>
+          <boxGeometry args={[0.1, 0.18, 0.02]} />
+          <meshStandardMaterial color="#c9ccd2" {...CHROME} />
+        </mesh>
+        <mesh position={[0, 0, 0.012]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[E.button.r, E.button.r, 0.01, 16]} />
+          <meshStandardMaterial color={near ? '#f59e0b' : '#e8e6e2'} emissive={near ? '#f59e0b' : '#000000'} emissiveIntensity={near ? 1 : 0} />
+        </mesh>
+      </group>
     </group>
   )
 }

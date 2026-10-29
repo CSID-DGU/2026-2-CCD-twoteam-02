@@ -217,6 +217,8 @@ export const WOOD_CHAIR = { w: 0.44, d: 0.42, seatH: 0.45, seatT: 0.05, legR: 0.
 export const WOOD_BOOTH = { w: 0.6, d: 0.5, seatH: 0.45, backH: 0.65, backT: 0.12, cushion: { w: 0.24, h: 0.24, t: 0.08 } }
 // 원목 문: 문판 + 문틀 + 둥근 손잡이
 export const WOOD_DOOR = { frameT: 0.08, knobR: 0.05, knobY: 1.0, signW: 0.7, signY: 1.6 }
+// 엘리베이터 문: 크롬 틀 + 스테인리스 문짝 두 장, 위에 층 표시판, 옆에 부름 버튼 (여러 층 건물의 지점)
+export const ELEVATOR = { frameW: 0.08, gap: 0.015, panelT: 0.04, indicator: { w: 0.5, y: 0.25 }, button: { out: 0.22, y: 1.1, r: 0.035 } }
 // 둥근 전구: 반지름, 빛 세기·거리
 export const GLOBE = { r: 0.2, cordR: 0.008, intensity: 4, distance: 6 }
 

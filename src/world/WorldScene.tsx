@@ -7,7 +7,7 @@
 // (Player 는 "앉으면" 캐릭터를 숨기지만, 입구에 들어가면 곧바로 장면이 바뀌므로 보이지 않는다)
 //
 // 어느 건물이 실제로 열리는지는 DB의 branches 를 보고 정한다. 목록에 없는 건물은 준비 중이다.
-// 여러 층 건물(올리브 테라스 위 이끼 정원·물결 라운지)은 E 를 누르면 층을 고르는 창이 뜬다. (FloorPicker)
+// 여러 층 건물(올리브 테라스 위 이끼 정원·물결 라운지)은 입구로 1층에만 들어간다. 위층은 안의 엘리베이터로 간다.
 //
 // 방향: 실내는 입구가 늘 남쪽 벽이라, 들어갈 때 보던 방향에서 건물 입구 각도를 빼서 넘기고(toBranchHeading)
 // 나올 때는 더한다(arrivalOf). 그래서 어느 건물에 들어가도 실내에서 안쪽을 보고 선다. (#150)
@@ -47,7 +47,7 @@ import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
 import { arrivalOf, placeBuildings, plazaObstacles, toBranchHeading } from './worldLogic'
-import type { PlacedFloor, PlazaLayout } from './worldLogic'
+import type { PlazaLayout } from './worldLogic'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
@@ -81,9 +81,6 @@ export default function WorldScene({ onEnter }: Props) {
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
-  // 층을 고르는 중인 건물 번호 (여러 층 건물 입구에서 E). 고르는 동안은 움직이지 않습니다.
-  const [picker, setPicker] = useState<number | null>(null)
-  const pickerHeading = useRef(0) // 층 창을 연 순간 보던 방향. 고른 층으로 들어갈 때 넘깁니다.
   // 처음엔 1인칭. V 로 바꾸면 지점에 다녀와도 유지합니다. (useWalkView)
   const [view, setView] = useWalkView()
   // 지점에서 나왔으면 그 건물 입구 앞에 건물을 등지고 섭니다(#150). 주소로 바로 들어오면 분수 남쪽 시작 위치.
@@ -119,7 +116,7 @@ export default function WorldScene({ onEnter }: Props) {
   useOnlinePlace(LOBBY_PLACE)
   const onlineCount = useOnline().size
   // 오른쪽 위 버튼 단축키 R·F·P (#205)
-  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: fortune !== null || picker !== null })
+  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: fortune !== null })
   const panelRef = useRef<unknown>(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해. 운세 창이 떠 있어도 막음
   useEffect(() => {
     panelRef.current = panel ?? fortune
@@ -158,23 +155,21 @@ export default function WorldScene({ onEnter }: Props) {
     }
   }, [])
 
-  // 들어갈 수 있는 지점인지 확인하고 들어간다. 목록을 아직 안 읽었으면 이때 읽는다.
-  // slug: 들어갈 층의 지점 (없으면 1층). heading: 층 창에서 고르면 창을 연 순간의 방향
-  async function tryEnter(no: number | null, slug?: string, heading?: number) {
+  // 들어갈 수 있는 건물인지 확인하고 들어간다. 목록을 아직 안 읽었으면 이때 읽는다.
+  // 여러 층 건물도 입구로는 1층(건물 slug)에만 들어갑니다. 위층은 안의 엘리베이터로.
+  async function tryEnter(no: number | null) {
     if (no === null) return
     // E 를 누른 순간 보던 방향. 입구 앞에서 몸이 돌거나 지점 목록을 읽는 동안 바뀌기 전에 붙잡아 둔다. (#150)
-    const enteringHeading = heading ?? bodyHeading.current
+    const enteringHeading = bodyHeading.current
     const b = PLACED.find((p) => p.no === no)
     if (!b) return
-    const floor = b.floors.find((f) => f.slug === (slug ?? b.slug)) ?? b.floors[0]
     const list = branches ?? (await loadBranches())
-    const found = list.find((x) => x.slug === floor.slug)
+    const found = list.find((x) => x.slug === b.slug)
     if (!found) {
-      setMessage(`${floor.name}은 아직 준비 중입니다.`)
+      setMessage(`${b.name}은 아직 준비 중입니다.`)
       return
     }
     setMessage('')
-    setPicker(null)
     onEnter(found, toBranchHeading(enteringHeading, b.spec.facing))
   }
 
@@ -184,27 +179,16 @@ export default function WorldScene({ onEnter }: Props) {
 
   // 열린 건물인지. 목록을 아직 못 읽었으면 열린 것으로 보고, E 를 누를 때 tryEnter 가 다시 확인합니다.
   const isOpen = (slug: string) => branches === null || branches.some((x) => x.slug === slug)
-  // 건물 문 색: 한 층이라도 열렸으면 열린 문
-  const buildingOpen = (b: (typeof PLACED)[number]) => b.floors.some((f) => isOpen(f.slug))
   // 안 연 건물 입구에서는 Player 가 입구 자리에 앉히지(숨기지) 않게 하고 "준비 중"만 띄웁니다.
   // (앉히면 캐릭터가 사라지고 E 를 다시 누를 때까지 움직일 수 없음)
-  // 여러 층 건물도 앉히지 않고, E 를 누르면 층 창을 띄웁니다.
   const canEnter = (no: number) => {
     const b = PLACED.find((p) => p.no === no)
-    return !b || (b.floors.length === 1 && isOpen(b.slug))
+    return !b || isOpen(b.slug)
   }
   const blockedEnter = (no: number) => {
     const b = PLACED.find((p) => p.no === no)
-    if (!b) return
-    if (b.floors.length > 1) {
-      pickerHeading.current = bodyHeading.current
-      setMessage('')
-      setPicker(no)
-      return
-    }
-    setMessage(`${b.name}은 아직 준비 중입니다.`)
+    if (b) setMessage(`${b.name}은 아직 준비 중입니다.`)
   }
-  const pickerBuilding = PLACED.find((b) => b.no === picker)
 
   const nearBuilding = PLACED.find((b) => b.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
@@ -213,11 +197,9 @@ export default function WorldScene({ onEnter }: Props) {
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panel
     ? ''
-    : picker !== null
-      ? ''
-      : nearBuilding
+    : nearBuilding
       ? nearBuilding.floors.length > 1
-        ? `${nearBuilding.name} 외 ${nearBuilding.floors.length - 1}개 층 · ${K.interact} 층 고르기`
+        ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
       : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
@@ -226,7 +208,7 @@ export default function WorldScene({ onEnter }: Props) {
       <Canvas>
         {view === 'first' ? (
           <>
-            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || picker !== null || fortune !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || fortune !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
             {/* 걸을 때만 뜨는 미니맵 (#290). 광장은 넓어서 내 둘레만 */}
             <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />
           </>
@@ -235,7 +217,7 @@ export default function WorldScene({ onEnter }: Props) {
         )}
         <FpsProbe onSample={handleFps} />
         {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321) */}
-        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && picker === null && setFortune(id)} />
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && setFortune(id)} />
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />
@@ -245,7 +227,7 @@ export default function WorldScene({ onEnter }: Props) {
         <Lamps lamps={PLAZA.lamps} />
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
-          <Building key={b.slug} b={b} open={buildingOpen(b)} near={near === b.no} />
+          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
         ))}
 
         {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 광장에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
@@ -265,7 +247,7 @@ export default function WorldScene({ onEnter }: Props) {
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={NO_KIOSK}
-            frozen={panel !== null || picker !== null || fortune !== null}
+            frozen={panel !== null || fortune !== null}
             onNearKiosk={() => {}}
             onKiosk={() => {}}
             onNear={(no) => {
@@ -294,65 +276,15 @@ export default function WorldScene({ onEnter }: Props) {
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       <PerfReadout perf={perf} />
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
-      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || picker !== null || fortune !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || fortune !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
-      {pickerBuilding && (
-        <FloorPicker
-          floors={pickerBuilding.floors}
-          isOpen={isOpen}
-          onPick={(slug) => void tryEnter(pickerBuilding.no, slug, pickerHeading.current)}
-          onClose={() => setPicker(null)}
-        />
-      )}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: LOBBY_PLACE, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
   )
-}
-
-// 층 고르는 창: 엘리베이터 버튼처럼 위층부터. 숫자 키(1·2·3)로도 고르고 Esc 로 닫습니다.
-// 안 연 층은 "준비 중"으로 보이지만 누를 수는 있습니다(누르면 tryEnter 가 안내).
-function FloorPicker({ floors, isOpen, onPick, onClose }: { floors: PlacedFloor[]; isOpen: (slug: string) => boolean; onPick: (slug: string) => void; onClose: () => void }) {
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code === 'Escape') {
-        onClose()
-        return
-      }
-      const f = floors.find((x) => e.code === `Digit${x.level}`)
-      if (f) onPick(f.slug)
-    }
-    window.addEventListener('keydown', down)
-    return () => window.removeEventListener('keydown', down)
-  }, [floors, onPick, onClose])
-  return (
-    <div style={pickerBox}>
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>몇 층으로 갈까요?</div>
-      {[...floors].reverse().map((f) => (
-        <button key={f.slug} style={pickerButton} onClick={() => onPick(f.slug)}>
-          <b style={{ width: 28 }}>{f.level}F</b> {f.name}
-          {!isOpen(f.slug) && <span style={{ marginLeft: 'auto', opacity: 0.6 }}>준비 중</span>}
-        </button>
-      ))}
-      <button style={{ ...pickerButton, justifyContent: 'center', opacity: 0.8 }} onClick={onClose}>
-        닫기 (Esc)
-      </button>
-    </div>
-  )
-}
-
-const pickerBox: React.CSSProperties = {
-  position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 20,
-  width: 260, padding: 16, borderRadius: 12, background: 'rgba(32,35,42,.94)', color: '#fff',
-  font: '14px system-ui, sans-serif',
-}
-
-const pickerButton: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 6, padding: '10px 12px',
-  border: 0, borderRadius: 8, background: 'rgba(255,255,255,.1)', color: '#fff', font: 'inherit', cursor: 'pointer', textAlign: 'left',
 }
 
 const onlineBox: React.CSSProperties = {
