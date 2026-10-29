@@ -14,8 +14,12 @@ import { useChat } from '../chat/chatContext'
 import type { InviteTarget } from '../meeting/InviteButton'
 import { WorldMap } from '../map/WorldMap'
 import type { MapHere } from '../map/WorldMap'
+import { ReportPanel } from '../report/ReportPanel'
+import { ReportsPanel } from '../report/ReportsPanel'
 
-const TITLE: Record<PanelView['kind'], string> = { records: '내 기록', friends: '친구', profile: '프로필', settings: '설정', map: '전체 지도' }
+const TITLE: Record<PanelView['kind'], string> = {
+  records: '내 기록', friends: '친구', profile: '프로필', settings: '설정', map: '전체 지도', report: '신고하기', reports: '신고 목록',
+}
 
 // invite: 회의 중에 연 창이면 그 회의(번호·지금 있는 사람). 친구 창에 "회의에 초대" 버튼이 보입니다. (#45)
 // here: 지금 내가 있는 곳과 위치. 전체 지도에 내 화살표를 그립니다. (#300)
@@ -62,6 +66,8 @@ export function InfoPanel({ initial, myId, onClose, invite, here }: Props) {
         )}
         {view.kind === 'settings' && <SettingsView />}
         {view.kind === 'map' && <WorldMap here={here} />}
+        {view.kind === 'report' && <ReportPanel myId={myId} />}
+        {view.kind === 'reports' && <ReportsPanel myId={myId} />}
         {view.kind === 'profile' && (
           <div style={styles.card}>
             <ProfileView key={view.userId} userId={view.userId} isMe={view.userId === myId} />
