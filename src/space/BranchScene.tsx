@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, colorsOf } from "./theme";
 import { checkerTexture } from "./patternTexture";
-import { Counter, Decor } from "./Decor";
+import { Counter, Decor, DinerDesk, Sofa } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -87,6 +87,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
   const floorPattern = branch.theme?.floor; // 체크 바닥이면 텍스처, 아니면 기본색
+  const furniture = branch.theme?.furniture; // 다이너 테이블·소파 (없으면 상자 책상·의자)
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
@@ -356,27 +357,30 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {/* 천장·팬·네온·액자 (테마가 있을 때만) */}
       <Decor theme={branch.theme} size={branch.size} />
 
-      {branch.seats.map((s) => (
-        <mesh key={s.no} position={[s.x, 0.37, s.z]}>
-          <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
-          <meshStandardMaterial color={colors.desk} />
-        </mesh>
-      ))}
+      {/* 책상: 테마에 가구 모양(furniture)이 있으면 크롬 테두리·다리 테이블, 없으면 상자 */}
+      {branch.seats.map((s) =>
+        furniture ? (
+          <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} />
+        ) : (
+          <mesh key={s.no} position={[s.x, 0.37, s.z]}>
+            <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
+            <meshStandardMaterial color={colors.desk} />
+          </mesh>
+        ),
+      )}
 
-      {spots.map((c) => (
-        <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>
-          <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
-          <meshStandardMaterial
-            color={
-              c.no === seat || c.no === near
-                ? "#f59e0b"
-                : c.no === mySeat
-                  ? MY_SEAT_COLOR
-                  : colors.chair // 기본 의자색만 테마를 따르고, 가까이·내 자리 강조색은 그대로
-            }
-          />
-        </mesh>
-      ))}
+      {/* 의자: 가까이·내 자리 강조색은 테마와 무관하게 그대로, 기본색만 테마를 따릅니다 */}
+      {spots.map((c) => {
+        const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
+        return furniture ? (
+          <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} />
+        ) : (
+          <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>
+            <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
+            <meshStandardMaterial color={chairColor} />
+          </mesh>
+        );
+      })}
 
       {/* 회의실 문 (#45): 동쪽 벽에 붙은 문과 "회의실" 표지판. 앞에서 E 를 누르면 회의 창이 뜹니다. 방은 로비처럼 문 너머라 그리지 않습니다. */}
       {branch.meetingDoor && (

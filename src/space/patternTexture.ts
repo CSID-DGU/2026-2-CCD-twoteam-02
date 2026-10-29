@@ -3,7 +3,7 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
 
 export const PATTERN_PX = 512 // 체크·타일 텍스처 한 변 (칸 8개면 한 칸 64px)
-export const POSTER_PX = { w: 404, h: 300 } // 액자 안판 0.78:0.58 과 같은 비율
+export const POSTER_PX = { w: 404, h: 300 } // 간판 텍스처 크기. 액자 안판 0.78:0.58 과 같은 비율
 const GROUT_PX = 2 // 타일 줄눈 두께
 
 const cache = new Map<string, CanvasTexture>()
@@ -66,19 +66,98 @@ export function tileTexture(tile: string, grout: string, cells: number, repeat: 
   return texture
 }
 
-// 액자 안의 포스터: 색 배경 가운데 굵은 글자. 둥근 모서리 없이 꽉 채웁니다(labelTexture 는 비율이 달라 쓰지 않음).
-export function posterTexture(text: string, bg: string, color = '#fff'): CanvasTexture {
-  const key = `poster|${text}|${bg}|${color}`
+// 다이너 간판 (#57). 실제 가게 로고 이미지는 저작권 때문에 쓰지 않고, 그 스타일을 코드로 그립니다.
+//   plain  색 바탕 + 글자
+//   badge  타원 배지: bg 타원 + 가운데 흑백 체크 띠 + 흰 글자 (COMETS 스타일)
+//   ribbon 리본 간판: bg 둥근 사각 + 어두운 테두리 + 기울인 큰 글자 + 작은 글자 (Townhouse 스타일)
+//   tin    양철 간판: 베이지 바탕 + bg 색 두꺼운 테두리 + 두 줄 글자 (Mom's 스타일)
+export type SignSpec = { text: string; bg: string; style?: 'plain' | 'badge' | 'ribbon' | 'tin'; sub?: string }
+const SIGN = { cream: '#f3e9d2', dark: '#2b2b2b', white: '#ffffff', checker: ['#1a1a1a', '#f4f4f4'] as const }
+
+export function signTexture(spec: SignSpec): CanvasTexture {
+  const style = spec.style ?? 'plain'
+  const key = `sign|${style}|${spec.text}|${spec.sub ?? ''}|${spec.bg}`
   let texture = cache.get(key)
   if (!texture) {
     const { canvas, ctx } = makeCanvas(POSTER_PX.w, POSTER_PX.h)
-    ctx.fillStyle = bg
-    ctx.fillRect(0, 0, POSTER_PX.w, POSTER_PX.h)
-    ctx.fillStyle = color
-    ctx.font = 'bold 64px system-ui, sans-serif'
+    const W = POSTER_PX.w
+    const H = POSTER_PX.h
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(text, POSTER_PX.w / 2, POSTER_PX.h / 2 + 4, POSTER_PX.w - 40) // 글자가 길면 안으로 줄여 그림
+    if (style === 'badge') {
+      ctx.fillStyle = SIGN.cream
+      ctx.fillRect(0, 0, W, H)
+      // 타원 배지와 흰 테두리
+      ctx.fillStyle = spec.bg
+      ctx.beginPath()
+      ctx.ellipse(W / 2, H / 2, W / 2 - 10, H / 2 - 10, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.lineWidth = 6
+      ctx.strokeStyle = SIGN.white
+      ctx.stroke()
+      // 가운데 체크 띠 (타원 안쪽만)
+      ctx.save()
+      ctx.clip()
+      const band = { y: H / 2 - 44, h: 88, cell: 22 }
+      for (let col = 0; col * band.cell < W; col++) {
+        for (let row = 0; row < band.h / band.cell; row++) {
+          ctx.fillStyle = SIGN.checker[(row + col) % 2]
+          ctx.fillRect(col * band.cell, band.y + row * band.cell, band.cell, band.cell)
+        }
+      }
+      ctx.restore()
+      // 글자: 흰 바탕 상자 위에 bg 색 글자 (체크 위에서 읽히게)
+      ctx.font = 'bold 58px system-ui, sans-serif'
+      const tw = Math.min(ctx.measureText(spec.text).width + 36, W - 60)
+      ctx.fillStyle = SIGN.white
+      ctx.fillRect(W / 2 - tw / 2, H / 2 - 36, tw, 72)
+      ctx.fillStyle = spec.bg
+      ctx.fillText(spec.text, W / 2, H / 2 + 3, W - 80)
+      if (spec.sub) {
+        ctx.font = 'italic bold 26px system-ui, sans-serif'
+        ctx.fillStyle = SIGN.white
+        ctx.fillText(spec.sub, W / 2, H / 2 + 86, W - 100)
+      }
+    } else if (style === 'ribbon') {
+      ctx.fillStyle = SIGN.cream
+      ctx.fillRect(0, 0, W, H)
+      ctx.fillStyle = spec.bg
+      ctx.beginPath()
+      ctx.roundRect(14, 30, W - 28, H - 60, 40)
+      ctx.fill()
+      ctx.lineWidth = 8
+      ctx.strokeStyle = SIGN.dark
+      ctx.stroke()
+      ctx.fillStyle = SIGN.white
+      ctx.font = 'italic bold 66px system-ui, sans-serif'
+      ctx.fillText(spec.text, W / 2, H / 2 - (spec.sub ? 16 : 0), W - 70)
+      if (spec.sub) {
+        ctx.font = 'bold 28px system-ui, sans-serif'
+        ctx.fillText(spec.sub, W / 2, H / 2 + 52, W - 100)
+      }
+    } else if (style === 'tin') {
+      ctx.fillStyle = SIGN.cream
+      ctx.fillRect(0, 0, W, H)
+      ctx.lineWidth = 14
+      ctx.strokeStyle = spec.bg
+      ctx.beginPath()
+      ctx.roundRect(12, 12, W - 24, H - 24, 18)
+      ctx.stroke()
+      ctx.fillStyle = spec.bg
+      ctx.font = 'italic bold 60px system-ui, sans-serif'
+      ctx.fillText(spec.text, W / 2, H / 2 - (spec.sub ? 28 : 0), W - 70)
+      if (spec.sub) {
+        ctx.fillStyle = SIGN.dark
+        ctx.font = 'bold 34px system-ui, sans-serif'
+        ctx.fillText(spec.sub, W / 2, H / 2 + 48, W - 80)
+      }
+    } else {
+      ctx.fillStyle = spec.bg
+      ctx.fillRect(0, 0, W, H)
+      ctx.fillStyle = SIGN.white
+      ctx.font = 'bold 64px system-ui, sans-serif'
+      ctx.fillText(spec.text, W / 2, H / 2 + 4, W - 40) // 글자가 길면 안으로 줄여 그림
+    }
     texture = finish(canvas)
     cache.set(key, texture)
   }

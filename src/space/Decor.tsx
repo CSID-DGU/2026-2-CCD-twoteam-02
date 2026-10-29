@@ -5,9 +5,9 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { FAN, FRAME, STOOL, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
+import { DINER_DESK, FAN, FRAME, SOFA, STOOL, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
 import type { BranchTheme, FanSpot, Frame } from './theme'
-import { checkerTexture, posterTexture, tileTexture } from './patternTexture'
+import { checkerTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -102,7 +102,62 @@ function WallFrame({ frame }: { frame: Frame }) {
       </mesh>
       <mesh position={[0, 0, FRAME.depth / 2 + 0.005]}>
         <planeGeometry args={[FRAME.inner.w, FRAME.inner.h]} />
-        <meshBasicMaterial map={posterTexture(frame.text, frame.bg)} />
+        <meshBasicMaterial map={signTexture({ text: frame.text, bg: frame.bg, style: frame.style, sub: frame.sub })} />
+      </mesh>
+    </group>
+  )
+}
+
+// 다이너 테이블: 빨간 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 자리(x·z)와 크기는 상자 책상과 같습니다.
+export function DinerDesk({ x, z, size, color, chrome }: { x: number; z: number; size: { w: number; d: number }; color: string; chrome: string }) {
+  const D = DINER_DESK
+  const topY = D.height - D.topT / 2
+  const legH = D.height - D.topT
+  const lx = size.w / 2 - D.legInset
+  const lz = size.d / 2 - D.legInset
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, topY, 0]}>
+        <boxGeometry args={[size.w, D.topT, size.d]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* 크롬 띠는 상판보다 조금 크고 낮아서 옆에서 테두리로 보입니다 */}
+      <mesh position={[0, topY - 0.01, 0]}>
+        <boxGeometry args={[size.w + D.trimOut, D.trimT, size.d + D.trimOut]} />
+        <meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} />
+      </mesh>
+      {[
+        [-lx, -lz],
+        [lx, -lz],
+        [-lx, lz],
+        [lx, lz],
+      ].map(([dx, dz], i) => (
+        <mesh key={i} position={[dx, legH / 2, dz]}>
+          <cylinderGeometry args={[D.legR, D.legR, legH, 10]} />
+          <meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// 소파(부스 의자): 방석 + 등받이 + 등받이 위 띠. rot 방향(책상 쪽)을 보고, 등받이는 그 반대쪽에 둡니다.
+export function Sofa({ x, z, rot, color, accent }: { x: number; z: number; rot: number; color: string; accent: string }) {
+  const S = SOFA
+  return (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+      <mesh position={[0, S.seatH / 2, 0]}>
+        <boxGeometry args={[S.w, S.seatH, S.d]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* 등받이: 책상 반대쪽(-z) 끝 */}
+      <mesh position={[0, S.seatH + S.backH / 2, -S.d / 2 + S.backT / 2]}>
+        <boxGeometry args={[S.w, S.backH, S.backT]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, S.seatH + S.backH + S.stripeH / 2, -S.d / 2 + S.backT / 2]}>
+        <boxGeometry args={[S.w, S.stripeH, S.backT]} />
+        <meshStandardMaterial color={accent} />
       </mesh>
     </group>
   )

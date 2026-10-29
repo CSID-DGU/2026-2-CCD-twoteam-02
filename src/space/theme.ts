@@ -4,7 +4,13 @@
 export type FanSpot = { x: number; z: number }
 
 // 벽 액자. face 는 액자가 보는 쪽(n·s·e·w). 좌표는 벽 좌표를 그대로 적고, framePose 가 벽 안쪽으로 띄웁니다.
-export type Frame = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; text: string; bg: string }
+// style: 간판 모양 (patternTexture.signTexture). plain = 색 바탕에 글자, badge = 타원 배지 + 체크 띠,
+// ribbon = 빨간 리본 간판, tin = 양철 간판(두 줄). sub 는 작은 글자(선택).
+export type SignStyle = 'plain' | 'badge' | 'ribbon' | 'tin'
+export type Frame = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; text: string; bg: string; style?: SignStyle; sub?: string }
+
+// 가구 모양. diner = 크롬 테두리·다리가 있는 테이블과 등받이 소파. 없으면 상자 책상·의자.
+export type Furniture = { style: 'diner'; accent: string; chrome: string } // accent: 소파 등받이 흰 띠, chrome: 테두리·다리
 
 export type BranchTheme = {
   floor?: { pattern: 'checker'; colors: [string, string]; cell: number } // cell: 체크 한 칸 크기(m)
@@ -14,6 +20,7 @@ export type BranchTheme = {
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
   desk?: string
   chair?: string // 의자 기본색. 가까이·내 자리 강조색은 테마와 무관
+  furniture?: Furniture
   light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
 }
 
@@ -79,3 +86,9 @@ export function stoolBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
 
 // 천장 팬: 허브 원통 + 날개 상자 4개, 초당 회전 수
 export const FAN = { hubR: 0.06, hubH: 0.3, bladeL: 0.7, bladeW: 0.14, bladeT: 0.03, turnsPerSec: 1.5 }
+
+// 다이너 테이블: 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 높이는 상자 책상(0.74)과 같고 충돌 범위(SEAT)도 그대로.
+export const DINER_DESK = { height: 0.74, topT: 0.06, trimT: 0.04, trimOut: 0.04, legR: 0.025, legInset: 0.1 }
+
+// 소파(부스 의자): 방석 + 등받이 + 등받이 위 띠. 의자 자리(spot)에 두고 책상을 보게 돌립니다.
+export const SOFA = { w: 0.5, d: 0.45, seatH: 0.22, backH: 0.5, backT: 0.1, stripeH: 0.06 }
