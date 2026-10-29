@@ -1,5 +1,6 @@
 // 1인칭으로 걸을 때 오른쪽 아래에 뜨는 미니맵 (#290): "위에서 보기"를 작게 줄여 보여 줍니다.
-// 지점·로비·회의실이 같이 씁니다. 3D 장면(<Canvas>) 안에, 1인칭이고 서 있을 때만 넣습니다.
+// 지점·광장·회의실이 같이 씁니다. 3D 장면(<Canvas>) 안에, 1인칭이고 서 있을 때만 넣습니다.
+// 광장처럼 넓은 곳은 전체를 그리면 너무 작아서, follow(m)를 넘기면 내 둘레만 따라다니며 보여 줍니다. (#315)
 //
 // 그리는 방법: 매 프레임 1인칭 화면을 그린 뒤, "위에서 보기"와 같은 카메라로 같은 장면을 작은 그림(렌더 타깃)에
 // 한 번 더 그리고, 그 그림을 화면 구석에 덧그립니다. 그림으로 한 번 거치는 것은 투명도를 줘서 스르르 나타나게 하기 위해서입니다.
@@ -30,6 +31,7 @@ type Props = {
   area: { w: number; d: number } // 공간 크기 (m). 위에서 보기(TopDownCamera)와 같은 값
   posRef: RefObject<{ x: number; z: number }> // 내 위치
   headingRef: RefObject<number> // 바라보는 방향 (라디안, 0이면 +Z 쪽)
+  follow?: number // 있으면 공간 전체 대신 내 둘레 이 거리(m)만 보여 주며 따라다님 (광장)
 }
 
 // 바라보는 쪽(+Z)을 가리키는 납작한 화살표. 바닥(XZ 평면)에 눕혀 둡니다.
@@ -107,13 +109,14 @@ function disposeParts(parts: Parts) {
   }
 }
 
-export function Minimap({ area, posRef, headingRef }: Props) {
+export function Minimap({ area, posRef, headingRef, follow }: Props) {
   const scene = useThree((s) => s.scene)
   const dpr = useThree((s) => s.viewport.dpr)
 
   // 미니맵 크기(px): 긴 변을 SIZE_PX 로, 공간 비율 그대로. 위에서 보기처럼 가장자리를 0.5m씩 남깁니다.
-  const W = area.w + 1
-  const D = area.d + 1
+  // 따라다닐 때는 정사각형 둘레만 그립니다.
+  const W = (follow ?? area.w) + 1
+  const D = (follow ?? area.d) + 1
   const mapW = W >= D ? SIZE_PX : Math.round((SIZE_PX * W) / D)
   const mapH = D >= W ? SIZE_PX : Math.round((SIZE_PX * D) / W)
 
@@ -155,6 +158,12 @@ export function Minimap({ area, posRef, headingRef }: Props) {
     arrow.position.x = p.x
     arrow.position.z = p.z
     arrow.rotation.y = headingRef.current
+    if (follow !== undefined) {
+      // 미니맵 카메라를 내 위치 바로 위로 (높이·회전은 그대로)
+      mapCamera.position.x = p.x
+      mapCamera.position.z = p.z
+      mapCamera.updateMatrixWorld()
+    }
     const background = scene.background
     scene.background = OUTSIDE // 공간 밖은 어둡게
     gl.setRenderTarget(target)
