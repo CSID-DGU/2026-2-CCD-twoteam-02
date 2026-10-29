@@ -93,8 +93,19 @@ export function disposePartModel(obj: THREE.Object3D) {
 // 3D 화면은 하나만 만들어 모든 부품 그림이 같이 씁니다(브라우저가 여는 3D 화면 수가 제한돼 있어서, #137).
 let thumbRenderer: THREE.WebGLRenderer | null = null
 const THUMB_CAMERA = new THREE.PerspectiveCamera(30, 1, 1, 200)
-THUMB_CAMERA.position.set(9, 12, 26)
-THUMB_CAMERA.lookAt(0, 5.6, 0)
+const THUMB_TOP = 11.2 // 기본 구도가 담는 높이: 턱(0) ~ 정수리 위(11.2). 가운데(5.6)를 바라봅니다.
+const THUMB_OFFSET = new THREE.Vector3(9, 6.4, 26) // 바라보는 곳에서 카메라까지
+
+// 기본 구도로 찍되, 턱 아래로 내려오는 머리(땋은 머리·긴 머리)는 그만큼 카메라를 물려 끝까지 보이게 합니다.
+function frameThumb(model: THREE.Object3D) {
+  const box = new THREE.Box3().setFromObject(model)
+  const bottom = Math.min(0, box.min.y)
+  const top = bottom < 0 ? Math.max(THUMB_TOP, box.max.y) : THUMB_TOP
+  const centerY = (bottom + top) / 2
+  THUMB_CAMERA.position.copy(THUMB_OFFSET).multiplyScalar((top - bottom) / THUMB_TOP)
+  THUMB_CAMERA.position.y += centerY
+  THUMB_CAMERA.lookAt(0, centerY, 0)
+}
 
 export async function drawModelThumb(target: HTMLCanvasElement, part: Part, skin: string, color: string) {
   if (!part.model) return
@@ -113,6 +124,7 @@ export async function drawModelThumb(target: HTMLCanvasElement, part: Part, skin
   head.position.y = 4
   const model = makePartModel(template, part, color)
   scene.add(head, model)
+  frameThumb(model)
   thumbRenderer.render(scene, THUMB_CAMERA)
   const ctx = target.getContext('2d')!
   ctx.clearRect(0, 0, target.width, target.height)

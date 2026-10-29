@@ -419,6 +419,16 @@
       "id": "bob-textured",
       "name": "텍스처 단발",
       "model": "/models/Parts/hair/bob-textured.gltf"
+    },
+    {
+      "id": "twin-braids",
+      "name": "양갈래 땋은 머리",
+      "model": "/models/Parts/hair/twin-braids.gltf"
+    },
+    {
+      "id": "twin-braids-textured",
+      "name": "양갈래 땋은 머리 (텍스처)",
+      "model": "/models/Parts/hair/twin-braids-textured.gltf"
     }
   ],
   "top": [
