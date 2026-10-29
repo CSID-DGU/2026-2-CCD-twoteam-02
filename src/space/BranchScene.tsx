@@ -8,6 +8,9 @@ import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
+import { DEFAULT_COLORS, colorsOf } from "./theme";
+import { checkerTexture } from "./patternTexture";
+import { Counter, Decor } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -82,6 +85,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
   const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
   const spots = useMemo(() => spotsOf(branch), [branch]);
+  const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
+  const floorPattern = branch.theme?.floor; // 체크 바닥이면 텍스처, 아니면 기본색
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
   const [nearKiosk, setNearKiosk] = useState(false); // 키오스크를 쓸 수 있는 거리인지
@@ -321,26 +326,40 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <TopDownCamera area={branch.size} />
       )}
       <FpsProbe onSample={handleFps} />
-      <ambientLight intensity={1.2} />
+      {/* 조명·바닥·벽·책상 색은 지점 테마(#57)에서 읽습니다. 테마가 없으면 전과 같은 기본색입니다. */}
+      <ambientLight intensity={colors.light.ambient} color={colors.light.color} />
       {/* 1인칭에서 면이 구분되도록 비스듬한 빛을 더합니다. */}
-      <directionalLight position={[6, 12, 4]} intensity={0.8} />
+      <directionalLight position={[6, 12, 4]} intensity={colors.light.sun} color={colors.light.color} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[branch.size.w, branch.size.d]} />
-        <meshStandardMaterial color="#e8e2d6" />
+        {floorPattern ? (
+          // 체크 텍스처는 8×8칸이라, 면 전체에 (면 크기 ÷ 칸 크기 ÷ 8)번 반복합니다.
+          <meshStandardMaterial
+            map={checkerTexture(floorPattern.colors, 8, {
+              x: branch.size.w / (floorPattern.cell * 8),
+              y: branch.size.d / (floorPattern.cell * 8),
+            })}
+          />
+        ) : (
+          <meshStandardMaterial color={colors.floor} />
+        )}
       </mesh>
 
       {branch.walls.map((w, i) => (
         <mesh key={i} position={[w.x, 1.25, w.z]}>
           <boxGeometry args={[w.w, 2.5, w.d]} />
-          <meshStandardMaterial color="#8a8f98" />
+          <meshStandardMaterial color={colors.wall} />
         </mesh>
       ))}
+
+      {/* 천장·팬·네온·액자 (테마가 있을 때만) */}
+      <Decor theme={branch.theme} size={branch.size} />
 
       {branch.seats.map((s) => (
         <mesh key={s.no} position={[s.x, 0.37, s.z]}>
           <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
-          <meshStandardMaterial color="#b98a5a" />
+          <meshStandardMaterial color={colors.desk} />
         </mesh>
       ))}
 
@@ -353,7 +372,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
                 ? "#f59e0b"
                 : c.no === mySeat
                   ? MY_SEAT_COLOR
-                  : "#6b7280"
+                  : colors.chair // 기본 의자색만 테마를 따르고, 가까이·내 자리 강조색은 그대로
             }
           />
         </mesh>
@@ -402,10 +421,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {/* 커피 바(카페): 보이고 부딪히기만 하고 기능은 아직 없습니다. */}
       {branch.bar && (
         <group>
-          <mesh position={[branch.bar.x, BAR_HEIGHT / 2, branch.bar.z]}>
-            <boxGeometry args={[branch.bar.w, BAR_HEIGHT, branch.bar.d]} />
-            <meshStandardMaterial color="#7c5a3a" />
-          </mesh>
+          {branch.theme?.counter ? (
+            // 테마가 있으면 타일 카운터와 스툴 (#57)
+            <Counter bar={branch.bar} counter={branch.theme.counter} height={BAR_HEIGHT} />
+          ) : (
+            <mesh position={[branch.bar.x, BAR_HEIGHT / 2, branch.bar.z]}>
+              <boxGeometry args={[branch.bar.w, BAR_HEIGHT, branch.bar.d]} />
+              <meshStandardMaterial color={DEFAULT_COLORS.bar} />
+            </mesh>
+          )}
           <Billboard position={[branch.bar.x, BAR_HEIGHT + 0.6, branch.bar.z]}>
             <mesh>
               <planeGeometry args={[1.4, (1.4 * LABEL_PX.h) / LABEL_PX.w]} />
