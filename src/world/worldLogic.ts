@@ -165,6 +165,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
 // 광장에 없는 지점이거나 주소로 바로 들어오면 시작 위치에 섭니다.
 export function arrivalOf(plaza: PlazaLayout, placed: PlacedBuilding[], from?: string, heading?: number): { spawn: Point; heading: number } {
   const b = from === undefined ? undefined : placed.find((p) => p.slug === from)
-  if (!b) return { spawn: { x: plaza.spawn.x, z: plaza.spawn.z }, heading: plaza.spawn.heading }
+  // world.json 의 시작 방향(3.1416 등)도 범위를 맞춰 다른 방향 값들과 같게 둡니다.
+  if (!b) return { spawn: { x: plaza.spawn.x, z: plaza.spawn.z }, heading: normalizeAngle(plaza.spawn.heading) }
   return { spawn: b.arrive, heading: toWorldHeading(heading ?? 0, b.spec.facing) }
 }
