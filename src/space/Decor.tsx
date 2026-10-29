@@ -17,6 +17,7 @@ const COUNTER_TILE = { tile: '#f6f6f6', grout: '#b8b8b8', cells: 8 }
 const COUNTER_BAND = { colors: ['#1a1a1a', '#f4f4f4'] as [string, string], height: 0.3 } // 몸체 아래 체크 띠
 const COUNTER_TOP = { thickness: 0.08, overhang: 0.1 } // 상판 두께, 몸체보다 튀어나오는 폭
 const NEON = { size: 0.04, intensity: 1.5, dropFromCeiling: 0.08 }
+const COUNTER_NEON = 0.03 // 카운터 상판 가장자리 네온 두께
 
 type Size = { w: number; d: number }
 
@@ -108,7 +109,7 @@ function WallFrame({ frame }: { frame: Frame }) {
 }
 
 // 타일 카운터: 커피 바 자리에 흰 타일 몸체, 아래 체크 띠, 빨간 상판, 앞에 스툴.
-export function Counter({ bar, counter, height }: { bar: Box; counter: NonNullable<BranchTheme['counter']>; height: number }) {
+export function Counter({ bar, counter, height, neon }: { bar: Box; counter: NonNullable<BranchTheme['counter']>; height: number; neon?: string }) {
   return (
     <group>
       <mesh position={[bar.x, height / 2, bar.z]}>
@@ -123,6 +124,13 @@ export function Counter({ bar, counter, height }: { bar: Box; counter: NonNullab
         <boxGeometry args={[bar.w + COUNTER_TOP.overhang, COUNTER_TOP.thickness, bar.d + COUNTER_TOP.overhang]} />
         <meshStandardMaterial color={counter.top} />
       </mesh>
+      {/* 상판 앞 가장자리(스툴 쪽, -z) 네온 한 줄. 벽 네온과 같은 색 */}
+      {neon && (
+        <mesh position={[bar.x, height + COUNTER_TOP.thickness / 2, bar.z - (bar.d + COUNTER_TOP.overhang) / 2 - COUNTER_NEON / 2]}>
+          <boxGeometry args={[bar.w + COUNTER_TOP.overhang, COUNTER_NEON, COUNTER_NEON]} />
+          <meshStandardMaterial color={neon} emissive={neon} emissiveIntensity={NEON.intensity} />
+        </mesh>
+      )}
       {counter.stools?.map((s, i) => <Stool key={i} x={s.x} z={s.z} />)}
     </group>
   )

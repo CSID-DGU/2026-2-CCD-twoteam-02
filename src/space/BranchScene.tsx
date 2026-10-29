@@ -423,7 +423,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <group>
           {branch.theme?.counter ? (
             // 테마가 있으면 타일 카운터와 스툴 (#57)
-            <Counter bar={branch.bar} counter={branch.theme.counter} height={BAR_HEIGHT} />
+            <Counter bar={branch.bar} counter={branch.theme.counter} height={BAR_HEIGHT} neon={branch.theme.wall?.neon} />
           ) : (
             <mesh position={[branch.bar.x, BAR_HEIGHT / 2, branch.bar.z]}>
               <boxGeometry args={[branch.bar.w, BAR_HEIGHT, branch.bar.d]} />
