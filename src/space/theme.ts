@@ -14,7 +14,7 @@ export type BranchTheme = {
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
   desk?: string
   chair?: string // 의자 기본색. 가까이·내 자리 강조색은 테마와 무관
-  light?: { ambient: number; sun: number; color: string }
+  light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
 }
 
 // 테마가 없을 때의 색 (바꾸기 전 BranchScene 에 박혀 있던 값 그대로)
@@ -42,7 +42,7 @@ export function colorsOf(theme?: BranchTheme): SceneColors {
     wall: theme?.wall?.color ?? DEFAULT_COLORS.wall,
     desk: theme?.desk ?? DEFAULT_COLORS.desk,
     chair: theme?.chair ?? DEFAULT_COLORS.chair,
-    light: theme?.light ?? DEFAULT_COLORS.light,
+    light: { ...DEFAULT_COLORS.light, ...theme?.light }, // 칸마다 따로: ambient 만 적어도 나머지는 기본값
   }
 }
 
@@ -64,6 +64,9 @@ export function framePose(f: Frame): { x: number; y: number; z: number; rotY: nu
       return { x: f.x + g, y: FRAME.y, z: f.z, rotY: Math.PI / 2 }
     case 'w':
       return { x: f.x - g, y: FRAME.y, z: f.z, rotY: -Math.PI / 2 }
+    default:
+      // JSON 오타로 모르는 값이 와도 장면이 깨지지 않게 남쪽을 보는 것으로 처리
+      return { x: f.x, y: FRAME.y, z: f.z + g, rotY: 0 }
   }
 }
 
