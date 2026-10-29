@@ -1,0 +1,389 @@
+{
+  "id": "walnut",
+  "name": "월넛 바",
+  "size": {
+    "w": 16,
+    "d": 16
+  },
+  "spawn": {
+    "x": 0,
+    "z": 7
+  },
+  "door": {
+    "x": 0,
+    "z": 8,
+    "w": 1.6,
+    "d": 0.3
+  },
+  "walls": [
+    {
+      "x": 0,
+      "z": -8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": 0,
+      "z": 8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": -8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    },
+    {
+      "x": 8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    }
+  ],
+  "meetingDoor": {
+    "x": 8,
+    "z": 5,
+    "w": 0.3,
+    "d": 1.4
+  },
+  "seats": [
+    {
+      "no": 1,
+      "x": -1.559,
+      "z": -3.514,
+      "rot": 2.179,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 2,
+      "x": -1.206,
+      "z": -3.132,
+      "rot": 2.454,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 3,
+      "x": -0.762,
+      "z": -2.859,
+      "rot": 2.729,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 4,
+      "x": -0.26,
+      "z": -2.718,
+      "rot": 3.004,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 5,
+      "x": 0.26,
+      "z": -2.718,
+      "rot": 3.279,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 6,
+      "x": 0.762,
+      "z": -2.859,
+      "rot": 3.554,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 7,
+      "x": 1.206,
+      "z": -3.132,
+      "rot": 3.829,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 8,
+      "x": 1.559,
+      "z": -3.514,
+      "rot": 4.104,
+      "tall": true,
+      "chair": "stool"
+    },
+    {
+      "no": 9,
+      "x": -5.0,
+      "z": 1.45,
+      "rot": 6.284,
+      "chair": "chair"
+    },
+    {
+      "no": 10,
+      "x": -5.142,
+      "z": 1.647,
+      "rot": 8.175,
+      "chair": "none"
+    },
+    {
+      "no": 11,
+      "x": -5.0,
+      "z": 1.75,
+      "rot": 9.425,
+      "chair": "none"
+    },
+    {
+      "no": 12,
+      "x": -4.858,
+      "z": 1.647,
+      "rot": 10.675,
+      "chair": "none"
+    },
+    {
+      "no": 13,
+      "x": 5.0,
+      "z": 1.45,
+      "rot": 6.284,
+      "chair": "chair"
+    },
+    {
+      "no": 14,
+      "x": 4.858,
+      "z": 1.647,
+      "rot": 8.175,
+      "chair": "none"
+    },
+    {
+      "no": 15,
+      "x": 5.0,
+      "z": 1.75,
+      "rot": 9.425,
+      "chair": "none"
+    },
+    {
+      "no": 16,
+      "x": 5.142,
+      "z": 1.647,
+      "rot": 10.675,
+      "chair": "none"
+    },
+    {
+      "no": 17,
+      "x": -6.3,
+      "z": -5.5,
+      "rot": 1.571,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 18,
+      "x": -6.3,
+      "z": -2.5,
+      "rot": 1.571,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 19,
+      "x": 6.3,
+      "z": -5.5,
+      "rot": -1.571,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 20,
+      "x": 6.3,
+      "z": -2.5,
+      "rot": -1.571,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 21,
+      "x": -2.6,
+      "z": 4.8,
+      "rot": 3.142,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 22,
+      "x": 2.6,
+      "z": 4.8,
+      "rot": 3.142,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 23,
+      "x": -5.2,
+      "z": 5.0,
+      "rot": 3.142,
+      "chair": "tub",
+      "desk": "round"
+    },
+    {
+      "no": 24,
+      "x": 5.2,
+      "z": 5.0,
+      "rot": 3.142,
+      "chair": "tub",
+      "desk": "round"
+    }
+  ],
+  "theme": {
+    "floor": {
+      "pattern": "concrete",
+      "colors": [
+        "#ece4d4",
+        "#d6c9b2"
+      ],
+      "cell": 3
+    },
+    "wall": {
+      "color": "#efe6d6",
+      "band": {
+        "colors": [
+          "#8fa9b8",
+          "#c9b48a",
+          "#e3dccd"
+        ],
+        "y": 2.2,
+        "h": 1.0
+      }
+    },
+    "ceiling": {
+      "color": "#efe6d6",
+      "height": 4.4
+    },
+    "bars": [
+      {
+        "x": 0,
+        "z": -4.6,
+        "inner": 1.6,
+        "outer": 2.2,
+        "from": -1.1,
+        "to": 1.1,
+        "height": 1.05
+      }
+    ],
+    "backbar": {
+      "x": 0,
+      "z": -4.6,
+      "r": 0.9
+    },
+    "pillars": [
+      {
+        "x": -2.8,
+        "z": -1.0,
+        "h": 3.6,
+        "light": true
+      },
+      {
+        "x": 2.8,
+        "z": -1.0,
+        "h": 3.6,
+        "light": true
+      },
+      {
+        "x": -2.8,
+        "z": 2.4,
+        "h": 3.6
+      },
+      {
+        "x": 2.8,
+        "z": 2.4,
+        "h": 3.6,
+        "light": true
+      }
+    ],
+    "mushrooms": [
+      {
+        "x": -1.693,
+        "z": -3.738,
+        "y": 1.05,
+        "light": true
+      },
+      {
+        "x": -0.993,
+        "z": -2.98,
+        "y": 1.05,
+        "light": false
+      },
+      {
+        "x": 0.0,
+        "z": -2.7,
+        "y": 1.05,
+        "light": true
+      },
+      {
+        "x": 0.993,
+        "z": -2.98,
+        "y": 1.05,
+        "light": false
+      },
+      {
+        "x": 1.693,
+        "z": -3.738,
+        "y": 1.05,
+        "light": true
+      },
+      {
+        "x": -5.0,
+        "z": 2.67,
+        "y": 1.03,
+        "light": true
+      },
+      {
+        "x": 5.0,
+        "z": 2.67,
+        "y": 1.03,
+        "light": true
+      }
+    ],
+    "booths": [
+      {
+        "x": -5.0,
+        "z": 1.6,
+        "open": 3.142
+      },
+      {
+        "x": 5.0,
+        "z": 1.6,
+        "open": 3.142
+      }
+    ],
+    "booth": {
+      "leather": "#5f7a3a",
+      "marble": [
+        "#2a1d18",
+        "#c9a27a"
+      ],
+      "back": "#5a3420",
+      "gap": 0.9,
+      "table": "marble",
+      "soft": true
+    },
+    "desk": "#f2ece4",
+    "chair": "#d99a8a",
+    "furniture": {
+      "style": "wood",
+      "accent": "#c9952e",
+      "chrome": "#5a3420",
+      "trim": "#5a3420"
+    },
+    "light": {
+      "ambient": 0.85,
+      "sun": 0.7,
+      "color": "#ffe8c8"
+    },
+    "door": {
+      "style": "porthole",
+      "color": "#6b3f24",
+      "chrome": "#c9a24a",
+      "signBg": "#5a3420"
+    }
+  }
+}

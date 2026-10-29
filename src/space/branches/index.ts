@@ -6,6 +6,9 @@ import byeol from './byeol.json'
 import sol from './sol.json'
 import olive from './olive.json'
 import obsidian from './obsidian.json'
+import walnut from './walnut.json'
+import moss from './moss.json'
+import stream from './stream.json'
 
 export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   byeol, // 별다방 (스터디카페, 키오스크)
@@ -16,6 +19,10 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   olive: { ...olive, seats: olive.seats as BranchLayout['seats'], theme: olive.theme as BranchTheme },
   // 흑요 라운지 (카페, 검은 원형 부스·대리석 테이블 테마)
   obsidian: { ...obsidian, seats: obsidian.seats as BranchLayout['seats'], theme: obsidian.theme as BranchTheme },
+  // 광장 새 지점들 (#57): 월넛 바(북동 골목, 곡선 바·초록 벨벳 부스), 올리브 테라스 건물 2층 이끼 정원(초록 곡선 소파·화분)·3층 물결 라운지(물길·회색 소파)
+  walnut: { ...walnut, seats: walnut.seats as BranchLayout['seats'], theme: walnut.theme as BranchTheme },
+  moss: { ...moss, seats: moss.seats as BranchLayout['seats'], theme: moss.theme as BranchTheme },
+  stream: { ...stream, seats: stream.seats as BranchLayout['seats'], theme: stream.theme as BranchTheme },
 }
 
 export const DEFAULT_BRANCH = 'byeol'
