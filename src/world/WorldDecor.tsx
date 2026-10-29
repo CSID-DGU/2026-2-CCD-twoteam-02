@@ -3,8 +3,7 @@
 // 모두 상자·원기둥·원뿔·구로 코드에서 그립니다(외부 모델 없음). 배치 값은 world.json 과 worldLogic.ts 에서 받습니다.
 // 성능: 그림자는 끄고, 같은 모양이 여럿인 나무·벤치·가로등은 drei 의 Instances 로 그립니다.
 //   Instances(인스턴싱): 같은 모양을 위치만 바꿔 한 번의 그리기 명령으로 여러 개 그리는 방법. 나무 40그루도 그리기 횟수는 몇 번뿐입니다.
-// 재질은 이 파일에서 한 번 만들어 같이 씁니다. (컴포넌트마다 새로 만들면 같은 색이라도 재질이 따로 생김)
-// 하늘·밤 조명은 #316 에서 붙입니다. 지금 가로등·창문은 낮 모습입니다.
+// 색·재질은 worldMaterials.ts 에서 한 번 만들어 같이 씁니다. (밤에 가로등·창문이 빛나는 것도 거기서, #316)
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
@@ -12,28 +11,7 @@ import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { BENCH, FENCE_T, facingAngle, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-
-// 색
-const COLOR = {
-  grass: '#7cb36b',
-  plaza: '#d9cdb8',
-  path: '#cfc2aa',
-  stone: '#b9b2a6',
-  water: '#5fb3d9',
-  waterLight: '#8ccfeb',
-  trunk: '#7a5534',
-  leaves: '#3f8f4a',
-  leavesTop: '#4fa65a',
-  wood: '#a0784d',
-  iron: '#3a3f47',
-  lampGlow: '#fff6d5',
-  window: '#2b3a4a',
-  fence: '#9a7b55',
-  // 입구 문: 지금 로비 문과 같은 색
-  doorOpen: '#4ade80',
-  doorSoon: '#6b7280',
-  near: '#f59e0b',
-}
+import { COLOR, MAT, colorMat } from './worldMaterials'
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -49,37 +27,6 @@ const TREE = { trunkR: 0.18, trunkH: 1.6, lowR: 1.4, lowH: 2, topR: 1.0, topH: 1
 const BENCH_SHAPE = { seatY: 0.45, seatT: 0.08, backH: 0.5, backT: 0.08, legT: 0.08 }
 const LAMP = { postR: 0.07, postH: 3, headR: 0.22 }
 const WATER_WAVE_S = 2.5 // 분수 물빛이 한 번 오가는 시간(초)
-
-// 재질 (모듈에서 한 번)
-const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, ...extra })
-const MAT = {
-  grass: mat(COLOR.grass),
-  plaza: mat(COLOR.plaza),
-  path: mat(COLOR.path),
-  stone: mat(COLOR.stone),
-  water: mat(COLOR.water),
-  trunk: mat(COLOR.trunk),
-  leaves: mat(COLOR.leaves),
-  leavesTop: mat(COLOR.leavesTop),
-  wood: mat(COLOR.wood),
-  iron: mat(COLOR.iron),
-  lampGlow: mat(COLOR.lampGlow, { emissive: COLOR.lampGlow, emissiveIntensity: 0.6 }),
-  window: mat(COLOR.window),
-  fence: mat(COLOR.fence),
-  doorOpen: mat(COLOR.doorOpen),
-  doorSoon: mat(COLOR.doorSoon),
-  near: mat(COLOR.near),
-}
-// 건물마다 다른 벽·지붕 색은 색별로 한 번만 만듭니다.
-const colorMats = new Map<string, THREE.MeshStandardMaterial>()
-function colorMat(color: string) {
-  let m = colorMats.get(color)
-  if (!m) {
-    m = mat(color)
-    colorMats.set(color, m)
-  }
-  return m
-}
 
 // ── 땅 ──────────────────────────────────────────────────────────────
 

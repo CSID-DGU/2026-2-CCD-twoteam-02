@@ -14,7 +14,7 @@
 //
 // 시점은 지점과 같다: 처음엔 1인칭으로 걸어 다니고, V 로 위에서 보기와 바꾼다. (#71)
 // 광장은 넓어서 위에서 보기·미니맵이 전체 대신 내 둘레를 따라다니며 보여 준다.
-// 하늘은 지금 맑은 낮 하늘색과 고정된 햇빛이다. 시간에 따라 바뀌는 하늘은 #316, 날씨는 #317.
+// 하늘과 빛은 WorldSky 가 현실 시각(서울)을 따라 바꾼다(#316, 확인용 주소 ?time=21:30 · ?speed=600). 날씨는 #317.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useLocation } from 'react-router'
@@ -49,11 +49,10 @@ import { newEmoteState } from '../space/emotes'
 import { arrivalOf, placeBuildings, plazaObstacles, toBranchHeading } from './worldLogic'
 import type { PlacedFloor, PlazaLayout } from './worldLogic'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
+import { WorldSky } from './WorldSky'
 import world from './world.json'
 
 const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. 아래 Player 주석 참고
-const SKY = '#9fd3f5' // 맑은 낮 하늘 (#316 에서 시간에 따라 바뀜)
-const LIGHT = { ambient: 1.0, sun: 0.9, sunPos: [20, 30, 10] as [number, number, number] } // 고정된 낮 햇빛
 const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
 const MINIMAP_SPAN = 40 // 미니맵: 내 둘레 이 거리(m)
 
@@ -216,7 +215,6 @@ export default function WorldScene({ onEnter }: Props) {
   return (
     <>
       <Canvas>
-        <color attach="background" args={[SKY]} />
         {view === 'first' ? (
           <>
             <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || picker !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
@@ -227,8 +225,7 @@ export default function WorldScene({ onEnter }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         <FpsProbe onSample={handleFps} />
-        <ambientLight intensity={LIGHT.ambient} />
-        <directionalLight position={LIGHT.sunPos} intensity={LIGHT.sun} />
+        <WorldSky /> {/* 하늘·해·달·별과 빛 (#316) */}
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />

@@ -1,0 +1,72 @@
+// 광장 월드의 색과 재질 (#315, #316). 화면 부품(WorldDecor)과 하늘(WorldSky)이 같이 씁니다.
+//
+// 재질은 여기서 한 번 만들어 같이 씁니다. (컴포넌트마다 새로 만들면 같은 색이라도 재질이 따로 생김)
+// 밤에는 가로등 등과 창문이 빛납니다. 빛나는 정도는 WorldSky 가 매 프레임 setNightGlow 로 바꿉니다.
+// (.tsx 에서 컴포넌트가 아닌 것을 내보내면 개발 서버의 빠른 새로고침이 깨져서 따로 둔 파일입니다)
+import * as THREE from 'three'
+
+// 색
+export const COLOR = {
+  grass: '#7cb36b',
+  plaza: '#d9cdb8',
+  path: '#cfc2aa',
+  stone: '#b9b2a6',
+  water: '#5fb3d9',
+  waterLight: '#8ccfeb',
+  trunk: '#7a5534',
+  leaves: '#3f8f4a',
+  leavesTop: '#4fa65a',
+  wood: '#a0784d',
+  iron: '#3a3f47',
+  lampGlow: '#fff6d5',
+  window: '#2b3a4a',
+  fence: '#9a7b55',
+  // 입구 문: 지금 로비 문과 같은 색
+  doorOpen: '#4ade80',
+  doorSoon: '#6b7280',
+  near: '#f59e0b',
+}
+
+// 밤 빛남 (#316): 가로등 등은 낮에도 살짝, 밤에 밝게. 창문은 밤에만 따뜻한 노란빛
+const GLOW = { lampDay: 0.3, lampNight: 1.6, window: 0.9, windowColor: '#ffcf7a' }
+
+// 재질 (모듈에서 한 번)
+const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, ...extra })
+export const MAT = {
+  grass: mat(COLOR.grass),
+  plaza: mat(COLOR.plaza),
+  path: mat(COLOR.path),
+  stone: mat(COLOR.stone),
+  water: mat(COLOR.water),
+  trunk: mat(COLOR.trunk),
+  leaves: mat(COLOR.leaves),
+  leavesTop: mat(COLOR.leavesTop),
+  wood: mat(COLOR.wood),
+  iron: mat(COLOR.iron),
+  lampGlow: mat(COLOR.lampGlow, { emissive: COLOR.lampGlow, emissiveIntensity: GLOW.lampDay }),
+  window: mat(COLOR.window, { emissive: GLOW.windowColor, emissiveIntensity: 0 }),
+  fence: mat(COLOR.fence),
+  doorOpen: mat(COLOR.doorOpen),
+  doorSoon: mat(COLOR.doorSoon),
+  near: mat(COLOR.near),
+}
+// 밤 빛남을 바꿉니다 (glow 0 낮 ~ 1 밤). 가로등·창문 재질은 모든 가로등·건물이 같이 쓰므로 한 번 바꾸면 전부 바뀝니다.
+// 매 프레임 불려도 값이 그대로면 재질을 건드리지 않습니다.
+let lastGlow = -1
+export function setNightGlow(glow: number) {
+  if (glow === lastGlow) return
+  lastGlow = glow
+  MAT.lampGlow.emissiveIntensity = GLOW.lampDay + (GLOW.lampNight - GLOW.lampDay) * glow
+  MAT.window.emissiveIntensity = GLOW.window * glow
+}
+
+// 건물마다 다른 벽·지붕 색은 색별로 한 번만 만듭니다.
+const colorMats = new Map<string, THREE.MeshStandardMaterial>()
+export function colorMat(color: string) {
+  let m = colorMats.get(color)
+  if (!m) {
+    m = mat(color)
+    colorMats.set(color, m)
+  }
+  return m
+}
