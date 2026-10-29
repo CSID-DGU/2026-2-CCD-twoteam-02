@@ -19,6 +19,12 @@ import { toKoreanMessage } from '../auth/authErrors'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN } from '../auth/authLimits'
 import { emailChangedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
 import { announceMyProfileChanged } from './characters'
+import { BirthdayInput } from './BirthdayInput'
+import { useMyBirthday } from './useMyBirthday'
+import type { Birthday } from './useMyBirthday'
+import { SIGNS, signOfBirthday } from '../world/starLogic'
+
+const nameOfSign = (id: string) => SIGNS.find((s) => s.id === id)?.name ?? id
 
 export function AccountTab() {
   const { session, loading } = useSession()
@@ -32,6 +38,10 @@ export function AccountTab() {
   // effect 로 맞추면 읽어 오는 사이에 입력칸이 비었다가 채워져 깜빡입니다.
   const [draft, setDraft] = useState<string | null>(null)
   const nickname = draft ?? savedNickname
+  // 생일: 고치는 중이면 그 값(undefined 면 저장된 값). 닉네임과 같은 방식으로 깜빡임을 피함
+  const { birthday: savedBirthday, save: saveBirthday } = useMyBirthday(myId)
+  const [birthdayDraft, setBirthdayDraft] = useState<Birthday | null | undefined>(undefined)
+  const birthday = birthdayDraft === undefined ? savedBirthday : birthdayDraft
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -69,6 +79,21 @@ export function AccountTab() {
     reloadNickname()
     announceMyProfileChanged() // 지점 안에 있으면 다른 사람 화면의 이름표도 바로 바뀝니다 (#131)
     setNotice('닉네임을 바꿨습니다.')
+  }
+
+  // 생일 저장 (월·일, 비우면 지우기) (#321)
+  async function changeBirthday(e: FormEvent) {
+    e.preventDefault()
+    if (busy) return
+    start()
+    const message = await saveBirthday(birthday)
+    setBusy(false)
+    if (message) {
+      setError(message)
+      return
+    }
+    setBirthdayDraft(undefined)
+    setNotice(birthday ? '생일을 저장했습니다.' : '생일을 지웠습니다.')
   }
 
   async function changeEmail(e: FormEvent) {
@@ -138,6 +163,20 @@ export function AccountTab() {
           </button>
         </div>
         <p style={styles.hint}>{NICKNAME_MIN}~{NICKNAME_MAX}자. 캐릭터 이름표와 친구 목록에 보입니다.</p>
+      </form>
+
+      <form style={styles.block} onSubmit={changeBirthday}>
+        <h2 style={styles.heading}>생일</h2>
+        <div style={styles.row}>
+          <BirthdayInput value={birthday} onChange={setBirthdayDraft} />
+          <button style={styles.button} type="submit" disabled={busy}>
+            {busy ? '…' : '저장'}
+          </button>
+        </div>
+        <p style={styles.hint}>
+          {birthday ? `내 별자리: ${nameOfSign(signOfBirthday(birthday.month, birthday.day))}. ` : ''}
+          광장 밤하늘에서 내 별자리를 금색으로 보여 주고 오늘의 운세 맨 위에 보여 줘요. 태어난 해는 받지 않고, 나만 볼 수 있어요.
+        </p>
       </form>
 
       <form style={styles.block} onSubmit={changeEmail}>
