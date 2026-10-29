@@ -243,3 +243,82 @@ export function signTexture(spec: SignSpec): CanvasTexture {
   }
   return texture
 }
+
+// 매번 같은 무늬가 나오게 하는 고정 난수 (seed 가 같으면 같은 순서)
+function seeded(seed: number) {
+  let s = seed
+  return () => (s = (s * 9301 + 49297) % 233280) / 233280
+}
+
+// 콘크리트 바닥: 바탕색 위에 큰 얼룩(옅은 원) 여러 개와 잔 점. repeat 는 면 전체에 몇 번 깔지
+export function concreteTexture(colors: [string, string], repeat: { x: number; y: number }): CanvasTexture {
+  const key = `concrete|${colors[0]}|${colors[1]}|${repeat.x}|${repeat.y}`
+  let texture = cache.get(key)
+  if (!texture) {
+    const { canvas, ctx } = makeCanvas(PATTERN_PX, PATTERN_PX)
+    const rand = seeded(11)
+    ctx.fillStyle = colors[0]
+    ctx.fillRect(0, 0, PATTERN_PX, PATTERN_PX)
+    for (let i = 0; i < 40; i++) {
+      const r = 20 + rand() * 90
+      const x = rand() * PATTERN_PX
+      const y = rand() * PATTERN_PX
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+      g.addColorStop(0, colors[1])
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.globalAlpha = 0.08 + rand() * 0.12
+      ctx.fillStyle = g
+      // 이음매가 안 보이게 가장자리에 걸친 얼룩은 반대편에도 그림
+      for (const dx of [-PATTERN_PX, 0, PATTERN_PX]) for (const dy of [-PATTERN_PX, 0, PATTERN_PX]) {
+        ctx.save()
+        ctx.translate(dx, dy)
+        ctx.fillRect(x - r, y - r, r * 2, r * 2)
+        ctx.restore()
+      }
+    }
+    ctx.globalAlpha = 0.25
+    for (let i = 0; i < 1500; i++) {
+      ctx.fillStyle = rand() > 0.5 ? '#ffffff' : '#000000'
+      ctx.fillRect(rand() * PATTERN_PX, rand() * PATTERN_PX, 1, 1)
+    }
+    ctx.globalAlpha = 1
+    texture = finish(canvas, repeat)
+    cache.set(key, texture)
+  }
+  return texture
+}
+
+// 대리석: 어두운 바탕에 구리색 결(꺾인 선 여러 개, 굵기·밝기 제각각)
+export function marbleTexture(colors: [string, string]): CanvasTexture {
+  const key = `marble|${colors[0]}|${colors[1]}`
+  let texture = cache.get(key)
+  if (!texture) {
+    const { canvas, ctx } = makeCanvas(PATTERN_PX, PATTERN_PX)
+    const rand = seeded(23)
+    ctx.fillStyle = colors[0]
+    ctx.fillRect(0, 0, PATTERN_PX, PATTERN_PX)
+    ctx.strokeStyle = colors[1]
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 26; i++) {
+      let x = rand() * PATTERN_PX
+      let y = rand() * PATTERN_PX
+      let angle = rand() * Math.PI * 2
+      ctx.globalAlpha = 0.25 + rand() * 0.6
+      ctx.lineWidth = 0.6 + rand() * (i < 6 ? 4 : 1.6)
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      const steps = 8 + Math.floor(rand() * 18)
+      for (let k = 0; k < steps; k++) {
+        angle += (rand() - 0.5) * 1.2
+        x += Math.cos(angle) * (10 + rand() * 22)
+        y += Math.sin(angle) * (10 + rand() * 22)
+        ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    texture = finish(canvas)
+    cache.set(key, texture)
+  }
+  return texture
+}

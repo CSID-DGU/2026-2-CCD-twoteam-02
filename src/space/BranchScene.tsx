@@ -9,8 +9,8 @@ import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { brickTexture, checkerTexture } from "./patternTexture";
-import { BarTable, Counter, Decor, DinerDesk, RingTable, Sofa, Stool, ThemedDoor, WoodBooth, WoodChair } from "./Decor";
+import { brickTexture, checkerTexture, concreteTexture } from "./patternTexture";
+import { BarTable, Counter, Decor, DinerDesk, RingTable, SeatPad, Sofa, Stool, ThemedDoor, WoodBooth, WoodChair } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -88,6 +88,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
   const floorPattern = branch.theme?.floor; // 체크 바닥이면 텍스처, 아니면 기본색
   const furniture = branch.theme?.furniture; // 다이너 테이블·소파 (없으면 상자 책상·의자)
+  // 공용 테이블로 보는 둥근 범위: 고리 테이블 + 원형 부스의 대리석 테이블(그 안의 자리는 개별 책상을 그리지 않음)
+  const sharedRings = [...(furniture?.rings ?? []), ...(branch.theme?.booths ?? []).map((b) => ({ x: b.x, z: b.z, inner: 0, outer: 0.5 }))];
   const wallH = ceilingHeightOf(branch.theme); // 벽·천장 높이 (테마에 없으면 2.5)
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
@@ -335,7 +337,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[branch.size.w, branch.size.d]} />
-        {floorPattern?.pattern === "brick" ? (
+        {floorPattern?.pattern === "concrete" ? (
+          // 콘크리트 텍스처 한 장이 cell(m) 크기라, 면 전체에 (면 ÷ cell)번 반복합니다.
+          <meshStandardMaterial
+            roughness={0.9}
+            map={concreteTexture(floorPattern.colors, { x: branch.size.w / floorPattern.cell, y: branch.size.d / floorPattern.cell })}
+          />
+        ) : floorPattern?.pattern === "brick" ? (
           // 벽돌 텍스처는 가로 4개(cell 길이) × 세로 16줄(cell/4 높이)이라, 면 전체에 (면 ÷ 텍스처 한 장 크기)번 반복합니다.
           <meshStandardMaterial
             roughness={0.85}
@@ -376,7 +384,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ))}
       {branch.seats.map((s) =>
         furniture ? (
-          insideTable(s, furniture.tables, furniture.rings) ? null : ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
+          insideTable(s, furniture.tables, sharedRings) ? null : ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
             <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} trim={furniture.trim} metal={furniture.style !== "wood"} />
           )
         ) : (
@@ -393,7 +401,10 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
         return furniture?.style === "wood" ? (
           // 원목 테마: 자리마다 원목 부스 또는 원목 의자. 강조색(주황·내 자리)은 방석 색으로
-          c.chair === "booth" ? (
+          c.chair === "none" ? (
+            // 원형 부스 안 자리: 의자 대신 방석 위 표시판 (가까이·내 자리면 강조색)
+            <SeatPad key={c.no} x={c.x} z={c.z} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : branch.theme?.booth?.leather ?? colors.chair} />
+          ) : c.chair === "booth" ? (
             <WoodBooth key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : furniture.accent} wood={colors.chair} cushion={furniture.accent} />
           ) : (
             <WoodChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} wood={furniture.chrome} />

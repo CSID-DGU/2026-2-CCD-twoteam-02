@@ -46,11 +46,17 @@ export type Tree = { x: number; z: number; potR: number; height: number }
 // 벽 선반: 원목 판 rows 줄 + 판마다 작은 그릇·꽃병. face 는 선반이 보는 쪽(벽 안쪽)
 export type Shelf = { x: number; z: number; face: Frame['face']; w: number; rows: number }
 // 둥근 전구 조명: 줄에 매달린 흰 구. light 면 실제 빛(pointLight)도 냄 (많으면 느려져 일부만)
-export type Globe = { x: number; z: number; y: number; light?: boolean }
+// style: globe = 흰 구(기본), disc = 납작한 원반 갓 아래 작은 전구
+export type Globe = { x: number; z: number; y: number; light?: boolean; style?: 'globe' | 'disc' }
+// 원형 부스: 가운데 둥근 대리석 테이블을 C 모양 가죽 부스가 감쌈. open 은 부스가 비는 쪽 방향(라디안, 0 = +z 남쪽)
+export type Booth = { x: number; z: number; open: number }
+// 버섯 조명: 부스 등받이 위 작은 탁상 조명. light 면 실제 빛
+export type Mushroom = { x: number; z: number; y: number; light?: boolean }
 
 export type BranchTheme = {
   // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
-  floor?: { pattern: 'checker' | 'brick'; colors: [string, string]; cell: number }
+  // concrete: 회색 콘크리트(colors = [바탕, 얼룩], cell 은 텍스처 한 장 크기)
+  floor?: { pattern: 'checker' | 'brick' | 'concrete'; colors: [string, string]; cell: number }
   wall?: { color: string; neon?: string } // neon: 벽 위쪽 네온 띠 색 (없으면 안 그림)
   ceiling?: {
     color: string
@@ -62,6 +68,9 @@ export type BranchTheme = {
   }
   tree?: Tree
   shelves?: Shelf[]
+  booths?: Booth[] // 원형 부스 (흑요 라운지)
+  mushrooms?: Mushroom[]
+  booth?: { leather: string; marble: [string, string] } // 부스 가죽 색, 대리석 [바탕, 결] 색
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
@@ -70,7 +79,7 @@ export type BranchTheme = {
   furniture?: Furniture
   light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
   // 출입문·회의실 문. style: arch = 아치형 크롬 틀(기본), wood = 원목 문 + 둥근 손잡이. 앞에 서면 주황 강조는 그대로
-  door?: { style?: 'arch' | 'wood'; color: string; chrome: string; signBg: string }
+  door?: { style?: 'arch' | 'wood'; color: string; chrome: string; signBg: string; knob?: string } // knob: 원목 문 손잡이 색(기본 놋쇠)
 }
 
 
@@ -179,3 +188,21 @@ export const WOOD_BOOTH = { w: 0.6, d: 0.5, seatH: 0.45, backH: 0.65, backT: 0.1
 export const WOOD_DOOR = { frameT: 0.08, knobR: 0.05, knobY: 1.0, signW: 0.7, signY: 1.6 }
 // 둥근 전구: 반지름, 빛 세기·거리
 export const GLOBE = { r: 0.2, cordR: 0.008, intensity: 4, distance: 6 }
+
+// 원형 부스: 방석(안쪽 반지름 seatIn ~ seatOut) + 등받이(seatOut ~ backOut). 열린 쪽 반각 gap
+export const BOOTH = { seatIn: 0.55, seatOut: 1.0, backOut: 1.15, seatH: 0.45, backH: 1.0, gap: 0.9 }
+// 대리석 테이블: 상판 반지름·두께, 받침 기둥
+export const MARBLE_TABLE = { r: 0.45, topT: 0.05, height: 0.74, stemR: 0.08, baseR: 0.3 }
+// 버섯 조명: 기둥 + 반구 갓
+export const MUSHROOM = { stemR: 0.015, stemH: 0.18, capR: 0.12, intensity: 1.6, distance: 3 }
+// 부스 한 개의 자리 4개: 열린 쪽에 의자 1개(chair), 부스 안 3개(none — 의자 대신 방석). 책상 점은 테이블 가운데에서 조금 떨어진 곳
+const BOOTH_SEAT_ANGLES = [0, Math.PI - 1.25, Math.PI, Math.PI + 1.25] // open 기준
+export function boothSeats(b: Booth, startNo: number): { no: number; x: number; z: number; rot: number; chair: 'chair' | 'none' }[] {
+  return BOOTH_SEAT_ANGLES.map((d, i) => {
+    const a = b.open + d
+    const ux = Math.sin(a)
+    const uz = Math.cos(a)
+    // 의자는 책상 점에서 rot 반대로 0.65 → 테이블 가운데에서 0.8 떨어진 곳(부스 방석 위)
+    return { no: startNo + i, x: round3(b.x + ux * 0.15), z: round3(b.z + uz * 0.15), rot: round3(a + Math.PI), chair: i === 0 ? 'chair' : 'none' }
+  })
+}
