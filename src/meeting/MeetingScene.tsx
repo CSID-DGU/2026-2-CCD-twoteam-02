@@ -10,6 +10,7 @@
 // 방장(👑, 0023): 방장이 나가면 회의가 모두에게 끝납니다. 나가기 전에 다른 참석자에게 방장을 넘길 수 있습니다.
 // 회의가 끝나면(방장이 끝냄, 오래 끊겨 내보내짐) 안내를 보여 주고 잠시 뒤 지점 회의실 문 앞으로 돌아갑니다.
 // 음성(#46): 같은 회의 사람끼리 브라우저로 직접 목소리를 주고받습니다(useVoice). 마이크는 기본으로 꺼져 있고 M 으로 켭니다.
+// 생김새는 들어온 지점의 테마를 따릅니다(#57): 바닥·벽·천장·조명·문·테이블·의자와 작은 소품 (meetingTheme.ts, MeetingDecor.tsx)
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -18,7 +19,8 @@ import { supabase } from '../lib/supabase'
 import { useSession } from '../auth/useSession'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from '../space/branches'
-import { CHAIR } from '../space/layout'
+import { Decor, ThemedDoor, ThemedFloor } from '../space/Decor'
+import { ceilingHeightOf, colorsOf, decorBoxes } from '../space/theme'
 import { SeatCamera } from '../space/SeatCamera'
 import { WalkCamera } from '../space/WalkCamera'
 import { Minimap } from '../space/Minimap'
@@ -45,12 +47,13 @@ import type { Direction } from '../tracking/armLogic'
 import type { MyTracking } from '../study/SeatedStudy'
 import { MEETING_ROOM, elapsedLabel, meetingChairs, meetingObstacles, meetingPlace, tableRadius } from './meetingLogic'
 import { SeatedTracking } from './SeatedTracking'
+import { MeetingChair, MeetingTable } from './MeetingDecor'
+import { chairKindOf, meetingRoomTheme } from './meetingTheme'
 import { useMeeting } from './useMeeting'
 import { useSignalPort, useVoice } from './useVoice'
 import type { MeetingInfo, MeetingPerson } from './useMeeting'
 
-const WALL_HEIGHT = 2.5
-const TABLE_HEIGHT = 0.74 // 지점 책상과 같은 높이
+const FLOOR_COLOR = '#c9d6e3' // 테마가 없는 지점(별다방)의 회의실 바닥
 const DOOR_HEIGHT = 2.2 // 지점 출입문과 같음
 const DOOR_SIGN = { width: 1.4, y: 1.75 }
 const DOOR_COLOR = { idle: '#4ade80', near: '#f59e0b' } // 지점 문과 같은 색
@@ -130,6 +133,7 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
       onLeave={leave}
       voice={voice}
       place={meetingPlace(slug)}
+      slug={slug}
     />
   )
 }
@@ -146,12 +150,19 @@ type SpaceProps = {
   voice: ReturnType<typeof useVoice> // 음성: 마이크 켜기·끄기, 말하는 사람
   onLeave: () => void | Promise<void>
   place: string // 전체 지도에서 내가 있는 곳 (meeting:지점slug, #300)
+  slug: string // 들어온 지점. 회의실 생김새를 그 지점 테마로 (#57)
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place }: SpaceProps) {
+function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place, slug }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
-  const obstacles = useMemo(() => meetingObstacles(info.capacity), [info.capacity])
+  // 지점 테마를 회의실 크기에 맞춘 것 (없으면 기본 모습). 구석 화분·나무도 부딪힙니다.
+  const branchLayout = BRANCH_LAYOUTS[slug]
+  const theme = useMemo(() => meetingRoomTheme(branchLayout?.theme, info.capacity), [branchLayout, info.capacity])
+  const chairKind = chairKindOf(branchLayout?.theme, branchLayout?.seats ?? [])
+  const colors = colorsOf(theme)
+  const wallH = ceilingHeightOf(theme)
+  const obstacles = useMemo(() => [...meetingObstacles(info.capacity), ...decorBoxes(theme)], [info.capacity, theme])
   const radius = tableRadius(info.capacity)
   const { model: myModel } = useMyAvatar()
   const [near, setNear] = useState<number | null>(null) // 앉을 수 있는 의자 번호
@@ -326,45 +337,39 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
         ) : (
           <TopDownCamera area={MEETING_ROOM.size} />
         )}
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[6, 12, 4]} intensity={0.8} />
+        <ambientLight intensity={colors.light.ambient} color={colors.light.color} />
+        <directionalLight position={[6, 12, 4]} intensity={colors.light.sun} color={colors.light.color} />
 
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[MEETING_ROOM.size.w, MEETING_ROOM.size.d]} />
-          <meshStandardMaterial color="#c9d6e3" />
-        </mesh>
+        <ThemedFloor floor={theme?.floor} size={MEETING_ROOM.size} color={FLOOR_COLOR} />
         {MEETING_ROOM.walls.map((w, i) => (
-          <mesh key={i} position={[w.x, WALL_HEIGHT / 2, w.z]}>
-            <boxGeometry args={[w.w, WALL_HEIGHT, w.d]} />
-            <meshStandardMaterial color="#8a8f98" />
+          <mesh key={i} position={[w.x, wallH / 2, w.z]}>
+            <boxGeometry args={[w.w, wallH, w.d]} />
+            <meshStandardMaterial color={colors.wall} />
           </mesh>
         ))}
+        {/* 천장·조명·러그·화분·액자 (테마가 있을 때만) */}
+        <Decor theme={theme} size={MEETING_ROOM.size} />
 
-        {/* 문: 앞에서 E 를 누르면 회의에서 나갑니다. 표지판은 안쪽(-Z)을 보게 반 바퀴 돌립니다. */}
-        <mesh position={[MEETING_ROOM.door.x, DOOR_HEIGHT / 2, MEETING_ROOM.door.z]}>
-          <boxGeometry args={[MEETING_ROOM.door.w, DOOR_HEIGHT, MEETING_ROOM.door.d]} />
-          <meshStandardMaterial color={nearExit ? DOOR_COLOR.near : DOOR_COLOR.idle} />
-        </mesh>
-        <mesh position={[MEETING_ROOM.door.x, DOOR_SIGN.y, MEETING_ROOM.door.z - MEETING_ROOM.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
-          <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-          <meshBasicMaterial map={labelTexture('나가기', '#14532d')} transparent />
-        </mesh>
+        {/* 문: 앞에서 E 를 누르면 회의에서 나갑니다. 테마 문은 지점 출입문과 같은 모양, 아니면 초록 문 + 안쪽(-Z)을 보는 표지판 */}
+        {theme?.door ? (
+          <ThemedDoor box={MEETING_ROOM.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="나가기" door={theme.door} along="x" />
+        ) : (
+          <>
+            <mesh position={[MEETING_ROOM.door.x, DOOR_HEIGHT / 2, MEETING_ROOM.door.z]}>
+              <boxGeometry args={[MEETING_ROOM.door.w, DOOR_HEIGHT, MEETING_ROOM.door.d]} />
+              <meshStandardMaterial color={nearExit ? DOOR_COLOR.near : DOOR_COLOR.idle} />
+            </mesh>
+            <mesh position={[MEETING_ROOM.door.x, DOOR_SIGN.y, MEETING_ROOM.door.z - MEETING_ROOM.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
+              <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+              <meshBasicMaterial map={labelTexture('나가기', '#14532d')} transparent />
+            </mesh>
+          </>
+        )}
 
-        {/* 원형 테이블: 회의 인원에 맞춘 크기 */}
-        <mesh position={[0, TABLE_HEIGHT - 0.03, 0]}>
-          <cylinderGeometry args={[radius, radius, 0.06, 64]} />
-          <meshStandardMaterial color="#b98a5a" />
-        </mesh>
-        <mesh position={[0, (TABLE_HEIGHT - 0.06) / 2, 0]}>
-          <cylinderGeometry args={[0.15, 0.25, TABLE_HEIGHT - 0.06, 16]} />
-          <meshStandardMaterial color="#7c5a3a" />
-        </mesh>
-
+        {/* 원형 테이블: 회의 인원에 맞춘 크기. 의자는 지점 의자 모양 (가까이·내 의자는 주황) */}
+        <MeetingTable radius={radius} theme={theme} />
         {chairs.map((c) => (
-          <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]} rotation={[0, c.rot, 0]}>
-            <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
-            <meshStandardMaterial color={c.no === seat || c.no === near ? '#f59e0b' : '#6b7280'} />
-          </mesh>
+          <MeetingChair key={c.no} chair={c} kind={chairKind} theme={theme} highlight={c.no === seat || c.no === near} />
         ))}
 
         {/* 다른 참석자: 앉은 사람은 의자에, 서 있는 사람은 받은 위치에 그립니다(지점과 같음). 표시등은 없고, 방장 이름 앞에 👑 */}

@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
+import { stepWithObstacles } from './layout'
 import type { Box, Spot } from './layout'
 import { BASE_MODEL_URL } from '../profile/characters'
 import { useSkin } from '../tracking/useSkin'
@@ -24,10 +25,8 @@ const KIOSK_RANGE = 1.0 // 키오스크 중심에서 이 거리 안에 있으면
 // 들어오자마자 "나가기" 안내가 뜨지 않고, 문 쪽으로 한 걸음 더 가야 뜹니다. (#150)
 const EXIT_RANGE = 0.8
 const MEETING_RANGE = 0.8 // 회의실 문 앞 자리(meetingDoorFront)에서 이 거리 안이면 들어갈 수 있습니다. (#45)
+const ELEVATOR_RANGE = 0.8 // 엘리베이터 문 앞 자리(elevatorFront)에서 이 거리 안이면 층을 고를 수 있습니다. (회의실 문과 같음)
 const KEY_TURN_SPEED = 2.2 // 1인칭에서 방향키 ←→ 로 도는 빠르기(초당 라디안)
-
-const hit = (x: number, z: number, o: Box) =>
-  Math.abs(x - o.x) < o.w / 2 + R && Math.abs(z - o.z) < o.d / 2 + R
 
 type Props = {
   model: string // 내 캐릭터 차림(아바타 키, 내 프로필에서 고름 #131·#56)
@@ -47,6 +46,9 @@ type Props = {
   meeting?: { x: number; z: number } // 회의실 문 앞 자리. 없으면 회의실이 없는 곳입니다. (#45)
   onNearMeeting?: (near: boolean) => void // 회의실 문 앞에 들어오거나 벗어날 때
   onMeeting?: () => void // 회의실 문 앞에서 E를 눌렀을 때
+  elevator?: { x: number; z: number } // 엘리베이터 문 앞 자리. 없으면 엘리베이터가 없는 곳입니다. (여러 층 건물)
+  onNearElevator?: (near: boolean) => void // 엘리베이터 문 앞에 들어오거나 벗어날 때
+  onElevator?: () => void // 엘리베이터 문 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
   // 매 프레임 현재 위치와 몸이 바라보는 방향(라디안). 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
   onMove?: (x: number, z: number, heading: number) => void
@@ -61,7 +63,7 @@ type Props = {
   emoteRef?: RefObject<EmoteState>
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -73,6 +75,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const nearKiosk = useRef(false)
   const nearExit = useRef(false)
   const nearMeeting = useRef(false)
+  const nearElevator = useRef(false)
   const seated = useRef<Spot | null>(null)
   const { scene, animations } = useGLTF(BASE_MODEL_URL)
   // 트래킹 화면과 같은 모델을 쓰므로 복사본을 씁니다.
@@ -146,6 +149,11 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       nearMeeting.current = v
       onNearMeeting?.(v)
     }
+    const setNearElevator = (v: boolean) => {
+      if (nearElevator.current === v) return
+      nearElevator.current = v
+      onNearElevator?.(v)
+    }
 
     // 감정표현: 지금 하던 것을 멈춥니다(움직이거나 앉거나 창이 뜰 때).
     const em = emoteRef?.current
@@ -209,6 +217,11 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       onMeeting?.()
       return
     }
+    if (wantToggle && nearElevator.current) {
+      play('idle')
+      onElevator?.()
+      return
+    }
     if (wantToggle && nearExit.current) {
       play('idle')
       onExit?.()
@@ -269,9 +282,10 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     // 달릴 때는 걷기 동작을 빠르기에 맞춰 빨리 재생합니다. (다리가 미끄러져 보이지 않게)
     actions.walk?.setEffectiveTimeScale(speed / WALK_SPEED)
     if (moving) {
-      // 축별로 따로 판정해서 벽에 비스듬히 닿으면 미끄러지듯 움직입니다.
-      if (!obstacles.some((o) => hit(p.x + dx, p.z, o))) p.x += dx
-      if (!obstacles.some((o) => hit(p.x, p.z + dz, o))) p.z += dz
+      // 축별로 따로 판정해서 벽에 비스듬히 닿으면 미끄러지듯 움직입니다. 일어난 자리에서 겹친 상자는 빠져나갈 수 있습니다.
+      const next = stepWithObstacles(p, dx, dz, obstacles, R)
+      p.x = next.x
+      p.z = next.z
     }
 
     // 가장 가까운 의자를 찾아 앉을 수 있는지 알려 줍니다.
@@ -281,12 +295,14 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       if (d < bestDist) { best = s; bestDist = d }
     }
     setNear(best)
-    // 의자가 가까우면 앉기가 먼저이고, 아닐 때만 키오스크를 쓸 수 있습니다. 회의실 문, 출입문은 그다음입니다.
+    // 의자가 가까우면 앉기가 먼저이고, 아닐 때만 키오스크를 쓸 수 있습니다. 회의실 문, 엘리베이터, 출입문은 그다음입니다.
     const kioskNear = !best && Math.hypot(kiosk.x - p.x, kiosk.z - p.z) < KIOSK_RANGE
     setNearKiosk(kioskNear)
     const meetingNear = !best && !kioskNear && !!meeting && Math.hypot(meeting.x - p.x, meeting.z - p.z) < MEETING_RANGE
     setNearMeeting(meetingNear)
-    setNearExit(!best && !kioskNear && !meetingNear && !!exit && Math.hypot(exit.x - p.x, exit.z - p.z) < EXIT_RANGE)
+    const elevatorNear = !best && !kioskNear && !meetingNear && !!elevator && Math.hypot(elevator.x - p.x, elevator.z - p.z) < ELEVATOR_RANGE
+    setNearElevator(elevatorNear)
+    setNearExit(!best && !kioskNear && !meetingNear && !elevatorNear && !!exit && Math.hypot(exit.x - p.x, exit.z - p.z) < EXIT_RANGE)
   })
 
   return (
