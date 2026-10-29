@@ -12,6 +12,8 @@
 //   광장의 건물은 실내(16×16m)보다 작은 겉모습(world.json 의 w·d, 지금 10×8m)입니다. 들어가면 화면이 바뀌므로
 //   밖에서 본 크기가 실내와 같을 필요가 없고, 그래야 광장이 작아져 걷기 편합니다. (2026-10-30 사용자 결정)
 //   회의실은 지점 안의 문으로만 가므로 광장에 별관을 두지 않습니다.
+//   한 건물에 지점을 여러 층으로 쌓을 수 있습니다(floors). 입구는 하나이고, E 를 누르면 층을 고르는 창이 뜹니다.
+//   어느 층에서 나와도 그 건물 입구 앞에 섭니다. 광장 자리를 더 쓰지 않고 지점을 늘리려는 것입니다. (2026-10-30 사용자 결정)
 //   건물 모양은 입구가 +Z 쪽(남쪽)이고, 입구 방향만큼 돌려 광장에 놓습니다.
 //     광장 좌표 = 건물 가운데 + rotate(건물 기준 좌표, 입구 각도)
 //     광장 방향 = 실내 방향 + 입구 각도
@@ -24,7 +26,9 @@ export type Point = { x: number; z: number }
 
 // world.json 의 건물 한 채. slug 는 지점 JSON 이름(BRANCH_LAYOUTS 키), x·z 는 건물 가운데,
 // w·d 는 겉모습 폭(입구 면)·깊이 (실내 크기와 따로)
-export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string }
+// floors: 2층부터 위로 쌓는 지점. window 는 그 층 창 색(지점 분위기). 1층은 slug 의 지점입니다.
+export type FloorSpec = { slug: string; window?: string }
+export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[] }
 
 // world.json 모양
 export type PlazaLayout = {
@@ -43,10 +47,14 @@ export type PlazaLayout = {
 export type BranchShape = Pick<BranchLayout, 'name' | 'size' | 'door'>
 
 // 광장에 놓인 건물
+// 건물의 한 층. level 1 이 1층(건물 slug 의 지점)
+export type PlacedFloor = { level: number; slug: string; name: string; window?: string }
+
 export type PlacedBuilding = {
   no: number // 1부터. Player 의 "앉는 자리" 번호로 씁니다 (입구 앞에서 E)
-  slug: string
-  name: string
+  slug: string // 1층 지점
+  name: string // 1층 지점 이름 (입구 간판)
+  floors: PlacedFloor[] // 1층부터. 한 층뿐이면 길이 1 (층 고르는 창 없이 바로 들어감)
   spec: BuildingSpec
   angle: number // 입구 방향 각도
   rect: Box // 광장 좌표, 돌린 뒤의 바닥 사각형
@@ -111,6 +119,15 @@ export function placeBuildings(plaza: PlazaLayout, layouts: Record<string, Branc
       continue
     }
     const no = placed.length + 1
+    const floors: PlacedFloor[] = [{ level: 1, slug: spec.slug, name: layout.name }]
+    for (const f of spec.floors ?? []) {
+      const upper = layouts[f.slug]
+      if (!upper) {
+        warn?.(`광장 건물 ${spec.slug}의 층 ${f.slug}: 지점 배치(src/space/branches)에 없어 넣지 않습니다.`)
+        continue
+      }
+      floors.push({ level: floors.length + 1, slug: f.slug, name: upper.name, window: f.window })
+    }
     const angle = facingAngle(spec.facing)
     const front = spec.d / 2 // 입구 면 (건물 기준 +Z)
     const doorBox = { x: 0, z: front, w: layout.door?.w ?? DOOR_W, d: layout.door?.d ?? DOOR_T }
@@ -119,6 +136,7 @@ export function placeBuildings(plaza: PlazaLayout, layouts: Record<string, Branc
       no,
       slug: spec.slug,
       name: layout.name,
+      floors,
       spec,
       angle,
       rect: boxToWorld(spec, { x: 0, z: 0, w: spec.w, d: spec.d }),
@@ -154,11 +172,17 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
 }
 
 // 광장에 들어올 때 설 자리와 방향.
-// 지점에서 나왔으면(from) 그 건물 입구 앞에 건물을 등지고 섭니다. heading 은 실내에서 보던 방향(없으면 0, 출입문 쪽).
+// 지점에서 나왔으면(from) 그 건물 입구 앞에 건물을 등지고 섭니다. 위층 지점에서 나와도 그 건물입니다.
+// heading 은 실내에서 보던 방향(없으면 0, 출입문 쪽).
 // 광장에 없는 지점이거나 주소로 바로 들어오면 시작 위치에 섭니다.
 export function arrivalOf(plaza: PlazaLayout, placed: PlacedBuilding[], from?: string, heading?: number): { spawn: Point; heading: number } {
-  const b = from === undefined ? undefined : placed.find((p) => p.slug === from)
+  const b = from === undefined ? undefined : buildingOf(placed, from)
   // world.json 의 시작 방향(3.1416 등)도 범위를 맞춰 다른 방향 값들과 같게 둡니다.
   if (!b) return { spawn: { x: plaza.spawn.x, z: plaza.spawn.z }, heading: normalizeAngle(plaza.spawn.heading) }
   return { spawn: b.arrive, heading: toWorldHeading(heading ?? 0, b.spec.facing) }
+}
+
+// 그 지점(slug)이 있는 건물. 위층 지점이면 그 층이 있는 건물입니다.
+export function buildingOf(placed: PlacedBuilding[], slug: string): PlacedBuilding | undefined {
+  return placed.find((p) => p.floors.some((f) => f.slug === slug))
 }

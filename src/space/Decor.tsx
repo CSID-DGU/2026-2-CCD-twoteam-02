@@ -6,9 +6,9 @@ import { useFrame } from '@react-three/fiber'
 import { DoubleSide, Path, Shape } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BOOTH, DINER_DESK, MARBLE_TABLE, MUSHROOM, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
-import type { Booth, BranchTheme, FanSpot, Frame, Globe, Menu, Mushroom, RingTable as RingTableSpec, SharedTable, Shelf, Tree } from './theme'
-import { POSTER_PX, checkerTexture, marbleTexture, menuTexture, signTexture, tileTexture } from './patternTexture'
+import { ARCH_DOOR, BAR_TOP, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import type { BackBar, Bar, Booth, BranchTheme, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
+import { POSTER_PX, checkerTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -37,7 +37,15 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
       {theme.ceiling?.globes?.map((g, i) => <GlobeLamp key={i} globe={g} height={h} />)}
       {theme.tree && <OliveTree tree={theme.tree} />}
       {theme.shelves?.map((sh, i) => <WallShelf key={i} shelf={sh} />)}
-      {theme.booth && theme.booths?.map((b, i) => <CircleBooth key={i} booth={b} leather={theme.booth!.leather} marble={theme.booth!.marble} />)}
+      {theme.booth && theme.booths?.map((b, i) => <CircleBooth key={i} booth={b} style={theme.booth!} />)}
+      {theme.rugs?.map((r, i) => <RugMat key={i} rug={r} />)}
+      {theme.planters?.map((pl, i) => <PlanterBox key={i} planter={pl} />)}
+      {theme.water?.map((w, i) => <WaterChannel key={i} water={w} />)}
+      {theme.ceiling?.coves?.map((c, i) => <CoveRing key={i} cove={c} height={h} />)}
+      {theme.bars?.map((bar, i) => <CurvedBar key={i} bar={bar} wood={theme.furniture?.chrome ?? '#5a3420'} marble={theme.booth?.marble ?? ['#2a1d18', '#c9a27a']} />)}
+      {theme.backbar && <BackBarShelf backbar={theme.backbar} />}
+      {theme.pillars?.map((pl, i) => <SlatPillar key={i} pillar={pl} />)}
+      {theme.wall?.band && <MosaicBand band={theme.wall.band} size={size} />}
       {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
     </group>
   )
@@ -213,6 +221,22 @@ export function ThemedDoor({
         <torusGeometry args={[r + A.frameR, A.frameR, 10, 32, Math.PI]} />
         <meshStandardMaterial color={door.chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
       </mesh>
+      {/* 둥근 창 두 개 (porthole 문) */}
+      {door.style === 'porthole' &&
+        [-len / 4, len / 4].map((px, i) =>
+          [face, -face].map((zz, j) => (
+            <group key={`${i}-${j}`} position={[px, slabH * 0.72, zz]} rotation={[0, j ? Math.PI : 0, 0]}>
+              <mesh>
+                <ringGeometry args={[0.12, 0.16, 24]} />
+                <meshStandardMaterial color={door.chrome} metalness={0.85} roughness={0.25} />
+              </mesh>
+              <mesh position={[0, 0, -0.001]}>
+                <circleGeometry args={[0.12, 24]} />
+                <meshStandardMaterial color={GLASS.color} metalness={GLASS.metalness} roughness={GLASS.roughness} />
+              </mesh>
+            </group>
+          )),
+        )}
       {/* 표지판: 안쪽 면(-z) 문판 위 */}
       <mesh position={[0, A.signY, -face]} rotation={[0, Math.PI, 0]}>
         <planeGeometry args={[A.signW, signH]} />
@@ -341,12 +365,12 @@ export function Counter({ bar, counter, height, neon }: { bar: Box; counter: Non
 
 // 둥근 스툴: 크롬 기둥 + 빨간 방석. 커피 바 앞과 바 테이블 자리가 같이 씁니다.
 // legH: 기둥 높이(바 테이블 자리는 방석 윗면이 0.75 가 되도록 더 높게), color: 방석 색(가까이·내 자리 강조용)
-export function Stool({ x, z, legH = STOOL.legH, color = STOOL_SEAT_COLOR }: { x: number; z: number; legH?: number; color?: string }) {
+export function Stool({ x, z, legH = STOOL.legH, color = STOOL_SEAT_COLOR, legColor = STOOL_LEG_COLOR }: { x: number; z: number; legH?: number; color?: string; legColor?: string }) {
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, legH / 2, 0]}>
         <cylinderGeometry args={[STOOL.legR, STOOL.legR, legH, 10]} />
-        <meshStandardMaterial color={STOOL_LEG_COLOR} />
+        <meshStandardMaterial color={legColor} />
       </mesh>
       <mesh position={[0, legH + STOOL.seatH / 2, 0]}>
         <cylinderGeometry args={[STOOL.seatR, STOOL.seatR, STOOL.seatH, 16]} />
@@ -640,43 +664,51 @@ function arcBand(inner: number, outer: number, from: number, to: number) {
 
 // 원형 부스 + 가운데 대리석 테이블. 부스는 열린 쪽(open)을 빼고 C 모양으로 테이블을 감쌉니다.
 // 부스는 장애물이 아닙니다(의자·소파와 같음). 그래야 부스 뒤에서도 안쪽 자리에 앉을 수 있습니다.
-export function CircleBooth({ booth, leather, marble }: { booth: Booth; leather: string; marble: [string, string] }) {
+export function CircleBooth({ booth, style }: { booth: Booth; style: NonNullable<BranchTheme['booth']> }) {
   const B = BOOTH
+  const gap = style.gap ?? B.gap
   // 방향 규칙: 자리 각도 a 는 바닥에서 (sin a, cos a) 방향. x 축으로 -90° 눕힌 모양 평면의 점 (cos φ, sin φ) 는
   // 바닥의 (cos φ, -sin φ) 로 가므로, 같은 방향이 되려면 φ = a - π/2 입니다.
   const toShape = (a: number) => a - Math.PI / 2
-  const from = toShape(booth.open + B.gap) // 열린 쪽 양옆(gap)을 빼고 반대편으로 돌아 감쌈
-  const to = toShape(booth.open + Math.PI * 2 - B.gap)
+  const from = toShape(booth.open + gap) // 열린 쪽 양옆(gap)을 빼고 반대편으로 돌아 감쌈
+  const to = toShape(booth.open + Math.PI * 2 - gap)
   const seat = useMemo(() => arcBand(BOOTH.seatIn, BOOTH.seatOut, from, to), [from, to]) // BOOTH 는 상수라 의존성에 안 넣음
   const back = useMemo(() => arcBand(BOOTH.seatOut, BOOTH.backOut, from, to), [from, to])
+  const fabric = style.soft ? { roughness: 0.95, metalness: 0 } : LEATHER // 벨벳·부클레는 광택 없이
   const T = MARBLE_TABLE
+  const table = style.table ?? 'marble'
   return (
     <group position={[booth.x, 0, booth.z]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <extrudeGeometry args={[seat, { depth: B.seatH, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2, curveSegments: 40 }]} />
-        <meshStandardMaterial color={leather} {...LEATHER} />
+        <meshStandardMaterial color={style.leather} {...fabric} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <extrudeGeometry args={[back, { depth: B.backH, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2, curveSegments: 40 }]} />
-        <meshStandardMaterial color={leather} {...LEATHER} />
+        <meshStandardMaterial color={style.back ?? style.leather} {...(style.back ? WOOD : fabric)} />
       </mesh>
-      {/* 대리석 테이블: 받침 원판 + 기둥 + 상판(윗면에 대리석 결) */}
-      <mesh position={[0, 0.02, 0]}>
-        <cylinderGeometry args={[T.baseR, T.baseR, 0.04, 24]} />
-        <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, (T.height - T.topT) / 2, 0]}>
-        <cylinderGeometry args={[T.stemR, T.stemR, T.height - T.topT, 16]} />
-        <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
-      </mesh>
-      <mesh position={[0, T.height - T.topT / 2, 0]}>
-        <cylinderGeometry args={[T.r, T.r, T.topT, 40]} />
-        <meshStandardMaterial color={marble[0]} roughness={0.25} metalness={0.1} />
-      </mesh>
-      <mesh position={[0, T.height + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[T.r, 40]} />
-        <meshStandardMaterial map={marbleTexture(marble)} roughness={0.2} metalness={0.1} />
-      </mesh>
+      {table === 'marble' && (
+        <group>
+          {/* 대리석 테이블: 받침 원판 + 기둥 + 상판(윗면에 대리석 결) */}
+          <mesh position={[0, 0.02, 0]}>
+            <cylinderGeometry args={[T.baseR, T.baseR, 0.04, 24]} />
+            <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, (T.height - T.topT) / 2, 0]}>
+            <cylinderGeometry args={[T.stemR, T.stemR, T.height - T.topT, 16]} />
+            <meshStandardMaterial color="#111111" metalness={0.3} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, T.height - T.topT / 2, 0]}>
+            <cylinderGeometry args={[T.r, T.r, T.topT, 40]} />
+            <meshStandardMaterial color={style.marble[0]} roughness={0.25} metalness={0.1} />
+          </mesh>
+          <mesh position={[0, T.height + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[T.r, 40]} />
+            <meshStandardMaterial map={marbleTexture(style.marble)} roughness={0.2} metalness={0.1} />
+          </mesh>
+        </group>
+      )}
+      {table === 'low' && <LowTable x={0} z={0} color={style.marble[0]} />}
     </group>
   )
 }
@@ -713,6 +745,273 @@ function MushroomLamp({ lamp }: { lamp: Mushroom }) {
         <meshStandardMaterial color="#fff1d6" emissive="#ffd8a0" emissiveIntensity={1.4} />
       </mesh>
       {lamp.light && <pointLight position={[0, M.stemH - 0.05, 0]} color="#ffd2a0" intensity={M.intensity} distance={M.distance} decay={2} />}
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------
+// 남쪽 지점 소품 (물결 라운지·이끼 정원·월넛 바)
+// ---------------------------------------------------------------
+
+// 낮은 둥근 테이블: 받침 기둥 + 둥근 상판 (높이 0.45)
+export function LowTable({ x, z, color }: { x: number; z: number; color: string }) {
+  const L = LOW_TABLE
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, (L.height - 0.04) / 2, 0]}>
+        <cylinderGeometry args={[0.12, 0.16, L.height - 0.04, 16]} />
+        <meshStandardMaterial color="#1b1b1b" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, L.height - 0.02, 0]}>
+        <cylinderGeometry args={[L.r, L.r, 0.04, 36]} />
+        <meshStandardMaterial color={color} roughness={0.5} />
+      </mesh>
+    </group>
+  )
+}
+
+// 1인석 둥근 작은 테이블: 대리석 결 상판(marble 이 있으면) 또는 색 상판 + 받침 기둥
+export function RoundTable({ x, z, color, marble }: { x: number; z: number; color: string; marble?: [string, string] }) {
+  const R = ROUND_TABLE
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.2, 0.2, 0.04, 20]} />
+        <meshStandardMaterial color="#3b2a1d" {...WOOD} />
+      </mesh>
+      <mesh position={[0, (R.height - 0.04) / 2, 0]}>
+        <cylinderGeometry args={[0.04, 0.05, R.height - 0.04, 12]} />
+        <meshStandardMaterial color="#3b2a1d" {...WOOD} />
+      </mesh>
+      <mesh position={[0, R.height - 0.02, 0]}>
+        <cylinderGeometry args={[R.r, R.r, 0.04, 32]} />
+        <meshStandardMaterial color={color} roughness={0.3} />
+      </mesh>
+      {marble && (
+        <mesh position={[0, R.height + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[R.r, 32]} />
+          <meshStandardMaterial map={marbleTexture(marble)} roughness={0.25} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+// 둥근 1인 소파(통 의자): 앉는 원통 + 뒤쪽 반 바퀴 남짓을 감싼 등받이. rot 방향(테이블 쪽)이 열려 있음
+export function TubChair({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
+  const T = TUB
+  // 원통 등받이: 각도 시작·길이(three 원통의 theta 는 +z 에서 시작해 +x 쪽으로). 앞(+z) 쪽 120° 를 비움
+  const open = (Math.PI * 2) / 3
+  return (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+      <mesh position={[0, T.seatH / 2, 0]}>
+        <cylinderGeometry args={[T.r, T.r * 0.95, T.seatH, 24]} />
+        <meshStandardMaterial color={color} roughness={0.95} />
+      </mesh>
+      <mesh position={[0, T.backH / 2, 0]}>
+        <cylinderGeometry args={[T.r + 0.06, T.r + 0.04, T.backH, 24, 1, true, open / 2, Math.PI * 2 - open]} />
+        <meshStandardMaterial color={color} roughness={0.95} side={DoubleSide} />
+      </mesh>
+    </group>
+  )
+}
+
+// 러그: 바닥 위 얇은 판. wobble 이 있으면 가장자리가 물결 모양
+function RugMat({ rug }: { rug: Rug }) {
+  const shape = useMemo(() => {
+    const s = new Shape()
+    const n = 64
+    const seed = rug.seed ?? 1
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n) * Math.PI * 2
+      const k = 1 + (rug.wobble ?? 0) * (0.6 * Math.sin(2 * t + seed) + 0.4 * Math.sin(3 * t + seed * 2))
+      const px = Math.cos(t) * rug.r * k
+      const py = Math.sin(t) * rug.r * k
+      if (i === 0) s.moveTo(px, py)
+      else s.lineTo(px, py)
+    }
+    return s
+  }, [rug.r, rug.wobble, rug.seed])
+  return (
+    <mesh position={[rug.x, 0.006, rug.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <shapeGeometry args={[shape]} />
+      <meshStandardMaterial color={rug.color} roughness={1} />
+    </mesh>
+  )
+}
+
+// 화분(화단): 타일 두른 상자 + 흙 + 풀 덩어리 몇 개, tree 면 가운데 작은 나무
+function PlanterBox({ planter }: { planter: Planter }) {
+  const h = 0.55
+  const leaf = ['#4f7a3a', '#3f6a30', '#5d8a45']
+  const n = Math.max(3, Math.round((planter.w * planter.d) / 0.35))
+  return (
+    <group position={[planter.x, 0, planter.z]}>
+      <mesh position={[0, h / 2, 0]}>
+        <boxGeometry args={[planter.w, h, planter.d]} />
+        <meshStandardMaterial map={tileTexture(planter.tile, '#9a9a96', 8, { x: planter.w * 3, y: h * 3 })} roughness={0.5} />
+      </mesh>
+      <mesh position={[0, h + 0.01, 0]}>
+        <boxGeometry args={[planter.w - 0.1, 0.02, planter.d - 0.1]} />
+        <meshStandardMaterial color="#3a2b1f" roughness={1} />
+      </mesh>
+      {Array.from({ length: n }, (_, i) => {
+        const fx = ((i * 0.618) % 1) - 0.5
+        const fz = ((i * 0.381 + 0.2) % 1) - 0.5
+        const r = 0.18 + ((i * 0.27) % 1) * 0.14
+        return (
+          <mesh key={i} position={[fx * (planter.w - 0.3), h + r * 0.7, fz * (planter.d - 0.3)]}>
+            <icosahedronGeometry args={[r, 1]} />
+            <meshStandardMaterial color={leaf[i % leaf.length]} roughness={0.9} flatShading />
+          </mesh>
+        )
+      })}
+      {planter.tree && (
+        <group position={[0, h, 0]}>
+          <mesh position={[0, 0.5, 0]}>
+            <cylinderGeometry args={[0.04, 0.07, 1.0, 8]} />
+            <meshStandardMaterial color="#6b5440" roughness={1} />
+          </mesh>
+          {[[0, 1.25, 0, 0.42], [0.25, 1.05, 0.1, 0.3], [-0.22, 1.1, -0.1, 0.32], [0.05, 1.5, -0.05, 0.28]].map(([x, y, z, r], i) => (
+            <mesh key={i} position={[x, y, z]}>
+              <icosahedronGeometry args={[r, 1]} />
+              <meshStandardMaterial color={i % 2 ? '#7d9561' : '#6a844f'} roughness={0.9} flatShading />
+            </mesh>
+          ))}
+        </group>
+      )}
+    </group>
+  )
+}
+
+// 물길: 짙은 물 표면(바닥보다 살짝 위, 반짝임) + 낮은 돌 테두리
+function WaterChannel({ water }: { water: Water }) {
+  const rim = 0.08
+  return (
+    <group position={[water.x, 0, water.z]}>
+      <mesh position={[0, 0.04, 0]}>
+        <boxGeometry args={[water.w, 0.08, water.d]} />
+        <meshStandardMaterial color="#5f5b55" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.085, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[water.w - rim * 2, water.d - rim * 2]} />
+        <meshStandardMaterial color="#2f4f5a" metalness={0.4} roughness={0.08} emissive="#0d2a33" emissiveIntensity={0.4} />
+      </mesh>
+    </group>
+  )
+}
+
+// 천장 둥근 간접조명: 천장 바로 아래 빛나는 고리
+function CoveRing({ cove, height }: { cove: { x: number; z: number; r: number }; height: number }) {
+  return (
+    <mesh position={[cove.x, height - 0.06, cove.z]} rotation={[Math.PI / 2, 0, 0]}>
+      <torusGeometry args={[cove.r, 0.04, 8, 64]} />
+      <meshStandardMaterial color="#fff2da" emissive="#ffd9a6" emissiveIntensity={1.6} />
+    </mesh>
+  )
+}
+
+// 곡선 바: 원목 몸통(가로 홈 무늬 대신 띠 두 줄) + 대리석 상판 + 놋쇠 발 받침
+export function CurvedBar({ bar, wood, marble }: { bar: Bar; wood: string; marble: [string, string] }) {
+  const toShape = (a: number) => a - Math.PI / 2 // CircleBooth 와 같은 방향 규칙
+  const from = toShape(bar.from)
+  const to = toShape(bar.to)
+  const body = useMemo(() => arcBand(bar.inner, bar.outer, from, to), [bar.inner, bar.outer, from, to])
+  const top = useMemo(() => arcBand(bar.inner - 0.02, bar.outer + BAR_TOP.over, from, to), [bar.inner, bar.outer, from, to])
+  const rail = useMemo(() => arcBand(bar.outer + 0.05, bar.outer + 0.09, from, to), [bar.outer, from, to])
+  return (
+    <group position={[bar.x, 0, bar.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[body, { depth: bar.height - BAR_TOP.t, bevelEnabled: false, curveSegments: 48 }]} />
+        <meshStandardMaterial color={wood} {...WOOD} />
+      </mesh>
+      <mesh position={[0, bar.height - BAR_TOP.t, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[top, { depth: BAR_TOP.t, bevelEnabled: false, curveSegments: 48 }]} />
+        <meshStandardMaterial map={marbleTexture(marble)} color="#ffffff" roughness={0.25} />
+      </mesh>
+      <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[rail, { depth: 0.03, bevelEnabled: false, curveSegments: 48 }]} />
+        <meshStandardMaterial color="#c9a24a" metalness={0.85} roughness={0.25} />
+      </mesh>
+    </group>
+  )
+}
+
+// 바 뒤 둥근 진열장: 원통 받침 + 놋쇠 테 둥근 선반 3단 + 병들
+function BackBarShelf({ backbar }: { backbar: BackBar }) {
+  const bottles = ['#3b5d3a', '#7a3b22', '#c9a24a', '#2e3a4a', '#a8632e', '#d9d2c4']
+  return (
+    <group position={[backbar.x, 0, backbar.z]}>
+      <mesh position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[backbar.r, backbar.r, 1.0, 32]} />
+        <meshStandardMaterial color="#4a2e1c" {...WOOD} />
+      </mesh>
+      {[1.25, 1.65, 2.05].map((y, k) => (
+        <group key={k} position={[0, y, 0]}>
+          <mesh>
+            <cylinderGeometry args={[backbar.r * 0.9, backbar.r * 0.9, 0.03, 32]} />
+            <meshStandardMaterial color="#c9a24a" metalness={0.85} roughness={0.25} />
+          </mesh>
+          {Array.from({ length: 10 }, (_, i) => {
+            const a = (i / 10) * Math.PI * 2 + k * 0.3
+            return (
+              <mesh key={i} position={[Math.sin(a) * backbar.r * 0.7, 0.14, Math.cos(a) * backbar.r * 0.7]}>
+                <cylinderGeometry args={[0.035, 0.04, 0.26, 10]} />
+                <meshStandardMaterial color={bottles[(i + k) % bottles.length]} roughness={0.2} metalness={0.1} />
+              </mesh>
+            )
+          })}
+        </group>
+      ))}
+      <mesh position={[0, 1.65, 0]}>
+        <cylinderGeometry args={[0.025, 0.025, 1.0, 8]} />
+        <meshStandardMaterial color="#c9a24a" metalness={0.85} roughness={0.25} />
+      </mesh>
+    </group>
+  )
+}
+
+// 원목 살 기둥 조명: 빛나는 가운데 기둥을 세로 원목 살이 감쌈
+function SlatPillar({ pillar }: { pillar: Pillar }) {
+  const P = PILLAR
+  return (
+    <group position={[pillar.x, 0, pillar.z]}>
+      <mesh position={[0, pillar.h / 2, 0]}>
+        <cylinderGeometry args={[P.r * 0.7, P.r * 0.7, pillar.h, 20]} />
+        <meshStandardMaterial color="#fff0d8" emissive="#ffcf8f" emissiveIntensity={1.3} />
+      </mesh>
+      {Array.from({ length: P.slats }, (_, i) => {
+        const a = (i / P.slats) * Math.PI * 2
+        return (
+          <mesh key={i} position={[Math.sin(a) * P.r, pillar.h / 2, Math.cos(a) * P.r]} rotation={[0, a, 0]}>
+            <boxGeometry args={[0.05, pillar.h, 0.04]} />
+            <meshStandardMaterial color="#8a5532" {...WOOD} />
+          </mesh>
+        )
+      })}
+      {pillar.light && <pointLight position={[0, pillar.h * 0.6, 0]} color="#ffcf8f" intensity={P.intensity} distance={P.distance} decay={2} />}
+    </group>
+  )
+}
+
+// 벽 둘레 모자이크 타일 띠: 네 벽 안쪽 면에 붙인 판
+function MosaicBand({ band, size }: { band: NonNullable<NonNullable<BranchTheme['wall']>['band']>; size: Size }) {
+  const inset = WALL_THICKNESS / 2 + 0.005
+  const y = band.y + band.h / 2
+  const sides: { pos: [number, number, number]; rotY: number; len: number }[] = [
+    { pos: [0, y, -size.d / 2 + inset], rotY: 0, len: size.w }, // 북쪽 벽 (남쪽을 봄)
+    { pos: [0, y, size.d / 2 - inset], rotY: Math.PI, len: size.w },
+    { pos: [-size.w / 2 + inset, y, 0], rotY: Math.PI / 2, len: size.d },
+    { pos: [size.w / 2 - inset, y, 0], rotY: -Math.PI / 2, len: size.d },
+  ]
+  return (
+    <group>
+      {sides.map((sd, i) => (
+        <mesh key={i} position={sd.pos} rotation={[0, sd.rotY, 0]}>
+          <planeGeometry args={[sd.len, band.h]} />
+          <meshStandardMaterial map={mosaicTexture(band.colors, { x: sd.len / 2, y: band.h / 2 })} roughness={0.4} />
+        </mesh>
+      ))}
     </group>
   )
 }
