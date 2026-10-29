@@ -52,12 +52,28 @@ export type Globe = { x: number; z: number; y: number; light?: boolean; style?: 
 export type Booth = { x: number; z: number; open: number }
 // 버섯 조명: 부스 등받이 위 작은 탁상 조명. light 면 실제 빛
 export type Mushroom = { x: number; z: number; y: number; light?: boolean }
+// 러그: 바닥에 깐 얇은 판. wobble 이 있으면 둥근 대신 물결 모양 가장자리(0~0.3 정도)
+export type Rug = { x: number; z: number; r: number; color: string; wobble?: number; seed?: number }
+// 화분(화단): 타일 두른 상자 + 흙 + 풀. tree 면 가운데 작은 나무
+export type Planter = { x: number; z: number; w: number; d: number; tile: string; tree?: boolean }
+// 물길: 바닥보다 낮은 물 + 돌 테두리. 사각형 여러 개를 이어 꺾인 물길을 만듭니다
+export type Water = { x: number; z: number; w: number; d: number }
+// 곡선 바: 반지름 inner~outer, 각도 from~to(자리 각도 규칙: 0 = +z 남쪽) 인 원목 바 + 대리석 상판
+export type Bar = { x: number; z: number; inner: number; outer: number; from: number; to: number; height: number }
+// 바 뒤 둥근 진열장: 원통 받침 + 놋쇠 테 선반 3단 + 병
+export type BackBar = { x: number; z: number; r: number }
+// 원목 살 기둥 조명: 세로 살 여러 개가 빛나는 기둥을 감쌈. 바닥부터 h 높이
+export type Pillar = { x: number; z: number; h: number; light?: boolean }
 
 export type BranchTheme = {
   // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
   // concrete: 회색 콘크리트(colors = [바탕, 얼룩], cell 은 텍스처 한 장 크기)
   floor?: { pattern: 'checker' | 'brick' | 'concrete'; colors: [string, string]; cell: number }
-  wall?: { color: string; neon?: string } // neon: 벽 위쪽 네온 띠 색 (없으면 안 그림)
+  wall?: {
+    color: string
+    neon?: string // 벽 위쪽 네온 띠 색 (없으면 안 그림)
+    band?: { colors: [string, string, string]; y: number; h: number } // 벽 둘레 모자이크 타일 띠 (y 아래 끝, h 높이)
+  }
   ceiling?: {
     color: string
     height?: number // 천장·벽 높이(기본 2.5)
@@ -65,12 +81,21 @@ export type BranchTheme = {
     lamps?: { x: number; z: number }[] // 크롬 돔 펜던트 조명
     globes?: Globe[] // 둥근 전구 조명
     grid?: { color: string; step: number; y: number } // 천장 아래 철제 격자 (step 간격, y 높이)
+    coves?: { x: number; z: number; r: number }[] // 천장 둥근 간접조명 고리
   }
   tree?: Tree
   shelves?: Shelf[]
   booths?: Booth[] // 원형 부스 (흑요 라운지)
   mushrooms?: Mushroom[]
-  booth?: { leather: string; marble: [string, string] } // 부스 가죽 색, 대리석 [바탕, 결] 색
+  // 부스 가죽 색, 대리석 [바탕, 결] 색. back: 등받이 바깥 색(없으면 가죽 색), gap: 열린 쪽 반각(라디안, 기본 0.9),
+  // table: 가운데 테이블(marble 대리석·low 낮은 검은 테이블·none 없음), soft: 벨벳·부클레처럼 광택 없는 천
+  booth?: { leather: string; marble: [string, string]; back?: string; gap?: number; table?: 'marble' | 'low' | 'none'; soft?: boolean }
+  rugs?: Rug[]
+  planters?: Planter[]
+  water?: Water[]
+  bars?: Bar[]
+  backbar?: BackBar
+  pillars?: Pillar[]
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
@@ -79,7 +104,8 @@ export type BranchTheme = {
   furniture?: Furniture
   light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
   // 출입문·회의실 문. style: arch = 아치형 크롬 틀(기본), wood = 원목 문 + 둥근 손잡이. 앞에 서면 주황 강조는 그대로
-  door?: { style?: 'arch' | 'wood'; color: string; chrome: string; signBg: string; knob?: string } // knob: 원목 문 손잡이 색(기본 놋쇠)
+  // porthole: 아치 문 + 둥근 창 두 개 (월넛 바)
+  door?: { style?: 'arch' | 'wood' | 'porthole'; color: string; chrome: string; signBg: string; knob?: string } // knob: 원목 문 손잡이 색(기본 놋쇠)
 }
 
 
@@ -159,7 +185,12 @@ export function stoolBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
 export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: number; d: number }[] {
   const rings = (theme?.furniture?.rings ?? []).map((r) => ({ x: r.x, z: r.z, w: r.inner * 2, d: r.inner * 2 }))
   const tree = theme?.tree && !rings.length ? [{ x: theme.tree.x, z: theme.tree.z, w: theme.tree.potR * 2, d: theme.tree.potR * 2 }] : []
-  return [...rings, ...tree]
+  // 화분·물길은 그 사각형, 기둥 조명은 지름만큼, 바 뒤 진열장은 바 안쪽 반지름만큼 막습니다 (바 상판은 자리 책상 상자가 막음)
+  const planters = (theme?.planters ?? []).map((p) => ({ x: p.x, z: p.z, w: p.w, d: p.d }))
+  const water = (theme?.water ?? []).map((w) => ({ x: w.x, z: w.z, w: w.w, d: w.d }))
+  const pillars = (theme?.pillars ?? []).map((p) => ({ x: p.x, z: p.z, w: PILLAR.r * 2, d: PILLAR.r * 2 }))
+  const bars = (theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, w: b.inner * 2, d: b.inner * 2 }))
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars]
 }
 
 // 천장 팬: 허브 원통 + 날개 상자 4개, 초당 회전 수
@@ -191,6 +222,7 @@ export const GLOBE = { r: 0.2, cordR: 0.008, intensity: 4, distance: 6 }
 
 // 원형 부스: 방석(안쪽 반지름 seatIn ~ seatOut) + 등받이(seatOut ~ backOut). 열린 쪽 반각 gap
 export const BOOTH = { seatIn: 0.55, seatOut: 1.0, backOut: 1.15, seatH: 0.45, backH: 1.0, gap: 0.9 }
+export const boothGap = (theme?: BranchTheme) => theme?.booth?.gap ?? BOOTH.gap
 // 대리석 테이블: 상판 반지름·두께, 받침 기둥
 export const MARBLE_TABLE = { r: 0.45, topT: 0.05, height: 0.74, stemR: 0.08, baseR: 0.3 }
 // 버섯 조명: 기둥 + 반구 갓
@@ -204,5 +236,25 @@ export function boothSeats(b: Booth, startNo: number): { no: number; x: number; 
     const uz = Math.cos(a)
     // 의자는 책상 점에서 rot 반대로 0.65 → 테이블 가운데에서 0.8 떨어진 곳(부스 방석 위)
     return { no: startNo + i, x: round3(b.x + ux * 0.15), z: round3(b.z + uz * 0.15), rot: round3(a + Math.PI), chair: i === 0 ? 'chair' : 'none' }
+  })
+}
+
+// 낮은 테이블(이끼 정원·물결 라운지): 둥근 검은 상판, 높이 0.45
+export const LOW_TABLE = { r: 0.42, height: 0.45 }
+// 1인석 둥근 작은 테이블(대리석 또는 원목): 반지름·높이
+export const ROUND_TABLE = { r: 0.32, height: 0.74 }
+// 둥근 1인 소파(통 의자): 앉는 원통 + 뒤쪽을 감싼 등받이
+export const TUB = { r: 0.32, seatH: 0.42, backH: 0.72 }
+// 원목 살 기둥 조명: 반지름, 살 개수
+export const PILLAR = { r: 0.28, slats: 14, intensity: 3, distance: 6 }
+// 곡선 바: 상판 두께·튀어나옴, 발 받침 높이
+export const BAR_TOP = { t: 0.05, over: 0.08 }
+
+// 곡선 바 둘레에 count 자리를 고르게: 책상 점은 상판 가운데 반지름, 바 가운데를 바라봄(높은 자리 tall)
+export function barSeats(bar: Bar, count: number, startNo: number): { no: number; x: number; z: number; rot: number; tall: true; chair: 'stool' }[] {
+  const r = (bar.inner + bar.outer) / 2
+  return Array.from({ length: count }, (_, i) => {
+    const a = bar.from + ((i + 0.5) * (bar.to - bar.from)) / count
+    return { no: startNo + i, x: round3(bar.x + Math.sin(a) * r), z: round3(bar.z + Math.cos(a) * r), rot: round3(a + Math.PI), tall: true, chair: 'stool' }
   })
 }

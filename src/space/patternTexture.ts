@@ -322,3 +322,27 @@ export function marbleTexture(colors: [string, string]): CanvasTexture {
   }
   return texture
 }
+
+// 모자이크 타일: 작은 정사각 타일을 세 색 중 하나로 무작위(고정 순서) 칠하고 줄눈을 둡니다. 벽 둘레 띠용
+export function mosaicTexture(colors: [string, string, string], repeat: { x: number; y: number }): CanvasTexture {
+  const key = `mosaic|${colors.join('|')}|${repeat.x}|${repeat.y}`
+  let texture = cache.get(key)
+  if (!texture) {
+    const { canvas, ctx } = makeCanvas(PATTERN_PX, PATTERN_PX)
+    const rand = seeded(5)
+    const cells = 32
+    const cell = PATTERN_PX / cells
+    ctx.fillStyle = '#d9d2c4' // 줄눈
+    ctx.fillRect(0, 0, PATTERN_PX, PATTERN_PX)
+    for (let row = 0; row < cells; row++) {
+      for (let col = 0; col < cells; col++) {
+        const r = rand()
+        ctx.fillStyle = r < 0.45 ? colors[0] : r < 0.8 ? colors[1] : colors[2]
+        ctx.fillRect(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
+      }
+    }
+    texture = finish(canvas, repeat)
+    cache.set(key, texture)
+  }
+  return texture
+}

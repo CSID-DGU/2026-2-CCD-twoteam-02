@@ -5,8 +5,9 @@ import type { BranchTheme } from './theme'
 export type Box = { x: number; z: number; w: number; d: number }
 
 // tall: 높은 의자(바 스툴) 자리. 앉은 캐릭터와 좌석 카메라가 TALL_RAISE 만큼 올라갑니다 (#57 다이너 테마)
-// chair: 원목 테마에서 이 자리의 의자 모양 (booth = 원목 부스, chair = 원목 의자, none = 의자 없이 방석만(원형 부스 안), 기본 chair)
-type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' }
+// chair: 원목 테마에서 이 자리의 의자 모양 (booth = 원목 부스, chair = 원목 의자, none = 의자 없이 방석만(원형 부스 안), stool = 높은 원목 스툴, tub = 둥근 1인 소파, 기본 chair)
+// desk: 이 자리 책상 모양 (round = 1인 둥근 작은 테이블, low = 낮은 둥근 테이블, 없으면 기본 테이블)
+type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub'; desk?: 'round' | 'low' }
 export const TALL_RAISE = 0.3 // 높은 의자에 앉았을 때 올라가는 높이 (의자 0.45 → 스툴 0.75)
 // 지점 배치. 스터디카페는 키오스크(kiosk), 카페는 커피 바(bar)가 있습니다. (#44)
 export type BranchLayout = {
@@ -48,7 +49,7 @@ export function obstaclesOf(b: Branch): Box[] {
 
 // 앉는 자리: 좌석 번호, 의자 위치, 앉았을 때 바라보는 방향(책상 쪽)
 // y: 앉는 높이 보정. 높은 의자면 TALL_RAISE, 아니면 0 (회의실처럼 따로 만드는 자리는 생략 = 0)
-export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' }
+export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub' }
 const CHAIR_GAP = 0.65 // 책상 중심에서 의자까지 거리
 export const CHAIR = { w: 0.45, h: 0.45, d: 0.45 }
 
