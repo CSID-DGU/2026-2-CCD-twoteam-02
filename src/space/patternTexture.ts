@@ -26,6 +26,40 @@ function finish(canvas: HTMLCanvasElement, repeat?: { x: number; y: number }) {
   return texture
 }
 
+// 벽돌 바닥: 가로로 긴 벽돌(가로:세로 4:1)을 줄마다 반 칸씩 엇갈려 쌓고, 벽돌마다 밝기를 조금씩 다르게 합니다.
+// 텍스처 한 장에 가로 4개 × 세로 16줄. repeat 는 면 전체에 몇 번 깔지.
+const BRICK = { cols: 4, rows: 16, grout: 3 }
+export function brickTexture(colors: [string, string], repeat: { x: number; y: number }): CanvasTexture {
+  const key = `brick|${colors[0]}|${colors[1]}|${repeat.x}|${repeat.y}`
+  let texture = cache.get(key)
+  if (!texture) {
+    const { canvas, ctx } = makeCanvas(PATTERN_PX, PATTERN_PX)
+    const bw = PATTERN_PX / BRICK.cols
+    const bh = PATTERN_PX / BRICK.rows
+    ctx.fillStyle = colors[1] // 줄눈
+    ctx.fillRect(0, 0, PATTERN_PX, PATTERN_PX)
+    let seed = 7 // 매번 같은 무늬가 나오게 고정된 난수
+    const rand = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280)
+    for (let row = 0; row < BRICK.rows; row++) {
+      const offset = row % 2 ? bw / 2 : 0
+      for (let col = -1; col < BRICK.cols; col++) {
+        const x = col * bw + offset
+        ctx.fillStyle = colors[0]
+        ctx.globalAlpha = 1
+        ctx.fillRect(x + BRICK.grout / 2, row * bh + BRICK.grout / 2, bw - BRICK.grout, bh - BRICK.grout)
+        // 벽돌마다 밝기 차이: 흰색 또는 검은색을 아주 옅게 덮음
+        ctx.globalAlpha = 0.06 + rand() * 0.1
+        ctx.fillStyle = rand() > 0.5 ? '#ffffff' : '#000000'
+        ctx.fillRect(x + BRICK.grout / 2, row * bh + BRICK.grout / 2, bw - BRICK.grout, bh - BRICK.grout)
+      }
+    }
+    ctx.globalAlpha = 1
+    texture = finish(canvas, repeat)
+    cache.set(key, texture)
+  }
+  return texture
+}
+
 // 흑백 체크처럼 두 색이 번갈아 나오는 cells×cells 칸. repeat 는 면 전체에 이 텍스처를 몇 번 깔지.
 export function checkerTexture(colors: [string, string], cells: number, repeat: { x: number; y: number }): CanvasTexture {
   const key = `checker|${colors[0]}|${colors[1]}|${cells}|${repeat.x}|${repeat.y}`
