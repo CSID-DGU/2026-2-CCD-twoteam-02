@@ -378,8 +378,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {/* 의자: 가까이·내 자리 강조색은 테마와 무관하게 그대로, 기본색만 테마를 따릅니다 */}
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
+        const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
         return furniture ? (
-          c.tall && insideTable(c, furniture.tables) ? ( // 바 테이블 자리는 둥근 바 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
+          c.tall && desk && insideTable(desk, furniture.tables) ? ( // 바 테이블 자리는 둥근 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
             <Stool key={c.no} x={c.x} z={c.z} legH={TALL_STOOL_LEG} color={chairColor} /> // 커피 바 앞과 같은 둥근 스툴, 높이만 높게
           ) : (
             <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} raise={c.y ?? 0} />
