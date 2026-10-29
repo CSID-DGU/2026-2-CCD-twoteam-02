@@ -40,7 +40,7 @@ export type PlazaLayout = {
   paths: Box[] // 광장 → 건물 입구 돌길
   trees: Point[]
   benches: (Point & { facing: Facing })[] // facing: 앉은 사람이 보는 쪽
-  lamps: Point[]
+  lamps: (Point & { light?: boolean })[] // light: 밤에 둘레를 비추는 점광원을 단 가로등 (#316)
 }
 
 // 건물을 놓는 데 필요한 지점 정보 (이름, 지도에서 줄일 실내 크기, 입구 문 폭)

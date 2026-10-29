@@ -6,8 +6,9 @@
 //   낮 하늘   drei Sky: 해 위치에 따라 하늘색·노을을 그리는 셰이더. 해 방향만 매 프레임 바꿈
 //   밤 덮개   Sky 는 해가 지면 거의 새까매져서, 위에 남색 그라데이션 반구를 씌우고 투명도 = 밤 정도
 //   별        drei Stars 는 바깥에서 투명도를 못 받아 직접 만든 점 2,500개 (고정 씨앗값이라 늘 같은 자리)
-//   달        늘 카메라를 보는 판(Billboard). 위상에 맞춰 캔버스에 그린 그림, 위상이 1% 바뀔 때만 다시 그림
-//   빛        방향광(낮 해·밤 달), 주변광, 광장 네 모서리 가로등의 점광원 4개(밤에만)
+//   달        늘 카메라를 보는 판(Billboard). 위상에 맞춰 캔버스에 그린 그림, 위상이 1% 바뀔 때만 다시 그림.
+//             밝은 쪽이 화면에서 해가 있는 쪽을 보도록 판을 돌림
+//   빛        방향광(낮 해·밤 달), 주변광, world.json 에서 light 를 단 가로등의 점광원(밤에만 세기를 올림)
 //
 // 하늘 부품은 레이어 2(SKY_LAYER)에 둡니다. 화면 카메라만 레이어 2 를 켜고 미니맵 카메라는 켜지 않아서,
 // 미니맵의 월드 바깥은 지금처럼 어두운 색으로 남습니다.
@@ -16,21 +17,21 @@ import type { ComponentRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Sky } from '@react-three/drei'
 import * as THREE from 'three'
-import { SKY_LAYER, parseClock, skyState, toDirection, worldTime } from './skyLogic'
+import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime } from './skyLogic'
 import type { Clock } from './skyLogic'
+import type { Point } from './worldLogic'
 import { setNightGlow } from './worldMaterials'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
 const SKY_DISTANCE = 450
 const DOME = { r: 400, top: '#0b1630', horizon: '#24365f' }
 const STARS = { r: 350, count: 2500, seed: 316, size: 1.6 }
-const MOON = { distance: 330, size: 18, px: 128, lit: '#f4f1e6', shade: '#283152', hideBelow: -0.05 }
+const MOON = { distance: 330, size: 18, px: 128, lit: '#f4f1e6', shade: '#283152' }
 // 그리는 순서: 하늘 부품은 다른 투명한 것(이름표 등, 순서 0)보다 먼저 그려야 그 위를 덮지 않습니다. 그래서 음수.
 const ORDER = { dome: -4, stars: -3, moonShade: -2, moonLit: -1 }
 const LIGHT_DISTANCE = 50 // 방향광을 놓는 거리 (방향만 의미 있음)
-// 광장 네 모서리 가로등 자리 (world.json 의 lamps 앞 4개와 같은 자리)
-const LAMP_LIGHTS: [number, number, number][] = [[-9, 3, -9], [9, 3, -9], [9, 3, 9], [-9, 3, 9]]
-const LAMP_LIGHT = { color: '#ffd28a', range: 12, power: 12 } // power × 밤 빛남 = 세기
+// 가로등 점광원. height 는 가로등 머리 높이(WorldDecor 의 기둥 높이), power × 밤 빛남 = 세기
+const LAMP_LIGHT = { color: '#ffd28a', range: 12, power: 12, height: 3 }
 
 // 고정 씨앗 의사난수 (mulberry32). 열 때마다 같은 별자리
 function seeded(seed: number) {
@@ -74,23 +75,23 @@ function domeGeometry(): THREE.SphereGeometry {
   return g
 }
 
-// 달 그림: 밝은 부분만. 위상에 맞춘 그림자 경계(타원). 북반구에서 보듯 차는 달은 오른쪽이 밝음
+// 달 그림: 밝은 부분만. 위상에 맞춘 그림자 경계(타원). 밝은 쪽은 늘 오른쪽으로 그리고,
+// 판을 돌려(moonLitAngle) 해 쪽을 보게 합니다. 그래서 차는 달·기우는 달은 밝은 넓이(0~0.5 위상)로만 구분합니다.
 // 어두운 부분은 따로 원판(아래 moonShade)으로 그려 밤에만 보이게 합니다.
 function drawMoon(ctx: CanvasRenderingContext2D, phase: number) {
   const c = MOON.px / 2
   const r = c - 2
   ctx.clearRect(0, 0, MOON.px, MOON.px)
   const k = Math.cos(2 * Math.PI * phase) // 1 그믐 · 0 반달 · −1 보름
-  const waxing = phase < 0.5
-  const crescent = k > 0
   ctx.fillStyle = MOON.lit
   ctx.beginPath()
-  ctx.arc(c, c, r, -Math.PI / 2, Math.PI / 2, !waxing) // 밝은 쪽 가장자리 (위 → 아래)
-  ctx.ellipse(c, c, r * Math.abs(k), r, 0, Math.PI / 2, -Math.PI / 2, waxing === crescent) // 그림자 경계 (아래 → 위)
+  ctx.arc(c, c, r, -Math.PI / 2, Math.PI / 2) // 밝은 쪽 가장자리 (위 → 오른쪽 → 아래)
+  ctx.ellipse(c, c, r * Math.abs(k), r, 0, Math.PI / 2, -Math.PI / 2, k > 0) // 그림자 경계 (아래 → 위). 초승·그믐달은 안쪽으로 패임
   ctx.fill()
 }
 
-export function WorldSky() {
+// lamps: 점광원을 켤 가로등 자리 (world.json 의 lamps 중 light 를 단 것)
+export function WorldSky({ lamps: lampSpots }: { lamps: Point[] }) {
   const camera = useThree((s) => s.camera)
   const clock = useRef<Clock | null>(null)
   const sky = useRef<ComponentRef<typeof Sky>>(null)
@@ -103,6 +104,9 @@ export function WorldSky() {
   const ambient = useRef<THREE.AmbientLight>(null)
   const lamps = useRef<(THREE.PointLight | null)[]>([])
   const moonPhaseDrawn = useRef(-1)
+  const litAngle = useRef(0) // 달 판을 돌린 각도. 그믐·보름 무렵 방향이 안 정해지면 이 값을 그대로 씀
+  // 매 프레임 쓰는 방향 벡터들. 새로 만들지 않고 이것들에 담습니다.
+  const tmp = useRef({ sun: new THREE.Vector3(), moon: new THREE.Vector3(), sunView: new THREE.Vector3(), moonView: new THREE.Vector3() })
 
   const domeGeo = useMemo(() => domeGeometry(), [])
   const domeMat = useMemo(
@@ -160,15 +164,16 @@ export function WorldSky() {
     camera.layers.enable(SKY_LAYER)
   }, [camera])
 
-  useFrame(() => {
+  useFrame((state) => {
     const now = Date.now()
     // 주소(?time, ?speed)는 처음 한 번 읽습니다.
     if (!clock.current) clock.current = parseClock(window.location.search, now)
     const s = skyState(worldTime(clock.current, now))
+    const v = tmp.current
 
-    const sunDir = toDirection(s.sun)
+    const sunDir = toDirection(s.sun, v.sun)
     const skyMat = sky.current?.material as THREE.ShaderMaterial | undefined
-    skyMat?.uniforms.sunPosition.value.set(sunDir.x * SKY_DISTANCE, sunDir.y * SKY_DISTANCE, sunDir.z * SKY_DISTANCE)
+    skyMat?.uniforms.sunPosition.value.copy(sunDir).multiplyScalar(SKY_DISTANCE)
 
     // 만든 재질·그림은 물체(ref)를 거쳐 바꿉니다. (렌더 중에 만든 값을 직접 바꾸면 React 규칙 위반)
     if (dome.current) {
@@ -180,16 +185,26 @@ export function WorldSky() {
       stars.current.visible = s.stars > 0
     }
 
+    const moonDir = toDirection(s.moon, v.moon)
     if (moon.current) {
-      const d = toDirection(s.moon)
-      moon.current.position.set(d.x * MOON.distance, d.y * MOON.distance, d.z * MOON.distance)
-      moon.current.visible = s.moon.altitude > MOON.hideBelow
+      moon.current.position.copy(moonDir).multiplyScalar(MOON.distance)
+      moon.current.visible = s.moonShow > 0 // 지평선 아래로 내려가면 숨김
+    }
+    if (moonMesh.current) {
+      ;(moonMesh.current.material as THREE.MeshBasicMaterial).opacity = s.moonShow
+      // 해·달 방향을 카메라 기준으로 바꿔 화면에서 해가 있는 쪽으로 달 판을 돌립니다. (Billboard 안이라 판의 x·y 가 화면의 x·y)
+      v.sunView.copy(sunDir).transformDirection(state.camera.matrixWorldInverse)
+      v.moonView.copy(moonDir).transformDirection(state.camera.matrixWorldInverse)
+      litAngle.current = moonLitAngle(v.sunView, v.moonView, litAngle.current)
+      moonMesh.current.rotation.z = litAngle.current
     }
     if (moonShade.current) {
       ;(moonShade.current.material as THREE.MeshBasicMaterial).opacity = s.moonShade
       moonShade.current.visible = s.moonShade > 0
     }
-    const phase = Math.round(s.moon.phase * 100) / 100
+    // 밝은 쪽은 늘 오른쪽에 그리므로 기우는 달(0.5~1)은 같은 넓이의 차는 달(0~0.5)로 바꿔 그립니다.
+    const folded = s.moon.phase < 0.5 ? s.moon.phase : 1 - s.moon.phase
+    const phase = Math.round(folded * 100) / 100
     const tex = moonTex.current
     if (tex && phase !== moonPhaseDrawn.current) {
       const ctx = (tex.image as HTMLCanvasElement).getContext('2d')
@@ -202,16 +217,15 @@ export function WorldSky() {
       const d = s.light.dir
       sun.current.position.set(d.x * LIGHT_DISTANCE, d.y * LIGHT_DISTANCE, d.z * LIGHT_DISTANCE)
       sun.current.intensity = s.light.intensity
-      sun.current.color.set(s.light.color)
+      sun.current.color.setHex(s.light.color)
     }
     if (ambient.current) {
       ambient.current.intensity = s.ambient.intensity
-      ambient.current.color.set(s.ambient.color)
+      ambient.current.color.setHex(s.ambient.color)
     }
+    // 점광원은 낮에도 켜 두고 세기만 0 으로 둡니다. 켜고 끄면 빛 개수가 바뀌어 모든 재질의 셰이더를 다시 만들어서 한 번 끊깁니다.
     for (const l of lamps.current) {
-      if (!l) continue
-      l.visible = s.glow > 0 // 낮에는 꺼서 계산하지 않게
-      l.intensity = LAMP_LIGHT.power * s.glow
+      if (l) l.intensity = LAMP_LIGHT.power * s.glow
     }
     setNightGlow(s.glow)
   })
@@ -234,13 +248,13 @@ export function WorldSky() {
       </group>
       <directionalLight ref={sun} />
       <ambientLight ref={ambient} />
-      {LAMP_LIGHTS.map((p, i) => (
+      {lampSpots.map((p, i) => (
         <pointLight
           key={i}
           ref={(l) => {
             lamps.current[i] = l
           }}
-          position={p}
+          position={[p.x, LAMP_LIGHT.height, p.z]}
           color={LAMP_LIGHT.color}
           distance={LAMP_LIGHT.range}
           intensity={0}
