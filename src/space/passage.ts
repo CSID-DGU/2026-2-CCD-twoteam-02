@@ -5,12 +5,13 @@
 //   로비 → 지점: 북쪽(-Z)으로 걸어 들어가면 지점 출입문 앞에서 안쪽(-Z)을 보고 섭니다.
 //   지점 → 로비: 남쪽(+Z)으로 걸어 나가면 로비의 그 지점 문 앞에서 로비 쪽(+Z)을 보고 섭니다.
 //   회의 → 지점: 회의실 문 앞에서 좌석 쪽(-X)을 보고 섭니다. (#45)
+//   엘리베이터 → 다른 층 지점: 그 층 엘리베이터 문 앞에서 엘리베이터를 등지고 섭니다.
 // react-router 의 이동 상태(navigate 의 state)로 넘기므로 주소에는 드러나지 않습니다.
 
 export type Passage = {
   from?: string // 나온 지점 (로비에서 그 지점 문 앞에 섭니다)
   heading?: number // 문을 지날 때 바라보던 방향(라디안, 0이면 +Z)
-  at?: 'meeting' // 지점에서 설 곳. 'meeting' 이면 출입문 대신 회의실 문 앞 (#45)
+  at?: 'meeting' | 'elevator' // 지점에서 설 곳. 'meeting' 이면 출입문 대신 회의실 문 앞 (#45), 'elevator' 면 엘리베이터 문 앞
 }
 
 // location.state 를 안전하게 읽습니다. 주소로 바로 들어오면 비어 있습니다.
@@ -20,6 +21,6 @@ export function passageOf(state: unknown): Passage {
   return {
     from: typeof from === 'string' ? from : undefined,
     heading: typeof heading === 'number' && Number.isFinite(heading) ? heading : undefined,
-    at: at === 'meeting' ? 'meeting' : undefined,
+    at: at === 'meeting' || at === 'elevator' ? at : undefined,
   }
 }
