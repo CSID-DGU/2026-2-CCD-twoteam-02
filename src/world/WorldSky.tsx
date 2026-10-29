@@ -21,6 +21,8 @@ import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime }
 import type { Clock } from './skyLogic'
 import type { Point } from './worldLogic'
 import { setNightGlow } from './worldMaterials'
+import { Constellations } from './Constellations'
+import type { SkyFrame } from './Constellations'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
 const SKY_DISTANCE = 450
@@ -91,7 +93,10 @@ function drawMoon(ctx: CanvasRenderingContext2D, phase: number) {
 }
 
 // lamps: 점광원을 켤 가로등 자리 (world.json 의 lamps 중 light 를 단 것)
-export function WorldSky({ lamps: lampSpots }: { lamps: Point[] }) {
+// onPickSign: 밤에 별자리를 누르면 그 별자리 id 로 불림 (오늘의 운세 창, #321)
+// mySign: 내 별자리 id (생일로 정함, 없으면 null). 하늘에서 금색으로 보임
+export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamps: Point[]; onPickSign?: (id: string) => void; mySign?: string | null }) {
+  const frame = useRef<SkyFrame | null>(null) // 이번 프레임 하늘 값. 별자리가 같이 씀
   const camera = useThree((s) => s.camera)
   const clock = useRef<Clock | null>(null)
   const sky = useRef<ComponentRef<typeof Sky>>(null)
@@ -168,7 +173,9 @@ export function WorldSky({ lamps: lampSpots }: { lamps: Point[] }) {
     const now = Date.now()
     // 주소(?time, ?speed)는 처음 한 번 읽습니다.
     if (!clock.current) clock.current = parseClock(window.location.search, now)
-    const s = skyState(worldTime(clock.current, now))
+    const ms = worldTime(clock.current, now)
+    const s = skyState(ms)
+    frame.current = { ...s, ms }
     const v = tmp.current
 
     const sunDir = toDirection(s.sun, v.sun)
@@ -233,6 +240,7 @@ export function WorldSky({ lamps: lampSpots }: { lamps: Point[] }) {
   return (
     <>
       <Sky ref={sky} distance={SKY_DISTANCE} />
+      <Constellations stateRef={frame} mySign={mySign} onPick={onPickSign} />
       <mesh ref={dome} geometry={domeGeo} material={domeMat} renderOrder={ORDER.dome} />
       <points ref={stars} geometry={starGeo} material={starMat} renderOrder={ORDER.stars} />
       <group ref={moon}>

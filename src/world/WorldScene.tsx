@@ -50,6 +50,9 @@ import { arrivalOf, placeBuildings, plazaObstacles, toBranchHeading } from './wo
 import type { PlacedFloor, PlazaLayout } from './worldLogic'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
 import { WorldSky } from './WorldSky'
+import { FortunePanel } from './FortunePanel'
+import { signOfBirthday } from './starLogic'
+import { useMyBirthday } from '../profile/useMyBirthday'
 import world from './world.json'
 
 const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. 아래 Player 주석 참고
@@ -95,8 +98,13 @@ export default function WorldScene({ onEnter }: Props) {
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
   // 광장 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null)
+  // 오늘의 별자리 운세 창 (#321): 밤하늘에서 누른 별자리 id. 다른 창이 떠 있으면 열지 않음
+  const [fortune, setFortune] = useState<string | null>(null)
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
   const { session } = useSession()
+  // 내 생일 → 내 별자리 (#321). 밤하늘에서 금색으로 보여 줍니다. 생일이 없으면 null
+  const { birthday } = useMyBirthday(session?.user.id)
+  const mySign = birthday ? signOfBirthday(birthday.month, birthday.day) : null
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 광장에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   // 실시간 방 이름은 예전 로비와 같은 LOBBY_CHANNEL 그대로입니다(experiment 와 어긋나지 않게).
@@ -111,11 +119,11 @@ export default function WorldScene({ onEnter }: Props) {
   useOnlinePlace(LOBBY_PLACE)
   const onlineCount = useOnline().size
   // 오른쪽 위 버튼 단축키 R·F·P (#205)
-  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel })
-  const panelRef = useRef(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해
+  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: fortune !== null || picker !== null })
+  const panelRef = useRef<unknown>(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해. 운세 창이 떠 있어도 막음
   useEffect(() => {
-    panelRef.current = panel
-  }, [panel])
+    panelRef.current = panel ?? fortune
+  }, [panel, fortune])
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
@@ -218,7 +226,7 @@ export default function WorldScene({ onEnter }: Props) {
       <Canvas>
         {view === 'first' ? (
           <>
-            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || picker !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || picker !== null || fortune !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
             {/* 걸을 때만 뜨는 미니맵 (#290). 광장은 넓어서 내 둘레만 */}
             <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />
           </>
@@ -226,7 +234,8 @@ export default function WorldScene({ onEnter }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         <FpsProbe onSample={handleFps} />
-        <WorldSky lamps={LIT_LAMPS} /> {/* 하늘·해·달·별과 빛 (#316) */}
+        {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321) */}
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && picker === null && setFortune(id)} />
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />
@@ -256,7 +265,7 @@ export default function WorldScene({ onEnter }: Props) {
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={NO_KIOSK}
-            frozen={panel !== null || picker !== null}
+            frozen={panel !== null || picker !== null || fortune !== null}
             onNearKiosk={() => {}}
             onKiosk={() => {}}
             onNear={(no) => {
@@ -285,7 +294,7 @@ export default function WorldScene({ onEnter }: Props) {
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       <PerfReadout perf={perf} />
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
-      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || picker !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || picker !== null || fortune !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {pickerBuilding && (
@@ -298,6 +307,7 @@ export default function WorldScene({ onEnter }: Props) {
       )}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+      {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: LOBBY_PLACE, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
   )
