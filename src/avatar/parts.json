@@ -386,54 +386,9 @@
       "name": "없음"
     },
     {
-      "id": "short",
-      "name": "짧은 머리",
-      "model": "/models/Parts/hair/short.gltf"
-    },
-    {
-      "id": "long",
-      "name": "긴 머리",
-      "model": "/models/Parts/hair/long.gltf"
-    },
-    {
-      "id": "buzz",
-      "name": "아주 짧은 머리",
-      "model": "/models/Parts/hair/buzz.gltf"
-    },
-    {
-      "id": "spiky",
-      "name": "삐죽 머리",
-      "model": "/models/Parts/hair/spiky.gltf"
-    },
-    {
-      "id": "bun",
-      "name": "똥머리",
-      "model": "/models/Parts/hair/bun.gltf"
-    },
-    {
-      "id": "bob",
-      "name": "일반 단발",
-      "model": "/models/Parts/hair/bob.gltf"
-    },
-    {
-      "id": "bob-textured",
-      "name": "텍스처 단발",
-      "model": "/models/Parts/hair/bob-textured.gltf"
-    },
-    {
-      "id": "twin-braids",
-      "name": "양갈래 땋은 머리",
-      "model": "/models/Parts/hair/twin-braids.gltf"
-    },
-    {
       "id": "twin-braids-textured",
       "name": "양갈래 땋은 머리 (텍스처)",
       "model": "/models/Parts/hair/twin-braids-textured.gltf"
-    },
-    {
-      "id": "space-buns",
-      "name": "양쪽 똥머리",
-      "model": "/models/Parts/hair/space-buns.gltf"
     },
     {
       "id": "space-buns-textured",
@@ -441,19 +396,9 @@
       "model": "/models/Parts/hair/space-buns-textured.gltf"
     },
     {
-      "id": "ponytail",
-      "name": "포니테일",
-      "model": "/models/Parts/hair/ponytail.gltf"
-    },
-    {
       "id": "ponytail-textured",
       "name": "포니테일 (텍스처)",
       "model": "/models/Parts/hair/ponytail-textured.gltf"
-    },
-    {
-      "id": "spiky-up",
-      "name": "부스스 세운 머리",
-      "model": "/models/Parts/hair/spiky-up.gltf"
     },
     {
       "id": "spiky-up-textured",
