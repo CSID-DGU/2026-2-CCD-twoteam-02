@@ -67,6 +67,9 @@ const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
 
 type Branch = { id: number; slug: string; name: string }
 
+// 열린 지점 목록 (DB branches.is_open)
+const fetchOpenBranches = () => supabase.from('branches').select('id, slug, name').eq('is_open', true)
+
 type Props = {
   onEnter: (branch: Branch, heading: number) => void // heading: 실내에서 볼 방향 (건물 입구 각도를 뺀 값, #150)
 }
@@ -123,7 +126,7 @@ export default function WorldScene({ onEnter }: Props) {
   }, [setView])
 
   const loadBranches = useCallback(async () => {
-    const { data, error } = await supabase.from('branches').select('id, slug, name').eq('is_open', true)
+    const { data, error } = await fetchOpenBranches()
     if (error) {
       setMessage(`지점 목록을 불러오지 못했습니다: ${error.message}`)
       return [] as Branch[]
@@ -131,6 +134,17 @@ export default function WorldScene({ onEnter }: Props) {
     const list = (data ?? []) as Branch[]
     setBranches(list)
     return list
+  }, [])
+  // 들어오자마자 한 번 읽어 둡니다. 광장은 넓어서, 안 연 건물 문이 E 를 누르기 전까지 초록으로 보이면
+  // 멀리서 걸어간 뒤에야 "준비 중"을 알게 됩니다. 못 읽었으면 조용히 두고, E 를 누를 때 tryEnter 가 다시 읽어 안내합니다.
+  useEffect(() => {
+    let cancelled = false
+    void fetchOpenBranches().then(({ data, error }) => {
+      if (!cancelled && !error) setBranches((data ?? []) as Branch[])
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // 들어갈 수 있는 건물인지 확인하고 들어간다. 목록을 아직 안 읽었으면 이때 읽는다.
