@@ -2,7 +2,7 @@
 //
 // 지점·회의실: 창 크기가 바뀌어도 공간 전체가 화면에 들어오도록 배율을 맞춥니다.
 // 광장처럼 넓은 곳(followRef 를 넘김): 전체를 맞추면 캐릭터가 점처럼 작아지므로, 내 위치를 따라다니며 둘레 span(m)만 보여 줍니다.
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera } from "@react-three/drei";
@@ -20,11 +20,21 @@ type Props = {
 export function TopDownCamera({ area, followRef, span = FOLLOW_SPAN }: Props) {
   const size = useThree((s) => s.size);
   const camera = useRef<THREE.OrthographicCamera>(null);
+  // 처음 위치: 따라다닐 때는 첫 화면을 그리기 전에 내 위치 위로 옮깁니다. (가운데에서 시작하면 첫 화면이 한 번 튐)
+  useLayoutEffect(() => {
+    const c = camera.current;
+    const p = followRef?.current;
+    if (!c || !p) return;
+    c.position.x = p.x;
+    c.position.z = p.z;
+  }, [followRef]);
   const zoom = followRef
     ? Math.min(size.width, size.height) / span
     : Math.min(size.width / (area.w + 1), size.height / (area.d + 1));
 
   // 따라다니기: 매 프레임 카메라를 내 위치 바로 위로 옮깁니다. (높이·회전은 그대로)
+  // Player 보다 먼저 불릴 수 있어 한 프레임 전 위치를 따라갑니다(걷기 4m/s 에서 약 7cm). 우선순위를 0보다 높이면
+  // React Three Fiber 의 자동 그리기가 꺼지므로 그대로 둡니다.
   useFrame(() => {
     const c = camera.current;
     const p = followRef?.current;
