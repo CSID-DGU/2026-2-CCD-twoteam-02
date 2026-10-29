@@ -10,6 +10,8 @@ import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN, PASSWORD_MAX } from './authLimits'
 import { signupRedirectTo } from './authRedirect'
+import { BirthdayInput } from '../profile/BirthdayInput'
+import type { Birthday } from '../profile/useMyBirthday'
 
 
 type Props = {
@@ -22,6 +24,8 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
   const [nickname, setNickname] = useState('')
   const [password, setPassword] = useState('')
   const [passwordAgain, setPasswordAgain] = useState('')
+  // 생일(선택, 양력 월·일만). 광장 밤하늘에서 내 별자리를 금색으로 보여 주고 운세 창에 내 별자리 운세를 보여 줌 (#321)
+  const [birthday, setBirthday] = useState<Birthday | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -47,7 +51,11 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { nickname: name }, emailRedirectTo: signupRedirectTo() },
+      // 생일은 닉네임처럼 가입 정보로 넘기고, 가입 트리거(0035)가 profiles 에 넣습니다.
+      options: {
+        data: { nickname: name, ...(birthday ? { birth_month: birthday.month, birth_day: birthday.day } : {}) },
+        emailRedirectTo: signupRedirectTo(),
+      },
     })
     setBusy(false)
 
@@ -93,6 +101,12 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
             maxLength={NICKNAME_MAX}
             required
           />
+        </label>
+
+        <label style={styles.label}>
+          생일 (선택)
+          <BirthdayInput value={birthday} onChange={setBirthday} />
+          <span style={{ fontSize: 12, opacity: 0.7 }}>광장 밤하늘에서 내 별자리를 찾아 줘요. 태어난 해는 받지 않고, 나만 볼 수 있어요.</span>
         </label>
 
         <label style={styles.label}>
