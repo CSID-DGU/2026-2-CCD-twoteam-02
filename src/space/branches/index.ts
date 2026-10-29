@@ -6,7 +6,8 @@ import sol from './sol.json'
 
 export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   byeol, // 별다방 (스터디카페, 키오스크)
-  sol, // 솔카페 (카페, 커피 바)
+  // 솔카페 (카페, 커피 바, 다이너 테마 #57). JSON 의 theme.floor.colors 가 string[] 로 읽혀 [string, string] 과 안 맞아 단언합니다.
+  sol: sol as BranchLayout,
 }
 
 export const DEFAULT_BRANCH = 'byeol'

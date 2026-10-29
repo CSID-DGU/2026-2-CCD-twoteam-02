@@ -1,4 +1,7 @@
 // 지점 데이터(JSON)에서 충돌 상자를 만듭니다. 화면 표시와 충돌 판정이 같은 값을 씁니다.
+import { stoolBoxes } from './theme'
+import type { BranchTheme } from './theme'
+
 export type Box = { x: number; z: number; w: number; d: number }
 
 type Seat = { no: number; x: number; z: number; rot: number }
@@ -17,8 +20,9 @@ export type BranchLayout = {
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
   mapSprite?: string // 전체 지도에서 지붕 대신 쓸 건물 그림 (public/ 기준 주소, 선택). 없으면 색 칠한 지붕 (#300)
+  theme?: BranchTheme // 지점 테마(색·천장·액자·카운터, #57). 없으면 기본 모습. 값은 theme.ts 참고
 }
-type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'kiosk' | 'bar'>
+type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'kiosk' | 'bar' | 'theme'>
 
 export const SEAT = { w: 1.2, d: 0.6 }
 export const KIOSK = { w: 0.6, d: 0.4 }
@@ -34,6 +38,7 @@ export function obstaclesOf(b: Branch): Box[] {
     ...b.seats.map((s) => ({ x: s.x, z: s.z, ...SEAT })),
     ...(b.kiosk ? [{ x: b.kiosk.x, z: b.kiosk.z, ...KIOSK }] : []),
     ...(b.bar ? [b.bar] : []),
+    ...stoolBoxes(b.theme), // 테마의 카운터 스툴도 부딪힙니다
   ]
 }
 

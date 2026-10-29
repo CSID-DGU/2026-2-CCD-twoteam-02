@@ -174,5 +174,39 @@
     "z": 5,
     "w": 0.3,
     "d": 1.4
+  },
+  "theme": {
+    "floor": { "pattern": "checker", "colors": ["#1a1a1a", "#f4f4f4"], "cell": 0.5 },
+    "wall": { "color": "#1fb6b3", "neon": "#ff2d2d" },
+    "ceiling": {
+      "color": "#f3efe6",
+      "fans": [
+        { "x": -3, "z": -6 },
+        { "x": 3, "z": -6 },
+        { "x": -3, "z": -1.2 },
+        { "x": 3, "z": -1.2 },
+        { "x": -3, "z": 4.5 },
+        { "x": 3, "z": 4.5 }
+      ]
+    },
+    "frames": [
+      { "x": -4, "z": -8, "face": "s", "text": "DINER", "bg": "#d9353a" },
+      { "x": 0, "z": -8, "face": "s", "text": "ROCK'N ROLL", "bg": "#1fb6b3" },
+      { "x": 4, "z": -8, "face": "s", "text": "OPEN 24H", "bg": "#2b2b2b" },
+      { "x": -4, "z": 8, "face": "n", "text": "COFFEE", "bg": "#5b3d22" },
+      { "x": -1.5, "z": 8, "face": "n", "text": "SOL", "bg": "#d9353a" }
+    ],
+    "counter": {
+      "style": "tile",
+      "top": "#d9353a",
+      "stools": [
+        { "x": 2, "z": 5.8 },
+        { "x": 3, "z": 5.8 },
+        { "x": 4, "z": 5.8 }
+      ]
+    },
+    "desk": "#d9353a",
+    "chair": "#f1f1f1",
+    "light": { "ambient": 1.0, "sun": 0.9, "color": "#fff1dc" }
   }
 }
