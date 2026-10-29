@@ -8,9 +8,9 @@ import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
-import { DEFAULT_COLORS, colorsOf } from "./theme";
+import { DEFAULT_COLORS, colorsOf, insideTable } from "./theme";
 import { checkerTexture } from "./patternTexture";
-import { Counter, Decor, DinerDesk, Sofa, ThemedDoor } from "./Decor";
+import { BarStool, BarTable, Counter, Decor, DinerDesk, Sofa, ThemedDoor } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -358,9 +358,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       <Decor theme={branch.theme} size={branch.size} />
 
       {/* 책상: 테마에 가구 모양(furniture)이 있으면 크롬 테두리·다리 테이블, 없으면 상자 */}
+      {furniture?.tables?.map((t, i) => (
+        <BarTable key={i} table={t} color={colors.desk} chrome={furniture.chrome} /> // 여러 자리가 같이 쓰는 바 테이블
+      ))}
       {branch.seats.map((s) =>
         furniture ? (
-          <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} />
+          insideTable(s, furniture.tables) ? null : ( // 바 테이블 안의 자리는 개별 책상을 안 그림
+            <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} />
+          )
         ) : (
           <mesh key={s.no} position={[s.x, 0.37, s.z]}>
             <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
@@ -373,7 +378,11 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         return furniture ? (
-          <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} />
+          c.tall ? ( // 높은 자리는 둥근 바 스툴, 아니면 부스 소파
+            <BarStool key={c.no} x={c.x} z={c.z} color={chairColor} chrome={furniture.chrome} />
+          ) : (
+            <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} />
+          )
         ) : (
           <mesh key={c.no} position={[c.x, CHAIR.h / 2, c.z]}>
             <boxGeometry args={[CHAIR.w, CHAIR.h, CHAIR.d]} />
@@ -385,7 +394,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {/* 회의실 문 (#45): 동쪽 벽에 붙은 문과 "회의실" 표지판. 앞에서 E 를 누르면 회의 창이 뜹니다. 방은 로비처럼 문 너머라 그리지 않습니다. */}
       {branch.meetingDoor && branch.theme?.door ? (
         // 테마 문 (#57): 색·크롬 테두리·양철 간판. 앞에 서면 주황은 그대로
-        <ThemedDoor box={branch.meetingDoor} height={DOOR_HEIGHT} near={nearMeeting} nearColor={DOOR_COLOR.near} label="회의실" door={branch.theme.door} signFace="w" signY={DOOR_SIGN.y} />
+        <ThemedDoor box={branch.meetingDoor} height={DOOR_HEIGHT} near={nearMeeting} nearColor={DOOR_COLOR.near} label="회의실" door={branch.theme.door} along="z" />
       ) : branch.meetingDoor && (
         <group>
           <mesh position={[branch.meetingDoor.x, DOOR_HEIGHT / 2, branch.meetingDoor.z]}>
@@ -405,7 +414,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
       {branch.door && branch.theme?.door ? (
-        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="로비" door={branch.theme.door} signFace="n" signY={DOOR_SIGN.y} />
+        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="로비" door={branch.theme.door} along="x" />
       ) : branch.door && (
         <group>
           <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>

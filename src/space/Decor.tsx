@@ -5,8 +5,8 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { DINER_DESK, FAN, FRAME, SOFA, STOOL, THEMED_DOOR, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
-import type { BranchTheme, FanSpot, Frame } from './theme'
+import { ARCH_DOOR, BAR_STOOL, DINER_DESK, FAN, FRAME, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
+import type { BranchTheme, FanSpot, Frame, SharedTable } from './theme'
 import { POSTER_PX, checkerTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
@@ -46,11 +46,12 @@ function Ceiling({ color, size }: { color: string; size: Size }) {
 // 천장 팬: 허브 원통에 날개 4개. 매 프레임 y 축으로 돌립니다.
 function CeilingFan({ spot }: { spot: FanSpot }) {
   const group = useRef<Group>(null)
+  const scale = spot.scale ?? 1
   useFrame((_, dt) => {
-    if (group.current) group.current.rotation.y += dt * FAN.turnsPerSec * Math.PI * 2
+    if (group.current) group.current.rotation.y += (dt * FAN.turnsPerSec * Math.PI * 2) / scale // 큰 팬은 천천히
   })
   return (
-    <group ref={group} position={[spot.x, WALL_HEIGHT - FAN.hubH / 2, spot.z]}>
+    <group ref={group} position={[spot.x, WALL_HEIGHT - (FAN.hubH * scale) / 2, spot.z]} scale={scale}>
       <mesh>
         <cylinderGeometry args={[FAN.hubR, FAN.hubR, FAN.hubH, 12]} />
         <meshStandardMaterial color={FAN_COLOR} />
@@ -108,46 +109,102 @@ function WallFrame({ frame }: { frame: Frame }) {
   )
 }
 
-// 테마 문: 문 상자 + 둘레 크롬 테두리 + 양철 간판 표지판. near 면 주황 강조(기본 문과 같은 규칙).
-// signFace: 표지판이 보는 쪽 — 출입문은 지점 안쪽(-z, 반 바퀴), 회의실 문은 지점 안쪽(-x).
+// 테마 문(아치형, #57): 아래는 문판, 위는 반원, 둘레에 크롬 기둥 둘과 반원 아치, 반원 안은 어두운 유리창,
+// 문판 안쪽 면에 양철 간판 표지판. near 면 문판이 주황(기본 문과 같은 규칙).
+// along: 문의 긴 쪽이 x 축(출입문, 안쪽은 -z)인지 z 축(회의실 문, 안쪽은 -x)인지. 그룹을 돌려서 안쪽이 늘 local -z 가 되게 합니다.
+const CHROME = { metalness: 0.8, roughness: 0.25 }
+const GLASS = { color: '#1b1726', metalness: 0.4, roughness: 0.15 }
+
 export function ThemedDoor({
-  box, height, near, nearColor, label, door, signFace, signY,
+  box, height, near, nearColor, label, door, along,
 }: {
   box: Box; height: number; near: boolean; nearColor: string; label: string
-  door: NonNullable<BranchTheme['door']>; signFace: 'n' | 'w'; signY: number
+  door: NonNullable<BranchTheme['door']>; along: 'x' | 'z'
 }) {
-  const T = THEMED_DOOR
-  const signH = (T.signW * POSTER_PX.h) / POSTER_PX.w
-  const sign =
-    signFace === 'n'
-      ? { pos: [box.x, signY, box.z - box.d / 2 - 0.01] as [number, number, number], rotY: Math.PI }
-      : { pos: [box.x - box.w / 2 - 0.01, signY, box.z] as [number, number, number], rotY: -Math.PI / 2 }
+  const A = ARCH_DOOR
+  const len = along === 'x' ? box.w : box.d // 문 너비
+  const thick = along === 'x' ? box.d : box.w // 문 두께
+  const r = len / 2 // 아치 반지름
+  const slabH = height - r // 문판 높이 (그 위가 반원)
+  const postX = len / 2 + A.frameR
+  const signH = (A.signW * POSTER_PX.h) / POSTER_PX.w
+  const face = thick / 2 + 0.005 // 면에서 살짝 띄우는 거리
   return (
-    <group>
-      <mesh position={[box.x, height / 2, box.z]}>
-        <boxGeometry args={[box.w, height, box.d]} />
-        <meshStandardMaterial color={near ? nearColor : door.color} />
+    <group position={[box.x, 0, box.z]} rotation={[0, along === 'z' ? Math.PI / 2 : 0, 0]}>
+      {/* 문판 */}
+      <mesh position={[0, slabH / 2, 0]}>
+        <boxGeometry args={[len, slabH, thick]} />
+        <meshStandardMaterial color={near ? nearColor : door.color} metalness={0.2} roughness={0.5} />
       </mesh>
-      {/* 크롬 테두리: 문보다 조금 크고 얇아서 둘레만 보입니다 */}
-      <mesh position={[box.x, height / 2, box.z]}>
-        <boxGeometry args={[box.w + T.frameOut, height + T.frameOut / 2, box.d - 0.02]} />
-        <meshStandardMaterial color={door.chrome} metalness={0.6} roughness={0.3} />
+      {/* 반원 윗부분: 원통을 눕혀 축을 z 로, 각도 π/2~3π/2 만 그리면 위쪽 반이 됩니다 */}
+      <mesh position={[0, slabH, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r, r, thick, 24, 1, false, Math.PI / 2, Math.PI]} />
+        <meshStandardMaterial color={near ? nearColor : door.color} metalness={0.2} roughness={0.5} />
       </mesh>
-      <mesh position={sign.pos} rotation={[0, sign.rotY, 0]}>
-        <planeGeometry args={[T.signW, signH]} />
+      {/* 반원 유리창 (앞·뒤) */}
+      {[face, -face].map((z, i) => (
+        <mesh key={i} position={[0, slabH, z]} rotation={[0, i === 1 ? Math.PI : 0, 0]}>
+          <circleGeometry args={[r * A.windowRatio, 24, 0, Math.PI]} />
+          <meshStandardMaterial color={GLASS.color} metalness={GLASS.metalness} roughness={GLASS.roughness} />
+        </mesh>
+      ))}
+      {/* 크롬 기둥 둘 + 아치 */}
+      {[-postX, postX].map((x, i) => (
+        <mesh key={i} position={[x, slabH / 2, 0]}>
+          <cylinderGeometry args={[A.frameR, A.frameR, slabH, 12]} />
+          <meshStandardMaterial color={door.chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
+        </mesh>
+      ))}
+      <mesh position={[0, slabH, 0]}>
+        <torusGeometry args={[r + A.frameR, A.frameR, 10, 32, Math.PI]} />
+        <meshStandardMaterial color={door.chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
+      </mesh>
+      {/* 표지판: 안쪽 면(-z) 문판 위 */}
+      <mesh position={[0, A.signY, -face]} rotation={[0, Math.PI, 0]}>
+        <planeGeometry args={[A.signW, signH]} />
         <meshBasicMaterial map={signTexture({ text: label, bg: door.signBg, style: 'tin' })} />
       </mesh>
     </group>
   )
 }
 
+// 바 테이블: 여러 자리가 같이 쓰는 긴 높은 테이블. 상판 + 크롬 띠 + 다리 4개 (DinerDesk 와 같은 모양, 높이만 높음)
+export function BarTable({ table, color, chrome }: { table: SharedTable; color: string; chrome: string }) {
+  return <DinerDesk x={table.x} z={table.z} size={{ w: table.w, d: table.d }} color={color} chrome={chrome} height={TALL_DESK_HEIGHT} legInset={0.3} />
+}
+
+// 바 스툴: 바닥 받침 + 크롬 기둥 + 둥근 방석. 높은 자리(tall)의 의자
+export function BarStool({ x, z, color, chrome }: { x: number; z: number; color: string; chrome: string }) {
+  const B = BAR_STOOL
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, B.baseH / 2, 0]}>
+        <cylinderGeometry args={[B.baseR, B.baseR, B.baseH, 16]} />
+        <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
+      </mesh>
+      <mesh position={[0, B.baseH + B.legH / 2, 0]}>
+        <cylinderGeometry args={[B.legR, B.legR, B.legH, 12]} />
+        <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
+      </mesh>
+      <mesh position={[0, B.baseH + B.legH + B.seatH / 2, 0]}>
+        <cylinderGeometry args={[B.seatR, B.seatR, B.seatH, 20]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+    </group>
+  )
+}
+
 // 다이너 테이블: 빨간 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 자리(x·z)와 크기는 상자 책상과 같습니다.
-export function DinerDesk({ x, z, size, color, chrome }: { x: number; z: number; size: { w: number; d: number }; color: string; chrome: string }) {
+export function DinerDesk({
+  x, z, size, color, chrome, height = DINER_DESK.height, legInset = DINER_DESK.legInset,
+}: {
+  x: number; z: number; size: { w: number; d: number }; color: string; chrome: string; height?: number; legInset?: number
+}) {
   const D = DINER_DESK
-  const topY = D.height - D.topT / 2
-  const legH = D.height - D.topT
-  const lx = size.w / 2 - D.legInset
-  const lz = size.d / 2 - D.legInset
+  const topY = height - D.topT / 2
+  const legH = height - D.topT
+  const lx = size.w / 2 - legInset
+  const lz = size.d / 2 - legInset
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, topY, 0]}>

@@ -42,17 +42,18 @@ export function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: (
   // 자리 객체가 새로 만들어져도 값이 같으면 다시 계산하지 않습니다. 다시 계산하면 아래 position·quaternion 값이 바뀌어
   // 카메라가 전환 시작 위치(자리 뒤 위쪽)로 튀어 오른 채 남습니다. 회의 화면은 참석자가 바뀔 때마다 자리를 새로 만듭니다. (#45)
   const { x, z, rot } = spot;
+  const raise = spot.y ?? 0; // 높은 의자면 눈높이와 책상도 그만큼 위 (#57)
   const pose = useMemo(() => {
     const fx = Math.sin(rot), fz = Math.cos(rot); // 책상 쪽 방향
-    const endPos = new Vector3(x, EYE_HEIGHT, z);
+    const endPos = new Vector3(x, EYE_HEIGHT + raise, z);
     const startPos = new Vector3(x - fx * START_BACK, START_HEIGHT, z - fz * START_BACK);
-    const desk = new Vector3(x + fx, SEAT_HEIGHT, z + fz);
+    const desk = new Vector3(x + fx, SEAT_HEIGHT + raise, z + fz);
     const startQuat = new Quaternion().setFromRotationMatrix(
       new Matrix4().lookAt(startPos, desk, UP)
     );
     // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
     return { startPos, startQuat, endPos, target: new Quaternion(), euler: new Euler(0, 0, 0, "YXZ") };
-  }, [x, z, rot]);
+  }, [x, z, rot, raise]);
 
   // 화면을 끌면 끄는 쪽으로 장면이 따라오도록 시점을 돌립니다.
   useEffect(() => {

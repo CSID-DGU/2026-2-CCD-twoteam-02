@@ -65,7 +65,7 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
   })
 
   return (
-    <group ref={ref} position={[spot.x, 0, spot.z]} rotation={[0, spot.rot, 0]}>
+    <group ref={ref} position={[spot.x, spot.y ?? 0, spot.z]} rotation={[0, spot.rot, 0]}> {/* y: 높은 의자면 올라감 (#57) */}
       <group ref={animRoot} key={model}>
         <primitive object={copy} scale={SCALE} />
       </group>
