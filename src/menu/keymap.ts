@@ -19,7 +19,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'friends', label: '친구' },
   { action: 'profile', label: '내 프로필' },
   { action: 'settings', label: '설정' },
-  { action: 'lobby', label: '로비로' },
+  { action: 'lobby', label: '광장으로' },
   { action: 'tracking', label: '트래킹 검증' },
   { action: 'mic', label: '마이크 켜기·끄기 (회의실)' },
 ]
