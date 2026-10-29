@@ -208,7 +208,8 @@ function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: B
 }
 
 // 건물: 그림자, 벽, 바닥과 안의 물건(children), 그 위를 덮는 지붕. 열리면 지붕이 투명해집니다.
-// sprite(지점 JSON 의 mapSprite)가 있으면 그 그림을 지붕으로 씁니다.
+// sprite(지점 JSON 의 mapSprite)가 있으면 그 그림을 지붕으로 씁니다. 그림은 입구가 아래(남쪽)인 모습이라
+// 건물이 돌아간 만큼(rot) 같이 돌립니다. (SVG rotate 는 화면 시계 방향이라 -rot)
 function Building({ place, roof, open, sprite, children }: { place: MapPlace; roof: string; open: boolean; sprite?: string; children: ReactNode }) {
   const r = place.rect
   const roofStyle: CSSProperties = { opacity: open ? 0.12 : 1, transition: 'opacity .25s' }
@@ -219,7 +220,13 @@ function Building({ place, roof, open, sprite, children }: { place: MapPlace; ro
       <rect {...rectProps({ ...r, w: r.w - 0.5, d: r.d - 0.5 })} fill={FLOOR} />
       {children}
       {sprite ? (
-        <image href={sprite} {...rectProps(r)} preserveAspectRatio="none" style={roofStyle} />
+        <image
+          href={sprite}
+          {...rectProps(Math.abs(Math.sin(place.rot)) > 0.5 ? { ...r, w: r.d, d: r.w } : r)}
+          transform={`rotate(${(-place.rot * 180) / Math.PI} ${r.x} ${r.z})`}
+          preserveAspectRatio="none"
+          style={roofStyle}
+        />
       ) : (
         <g style={roofStyle}>
           <rect {...rectProps(r)} fill={roof} />
