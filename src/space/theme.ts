@@ -117,7 +117,8 @@ export const DINER_DESK = { height: 0.74, topT: 0.06, trimT: 0.04, trimOut: 0.04
 export const SOFA = { w: 0.5, d: 0.45, seatH: 0.22, backH: 0.5, backT: 0.1, stripeH: 0.06, plinth: '#3b3b3b' }
 
 // 바 스툴(높은 둥근 의자): 바닥 받침 + 크롬 기둥 + 둥근 방석. 방석 윗면이 0.75 (의자 0.45 + TALL_RAISE 0.3)
-export const BAR_STOOL = { baseR: 0.2, baseH: 0.03, legR: 0.035, legH: 0.62, seatR: 0.19, seatH: 0.1, backH: 0.28, backT: 0.05 } // back*: 낮은 등받이
+// 바 테이블 자리의 스툴 기둥 높이: 방석 윗면이 의자 0.45 + TALL_RAISE 0.3 = 0.75 가 되게 (STOOL.seatH 0.1 을 뺀 값)
+export const TALL_STOOL_LEG = 0.65
 // 높은 테이블(바 테이블)의 높이. 높은 의자 자리의 책상도 이 높이
 export const TALL_DESK_HEIGHT = 1.05
 

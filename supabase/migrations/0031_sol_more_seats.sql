@@ -16,8 +16,8 @@ insert into public.seats (branch_id, seat_number, pos_x, pos_z, rot)
 select b.id, v.seat_number, v.pos_x, v.pos_z, v.rot
 from public.branches b
 cross join (values
-  (21, 4.9, -5.0, 0),      (22, 6.1, -5.0, 0),      (23, 4.9, -4.4, 3.1416), (24, 6.1, -4.4, 3.1416),
-  (25, 4.9,  0.0, 0),      (26, 6.1,  0.0, 0),      (27, 4.9,  0.6, 3.1416), (28, 6.1,  0.6, 3.1416)
+  (21, 6.1, -5.0, 0),      (22, 7.3, -5.0, 0),      (23, 6.1, -4.4, 3.1416), (24, 7.3, -4.4, 3.1416),
+  (25, 6.1,  0.0, 0),      (26, 7.3,  0.0, 0),      (27, 6.1,  0.6, 3.1416), (28, 7.3,  0.6, 3.1416)
 ) as v(seat_number, pos_x, pos_z, rot)
 where b.slug = 'sol'
 on conflict (branch_id, seat_number) do nothing;

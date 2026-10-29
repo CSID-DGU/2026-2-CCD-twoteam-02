@@ -8,9 +8,9 @@ import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
-import { DEFAULT_COLORS, ceilingHeightOf, colorsOf, insideTable } from "./theme";
+import { DEFAULT_COLORS, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
 import { checkerTexture } from "./patternTexture";
-import { BarStool, BarTable, Counter, Decor, DinerDesk, Sofa, ThemedDoor } from "./Decor";
+import { BarTable, Counter, Decor, DinerDesk, Sofa, Stool, ThemedDoor } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -380,7 +380,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         return furniture ? (
           c.tall && insideTable(c, furniture.tables) ? ( // 바 테이블 자리는 둥근 바 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
-            <BarStool key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} chrome={furniture.chrome} />
+            <Stool key={c.no} x={c.x} z={c.z} legH={TALL_STOOL_LEG} color={chairColor} /> // 커피 바 앞과 같은 둥근 스툴, 높이만 높게
           ) : (
             <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} raise={c.y ?? 0} />
           )

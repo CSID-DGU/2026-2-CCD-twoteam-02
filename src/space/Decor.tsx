@@ -5,7 +5,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_STOOL, DINER_DESK, FAN, FRAME, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, ceilingHeightOf, framePose, wallPose } from './theme'
+import { ARCH_DOOR, DINER_DESK, FAN, FRAME, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, ceilingHeightOf, framePose, wallPose } from './theme'
 import type { BranchTheme, FanSpot, Frame, Menu, SharedTable } from './theme'
 import { POSTER_PX, checkerTexture, menuTexture, signTexture, tileTexture } from './patternTexture'
 
@@ -219,38 +219,6 @@ export function BarTable({ table, color, chrome, trim }: { table: SharedTable; c
   return <DinerDesk x={table.x} z={table.z} size={{ w: table.w, d: table.d }} color={color} chrome={chrome} trim={trim} height={TALL_DESK_HEIGHT} legInset={0.3} />
 }
 
-// 바 체어: 바닥 받침 + 크롬 기둥 + 둥근 방석 + 낮은 둥근 등받이(테이블 반대쪽). 바 테이블 자리의 의자
-export function BarStool({ x, z, rot, color, chrome }: { x: number; z: number; rot: number; color: string; chrome: string }) {
-  const B = BAR_STOOL
-  const seatTop = B.baseH + B.legH + B.seatH
-  return (
-    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
-      {/* 등받이: 방석 뒤쪽(-z)에 서는 둥근 판 + 양끝 기둥 */}
-      <mesh position={[0, seatTop + B.backH / 2, -B.seatR + B.backT / 2]}>
-        <boxGeometry args={[B.seatR * 1.6, B.backH, B.backT]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * B.seatR * 0.8, seatTop + B.backH / 2, -B.seatR + B.backT / 2]}>
-          <cylinderGeometry args={[B.backT / 2, B.backT / 2, B.backH, 10]} />
-          <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
-        </mesh>
-      ))}
-      <mesh position={[0, B.baseH / 2, 0]}>
-        <cylinderGeometry args={[B.baseR, B.baseR, B.baseH, 16]} />
-        <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
-      </mesh>
-      <mesh position={[0, B.baseH + B.legH / 2, 0]}>
-        <cylinderGeometry args={[B.legR, B.legR, B.legH, 12]} />
-        <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
-      </mesh>
-      <mesh position={[0, B.baseH + B.legH + B.seatH / 2, 0]}>
-        <cylinderGeometry args={[B.seatR, B.seatR, B.seatH, 20]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-    </group>
-  )
-}
 
 // 다이너 테이블: 빨간 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 자리(x·z)와 크기는 상자 책상과 같습니다.
 export function DinerDesk({
@@ -362,16 +330,18 @@ export function Counter({ bar, counter, height, neon }: { bar: Box; counter: Non
   )
 }
 
-function Stool({ x, z }: { x: number; z: number }) {
+// 둥근 스툴: 크롬 기둥 + 빨간 방석. 커피 바 앞과 바 테이블 자리가 같이 씁니다.
+// legH: 기둥 높이(바 테이블 자리는 방석 윗면이 0.75 가 되도록 더 높게), color: 방석 색(가까이·내 자리 강조용)
+export function Stool({ x, z, legH = STOOL.legH, color = STOOL_SEAT_COLOR }: { x: number; z: number; legH?: number; color?: string }) {
   return (
     <group position={[x, 0, z]}>
-      <mesh position={[0, STOOL.legH / 2, 0]}>
-        <cylinderGeometry args={[STOOL.legR, STOOL.legR, STOOL.legH, 10]} />
+      <mesh position={[0, legH / 2, 0]}>
+        <cylinderGeometry args={[STOOL.legR, STOOL.legR, legH, 10]} />
         <meshStandardMaterial color={STOOL_LEG_COLOR} />
       </mesh>
-      <mesh position={[0, STOOL.legH + STOOL.seatH / 2, 0]}>
+      <mesh position={[0, legH + STOOL.seatH / 2, 0]}>
         <cylinderGeometry args={[STOOL.seatR, STOOL.seatR, STOOL.seatH, 16]} />
-        <meshStandardMaterial color={STOOL_SEAT_COLOR} />
+        <meshStandardMaterial color={color} />
       </mesh>
     </group>
   )
