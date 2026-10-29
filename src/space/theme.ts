@@ -22,7 +22,11 @@ export type BranchTheme = {
   chair?: string // 의자 기본색. 가까이·내 자리 강조색은 테마와 무관
   furniture?: Furniture
   light?: Partial<{ ambient: number; sun: number; color: string }> // 빠진 칸은 기본값
+  door?: { color: string; chrome: string; signBg: string } // 출입문·회의실 문 색, 크롬 테두리, 양철 간판 표지판 색. 앞에 서면 주황 강조는 그대로
 }
+
+// 테마 문: 크롬 테두리가 문보다 튀어나오는 폭, 표지판 너비(높이는 간판 비율 300/404)
+export const THEMED_DOOR = { frameOut: 0.1, signW: 1.0 }
 
 // 테마가 없을 때의 색 (바꾸기 전 BranchScene 에 박혀 있던 값 그대로)
 export const DEFAULT_COLORS = {

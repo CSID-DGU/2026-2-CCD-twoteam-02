@@ -5,9 +5,9 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { DINER_DESK, FAN, FRAME, SOFA, STOOL, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
+import { DINER_DESK, FAN, FRAME, SOFA, STOOL, THEMED_DOOR, WALL_HEIGHT, WALL_THICKNESS, framePose } from './theme'
 import type { BranchTheme, FanSpot, Frame } from './theme'
-import { checkerTexture, signTexture, tileTexture } from './patternTexture'
+import { POSTER_PX, checkerTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
 const FRAME_COLOR = '#ffffff'
@@ -103,6 +103,39 @@ function WallFrame({ frame }: { frame: Frame }) {
       <mesh position={[0, 0, FRAME.depth / 2 + 0.005]}>
         <planeGeometry args={[FRAME.inner.w, FRAME.inner.h]} />
         <meshBasicMaterial map={signTexture({ text: frame.text, bg: frame.bg, style: frame.style, sub: frame.sub })} />
+      </mesh>
+    </group>
+  )
+}
+
+// 테마 문: 문 상자 + 둘레 크롬 테두리 + 양철 간판 표지판. near 면 주황 강조(기본 문과 같은 규칙).
+// signFace: 표지판이 보는 쪽 — 출입문은 지점 안쪽(-z, 반 바퀴), 회의실 문은 지점 안쪽(-x).
+export function ThemedDoor({
+  box, height, near, nearColor, label, door, signFace, signY,
+}: {
+  box: Box; height: number; near: boolean; nearColor: string; label: string
+  door: NonNullable<BranchTheme['door']>; signFace: 'n' | 'w'; signY: number
+}) {
+  const T = THEMED_DOOR
+  const signH = (T.signW * POSTER_PX.h) / POSTER_PX.w
+  const sign =
+    signFace === 'n'
+      ? { pos: [box.x, signY, box.z - box.d / 2 - 0.01] as [number, number, number], rotY: Math.PI }
+      : { pos: [box.x - box.w / 2 - 0.01, signY, box.z] as [number, number, number], rotY: -Math.PI / 2 }
+  return (
+    <group>
+      <mesh position={[box.x, height / 2, box.z]}>
+        <boxGeometry args={[box.w, height, box.d]} />
+        <meshStandardMaterial color={near ? nearColor : door.color} />
+      </mesh>
+      {/* 크롬 테두리: 문보다 조금 크고 얇아서 둘레만 보입니다 */}
+      <mesh position={[box.x, height / 2, box.z]}>
+        <boxGeometry args={[box.w + T.frameOut, height + T.frameOut / 2, box.d - 0.02]} />
+        <meshStandardMaterial color={door.chrome} metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={sign.pos} rotation={[0, sign.rotY, 0]}>
+        <planeGeometry args={[T.signW, signH]} />
+        <meshBasicMaterial map={signTexture({ text: label, bg: door.signBg, style: 'tin' })} />
       </mesh>
     </group>
   )

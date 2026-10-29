@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, colorsOf } from "./theme";
 import { checkerTexture } from "./patternTexture";
-import { Counter, Decor, DinerDesk, Sofa } from "./Decor";
+import { Counter, Decor, DinerDesk, Sofa, ThemedDoor } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -383,7 +383,10 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       })}
 
       {/* 회의실 문 (#45): 동쪽 벽에 붙은 문과 "회의실" 표지판. 앞에서 E 를 누르면 회의 창이 뜹니다. 방은 로비처럼 문 너머라 그리지 않습니다. */}
-      {branch.meetingDoor && (
+      {branch.meetingDoor && branch.theme?.door ? (
+        // 테마 문 (#57): 색·크롬 테두리·양철 간판. 앞에 서면 주황은 그대로
+        <ThemedDoor box={branch.meetingDoor} height={DOOR_HEIGHT} near={nearMeeting} nearColor={DOOR_COLOR.near} label="회의실" door={branch.theme.door} signFace="w" signY={DOOR_SIGN.y} />
+      ) : branch.meetingDoor && (
         <group>
           <mesh position={[branch.meetingDoor.x, DOOR_HEIGHT / 2, branch.meetingDoor.z]}>
             <boxGeometry args={[branch.meetingDoor.w, DOOR_HEIGHT, branch.meetingDoor.d]} />
@@ -401,7 +404,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       )}
 
       {/* 출입문: 남쪽 벽에 붙은 문과 "로비" 표지판. 앞에서 E 를 누르면 로비로 나갑니다. (#150) */}
-      {branch.door && (
+      {branch.door && branch.theme?.door ? (
+        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="로비" door={branch.theme.door} signFace="n" signY={DOOR_SIGN.y} />
+      ) : branch.door && (
         <group>
           <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>
             <boxGeometry args={[branch.door.w, DOOR_HEIGHT, branch.door.d]} />

@@ -50,122 +50,122 @@
   "seats": [
     {
       "no": 1,
-      "x": -5,
-      "z": -4,
+      "x": -6.5,
+      "z": -6.0,
       "rot": 0
     },
     {
       "no": 2,
-      "x": -2.5,
-      "z": -4,
-      "rot": 0
+      "x": -6.5,
+      "z": -5.4,
+      "rot": 3.1416
     },
     {
       "no": 3,
-      "x": 0,
-      "z": -4,
+      "x": -6.5,
+      "z": -3.0,
       "rot": 0
     },
     {
       "no": 4,
-      "x": 2.5,
-      "z": -4,
-      "rot": 0
+      "x": -6.5,
+      "z": -2.4,
+      "rot": 3.1416
     },
     {
       "no": 5,
-      "x": 5,
-      "z": -4,
+      "x": -6.5,
+      "z": 0.0,
       "rot": 0
     },
     {
       "no": 6,
-      "x": -5,
-      "z": -3.4,
+      "x": -6.5,
+      "z": 0.6,
       "rot": 3.1416
     },
     {
       "no": 7,
-      "x": -2.5,
-      "z": -3.4,
-      "rot": 3.1416
+      "x": -6.5,
+      "z": 3.0,
+      "rot": 0
     },
     {
       "no": 8,
-      "x": 0,
-      "z": -3.4,
+      "x": -6.5,
+      "z": 3.6,
       "rot": 3.1416
     },
     {
       "no": 9,
-      "x": 2.5,
-      "z": -3.4,
-      "rot": 3.1416
+      "x": 5.5,
+      "z": -6.0,
+      "rot": 0
     },
     {
       "no": 10,
-      "x": 5,
-      "z": -3.4,
+      "x": 5.5,
+      "z": -5.4,
       "rot": 3.1416
     },
     {
       "no": 11,
-      "x": -5,
-      "z": 1,
+      "x": 5.5,
+      "z": -3.0,
       "rot": 0
     },
     {
       "no": 12,
-      "x": -2.5,
-      "z": 1,
-      "rot": 0
+      "x": 5.5,
+      "z": -2.4,
+      "rot": 3.1416
     },
     {
       "no": 13,
-      "x": 0,
-      "z": 1,
+      "x": -0.6,
+      "z": -1.0,
       "rot": 0
     },
     {
       "no": 14,
-      "x": 2.5,
-      "z": 1,
+      "x": 0.6,
+      "z": -1.0,
       "rot": 0
     },
     {
       "no": 15,
-      "x": 5,
-      "z": 1,
-      "rot": 0
+      "x": -0.6,
+      "z": -0.4,
+      "rot": 3.1416
     },
     {
       "no": 16,
-      "x": -5,
-      "z": 1.6,
+      "x": 0.6,
+      "z": -0.4,
       "rot": 3.1416
     },
     {
       "no": 17,
-      "x": -2.5,
-      "z": 1.6,
-      "rot": 3.1416
+      "x": 2.5,
+      "z": -6.5,
+      "rot": 0
     },
     {
       "no": 18,
-      "x": 0,
-      "z": 1.6,
+      "x": -2.0,
+      "z": 4.5,
       "rot": 3.1416
     },
     {
       "no": 19,
-      "x": 2.5,
-      "z": 1.6,
+      "x": 5.5,
+      "z": 1.5,
       "rot": 3.1416
     },
     {
       "no": 20,
-      "x": 5,
-      "z": 1.6,
+      "x": -2.5,
+      "z": -5.0,
       "rot": 3.1416
     }
   ],
@@ -176,38 +176,128 @@
     "d": 1.4
   },
   "theme": {
-    "floor": { "pattern": "checker", "colors": ["#1a1a1a", "#f4f4f4"], "cell": 0.5 },
-    "wall": { "color": "#1fb6b3", "neon": "#ff2d2d" },
+    "floor": {
+      "pattern": "checker",
+      "colors": [
+        "#1a1a1a",
+        "#f4f4f4"
+      ],
+      "cell": 0.5
+    },
+    "wall": {
+      "color": "#1fb6b3",
+      "neon": "#ff2d2d"
+    },
     "ceiling": {
       "color": "#f3efe6",
       "fans": [
-        { "x": -3, "z": -6 },
-        { "x": 3, "z": -6 },
-        { "x": -3, "z": -1.2 },
-        { "x": 3, "z": -1.2 },
-        { "x": -3, "z": 4.5 },
-        { "x": 3, "z": 4.5 }
+        {
+          "x": -3,
+          "z": -6
+        },
+        {
+          "x": 3,
+          "z": -6
+        },
+        {
+          "x": -3,
+          "z": -1.2
+        },
+        {
+          "x": 3,
+          "z": -1.2
+        },
+        {
+          "x": -3,
+          "z": 4.5
+        },
+        {
+          "x": 3,
+          "z": 4.5
+        }
       ]
     },
     "frames": [
-      { "x": -4, "z": -8, "face": "s", "style": "badge", "text": "COMETS", "sub": "Diner", "bg": "#1fb6b3" },
-      { "x": 0, "z": -8, "face": "s", "style": "ribbon", "text": "Townhouse", "sub": "D I N E R", "bg": "#d9353a" },
-      { "x": 4, "z": -8, "face": "s", "style": "tin", "text": "Mom's", "sub": "OPEN 24 HOURS", "bg": "#d9353a" },
-      { "x": -4, "z": 8, "face": "n", "style": "badge", "text": "SOL", "sub": "Cafe", "bg": "#d9353a" },
-      { "x": -1.5, "z": 8, "face": "n", "style": "tin", "text": "Mel's", "sub": "CLASSIC DINER", "bg": "#1fb6b3" }
+      {
+        "x": -4,
+        "z": -8,
+        "face": "s",
+        "style": "badge",
+        "text": "COMETS",
+        "sub": "Diner",
+        "bg": "#1fb6b3"
+      },
+      {
+        "x": 0,
+        "z": -8,
+        "face": "s",
+        "style": "ribbon",
+        "text": "Townhouse",
+        "sub": "D I N E R",
+        "bg": "#d9353a"
+      },
+      {
+        "x": 4,
+        "z": -8,
+        "face": "s",
+        "style": "tin",
+        "text": "Mom's",
+        "sub": "OPEN 24 HOURS",
+        "bg": "#d9353a"
+      },
+      {
+        "x": -4,
+        "z": 8,
+        "face": "n",
+        "style": "badge",
+        "text": "SOL",
+        "sub": "Cafe",
+        "bg": "#d9353a"
+      },
+      {
+        "x": -1.5,
+        "z": 8,
+        "face": "n",
+        "style": "tin",
+        "text": "Mel's",
+        "sub": "CLASSIC DINER",
+        "bg": "#1fb6b3"
+      }
     ],
     "counter": {
       "style": "tile",
       "top": "#d9353a",
       "stools": [
-        { "x": 2, "z": 5.8 },
-        { "x": 3, "z": 5.8 },
-        { "x": 4, "z": 5.8 }
+        {
+          "x": 2,
+          "z": 5.8
+        },
+        {
+          "x": 3,
+          "z": 5.8
+        },
+        {
+          "x": 4,
+          "z": 5.8
+        }
       ]
     },
     "desk": "#d9353a",
     "chair": "#d9353a",
-    "furniture": { "style": "diner", "accent": "#f1f1f1", "chrome": "#c8ccd4" },
-    "light": { "ambient": 1.0, "sun": 0.9, "color": "#fff1dc" }
+    "furniture": {
+      "style": "diner",
+      "accent": "#f1f1f1",
+      "chrome": "#c8ccd4"
+    },
+    "light": {
+      "ambient": 1.0,
+      "sun": 0.9,
+      "color": "#fff1dc"
+    },
+    "door": {
+      "color": "#d9353a",
+      "chrome": "#c8ccd4",
+      "signBg": "#1fb6b3"
+    }
   }
 }
