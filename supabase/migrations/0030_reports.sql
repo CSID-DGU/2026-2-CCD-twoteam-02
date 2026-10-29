@@ -31,11 +31,9 @@ begin;
 
 -- ---------------------------------------------------------------
 -- 0. 이 파일을 한 번 실행한 것 지우기. 없으면 넘어간다.
+--    정책은 표를 지우면 같이 사라지므로 따로 지우지 않는다.
+--    (drop policy if exists 는 표 자체가 없으면 오류가 난다 — 처음 실행하는 DB 에서 걸림, 2026-10-29)
 -- ---------------------------------------------------------------
-drop policy if exists "내 신고를 쓴다" on public.reports;
-drop policy if exists "내 신고 또는 팀이면 본다" on public.reports;
-drop policy if exists "팀만 확인 표시를 바꾼다" on public.reports;
-drop policy if exists "내 팀 행만 본다" on public.team_members;
 drop table if exists public.reports;
 drop function if exists public.is_team();
 drop table if exists public.team_members;
