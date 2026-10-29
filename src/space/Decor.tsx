@@ -76,11 +76,12 @@ function MenuBoard({ menu }: { menu: Menu }) {
   const p = wallPose(menu.x, menu.z, menu.face, menu.y, WALL_THICKNESS / 2 + 0.02)
   return (
     <group position={[p.x, p.y, p.z]} rotation={[0, p.rotY, 0]}>
-      <mesh position={[0, 0, -0.015]}>
+      {/* 크롬 테두리 판은 글자 판보다 뒤에 둡니다. 같은 면에 두면 깜빡거립니다(z-fighting) */}
+      <mesh position={[0, 0, -0.025]}>
         <boxGeometry args={[menu.w + 0.08, menu.h + 0.08, 0.03]} />
         <meshStandardMaterial color="#c8ccd4" metalness={CHROME.metalness} roughness={CHROME.roughness} />
       </mesh>
-      <mesh>
+      <mesh position={[0, 0, 0.001]}>
         <planeGeometry args={[menu.w, menu.h]} />
         <meshBasicMaterial map={menuTexture({ title: menu.title, items: menu.items, bg: menu.bg, color: menu.color, w: menu.w, h: menu.h })} />
       </mesh>
@@ -214,15 +215,27 @@ export function ThemedDoor({
 }
 
 // 바 테이블: 여러 자리가 같이 쓰는 긴 높은 테이블. 상판 + 크롬 띠 + 다리 4개 (DinerDesk 와 같은 모양, 높이만 높음)
-export function BarTable({ table, color, chrome }: { table: SharedTable; color: string; chrome: string }) {
-  return <DinerDesk x={table.x} z={table.z} size={{ w: table.w, d: table.d }} color={color} chrome={chrome} height={TALL_DESK_HEIGHT} legInset={0.3} />
+export function BarTable({ table, color, chrome, trim }: { table: SharedTable; color: string; chrome: string; trim?: string }) {
+  return <DinerDesk x={table.x} z={table.z} size={{ w: table.w, d: table.d }} color={color} chrome={chrome} trim={trim} height={TALL_DESK_HEIGHT} legInset={0.3} />
 }
 
-// 바 스툴: 바닥 받침 + 크롬 기둥 + 둥근 방석. 높은 자리(tall)의 의자
-export function BarStool({ x, z, color, chrome }: { x: number; z: number; color: string; chrome: string }) {
+// 바 체어: 바닥 받침 + 크롬 기둥 + 둥근 방석 + 낮은 둥근 등받이(테이블 반대쪽). 바 테이블 자리의 의자
+export function BarStool({ x, z, rot, color, chrome }: { x: number; z: number; rot: number; color: string; chrome: string }) {
   const B = BAR_STOOL
+  const seatTop = B.baseH + B.legH + B.seatH
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+      {/* 등받이: 방석 뒤쪽(-z)에 서는 둥근 판 + 양끝 기둥 */}
+      <mesh position={[0, seatTop + B.backH / 2, -B.seatR + B.backT / 2]}>
+        <boxGeometry args={[B.seatR * 1.6, B.backH, B.backT]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * B.seatR * 0.8, seatTop + B.backH / 2, -B.seatR + B.backT / 2]}>
+          <cylinderGeometry args={[B.backT / 2, B.backT / 2, B.backH, 10]} />
+          <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
+        </mesh>
+      ))}
       <mesh position={[0, B.baseH / 2, 0]}>
         <cylinderGeometry args={[B.baseR, B.baseR, B.baseH, 16]} />
         <meshStandardMaterial color={chrome} metalness={CHROME.metalness} roughness={CHROME.roughness} />
@@ -241,9 +254,9 @@ export function BarStool({ x, z, color, chrome }: { x: number; z: number; color:
 
 // 다이너 테이블: 빨간 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 자리(x·z)와 크기는 상자 책상과 같습니다.
 export function DinerDesk({
-  x, z, size, color, chrome, height = DINER_DESK.height, legInset = DINER_DESK.legInset,
+  x, z, size, color, chrome, trim = chrome, height = DINER_DESK.height, legInset = DINER_DESK.legInset,
 }: {
-  x: number; z: number; size: { w: number; d: number }; color: string; chrome: string; height?: number; legInset?: number
+  x: number; z: number; size: { w: number; d: number }; color: string; chrome: string; trim?: string; height?: number; legInset?: number
 }) {
   const D = DINER_DESK
   const topY = height - D.topT / 2
@@ -256,10 +269,10 @@ export function DinerDesk({
         <boxGeometry args={[size.w, D.topT, size.d]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      {/* 크롬 띠는 상판보다 조금 크고 낮아서 옆에서 테두리로 보입니다 */}
+      {/* 테두리 띠는 상판보다 조금 크고 낮아서 옆에서 테두리로 보입니다 (trim 색, 기본은 크롬) */}
       <mesh position={[0, topY - 0.01, 0]}>
         <boxGeometry args={[size.w + D.trimOut, D.trimT, size.d + D.trimOut]} />
-        <meshStandardMaterial color={chrome} metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial color={trim} metalness={trim === chrome ? 0.6 : 0.1} roughness={0.4} />
       </mesh>
       {[
         [-lx, -lz],

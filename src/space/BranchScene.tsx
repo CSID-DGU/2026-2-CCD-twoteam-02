@@ -360,12 +360,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       {/* 책상: 테마에 가구 모양(furniture)이 있으면 크롬 테두리·다리 테이블, 없으면 상자 */}
       {furniture?.tables?.map((t, i) => (
-        <BarTable key={i} table={t} color={colors.desk} chrome={furniture.chrome} /> // 여러 자리가 같이 쓰는 바 테이블
+        <BarTable key={i} table={t} color={colors.desk} chrome={furniture.chrome} trim={furniture.trim} /> // 여러 자리가 같이 쓰는 바 테이블
       ))}
       {branch.seats.map((s) =>
         furniture ? (
           insideTable(s, furniture.tables) ? null : ( // 바 테이블 안의 자리는 개별 책상을 안 그림
-            <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} />
+            <DinerDesk key={s.no} x={s.x} z={s.z} size={SEAT} color={colors.desk} chrome={furniture.chrome} trim={furniture.trim} />
           )
         ) : (
           <mesh key={s.no} position={[s.x, 0.37, s.z]}>
@@ -380,7 +380,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         return furniture ? (
           c.tall && insideTable(c, furniture.tables) ? ( // 바 테이블 자리는 둥근 바 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
-            <BarStool key={c.no} x={c.x} z={c.z} color={chairColor} chrome={furniture.chrome} />
+            <BarStool key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} chrome={furniture.chrome} />
           ) : (
             <Sofa key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} accent={furniture.accent} raise={c.y ?? 0} />
           )

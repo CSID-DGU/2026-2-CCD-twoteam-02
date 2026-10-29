@@ -12,7 +12,7 @@ export type Frame = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; text: s
 // 가구 모양. diner = 크롬 테두리·다리가 있는 테이블과 등받이 소파. 없으면 상자 책상·의자.
 // tables: 여러 자리가 같이 쓰는 긴 높은 테이블(바 테이블). 이 안에 있는 자리는 개별 책상을 그리지 않는다. 높은 의자(tall) 자리용.
 export type SharedTable = { x: number; z: number; w: number; d: number }
-export type Furniture = { style: 'diner'; accent: string; chrome: string; tables?: SharedTable[] } // accent: 소파 등받이 흰 띠, chrome: 테두리·다리
+export type Furniture = { style: 'diner'; accent: string; chrome: string; trim?: string; tables?: SharedTable[] } // accent: 소파 등받이 흰 띠, chrome: 다리·기둥, trim: 상판 테두리 색(없으면 chrome)
 
 // 자리가 공용 테이블 안에 있는지 (개별 책상을 그릴지 정하는 데 씀)
 export function insideTable(seat: { x: number; z: number }, tables?: SharedTable[]): boolean {
@@ -117,7 +117,7 @@ export const DINER_DESK = { height: 0.74, topT: 0.06, trimT: 0.04, trimOut: 0.04
 export const SOFA = { w: 0.5, d: 0.45, seatH: 0.22, backH: 0.5, backT: 0.1, stripeH: 0.06, plinth: '#3b3b3b' }
 
 // 바 스툴(높은 둥근 의자): 바닥 받침 + 크롬 기둥 + 둥근 방석. 방석 윗면이 0.75 (의자 0.45 + TALL_RAISE 0.3)
-export const BAR_STOOL = { baseR: 0.2, baseH: 0.03, legR: 0.035, legH: 0.62, seatR: 0.19, seatH: 0.1 }
+export const BAR_STOOL = { baseR: 0.2, baseH: 0.03, legR: 0.035, legH: 0.62, seatR: 0.19, seatH: 0.1, backH: 0.28, backT: 0.05 } // back*: 낮은 등받이
 // 높은 테이블(바 테이블)의 높이. 높은 의자 자리의 책상도 이 높이
 export const TALL_DESK_HEIGHT = 1.05
 
