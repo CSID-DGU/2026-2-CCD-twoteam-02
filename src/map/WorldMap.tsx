@@ -11,7 +11,6 @@ import { BRANCH_LAYOUTS } from '../space/branches'
 import { KIOSK, SEAT, CHAIR, spotsOf } from '../space/layout'
 import type { Box } from '../space/layout'
 import { MY_SEAT_COLOR } from '../space/MySeatMarker'
-import { MEETING_ROOM, tableRadius } from '../meeting/meetingLogic'
 import { useOnline } from '../realtime/onlineContext'
 import { keyLabel, useKeymap } from '../menu/keymap'
 import { boxToMap, buildWorld, countByPlace, findPlace, toMap } from './mapLogic'
@@ -25,9 +24,8 @@ export type MapHere = {
   mySeat?: number | null
 }
 
-const WORLD = buildWorld(world as PlazaLayout, BRANCH_LAYOUTS, MEETING_ROOM.size) // 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만
+const WORLD = buildWorld(world as PlazaLayout, BRANCH_LAYOUTS) // 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만
 
-const MEETING_ROOF = '#5b5f6b'
 const WALL = '#5d4a3a'
 const FLOOR = '#e8e2d6' // 3D 바닥과 같은 색
 const DESK = '#b98a5a' // 3D 책상과 같은 색
@@ -36,7 +34,7 @@ const DOOR = '#2e9e4f' // 3D 문과 비슷한 초록
 const WATER = '#6fbbe0' // 분수 물
 const STONE = '#a9a196' // 분수 테두리
 const ARROW = 1.8 // 내 화살표 길이 (m)
-const MEETING_TABLE_SEATS = 6 // 회의실 안 원형 테이블 크기(인원 기준, 지도용)
+const MEETING_LABEL_GAP = 2.6 // 건물 이름표 아래 "회의 중" 이름표까지 (m)
 
 export function WorldMap({ here }: { here?: MapHere }) {
   const people = useOnline()
@@ -181,11 +179,6 @@ function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: B
         onPin()
       }}
     >
-      {branch.meeting && (
-        <Building place={branch.meeting} roof={MEETING_ROOF} open={open}>
-          <circle cx={branch.meeting.rect.x} cy={branch.meeting.rect.z} r={tableRadius(MEETING_TABLE_SEATS)} fill={DESK} />
-        </Building>
-      )}
       <Building place={branch} roof={roof} open={open} sprite={layout.mapSprite}>
         {layout.seats.map((s) => (
           <rect key={s.no} {...box({ x: s.x, z: s.z, ...SEAT })} fill={DESK} />
@@ -201,7 +194,8 @@ function Branch({ branch, count, meetingCount, open, mySeat, onHover, onPin }: B
       {layout.meetingDoor && <rect {...box(layout.meetingDoor)} fill={DOOR} />}
       <Label x={branch.rect.x} z={branch.rect.z} name={branch.name} count={count} />
       {branch.meeting && meetingCount > 0 && (
-        <Label x={branch.meeting.rect.x} z={branch.meeting.rect.z} name="회의 중" count={meetingCount} small />
+        // 회의실은 광장·지도에 따로 없어서, 그 지점 건물 이름표 아래에 회의 인원만 띄웁니다.
+        <Label x={branch.rect.x} z={branch.rect.z + MEETING_LABEL_GAP} name="회의 중" count={meetingCount} small />
       )}
     </g>
   )

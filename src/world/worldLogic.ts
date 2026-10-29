@@ -8,9 +8,12 @@
 //   건물의 입구 방향은 각도 대신 "south" 처럼 적고 90도 단위로만 돌립니다. (지도 좌표 변환이 단순하고 JSON 을 바로 읽을 수 있음)
 //     south 0, west -π/2, north π, east π/2
 //
-// ── 실내와 광장 ─────────────────────────────────────────────────────
-//   지점 실내는 입구(door)가 늘 남쪽 벽(z = +size.d/2)에 있습니다. 건물을 입구 방향만큼 돌려 광장에 놓습니다.
-//     광장 좌표 = 건물 가운데 + rotate(실내 좌표, 입구 각도)
+// ── 건물 겉모습과 실내 ───────────────────────────────────────────────
+//   광장의 건물은 실내(16×16m)보다 작은 겉모습(world.json 의 w·d, 지금 10×8m)입니다. 들어가면 화면이 바뀌므로
+//   밖에서 본 크기가 실내와 같을 필요가 없고, 그래야 광장이 작아져 걷기 편합니다. (2026-10-30 사용자 결정)
+//   회의실은 지점 안의 문으로만 가므로 광장에 별관을 두지 않습니다.
+//   건물 모양은 입구가 +Z 쪽(남쪽)이고, 입구 방향만큼 돌려 광장에 놓습니다.
+//     광장 좌표 = 건물 가운데 + rotate(건물 기준 좌표, 입구 각도)
 //     광장 방향 = 실내 방향 + 입구 각도
 //   들어갈 때는 보던 방향에서 입구 각도를 빼서 넘기고(toBranchHeading), 나올 때는 더합니다(toWorldHeading).
 //   예: 동쪽 건물(입구가 서쪽, -π/2)에 동쪽(π/2)을 보며 들어가면 실내에서는 π(북쪽, 안쪽)를 봅니다.
@@ -19,8 +22,9 @@ import type { Box, BranchLayout } from '../space/layout'
 export type Facing = 'south' | 'north' | 'east' | 'west'
 export type Point = { x: number; z: number }
 
-// world.json 의 건물 한 채. slug 는 지점 JSON 이름(BRANCH_LAYOUTS 키), x·z 는 건물 가운데
-export type BuildingSpec = { slug: string; x: number; z: number; facing: Facing; wall: string; roof: string }
+// world.json 의 건물 한 채. slug 는 지점 JSON 이름(BRANCH_LAYOUTS 키), x·z 는 건물 가운데,
+// w·d 는 겉모습 폭(입구 면)·깊이 (실내 크기와 따로)
+export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string }
 
 // world.json 모양
 export type PlazaLayout = {
@@ -35,8 +39,8 @@ export type PlazaLayout = {
   lamps: Point[]
 }
 
-// 건물을 놓는 데 필요한 지점 정보
-export type BranchShape = Pick<BranchLayout, 'name' | 'size' | 'door' | 'meetingDoor'>
+// 건물을 놓는 데 필요한 지점 정보 (이름, 지도에서 줄일 실내 크기, 입구 문 폭)
+export type BranchShape = Pick<BranchLayout, 'name' | 'size' | 'door'>
 
 // 광장에 놓인 건물
 export type PlacedBuilding = {
@@ -46,10 +50,10 @@ export type PlacedBuilding = {
   spec: BuildingSpec
   angle: number // 입구 방향 각도
   rect: Box // 광장 좌표, 돌린 뒤의 바닥 사각형
-  door: Box // 광장 좌표, 입구 문 상자
+  door: Box // 광장 좌표, 입구 문 상자 (입구 면 가운데)
   entry: { no: number; x: number; z: number; rot: number } // 입구 앞 자리. rot 은 입구를 바라보는 방향
   arrive: Point // 지점에서 나왔을 때 서는 자리
-  annex: (Box & { angle: number }) | null // 회의실 별관 바닥 사각형. angle 은 별관 문이 보는 방향 (지점 쪽)
+  scale: number // 지도에서 실내를 겉모습 안에 같은 비율로 줄여 넣는 배율 (실내 16×16 → 10×8 이면 0.5)
 }
 
 export const DOOR_GAP = 1.1 // 입구 바깥 이만큼 앞이 입장 자리 (지금 로비와 같음)
@@ -58,6 +62,8 @@ export const FENCE_T = 0.3 // 가장자리 울타리 두께
 export const TRUNK = 0.5 // 나무 줄기 부딪힘 상자 한 변
 export const LAMP_POST = 0.3 // 가로등 기둥 부딪힘 상자 한 변
 export const BENCH = { w: 1.6, d: 0.6 } // 벤치 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
+const DOOR_W = 1.6 // 지점 JSON 에 출입문이 없을 때 입구 문 폭
+const DOOR_T = 0.3 // 입구 문 두께
 
 const FACING_ANGLE: Record<Facing, number> = { south: 0, west: -Math.PI / 2, north: Math.PI, east: Math.PI / 2 }
 const TWO_PI = Math.PI * 2
@@ -96,12 +102,7 @@ function pointToWorld(spec: BuildingSpec, x: number, z: number): Point {
 }
 
 // world.json 의 건물을 광장에 놓습니다. 지점 JSON 이 없는 건물은 건너뛰고 warn 으로 알립니다.
-export function placeBuildings(
-  plaza: PlazaLayout,
-  layouts: Record<string, BranchShape>,
-  meetingSize: { w: number; d: number },
-  warn?: (msg: string) => void,
-): PlacedBuilding[] {
+export function placeBuildings(plaza: PlazaLayout, layouts: Record<string, BranchShape>, warn?: (msg: string) => void): PlacedBuilding[] {
   const placed: PlacedBuilding[] = []
   for (const spec of plaza.buildings) {
     const layout = layouts[spec.slug]
@@ -111,34 +112,26 @@ export function placeBuildings(
     }
     const no = placed.length + 1
     const angle = facingAngle(spec.facing)
-    const front = layout.size.d / 2 // 입구 벽 (실내 남쪽)
-    const doorX = layout.door?.x ?? 0
-    const doorBox = layout.door ?? { x: 0, z: front, w: 1.6, d: 0.3 }
-    const entry = pointToWorld(spec, doorX, front + DOOR_GAP)
-    const md = layout.meetingDoor
+    const front = spec.d / 2 // 입구 면 (건물 기준 +Z)
+    const doorBox = { x: 0, z: front, w: layout.door?.w ?? DOOR_W, d: layout.door?.d ?? DOOR_T }
+    const entry = pointToWorld(spec, 0, front + DOOR_GAP)
     placed.push({
       no,
       slug: spec.slug,
       name: layout.name,
       spec,
       angle,
-      rect: boxToWorld(spec, { x: 0, z: 0, w: layout.size.w, d: layout.size.d }),
+      rect: boxToWorld(spec, { x: 0, z: 0, w: spec.w, d: spec.d }),
       door: boxToWorld(spec, doorBox),
       entry: { no, ...entry, rot: normalizeAngle(angle + Math.PI) },
-      arrive: pointToWorld(spec, doorX, front + ARRIVE_GAP),
-      // 회의실: 지점 동쪽 벽의 회의실 문 바깥에 붙은 방 (전체 지도가 지금 그리는 자리와 같음)
-      annex: md
-        ? {
-            ...boxToWorld(spec, { x: md.x + md.w / 2 + meetingSize.d / 2, z: md.z, w: meetingSize.d, d: meetingSize.w }),
-            angle: normalizeAngle(angle - Math.PI / 2),
-          }
-        : null,
+      arrive: pointToWorld(spec, 0, front + ARRIVE_GAP),
+      scale: Math.min(spec.w / layout.size.w, spec.d / layout.size.d),
     })
   }
   return placed
 }
 
-// 광장에서 부딪히는 상자: 울타리, 건물, 별관, 분수, 나무 줄기, 가로등 기둥, 벤치
+// 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치
 export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
   const { w, d } = plaza.size
   const fence: Box[] = [
@@ -150,7 +143,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
   const f = plaza.fountain
   return [
     ...fence,
-    ...placed.flatMap((b) => (b.annex ? [b.rect, b.annex] : [b.rect])),
+    ...placed.map((b) => b.rect),
     { x: f.x, z: f.z, w: f.r * 2, d: f.r * 2 },
     ...plaza.trees.map((t) => ({ x: t.x, z: t.z, w: TRUNK, d: TRUNK })),
     ...plaza.lamps.map((l) => ({ x: l.x, z: l.z, w: LAMP_POST, d: LAMP_POST })),

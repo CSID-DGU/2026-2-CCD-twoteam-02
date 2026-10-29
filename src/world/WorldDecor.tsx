@@ -37,7 +37,6 @@ const COLOR = {
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 벽 높이 (실내 천장보다 높게)
-const ANNEX_H = 3 // 회의실 별관 높이
 const ROOF = { t: 0.3, overhang: 0.3 } // 지붕 판 두께, 벽 밖으로 나온 길이
 const DOOR_H = 2.2 // 입구 문 높이 (지점 출입문과 같음)
 const SIGN = { width: 2.4, y: 2.85 } // 입구 위 간판
@@ -156,7 +155,7 @@ export function Fountain({ fountain }: { fountain: PlazaLayout['fountain'] }) {
 
 // ── 건물 ────────────────────────────────────────────────────────────
 
-// 건물 바깥: 벽 상자 + 지붕 판 + 창문 + 입구 문 + 간판 + 회의실 별관.
+// 건물 바깥: 벽 상자 + 지붕 판 + 창문 + 입구 문 + 간판. (겉모습 크기는 world.json, 회의실 별관은 두지 않음)
 // 건물 가운데에 입구 방향만큼 돌린 무리(group)를 두고, 그 안에서는 실내와 같은 좌표(입구가 +Z 쪽)로 그립니다.
 // open: 열린 지점인지(아니면 회색 문), near: 입구 앞에 서 있는지(주황 문)
 export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; near: boolean }) {
@@ -209,16 +208,6 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
           <meshBasicMaterial map={sign} transparent />
         </mesh>
       </group>
-      {b.annex && (
-        <group position={[b.annex.x, 0, b.annex.z]}>
-          <mesh position-y={ANNEX_H / 2} material={wall}>
-            <boxGeometry args={[b.annex.w, ANNEX_H, b.annex.d]} />
-          </mesh>
-          <mesh position-y={ANNEX_H + ROOF.t / 2} material={roof}>
-            <boxGeometry args={[b.annex.w + ROOF.overhang * 2, ROOF.t, b.annex.d + ROOF.overhang * 2]} />
-          </mesh>
-        </group>
-      )}
     </group>
   )
 }

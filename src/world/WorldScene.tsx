@@ -35,7 +35,6 @@ import { useMyAvatar } from '../profile/useMyAvatar'
 import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { BRANCH_LAYOUTS } from '../space/branches'
-import { MEETING_ROOM } from '../meeting/meetingLogic'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import { LOBBY_CHANNEL } from '../realtime/participants'
@@ -60,7 +59,7 @@ const MINIMAP_SPAN = 40 // 미니맵: 내 둘레 이 거리(m)
 // JSON 은 facing 이 string 으로 읽혀 타입만 맞춥니다. (값은 worldLogic 검사로 확인)
 const PLAZA = world as PlazaLayout
 // 배치는 실행 중에 바뀌지 않으므로 한 번만 계산합니다.
-const PLACED = placeBuildings(PLAZA, BRANCH_LAYOUTS, MEETING_ROOM.size, console.warn)
+const PLACED = placeBuildings(PLAZA, BRANCH_LAYOUTS, console.warn)
 const OBSTACLES = plazaObstacles(PLAZA, PLACED)
 const ENTRIES = PLACED.map((b) => b.entry)
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
@@ -235,7 +234,7 @@ export default function WorldScene({ onEnter }: Props) {
             emoteRef={emote}
             spots={ENTRIES}
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
-            // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 84×84 크기다)
+            // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={NO_KIOSK}
             frozen={panel !== null}
             onNearKiosk={() => {}}
