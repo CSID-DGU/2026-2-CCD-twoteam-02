@@ -9,7 +9,7 @@ import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
-import { BENCH, FENCE_T, facingAngle, rotate } from './worldLogic'
+import { BENCH, facingAngle, fenceSegments, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
 import { COLOR, MAT, colorMat } from './worldMaterials'
 
@@ -64,20 +64,15 @@ export function Ground({ plaza }: { plaza: PlazaLayout }) {
   )
 }
 
-// 가장자리 낮은 울타리 (부딪힘은 worldLogic 의 plazaObstacles 가 같은 자리로 만듦)
-export function Fence({ size }: { size: PlazaLayout['size'] }) {
-  const { w, d } = size
-  const sides: [number, number, number, number][] = [
-    [0, -(d / 2 - FENCE_T / 2), w, FENCE_T],
-    [0, d / 2 - FENCE_T / 2, w, FENCE_T],
-    [-(w / 2 - FENCE_T / 2), 0, FENCE_T, d],
-    [w / 2 - FENCE_T / 2, 0, FENCE_T, d],
-  ]
+// 가장자리 낮은 울타리 (부딪힘은 worldLogic 의 plazaObstacles 가 같은 자리로 만듦).
+// 정문이 붙은 쪽은 문 폭만큼 비워 그려, 문 너머로 이어지는 길이 보이게 합니다(fenceSegments).
+export function Fence({ plaza }: { plaza: PlazaLayout }) {
+  const boxes = useMemo(() => fenceSegments(plaza), [plaza])
   return (
     <group>
-      {sides.map(([x, z, sw, sd], i) => (
-        <mesh key={i} position={[x, FENCE_H / 2, z]} material={MAT.fence}>
-          <boxGeometry args={[sw, FENCE_H, sd]} />
+      {boxes.map((b, i) => (
+        <mesh key={i} position={[b.x, FENCE_H / 2, b.z]} material={MAT.fence}>
+          <boxGeometry args={[b.w, FENCE_H, b.d]} />
         </mesh>
       ))}
     </group>

@@ -48,12 +48,12 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { REST_NO_BASE, WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic'
+import { REST_NO_BASE, WORLD_FROM, arrivalOf, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
-import { Beanbags, CampusBuildingTrim, IvyGate, Mats } from './CampusDecor'
+import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
@@ -198,9 +198,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     return !b || isOpen(b.slug)
   }
   // 정문: 다른 월드로 넘어갑니다. 그쪽에서 이 월드로 오는 정문 앞에 문을 등지고 섭니다(arrivalOf 의 'world:…').
+  // E 를 누르거나, 문 사이로 걸어 들어가면(onMove 의 gateCrossed) 넘어갑니다. 한 번만 넘어가게 붙잡아 둡니다.
+  const passing = useRef(false)
   const goGate = (no: number) => {
     const g = GATES.find((x) => x.no === no)
-    if (!g) return
+    if (!g || passing.current) return
+    passing.current = true
     navigate(worldOf(g.spec.to).path, { state: { from: WORLD_FROM + world.id, heading: bodyHeading.current } })
   }
   // 자리에서 E: 건물이면 그 지점으로, 정문이면 다른 월드로, 쉬는 자리면 앉음(일어나면 null)
@@ -264,7 +267,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && setFortune(id)} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} />
-        <Fence size={PLAZA.size} />
+        <Fence plaza={PLAZA} />
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
         <Trees trees={PLAZA.trees} />
         <Benches benches={PLAZA.benches} />
@@ -277,7 +280,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {world.id === 'campus' && PLACED.map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
         {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
         {GATES.map((g) => (
-          <IvyGate key={g.no} gate={g} near={near === g.no} />
+          <group key={g.no}>
+            <UniversityGate gate={g} near={near === g.no} />
+            <GateBackdrop gate={g} />
+          </group>
         ))}
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
@@ -313,6 +319,11 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
               pos.current.x = x
               pos.current.z = z
               bodyHeading.current = h
+              // 문 사이로 걸어 들어가면 다른 월드로 (앉아 있거나 창이 떠 있으면 아님)
+              if (seat === null && panel === null) {
+                const crossed = GATES.find((g) => gateCrossed(g, x, z))
+                if (crossed) goGate(crossed.no)
+              }
               // 바깥에서는 모두 공부 전(idle)입니다. 쉬는 자리에 앉았으면 그 번호를 보내 다른 사람 화면에도 앉은 모습으로.
               // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
               const e = emote.current

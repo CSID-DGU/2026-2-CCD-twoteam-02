@@ -7,9 +7,9 @@ import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { checkerTexture } from '../space/patternTexture'
-import { GATE_POST } from './worldLogic'
+import { GATE_FENCE, GATE_POST } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, RestSpec } from './worldLogic'
-import { colorMat } from './worldMaterials'
+import { MAT as WMAT, colorMat } from './worldMaterials'
 
 // 색
 const C = {
@@ -24,7 +24,13 @@ const C = {
   clockFace: '#f7f3ea',
 }
 // 크기 (m)
-const GATE = { postH: 3.4, capT: 0.22, archTube: 0.06, signW: 2.4 }
+// 정문 큰 기둥 높이 단(m): 흰 돌 받침 위 끝, 흰 띠 아래 끝·두께, 흰 돌 머리 아래 끝, 위 끝
+const PILLAR = { base: 0.7, band: 2.6, bandT: 0.25, head: 4.0, top: 5.0 }
+// 아치: 기둥 위쪽 시작 높이, 가운데가 솟는 높이, 두 줄 사이, 줄·살 굵기, 나눔 수, 글자(곡선 위 각도 범위, 한 글자 폭)
+const ARCH = { base: 4.3, rise: 1.3, gap: 0.55, chordT: 0.1, barT: 0.05, segments: 28, text: 'CAMBIT UNIVERSITY', letterArc: 2.2, letterW: 0.34 }
+const IRON = { h: 1.9, bar: 0.035, step: 0.16 } // 양옆 철제 울타리: 높이, 살 굵기, 간격
+const END_POST = { h: 1.7, lampR: 0.22 } // 울타리 끝 작은 기둥 높이, 둥근 등 반지름
+const BACKDROP = { width: 46, depth: 36, road: 4, treeX: 4.5, treeStep: 5 } // 문 너머 풍경 (m)
 const LEAF = 0.24 // 담쟁이 잎 한 장 크기
 const WALL_H = 3.6 // 광장 건물 한 층 벽 높이 (WorldDecor 의 BUILDING_H 와 같게)
 const TOWER = { w: 3, h: 5, roofH: 2.6, clockR: 0.8 }
@@ -99,81 +105,264 @@ function wallLeaves(rand: () => number, x0: number, zFace: number, w: number, h:
   return out
 }
 
-// 정문: 벽돌 기둥 두 개(흰 갓돌) + 철제 아치 + 현판 + 기둥을 덮는 담쟁이 + 아치에서 늘어지는 덩굴 + 기둥 아래 풀숲.
-// 무리는 정문 가운데에서 앞면(입장 쪽)이 +Z 가 되게 돌립니다(건물과 같은 규칙).
-export function IvyGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
-  const { w, label } = gate.spec
+// 대학 정문 (사용자 사진 참고): 층층이 흰 돌로 마감한 높은 벽돌 기둥 두 개, 그 사이 곡선 검은 철제 트러스 아치,
+// 아치를 따라 곡선으로 붙은 금색 글자 "CAMBIT UNIVERSITY", 기둥 앞 청동 명판, 양옆 창끝 철제 울타리와
+// 끝의 작은 벽돌 기둥·둥근 가로등(밤에 켜짐). 기둥은 깔끔하게 두고 울타리에만 담쟁이를 조금 감습니다.
+// 무리는 정문 가운데에서 앞면(입장 쪽)이 +Z 가 되게 돌립니다(건물과 같은 규칙). 문 너머(-Z)는 GateBackdrop 이 그립니다.
+export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
+  const { w } = gate.spec
   const postX = w / 2 + GATE_POST / 2
-  const archR = w / 2 + GATE_POST / 2
-  const sign = labelTexture(label, near ? '#7a4a12' : C.signBg, C.signText)
-  const leaves = useMemo(() => {
-    const rand = seeded(Math.round(gate.spec.x * 31 + gate.spec.z * 17))
-    const P = GATE_POST / 2
-    const out: Leaf[] = []
+  const P = PILLAR
+  // 아치: 기둥 안쪽 위에서 시작해 가운데가 솟는 곡선. 아래 줄(bottom)과 위 줄(+ARCH.gap) 두 줄 + 사이 세로 살
+  const arch = useMemo(() => {
+    const n = ARCH.segments
+    const pt = (t: number, up: number) => [Math.cos(t) * postX, ARCH.base + Math.sin(t) * ARCH.rise + up] as const
+    const chords: Leaf[] = [] // 짧은 막대들 (Leaf 모양 재사용: p 위치, r 회전, s 길이)
+    const bars: Leaf[] = []
+    for (let i = 0; i < n; i++) {
+      const t0 = (i / n) * Math.PI, t1 = ((i + 1) / n) * Math.PI
+      for (const up of [0, ARCH.gap]) {
+        const [x0, y0] = pt(t0, up), [x1, y1] = pt(t1, up)
+        chords.push({ p: [(x0 + x1) / 2, (y0 + y1) / 2, 0], r: [0, 0, Math.atan2(y1 - y0, x1 - x0)], s: Math.hypot(x1 - x0, y1 - y0) + 0.02 })
+      }
+      const [bx, by] = pt(t0, 0)
+      if (i > 0) bars.push({ p: [bx, by + ARCH.gap / 2, 0], r: [0, 0, (i % 2 ? 1 : -1) * 0.5], s: ARCH.gap / Math.cos(0.5) })
+    }
+    // 글자: 아래 줄과 위 줄 사이, 곡선을 따라 한 글자씩 (가운데 정렬)
+    const text = ARCH.text
+    const span = ARCH.letterArc
+    const letters = [...text].map((ch, i) => {
+      const t = Math.PI / 2 + span / 2 - (i + 0.5) * (span / text.length)
+      const [x, y] = pt(t, ARCH.gap / 2)
+      return { ch, x, y, rz: t - Math.PI / 2 }
+    })
+    return { chords, bars, letters }
+  }, [postX])
+  // 철제 울타리: 기둥 바깥으로 양쪽 GATE_FENCE.len 만큼, 세로 살 + 창끝 + 위아래 가로대
+  const fence = useMemo(() => {
+    const bars: [number, number][] = [] // [x, 살 번호]
     for (const sx of [-1, 1]) {
-      const cx = sx * postX
-      // 앞·뒤·바깥 옆면
-      out.push(...wallLeaves(rand, cx, P, GATE_POST, GATE.postH * 0.95, 34, 0).map((l) => ({ ...l })))
-      out.push(...wallLeaves(rand, cx, P, GATE_POST, GATE.postH * 0.95, 26, Math.PI).map((l) => ({ ...l, p: [l.p[0], l.p[1], -l.p[2]] as Leaf['p'] })))
-      out.push(
-        ...wallLeaves(rand, 0, P, GATE_POST, GATE.postH * 0.9, 22, 0).map((l) => ({
-          p: [cx + sx * (P + 0.01), l.p[1], l.p[0]] as Leaf['p'],
-          r: [0, sx * (Math.PI / 2), l.r[2]] as Leaf['r'],
-          s: l.s,
-        })),
+      const from = w / 2 + GATE_POST
+      for (let k = 0, x = from + IRON.step / 2; x < from + GATE_FENCE.len; k++, x += IRON.step) bars.push([sx * x, k])
+    }
+    const rand = seeded(Math.round(gate.spec.x * 3 + gate.spec.z * 5) + 11)
+    // 울타리 아래쪽을 감는 담쟁이 (조금만)
+    const ivy: Leaf[] = []
+    for (const sx of [-1, 1]) {
+      const from = w / 2 + GATE_POST
+      ivy.push(
+        ...wallLeaves(rand, sx * (from + GATE_FENCE.len * 0.35), 0.03, GATE_FENCE.len * 0.6, IRON.h * 0.7, 28, 0),
+        ...wallLeaves(rand, sx * (from + GATE_FENCE.len * 0.6), -0.03, GATE_FENCE.len * 0.5, IRON.h * 0.6, 18, Math.PI),
       )
     }
-    // 아치를 따라 잎, 아치에서 늘어지는 덩굴 줄기
-    for (let i = 0; i <= 26; i++) {
-      const a = (i / 26) * Math.PI
-      out.push({ p: [Math.cos(a) * archR, GATE.postH + Math.sin(a) * archR * 0.55 + (rand() - 0.5) * 0.1, 0.06 + rand() * 0.05], r: [0, 0, (rand() - 0.5) * 2.4], s: LEAF })
-    }
-    for (const hx of [-0.55, -0.2, 0.25, 0.6]) {
-      const top = GATE.postH + Math.sqrt(Math.max(0, 1 - (hx / 1) ** 2)) * archR * 0.5
-      const len = 0.8 + rand() * 0.6
-      for (let k = 0; k < 7; k++) {
-        out.push({ p: [hx * w * 0.5 + (rand() - 0.5) * 0.08, top - (k / 7) * len, 0.04], r: [0, 0, Math.PI + (rand() - 0.5) * 1.2], s: LEAF * 0.8 })
-      }
-    }
-    return out
-  }, [gate.spec.x, gate.spec.z, postX, archR, w])
-  // 기둥 아래 풀숲 (작은 원뿔)
-  const tufts = useMemo(() => {
-    const rand = seeded(7 + Math.round(gate.spec.x))
-    return [-1, 1].flatMap((sx) =>
-      Array.from({ length: 9 }, () => [sx * postX + (rand() - 0.5) * 1.3, (rand() - 0.2) * 0.9] as [number, number]),
-    )
-  }, [gate.spec.x, postX])
+    return { bars, ivy }
+  }, [w, gate.spec.x, gate.spec.z])
+  const endX = w / 2 + GATE_POST + GATE_FENCE.len + GATE_FENCE.endPost / 2
+  const plaque = labelTexture('CAMBIT UNIVERSITY · 캠빛 대학교', '#5a4128', '#e9d39a')
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
+      {/* 큰 기둥: 흰 돌 받침 / 벽돌 / 흰 띠 / 벽돌 / 흰 돌 머리 / 갓 */}
       {[-1, 1].map((sx) => (
         <group key={sx} position-x={sx * postX}>
-          <mesh position-y={GATE.postH / 2} material={MAT.brick}>
-            <boxGeometry args={[GATE_POST, GATE.postH, GATE_POST]} />
+          <mesh position-y={P.base / 2} material={MAT.cap}>
+            <boxGeometry args={[GATE_POST + 0.15, P.base, GATE_POST + 0.15]} />
           </mesh>
-          <mesh position-y={GATE.postH + GATE.capT / 2} material={MAT.cap}>
-            <boxGeometry args={[GATE_POST + 0.2, GATE.capT, GATE_POST + 0.2]} />
+          <mesh position-y={(P.base + P.band) / 2} material={MAT.brick}>
+            <boxGeometry args={[GATE_POST, P.band - P.base, GATE_POST]} />
+          </mesh>
+          <mesh position-y={P.band + P.bandT / 2} material={MAT.cap}>
+            <boxGeometry args={[GATE_POST + 0.15, P.bandT, GATE_POST + 0.15]} />
+          </mesh>
+          <mesh position-y={(P.band + P.bandT + P.head) / 2} material={MAT.brick}>
+            <boxGeometry args={[GATE_POST, P.head - P.band - P.bandT, GATE_POST]} />
+          </mesh>
+          <mesh position-y={(P.head + P.top) / 2} material={MAT.cap}>
+            <boxGeometry args={[GATE_POST + 0.08, P.top - P.head, GATE_POST + 0.08]} />
+          </mesh>
+          <mesh position-y={P.top + 0.08} material={MAT.cap}>
+            <boxGeometry args={[GATE_POST + 0.25, 0.16, GATE_POST + 0.25]} />
+          </mesh>
+          <mesh position-y={P.top + 0.26} material={MAT.cap}>
+            <boxGeometry args={[GATE_POST - 0.1, 0.2, GATE_POST - 0.1]} />
+          </mesh>
+          {/* 청동 명판 (앞면) */}
+          <mesh position={[0, P.base + 0.75, GATE_POST / 2 + 0.01]}>
+            <planeGeometry args={[0.8, (0.8 * LABEL_PX.h) / LABEL_PX.w]} />
+            <meshBasicMaterial map={plaque} />
           </mesh>
         </group>
       ))}
-      {/* 철제 아치: 반원 고리를 납작하게 */}
-      <mesh position-y={GATE.postH} scale={[1, 0.55, 1]} material={MAT.iron}>
-        <torusGeometry args={[archR, GATE.archTube, 8, 32, Math.PI]} />
-      </mesh>
-      {/* 현판 (양면) */}
-      {[0, Math.PI].map((ry) => (
-        <mesh key={ry} position={[0, GATE.postH + archR * 0.28, ry ? -0.03 : 0.03]} rotation-y={ry}>
-          <planeGeometry args={[GATE.signW, (GATE.signW * LABEL_PX.h) / LABEL_PX.w]} />
-          <meshBasicMaterial map={sign} transparent />
-        </mesh>
-      ))}
-      <IvyLeaves leaves={leaves} />
-      <Instances limit={tufts.length} material={MAT.grass}>
-        <coneGeometry args={[0.16, 0.5, 5]} />
-        {tufts.map(([x, z], i) => (
-          <Instance key={i} position={[x, 0.25, z]} />
+      {/* 철제 트러스 아치 */}
+      <Instances limit={arch.chords.length} material={MAT.iron} frames={1}>
+        <boxGeometry args={[1, ARCH.chordT, ARCH.chordT]} />
+        {arch.chords.map((c, i) => (
+          <Instance key={i} position={c.p} rotation={c.r} scale={[c.s, 1, 1]} />
         ))}
       </Instances>
+      <Instances limit={arch.bars.length} material={MAT.iron} frames={1}>
+        <boxGeometry args={[ARCH.barT, 1, ARCH.barT]} />
+        {arch.bars.map((b, i) => (
+          <Instance key={i} position={b.p} rotation={b.r} scale={[1, b.s, 1]} />
+        ))}
+      </Instances>
+      {/* 금색 글자: 앞·뒤 양면 (뒤에서도 바르게 읽히게 뒷면은 순서를 뒤집어 반 바퀴) */}
+      {arch.letters.map((l, i) => (
+        <group key={i}>
+          <mesh position={[l.x, l.y, 0.06]} rotation-z={l.rz}>
+            <planeGeometry args={[ARCH.letterW, ARCH.letterW * 1.3]} />
+            <meshBasicMaterial map={goldLetter(l.ch, near)} transparent depthWrite={false} />
+          </mesh>
+          <mesh position={[-l.x, l.y, -0.06]} rotation={[0, Math.PI, -l.rz]}>
+            <planeGeometry args={[ARCH.letterW, ARCH.letterW * 1.3]} />
+            <meshBasicMaterial map={goldLetter(l.ch, near)} transparent depthWrite={false} />
+          </mesh>
+        </group>
+      ))}
+      {/* 양옆 철제 울타리: 세로 살 + 창끝 + 가로대 */}
+      <Instances limit={fence.bars.length} material={MAT.iron} frames={1}>
+        <boxGeometry args={[IRON.bar, IRON.h, IRON.bar]} />
+        {fence.bars.map(([x], i) => (
+          <Instance key={i} position={[x, IRON.h / 2, 0]} />
+        ))}
+      </Instances>
+      <Instances limit={fence.bars.length} material={MAT.iron} frames={1}>
+        <coneGeometry args={[IRON.bar * 1.6, 0.16, 4]} />
+        {fence.bars.map(([x], i) => (
+          <Instance key={i} position={[x, IRON.h + 0.08, 0]} />
+        ))}
+      </Instances>
+      {[-1, 1].map((sx) =>
+        [0.2, IRON.h - 0.25].map((y) => (
+          <mesh key={`${sx}-${y}`} position={[sx * (w / 2 + GATE_POST + GATE_FENCE.len / 2), y, 0]} material={MAT.iron}>
+            <boxGeometry args={[GATE_FENCE.len, 0.05, 0.05]} />
+          </mesh>
+        )),
+      )}
+      <IvyLeaves leaves={fence.ivy} />
+      {/* 울타리 끝 작은 벽돌 기둥 + 둥근 가로등 */}
+      {[-1, 1].map((sx) => (
+        <group key={sx} position-x={sx * endX}>
+          <mesh position-y={END_POST.h / 2} material={MAT.brick}>
+            <boxGeometry args={[GATE_FENCE.endPost, END_POST.h, GATE_FENCE.endPost]} />
+          </mesh>
+          <mesh position-y={END_POST.h + 0.08} material={MAT.cap}>
+            <boxGeometry args={[GATE_FENCE.endPost + 0.12, 0.16, GATE_FENCE.endPost + 0.12]} />
+          </mesh>
+          <mesh position-y={END_POST.h + 0.16 + END_POST.lampR} material={WMAT.lampGlow}>
+            <sphereGeometry args={[END_POST.lampR, 16, 12]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// 금색 글자 한 자 (투명 바탕). 글자·강조 여부마다 한 번만 만듭니다.
+const letterCache = new Map<string, THREE.CanvasTexture>()
+function goldLetter(ch: string, near: boolean) {
+  const key = `${ch}|${near}`
+  let t = letterCache.get(key)
+  if (!t) {
+    const c = document.createElement('canvas')
+    c.width = 64
+    c.height = 84
+    const ctx = c.getContext('2d')!
+    ctx.font = '700 64px Georgia, "Times New Roman", serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = near ? '#ffd27a' : '#d8b25a'
+    ctx.shadowColor = 'rgba(0,0,0,.45)'
+    ctx.shadowBlur = 3
+    ctx.fillText(ch, 32, 46)
+    t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    letterCache.set(key, t)
+  }
+  return t
+}
+
+// 문 너머 풍경: 울타리 밖으로 길·잔디·가로수·가로등이 이어지고, 멀리 행선지가 보입니다.
+// 정문이 세상 끝 울타리에 붙어 있어 너머가 빈 하늘이라 "떨어지는" 느낌이 났던 것을 고칩니다(사용자 피드백).
+// 걸어갈 수는 없습니다(통울타리 부딪힘 그대로). 문 기준 -Z 가 너머입니다.
+export function GateBackdrop({ gate }: { gate: PlacedGate }) {
+  const B = BACKDROP
+  const trees = useMemo(() => {
+    const out: [number, number][] = []
+    for (let z = -4; z > -B.depth + 4; z -= B.treeStep) for (const sx of [-1, 1]) out.push([sx * B.treeX, z])
+    return out
+  }, [B.depth, B.treeStep, B.treeX])
+  const campus = gate.spec.to === 'campus'
+  return (
+    <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
+      {/* 잔디 (월드 땅보다 살짝 아래라 겹쳐도 깜빡이지 않음) */}
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, -B.depth / 2 - 1]} material={WMAT.grass}>
+        <planeGeometry args={[B.width, B.depth]} />
+      </mesh>
+      {/* 이어지는 길 */}
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.015, -B.depth / 2]} material={WMAT.path}>
+        <planeGeometry args={[B.road, B.depth]} />
+      </mesh>
+      {/* 가로수 (원뿔 잎 + 줄기) */}
+      <Instances limit={trees.length} material={WMAT.trunk} frames={1}>
+        <cylinderGeometry args={[0.15, 0.2, 1.6, 6]} />
+        {trees.map(([x, z], i) => (
+          <Instance key={i} position={[x, 0.8, z]} />
+        ))}
+      </Instances>
+      <Instances limit={trees.length} material={WMAT.leaves} frames={1}>
+        <coneGeometry args={[1.3, 3, 8]} />
+        {trees.map(([x, z], i) => (
+          <Instance key={i} position={[x, 2.9, z]} />
+        ))}
+      </Instances>
+      {/* 길가 가로등 */}
+      {[-8, -18, -28].map((z) => (
+        <group key={z} position={[B.road / 2 + 0.6, 0, z]}>
+          <mesh position-y={1.5} material={MAT.iron}>
+            <cylinderGeometry args={[0.06, 0.06, 3, 6]} />
+          </mesh>
+          <mesh position-y={3.1} material={WMAT.lampGlow}>
+            <sphereGeometry args={[0.2, 12, 8]} />
+          </mesh>
+        </group>
+      ))}
+      {/* 멀리 보이는 행선지: 캠퍼스면 벽돌 건물들과 시계탑, 광장이면 낮은 건물 지붕들 */}
+      {campus ? (
+        <group position-z={-B.depth + 2}>
+          {[[-9, 9, 5], [0, 12, 6], [9, 9, 5]].map(([x, bw, bh], i) => (
+            <group key={i} position-x={x}>
+              <mesh position-y={bh / 2} material={MAT.brick}>
+                <boxGeometry args={[bw, bh, 6]} />
+              </mesh>
+              <mesh position-y={bh + 0.15} material={MAT.cap}>
+                <boxGeometry args={[bw + 0.2, 0.3, 6.2]} />
+              </mesh>
+            </group>
+          ))}
+          <mesh position-y={8} material={MAT.brick}>
+            <boxGeometry args={[3, 6, 3]} />
+          </mesh>
+          <mesh position-y={12.3} rotation-y={Math.PI / 4} material={colorMat('#5a5f66')}>
+            <coneGeometry args={[2.3, 2.6, 4]} />
+          </mesh>
+          <mesh position={[0, 9.2, 1.51]} material={MAT.clockFace}>
+            <circleGeometry args={[0.8, 24]} />
+          </mesh>
+        </group>
+      ) : (
+        <group position-z={-B.depth + 2}>
+          {[[-10, '#a0463c'], [-3, '#3f6e9e'], [4, '#6b8e3a'], [11, '#1f1f24']].map(([x, roof], i) => (
+            <group key={i} position-x={x as number}>
+              <mesh position-y={2} material={colorMat('#e8d9c4')}>
+                <boxGeometry args={[6, 4, 5]} />
+              </mesh>
+              <mesh position-y={4.2} material={colorMat(roof as string)}>
+                <boxGeometry args={[6.4, 0.4, 5.4]} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      )}
     </group>
   )
 }

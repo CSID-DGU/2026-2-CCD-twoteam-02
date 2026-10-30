@@ -88,7 +88,8 @@ export const FENCE_T = 0.3 // 가장자리 울타리 두께
 export const TRUNK = 0.5 // 나무 줄기 부딪힘 상자 한 변
 export const LAMP_POST = 0.3 // 가로등 기둥 부딪힘 상자 한 변
 export const BENCH = { w: 1.6, d: 0.6 } // 벤치 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
-export const GATE_POST = 0.9 // 정문 벽돌 기둥 한 변 (부딪힘)
+export const GATE_POST = 1.2 // 정문 벽돌 기둥 한 변 (부딪힘)
+export const GATE_FENCE = { len: 5, t: 0.2, endPost: 0.6 } // 정문 양옆 철제 울타리: 길이, 두께, 끝 작은 기둥 한 변
 export const GATE_NO_BASE = 50 // 정문 입장 자리 번호 시작 (건물 입구 번호와 겹치지 않게)
 export const REST_NO_BASE = 100 // 쉬는 자리 번호 시작
 export const MAT_SIT = { y: -0.38 } // 돗자리: 바닥에 앉음 (앉은 자세를 의자 높이만큼 내림)
@@ -180,6 +181,7 @@ export type PlacedGate = {
   entry: { no: number; x: number; z: number; rot: number } // 입장 자리. rot 은 문을 바라보는 방향
   arrive: Point // 다른 월드에서 넘어오면 서는 자리 (문을 등짐)
   posts: Box[] // 양쪽 벽돌 기둥 (부딪힘)
+  fences: Box[] // 양옆 철제 울타리와 끝 작은 기둥 (부딪힘)
 }
 
 const gateFrame = (g: GateSpec) => ({ x: g.x, z: g.z, facing: g.facing })
@@ -194,6 +196,13 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
     const angle = facingAngle(gateFrame(spec).facing)
     const entry = gatePoint(spec, 0, DOOR_GAP)
     const postX = spec.w / 2 + GATE_POST / 2
+    const fenceX = spec.w / 2 + GATE_POST + GATE_FENCE.len / 2 // 울타리 가운데 (기둥 바깥)
+    const endX = spec.w / 2 + GATE_POST + GATE_FENCE.len + GATE_FENCE.endPost / 2
+    // 문 기준 상자를 월드로: 동·서를 보면 가로·세로가 바뀜
+    const box = (x: number, w: number, d: number) => {
+      const c = gatePoint(spec, x, 0)
+      return sideways(spec.facing) ? { ...c, w: d, d: w } : { ...c, w, d }
+    }
     return {
       no,
       spec,
@@ -201,6 +210,7 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
       entry: { no, ...entry, rot: normalizeAngle(angle + Math.PI) },
       arrive: gatePoint(spec, 0, ARRIVE_GAP),
       posts: [-postX, postX].map((x) => ({ ...gatePoint(spec, x, 0), w: GATE_POST, d: GATE_POST })),
+      fences: [-1, 1].flatMap((sx) => [box(sx * fenceX, GATE_FENCE.len, GATE_FENCE.t), box(sx * endX, GATE_FENCE.endPost, GATE_FENCE.endPost)]),
     }
   })
 }
@@ -238,7 +248,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...plaza.benches.map((b) =>
       sideways(b.facing) ? { x: b.x, z: b.z, w: BENCH.d, d: BENCH.w } : { x: b.x, z: b.z, w: BENCH.w, d: BENCH.d },
     ),
-    ...placeGates(plaza).flatMap((g) => g.posts),
+    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences]),
   ]
 }
 
@@ -264,4 +274,46 @@ export const WORLD_FROM = 'world:'
 // 그 지점(slug)이 있는 건물. 위층 지점이면 그 층이 있는 건물입니다.
 export function buildingOf(placed: PlacedBuilding[], slug: string): PlacedBuilding | undefined {
   return placed.find((p) => p.floors.some((f) => f.slug === slug))
+}
+
+// ── 문 사이로 걸어 들어가기 · 울타리 틈 ───────────────────────────────
+// 정문은 E 를 눌러도 되고, 문 사이로 걸어 들어가도 넘어갑니다(실제 길을 걸어 들어가는 느낌).
+// 문 앞면(입장 쪽)에서 GATE_PASS 안쪽까지 들어오고 두 기둥 사이에 있으면 넘어갑니다.
+// 도착 자리(ARRIVE_GAP)·입장 자리(DOOR_GAP)는 그보다 바깥이라, 넘어오자마자 다시 넘어가지 않습니다.
+export const GATE_PASS = 0.6
+const GATE_BEHIND = 1.5 // 문 뒤로 이보다 멀면 넘어가지 않음 (문 뒤쪽 다른 길에서 잘못 넘어가지 않게)
+export function gateCrossed(g: PlacedGate, x: number, z: number): boolean {
+  const local = rotate(x - g.spec.x, z - g.spec.z, -g.angle) // 문 기준 좌표 (+Z 가 앞면)
+  return local.z < GATE_PASS && local.z > -GATE_BEHIND && Math.abs(local.x) < g.spec.w / 2
+}
+
+// 울타리를 그릴 상자. 정문이 붙은 쪽 울타리는 문 폭만큼 비워, 문 너머로 이어지는 길이 보이게 합니다.
+// (부딪힘은 plazaObstacles 의 통울타리 그대로 — 문 뒤로 걸어 나가지 않고 문 앞에서 넘어갑니다)
+const GATE_NEAR_FENCE = 3 // 울타리에서 이만큼 안쪽까지의 정문은 그 쪽 울타리에 붙은 것으로 봄
+export function fenceSegments(plaza: PlazaLayout): Box[] {
+  const { w, d } = plaza.size
+  const gates = plaza.gates ?? []
+  // 한 쪽 울타리: along 축(x 또는 z)으로 -len/2 ~ len/2, 다른 축은 fixed
+  const side = (alongX: boolean, fixed: number, len: number): Box[] => {
+    const gaps = gates
+      .filter((g) => Math.abs((alongX ? g.z : g.x) - fixed) < GATE_NEAR_FENCE)
+      .map((g) => [(alongX ? g.x : g.z) - g.w / 2, (alongX ? g.x : g.z) + g.w / 2] as [number, number])
+      .sort((a, b) => a[0] - b[0])
+    const out: Box[] = []
+    let from = -len / 2
+    for (const [a, b] of [...gaps, [len / 2, len / 2] as [number, number]]) {
+      if (a > from) {
+        const c = (from + a) / 2
+        out.push(alongX ? { x: c, z: fixed, w: a - from, d: FENCE_T } : { x: fixed, z: c, w: FENCE_T, d: a - from })
+      }
+      from = Math.max(from, b)
+    }
+    return out
+  }
+  return [
+    ...side(true, -(d / 2 - FENCE_T / 2), w),
+    ...side(true, d / 2 - FENCE_T / 2, w),
+    ...side(false, -(w / 2 - FENCE_T / 2), d),
+    ...side(false, w / 2 - FENCE_T / 2, d),
+  ]
 }
