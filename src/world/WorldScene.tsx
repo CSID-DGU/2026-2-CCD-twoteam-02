@@ -47,7 +47,7 @@ import { LOBBY_PLACE } from '../realtime/online'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { arrivalOf, placeBuildings, plazaObstacles, toBranchHeading } from './worldLogic'
+import { BOARD_NO, arrivalOf, boardSpot, placeBuildings, plazaObstacles, toBranchHeading } from './worldLogic'
 import type { PlazaLayout } from './worldLogic'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
 import { WorldSky } from './WorldSky'
@@ -55,6 +55,10 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
+import { RankingBoard } from './RankingBoard'
+import { RankingPanel } from '../ranking/RankingPanel'
+import { useRanking } from '../ranking/useRanking'
+import { REFRESH_MS, boardLines } from '../ranking/rankingLogic'
 import world from './world.json'
 import { useMyTitle } from '../level/useMyTitle'
 import { sharedLevel } from '../level/levelLogic'
@@ -68,7 +72,8 @@ const PLAZA = world as PlazaLayout
 // 배치는 실행 중에 바뀌지 않으므로 한 번만 계산합니다.
 const PLACED = placeBuildings(PLAZA, BRANCH_LAYOUTS, console.warn)
 const OBSTACLES = plazaObstacles(PLAZA, PLACED)
-const ENTRIES = PLACED.map((b) => b.entry)
+const BOARD_SPOT = boardSpot(PLAZA) // 순위 게시판 앞 자리 (#59). 건물 입구처럼 E 를 받습니다
+const SPOTS = BOARD_SPOT ? [...PLACED.map((b) => b.entry), BOARD_SPOT] : PLACED.map((b) => b.entry)
 const LIT_LAMPS = PLAZA.lamps.filter((l) => l.light) // 밤에 점광원을 켜는 가로등 (world.json 의 light)
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
 
@@ -101,6 +106,9 @@ export default function WorldScene({ onEnter }: Props) {
   const [panel, setPanel] = useState<PanelView | null>(null)
   // 오늘의 별자리 운세 창 (#321): 밤하늘에서 누른 별자리 id. 다른 창이 떠 있으면 열지 않음
   const [fortune, setFortune] = useState<string | null>(null)
+  // 공부 시간 순위 창 (#59): 게시판 앞에서 E
+  const [rankingOpen, setRankingOpen] = useState(false)
+  const overlay = fortune !== null || rankingOpen // 광장 위에 운세·순위 창이 떠 있음 (메뉴 창 panel 과 따로)
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
   const { session } = useSession()
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
@@ -124,11 +132,13 @@ export default function WorldScene({ onEnter }: Props) {
   useOnlinePlace(LOBBY_PLACE)
   const onlineCount = useOnline().size
   // 오른쪽 위 버튼 단축키 R·F·P (#205)
-  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: fortune !== null })
-  const panelRef = useRef<unknown>(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해. 운세 창이 떠 있어도 막음
+  useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: overlay })
+  const panelRef = useRef<unknown>(panel) // V 키 처리(한 번만 등록)에서 최신 값을 읽기 위해. 운세·순위 창이 떠 있어도 막음
   useEffect(() => {
-    panelRef.current = panel ?? fortune
-  }, [panel, fortune])
+    panelRef.current = panel ?? (overlay || null)
+  }, [panel, overlay])
+  // 게시판 판의 오늘 1~3위 (#59). 들어올 때 읽고 5분마다 다시 읽습니다. 로그인 전에는 읽지 않음
+  const { ranking: todayRanking } = useRanking('today', { refreshMs: REFRESH_MS, enabled: !!session })
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
@@ -189,11 +199,17 @@ export default function WorldScene({ onEnter }: Props) {
   const isOpen = (slug: string) => branches === null || branches.some((x) => x.slug === slug)
   // 안 연 건물 입구에서는 Player 가 입구 자리에 앉히지(숨기지) 않게 하고 "준비 중"만 띄웁니다.
   // (앉히면 캐릭터가 사라지고 E 를 다시 누를 때까지 움직일 수 없음)
+  // 게시판 앞 자리도 "앉을 수 없는 자리"로 두어, E 를 누르면 blockedEnter 에서 순위 창을 엽니다(캐릭터가 앉거나 숨지 않음).
   const canEnter = (no: number) => {
+    if (no === BOARD_NO) return false
     const b = PLACED.find((p) => p.no === no)
     return !b || isOpen(b.slug)
   }
   const blockedEnter = (no: number) => {
+    if (no === BOARD_NO) {
+      if (panel === null && !overlay) setRankingOpen(true)
+      return
+    }
     const b = PLACED.find((p) => p.no === no)
     if (b) setMessage(`${b.name}은 아직 준비 중입니다.`)
   }
@@ -205,7 +221,9 @@ export default function WorldScene({ onEnter }: Props) {
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panel
     ? ''
-    : nearBuilding
+    : near === BOARD_NO
+      ? `순위 게시판 · ${K.interact} 보기`
+      : nearBuilding
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
@@ -216,7 +234,7 @@ export default function WorldScene({ onEnter }: Props) {
       <Canvas>
         {view === 'first' ? (
           <>
-            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || fortune !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || overlay} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
             {/* 걸을 때만 뜨는 미니맵 (#290). 광장은 넓어서 내 둘레만 */}
             <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />
           </>
@@ -225,7 +243,7 @@ export default function WorldScene({ onEnter }: Props) {
         )}
         <FpsProbe onSample={handleFps} />
         {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321), 구름·비·눈 (#317) */}
-        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && setFortune(id)} weatherRef={weather} followRef={pos} />
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && !rankingOpen && setFortune(id)} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />
@@ -233,6 +251,8 @@ export default function WorldScene({ onEnter }: Props) {
         <Trees trees={PLAZA.trees} />
         <Benches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />
+        {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
+        {PLAZA.board && <RankingBoard board={PLAZA.board} lines={boardLines(todayRanking)} />}
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
           <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
@@ -251,11 +271,11 @@ export default function WorldScene({ onEnter }: Props) {
             spawn={arrival.spawn}
             spawnHeading={arrival.heading}
             emoteRef={emote}
-            spots={ENTRIES}
+            spots={SPOTS}
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={NO_KIOSK}
-            frozen={panel !== null || fortune !== null}
+            frozen={panel !== null || overlay}
             onNearKiosk={() => {}}
             onKiosk={() => {}}
             onNear={(no) => {
@@ -284,11 +304,21 @@ export default function WorldScene({ onEnter }: Props) {
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       <PerfReadout perf={perf} />
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
-      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || fortune !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && <div style={crosshair} />}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+      {rankingOpen && (
+        <RankingPanel
+          myId={session?.user.id ?? null}
+          onClose={() => setRankingOpen(false)}
+          onOpenProfile={(userId) => {
+            setRankingOpen(false)
+            setPanel({ kind: 'profile', userId })
+          }}
+        />
+      )}
       {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: LOBBY_PLACE, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
