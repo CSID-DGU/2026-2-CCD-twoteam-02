@@ -15,6 +15,7 @@
 // 보간·걷기 동작·방향 돌리기가 모두 안 되고 순간이동만 합니다. (#130)
 // 걷기 판단과 몸 방향은 walkLogic.ts 참고. (#122)
 // 서서 감정표현을 하면(emote) 같은 동작을 재생하고, 걷기 시작하면 멈춥니다. (#162)
+// 점프 번호(jump)가 바뀌면 받은 순간부터 한 번 폴짝 뜁니다. (높이는 jumpLogic.ts, 보낸 사람 화면과 같은 포물선)
 import { useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -25,6 +26,7 @@ import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
 import { EMOTE_CLIPS, emoteById, emoteSeconds, prepareEmoteAction } from '../space/emotes'
 import { holdStandingPose } from '../space/standStill'
+import { jumpHeight } from '../space/jumpLogic'
 import { BASE_MODEL_URL } from '../profile/characters'
 import { useSkin } from '../tracking/useSkin'
 import { useFace } from '../tracking/useFace'
@@ -44,9 +46,10 @@ type Props = {
   children?: ReactNode // 캐릭터와 함께 움직일 것 (닉네임·표시등). 몸이 돌아도 따라 돌지 않습니다.
   emote?: string // 그 사람이 지금 하는 감정표현 (#162)
   emoteSeq?: number // 감정표현을 새로 시작할 때마다 올라가는 번호
+  jump?: number // 점프할 때마다 올라가는 번호
 }
 
-export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: Props) {
+export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq, jump }: Props) {
   const ref = useRef<Group>(null!) // 위치만 옮기는 묶음
   const body = useRef<Group>(null!) // 몸 방향만 돌리는 묶음
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
@@ -67,6 +70,8 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
   const emoteClip = useRef<string | null>(null) // 지금 재생 중인 감정표현 동작
   const emoteUntil = useRef(0)
   const emoteStarted = useRef(0) // 마지막으로 재생을 시작한 감정표현 번호 (같은 번호는 다시 시작하지 않음)
+  const jumpSeen = useRef<number | undefined>(undefined) // 마지막으로 본 점프 번호. 처음 받은 번호로는 뛰지 않음(들어오자마자 뛰지 않게)
+  const jumpStart = useRef(-Infinity) // 뛰기 시작한 시각(ms)
 
   useEffect(() => {
     holdStandingPose(actions.idle) // 서 있을 때는 흔들지 않고 가만히 (#244)
@@ -83,6 +88,12 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
     b.push({ t: performance.now(), x, z, h })
     if (b.length > SAMPLE_MAX) b.shift()
   }, [x, z, h])
+
+  // 점프 번호가 바뀌면 지금부터 한 번 뜁니다. 처음 받은 번호는 기준으로만 삼습니다.
+  useEffect(() => {
+    if (jumpSeen.current !== undefined && jump !== undefined && jump !== jumpSeen.current) jumpStart.current = performance.now()
+    jumpSeen.current = jump ?? 0
+  }, [jump])
 
   useFrame((_, delta) => {
     const g = ref.current
@@ -101,7 +112,8 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq }: 
     }
 
     // 보간한 위치를 그대로 씁니다. 쫓아가지 않으므로 가속·감속이 생기지 않습니다.
-    p.set(at.x, 0, at.z)
+    // 높이는 점프 중이면 포물선대로. 닉네임·표시등(children)도 같은 묶음이라 몸과 같이 뜁니다.
+    p.set(at.x, jumpHeight((performance.now() - jumpStart.current) / 1000), at.z)
 
     // 걷는지와 몸 방향은 재생 중인 속도로 정합니다.
     const goal = facingGoal(at.vx, at.vz, at.h, gait.current !== 'idle')

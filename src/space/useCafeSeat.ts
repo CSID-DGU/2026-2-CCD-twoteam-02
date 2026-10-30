@@ -9,9 +9,13 @@
 //   cleanup 'thisBranch' : 이 지점에 남은 내 자리가 있을 때만 놓습니다. 광장은 첫 화면이라, 다른 기기·탭에서
 //                          카페 지점에 앉아 공부 중인 자리를 광장을 열었다고 놓아 버리지 않게 합니다.
 //
+// 자리 요청(잡기·놓기·반납·들어올 때 정리)은 serialQueue 로 들어온 순서대로 하나씩 보냅니다(#340). 일어나자마자 다시 앉아도
+// "놓기"가 끝난 뒤 "잡기"가 가서, 방금 일어난 자기 자리 때문에 "○번 자리를 이용 중이에요" 창이 뜨지 않습니다.
+//
 // seatNo 는 DB 좌석 번호, spotNo 는 Player 의 자리 번호입니다. 지점은 둘이 같고, 광장 벤치는 다릅니다(BENCH_SEAT_BASE).
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { serialQueue } from './serialQueue'
 
 const MESSAGE_MS = 4000 // 안내를 보여 주는 시간
 
@@ -28,6 +32,7 @@ export function useCafeSeat(
   const sitRequest = useRef<number | null>(null) // Player 에게 앉으라고 알릴 자리 번호
   const [message, setMessage] = useState('') // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
   const [conflict, setConflict] = useState<SeatConflict | null>(null) // 다른 자리를 쓰는 중
+  const [inOrder] = useState(serialQueue) // 자리 요청을 순서대로 하나씩 (이 화면 동안 하나)
   const onMySeatRef = useRef(onMySeat)
   useEffect(() => {
     onMySeatRef.current = onMySeat
@@ -35,7 +40,7 @@ export function useCafeSeat(
 
   const claim = async (seatNo: number, spotNo: number = seatNo) => {
     if (branchId === null) return
-    const { error } = await supabase.rpc('sit_cafe_seat', { p_branch_id: branchId, p_seat_number: seatNo })
+    const { error } = await inOrder(() => supabase.rpc('sit_cafe_seat', { p_branch_id: branchId, p_seat_number: seatNo }))
     if (error) {
       // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
       if (error.code === 'DT001') setConflict({ message: error.message, seatNo, spotNo })
@@ -51,7 +56,7 @@ export function useCafeSeat(
     if (!conflict) return
     const { seatNo, spotNo } = conflict
     setConflict(null)
-    const { error } = await supabase.rpc('release_my_place') // 0008: 쓰고 있던 자리 반납
+    const { error } = await inOrder(() => supabase.rpc('release_my_place')) // 0008: 쓰고 있던 자리 반납
     if (error) {
       setMessage(`반납하지 못했어요: ${error.message}`)
       return
@@ -62,7 +67,7 @@ export function useCafeSeat(
   // 일어날 때 부릅니다.
   const leave = () => {
     if (branchId === null) return
-    void supabase.rpc('leave_cafe_seat').then(() => onMySeatRef.current(null))
+    void inOrder(() => supabase.rpc('leave_cafe_seat')).then(() => onMySeatRef.current(null))
   }
 
   useEffect(() => {
@@ -77,27 +82,32 @@ export function useCafeSeat(
   }, [seated])
   useEffect(() => {
     if (branchId === null) return
-    if (cleanup === 'all') void supabase.rpc('leave_cafe_seat').then(() => onMySeatRef.current(null))
+    // 들어올 때 정리도 줄에 넣어, 들어오자마자 앉아도 정리가 끝난 뒤에 잡습니다.
+    if (cleanup === 'all') void inOrder(() => supabase.rpc('leave_cafe_seat')).then(() => onMySeatRef.current(null))
     else
       // 이 지점의 끝나지 않은 내 이용 기록이 있을 때만 (seat_sessions 는 RLS 로 본인 것만 보임)
-      void supabase
-        .from('seat_sessions')
-        .select('id, seats!inner(branch_id)')
-        .is('ended_at', null)
-        .eq('seats.branch_id', branchId)
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) void supabase.rpc('leave_cafe_seat').then(() => onMySeatRef.current(null))
-        })
-    const leaveOnExit = () => {
+      void inOrder(async () => {
+        const { data } = await supabase
+          .from('seat_sessions')
+          .select('id, seats!inner(branch_id)')
+          .is('ended_at', null)
+          .eq('seats.branch_id', branchId)
+          .limit(1)
+        if (data && data.length > 0) {
+          await supabase.rpc('leave_cafe_seat')
+          onMySeatRef.current(null)
+        }
+      })
+    // 창을 닫을 때는 앞 요청을 기다릴 틈이 없으므로 바로 보냅니다.
+    const leaveOnPageHide = () => {
       if (seatedRef.current) void supabase.rpc('leave_cafe_seat')
     }
-    window.addEventListener('pagehide', leaveOnExit)
+    window.addEventListener('pagehide', leaveOnPageHide)
     return () => {
-      window.removeEventListener('pagehide', leaveOnExit)
-      leaveOnExit()
+      window.removeEventListener('pagehide', leaveOnPageHide)
+      if (seatedRef.current) void inOrder(() => supabase.rpc('leave_cafe_seat')) // 화면을 떠날 때
     }
-  }, [branchId, cleanup])
+  }, [branchId, cleanup, inOrder])
 
   return { claim, releaseAndSit, leave, message, conflict, closeConflict: () => setConflict(null), sitRequest }
 }

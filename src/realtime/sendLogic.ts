@@ -11,7 +11,7 @@
 //
 //  칸 대신 "마지막으로 보낸 값"을 기준점으로 삼는다.
 //    기준점에서 *_DEADBAND 넘게 움직였을 때만 보낸다.
-//    좌석·상태·눈 감김·감정표현처럼 끊어진 값은 바뀌면 바로 보낸다.
+//    좌석·상태·눈 감김·감정표현·점프처럼 끊어진 값은 바뀌면 바로 보낸다.
 //
 //    시각    실제   기준점과 차이   판정
 //    0.00초  4.4°   —              보냄 (기준점 = 4.4°)
@@ -71,7 +71,7 @@ export function changedEnough(last: PresenceState | null, now: PresenceState): b
   if (!last) return true
   // 끊어진 값: 하나라도 다르면 보낸다.
   if (last.userId !== now.userId || last.seat !== now.seat || last.status !== now.status) return true
-  if (last.eyes !== now.eyes || last.emote !== now.emote || last.emoteSeq !== now.emoteSeq || last.sync !== now.sync || last.mic !== now.mic) return true
+  if (last.eyes !== now.eyes || last.emote !== now.emote || last.emoteSeq !== now.emoteSeq || last.jump !== now.jump || last.sync !== now.sync || last.mic !== now.mic) return true
   if (last.lv !== now.lv) return true // 칭호 단계: 오르거나 공개 범위를 바꾸면 바로 보낸다
   // 연속된 값: 기준점에서 기준값 넘게 움직였을 때만.
   if (Math.abs(last.x - now.x) > POSITION_DEADBAND || Math.abs(last.z - now.z) > POSITION_DEADBAND) return true
