@@ -16,9 +16,12 @@
 // 광장은 넓어서 위에서 보기·미니맵이 전체 대신 내 둘레를 따라다니며 보여 준다.
 // 하늘과 빛은 WorldSky 가 현실 시각(서울)을 따라 바꾼다(#316, 확인용 주소 ?time=21:30 · ?speed=600).
 // 날씨는 실제 서울 날씨(Open-Meteo 시간별 예보, #317, 확인용 주소 ?weather=rain · snow · cloudy · clear).
+//
+// 같은 화면으로 두 바깥 공간(월드)을 그립니다: 광장(/)과 캠빛 대학교 캠퍼스(/campus). 무엇을 그릴지는 world(worldConfig.ts)가 정합니다.
+// 월드 사이는 정문(gates)으로 오갑니다. 정문 앞에서 E 를 누르면 다른 월드로 넘어가 그쪽 정문 앞에 문을 등지고 섭니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { TopDownCamera } from '../space/TopDownCamera'
@@ -36,26 +39,23 @@ import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
-import { BRANCH_LAYOUTS } from '../space/branches'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
-import { LOBBY_CHANNEL } from '../realtime/participants'
 import type { PresenceState } from '../realtime/participants'
 import { currentCondition } from '../study/condition'
 import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
-import { LOBBY_PLACE } from '../realtime/online'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { arrivalOf, placeBuildings, plazaObstacles, toBranchHeading } from './worldLogic'
-import type { PlazaLayout } from './worldLogic'
+import { WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic'
+import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
+import type { WorldConfig } from './worldConfig'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
-import world from './world.json'
 import { useMyTitle } from '../level/useMyTitle'
 import { sharedLevel } from '../level/levelLogic'
 
@@ -63,13 +63,6 @@ const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. �
 const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
 const MINIMAP_SPAN = 40 // 미니맵: 내 둘레 이 거리(m)
 
-// JSON 은 facing 이 string 으로 읽혀 타입만 맞춥니다. (값은 worldLogic 검사로 확인)
-const PLAZA = world as PlazaLayout
-// 배치는 실행 중에 바뀌지 않으므로 한 번만 계산합니다.
-const PLACED = placeBuildings(PLAZA, BRANCH_LAYOUTS, console.warn)
-const OBSTACLES = plazaObstacles(PLAZA, PLACED)
-const ENTRIES = PLACED.map((b) => b.entry)
-const LIT_LAMPS = PLAZA.lamps.filter((l) => l.light) // 밤에 점광원을 켜는 가로등 (world.json 의 light)
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
 
 type Branch = { id: number; slug: string; name: string }
@@ -79,9 +72,14 @@ const fetchOpenBranches = () => supabase.from('branches').select('id, slug, name
 
 type Props = {
   onEnter: (branch: Branch, heading: number) => void // heading: 실내에서 볼 방향 (건물 입구 각도를 뺀 값, #150)
+  world?: WorldConfig // 어느 바깥 공간인지 (없으면 광장)
 }
 
-export default function WorldScene({ onEnter }: Props) {
+export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
+  // 이 월드의 배치와 미리 계산한 값 (월드마다 한 번만 계산해 둠, worldConfig.computedOf)
+  const PLAZA = world.layout
+  const { placed: PLACED, gates: GATES, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
+  const navigate = useNavigate()
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
@@ -117,11 +115,11 @@ export default function WorldScene({ onEnter }: Props) {
   // 감정표현 (#162): Player 가 동작하고, 1인칭 카메라는 그동안 앞으로 빠져 나를 비춥니다.
   const emote = useRef(newEmoteState())
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
-  const others = useParticipants(LOBBY_CHANNEL, me)
+  const others = useParticipants(world.channel, me)
   // 캐릭터 숨김 모드(실험 B 조건)면 광장에서도 다른 참여자를 그리지 않습니다.
   const [condition] = useState(() => currentCondition(location.search))
   // 사이트 전체 접속 상태에 "광장에 있음"(내부 이름은 lobby 그대로)으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
-  useOnlinePlace(LOBBY_PLACE)
+  useOnlinePlace(world.place)
   const onlineCount = useOnline().size
   // 오른쪽 위 버튼 단축키 R·F·P (#205)
   useMenuShortcuts({ myId: session?.user.id ?? null, panel, setPanel, disabled: fortune !== null })
@@ -150,7 +148,7 @@ export default function WorldScene({ onEnter }: Props) {
     const list = (data ?? []) as Branch[]
     setBranches(list)
     return list
-  }, [])
+  }, [setMessage, setBranches])
   // 들어오자마자 한 번 읽어 둡니다. 광장은 넓어서, 안 연 건물 문이 E 를 누르기 전까지 초록으로 보이면
   // 멀리서 걸어간 뒤에야 "준비 중"을 알게 됩니다. 못 읽었으면 조용히 두고, E 를 누를 때 tryEnter 가 다시 읽어 안내합니다.
   useEffect(() => {
@@ -190,8 +188,21 @@ export default function WorldScene({ onEnter }: Props) {
   // 안 연 건물 입구에서는 Player 가 입구 자리에 앉히지(숨기지) 않게 하고 "준비 중"만 띄웁니다.
   // (앉히면 캐릭터가 사라지고 E 를 다시 누를 때까지 움직일 수 없음)
   const canEnter = (no: number) => {
+    if (spotKindOf(no) !== 'building') return true // 정문·쉬는 자리
     const b = PLACED.find((p) => p.no === no)
     return !b || isOpen(b.slug)
+  }
+  // 정문: 다른 월드로 넘어갑니다. 그쪽에서 이 월드로 오는 정문 앞에 문을 등지고 섭니다(arrivalOf 의 'world:…').
+  const goGate = (no: number) => {
+    const g = GATES.find((x) => x.no === no)
+    if (!g) return
+    navigate(worldOf(g.spec.to).path, { state: { from: WORLD_FROM + world.id, heading: bodyHeading.current } })
+  }
+  // 입장 자리에서 E: 건물이면 그 지점으로, 정문이면 다른 월드로
+  const handleSeat = (no: number | null) => {
+    if (no === null) return
+    if (spotKindOf(no) === 'gate') goGate(no)
+    else if (spotKindOf(no) === 'building') void tryEnter(no)
   }
   const blockedEnter = (no: number) => {
     const b = PLACED.find((p) => p.no === no)
@@ -199,12 +210,15 @@ export default function WorldScene({ onEnter }: Props) {
   }
 
   const nearBuilding = PLACED.find((b) => b.no === near)
+  const nearGate = GATES.find((g) => g.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) }
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panel
     ? ''
+    : nearGate
+      ? `${nearGate.spec.label} · ${K.interact} 들어가기`
     : nearBuilding
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
@@ -262,7 +276,7 @@ export default function WorldScene({ onEnter }: Props) {
               setNear(no)
               if (no === null) setMessage('') // 입구에서 벗어나면 "준비 중" 안내를 내림
             }}
-            onSeat={(no) => void tryEnter(no)}
+            onSeat={handleSeat}
             canSit={canEnter}
             onSitBlocked={blockedEnter}
             onMove={(x, z, h) => {
@@ -290,7 +304,7 @@ export default function WorldScene({ onEnter }: Props) {
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
-      {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: LOBBY_PLACE, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
+      {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: world.place, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
   )
 }
