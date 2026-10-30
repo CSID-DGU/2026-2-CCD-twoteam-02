@@ -52,3 +52,9 @@ export function levelCrossed(beforeSeconds: number, nowSeconds: number): number 
 
 // 남은 초를 하루 DAILY_HOURS_GUESS 시간씩 공부하면 며칠인지 (올림)
 export const daysLeft = (leftSeconds: number) => Math.ceil(leftSeconds / (DAILY_HOURS_GUESS * HOUR))
+
+// 다른 참여자에게 보낼 내 칭호 단계. 프로필 공부 기록 공개 범위가 '모두'(public)이고 1단계 이상일 때만,
+// 아니면 undefined (위치 메시지에 싣지 않음). 칭호가 누적 시간을 구간으로 알려 주므로 공개 범위를 따릅니다.
+// '친구만'도 싣지 않습니다: 위치 메시지는 같은 방 모두에게 한 번에 가서 친구에게만 골라 보낼 수 없습니다.
+export const sharedLevel = (visibility: string | null, level: number): number | undefined =>
+  visibility === 'public' && level > 0 ? level : undefined

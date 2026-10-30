@@ -52,6 +52,8 @@ import { FloorPicker } from "../world/FloorPicker";
 import { buildingOf, placeBuildings } from "../world/worldLogic";
 import type { PlazaLayout } from "../world/worldLogic";
 import world from "../world/world.json";
+import { useMyTitle } from "../level/useMyTitle";
+import { sharedLevel } from "../level/levelLogic";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -143,6 +145,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [panel, setPanel] = useState<PanelView | null>(null);
   const panelOpen = panel !== null;
   const { session } = useSession();
+  // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
+  const myTitle = useMyTitle(session?.user.id);
+  const myLevel = myTitle.level;
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
@@ -199,6 +204,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
       // 서서 감정표현 중이면 같이 실어 보냅니다. 보고 있는 사람 화면에서도 같은 동작을 합니다. (#162)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
+      ...(sharedLevel(myTitle.visibility, myLevel) ? { lv: sharedLevel(myTitle.visibility, myLevel) } : {}), // 칭호 리본
     };
   };
 
