@@ -8,13 +8,14 @@
 //           건물·캐릭터가 별자리 앞을 가리면 무시합니다(캐릭터는 지금처럼 프로필 창).
 //
 // 모두 #316 의 별 투명도(stars)를 따라 밤에만 보이고, 별이 절반 넘게 보일 때만 눌립니다.
+// 달이 지나가는 별자리는 흐리게 합니다(#344, skyLogic 의 moonOverlapFade). 그래서 별자리를 하나씩 따로 그립니다.
 // 하늘 레이어(2)와 음수 그리는 순서(#316 규칙)를 따릅니다. 위치가 고정이라 매 프레임 바꾸는 것은 투명도뿐입니다.
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
-import { SKY_LAYER } from './skyLogic'
+import { SKY_LAYER, moonOverlapFade, toDirection } from './skyLogic'
 import type { SkyState } from './skyLogic'
 import { SIGNS, pickRingSign, ringLayout } from './starLogic'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
@@ -36,55 +37,48 @@ export type SkyFrame = SkyState & { ms: number }
 const RING = ringLayout() // 배치는 바뀌지 않으므로 한 번만
 const scaled = (v: { x: number; y: number; z: number }) => new THREE.Vector3(v.x * R, v.y * R, v.z * R)
 
-// 고른 별자리들(mine 이면 내 별자리만, 아니면 나머지)의 점·선 지오메트리
-function figures(mySign: string | null, mine: boolean) {
-  const ring = RING.filter((r) => (r.id === mySign) === mine)
-  const points = new THREE.BufferGeometry().setFromPoints(ring.flatMap((r) => r.stars.map(scaled)))
-  const lines = new THREE.BufferGeometry().setFromPoints(
-    ring.flatMap((r) => {
-      const sign = SIGNS.find((s) => s.id === r.id)
-      return (sign?.lines ?? []).flatMap(([a, b]) => [scaled(r.stars[a]), scaled(r.stars[b])])
-    }),
-  )
+// 별자리 하나의 점·선 지오메트리. 달이 지나가는 별자리만 흐리게 하려고(#344) 별자리마다 따로 그립니다(12개라 그리기 부담은 작음).
+function figureOf(r: (typeof RING)[number]) {
+  const points = new THREE.BufferGeometry().setFromPoints(r.stars.map(scaled))
+  const sign = SIGNS.find((s) => s.id === r.id)
+  const lines = new THREE.BufferGeometry().setFromPoints((sign?.lines ?? []).flatMap(([a, b]) => [scaled(r.stars[a]), scaled(r.stars[b])]))
   return { points, lines }
+}
+
+// 별자리 하나의 재질 (내 별자리면 금색·조금 큰 별)
+function materialsOf(gold: boolean) {
+  return {
+    points: new THREE.PointsMaterial({ color: gold ? COLOR.gold : COLOR.normal, size: gold ? SIZE.gold : SIZE.normal, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false }),
+    lines: new THREE.LineBasicMaterial({ color: gold ? COLOR.gold : COLOR.normal, transparent: true, depthWrite: false, toneMapped: false }),
+  }
 }
 
 export function Constellations({ stateRef, mySign, onPick }: { stateRef: RefObject<SkyFrame | null>; mySign: string | null; onPick?: (id: string) => void }) {
   const { scene, camera, gl } = useThree()
   const group = useRef<THREE.Group>(null)
-  const normalPoints = useRef<THREE.Points>(null)
-  const normalLines = useRef<THREE.LineSegments>(null)
-  const goldPoints = useRef<THREE.Points>(null)
-  const goldLines = useRef<THREE.LineSegments>(null)
+  const points = useRef<(THREE.Object3D | null)[]>([])
+  const lines = useRef<(THREE.Object3D | null)[]>([])
   const labels = useRef<(THREE.Mesh | null)[]>([])
+  const moonDir = useRef({ x: 0, y: 0, z: 0 }) // 매 프레임 달 방향 (새로 만들지 않고 여기에 담음)
 
-  const normal = useMemo(() => figures(mySign, false), [mySign])
-  const gold = useMemo(() => figures(mySign, true), [mySign])
-  const mats = useMemo(
-    () => ({
-      normalPoints: new THREE.PointsMaterial({ color: COLOR.normal, size: SIZE.normal, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false }),
-      normalLines: new THREE.LineBasicMaterial({ color: COLOR.normal, transparent: true, depthWrite: false, toneMapped: false }),
-      goldPoints: new THREE.PointsMaterial({ color: COLOR.gold, size: SIZE.gold, sizeAttenuation: false, transparent: true, depthWrite: false, toneMapped: false }),
-      goldLines: new THREE.LineBasicMaterial({ color: COLOR.gold, transparent: true, depthWrite: false, toneMapped: false }),
-    }),
-    [],
-  )
+  const figures = useMemo(() => RING.map(figureOf), []) // 위치가 고정이라 한 번만
+  const mats = useMemo(() => RING.map((r) => materialsOf(r.id === mySign)), [mySign])
   useEffect(
     () => () => {
-      for (const o of [normal.points, normal.lines, gold.points, gold.lines]) o.dispose()
+      for (const f of figures) for (const o of [f.points, f.lines]) o.dispose()
     },
-    [normal, gold],
+    [figures],
   )
   useEffect(
     () => () => {
-      for (const m of Object.values(mats)) m.dispose()
+      for (const m of mats) for (const o of [m.points, m.lines]) o.dispose()
     },
     [mats],
   )
 
   // 하늘 레이어 2 (미니맵에 안 보임)
   useLayoutEffect(() => {
-    for (const o of [normalPoints.current, normalLines.current, goldPoints.current, goldLines.current, ...labels.current]) o?.layers.set(SKY_LAYER)
+    for (const o of [...points.current, ...lines.current, ...labels.current]) o?.layers.set(SKY_LAYER)
   }, [mySign])
 
   // 마우스가 잠긴 1인칭의 클릭: 조준점(카메라가 보는 방향)으로 별자리 고르기
@@ -117,39 +111,58 @@ export function Constellations({ stateRef, mySign, onPick }: { stateRef: RefObje
     group.current.visible = s.stars > 0
     if (s.stars <= 0) return
     const twinkle = 1 + TWINKLE.amount * Math.sin((clock.elapsedTime * Math.PI * 2) / TWINKLE.seconds)
-    if (normalPoints.current) (normalPoints.current.material as THREE.PointsMaterial).opacity = s.stars
-    if (normalLines.current) (normalLines.current.material as THREE.LineBasicMaterial).opacity = LINE_OPACITY * s.stars
-    if (goldPoints.current) (goldPoints.current.material as THREE.PointsMaterial).opacity = s.stars * twinkle * 0.85
-    if (goldLines.current) (goldLines.current.material as THREE.LineBasicMaterial).opacity = s.stars * twinkle * 0.8
-    for (let i = 0; i < labels.current.length; i++) {
-      if (labels.current[i]) (labels.current[i]!.material as THREE.MeshBasicMaterial).opacity = s.stars
+    const moon = toDirection(s.moon, moonDir.current)
+    for (let i = 0; i < RING.length; i++) {
+      // 달이 지나가는 별자리는 흐리게 (#344). 달이 지평선 아래면(moonShow 0) 그대로
+      const fade = moonOverlapFade(moon, RING[i].center, s.moonShow)
+      const gold = RING[i].id === mySign
+      const p = points.current[i]
+      const l = lines.current[i]
+      const label = labels.current[i]
+      if (p) ((p as THREE.Points).material as THREE.PointsMaterial).opacity = (gold ? s.stars * twinkle * 0.85 : s.stars) * fade
+      if (l) ((l as THREE.LineSegments).material as THREE.LineBasicMaterial).opacity = (gold ? s.stars * twinkle * 0.8 : LINE_OPACITY * s.stars) * fade
+      if (label) (label.material as THREE.MeshBasicMaterial).opacity = s.stars * fade
     }
   })
 
   return (
     <group ref={group}>
-      <points ref={normalPoints} geometry={normal.points} material={mats.normalPoints} renderOrder={ORDER.stars} />
-      <lineSegments ref={normalLines} geometry={normal.lines} material={mats.normalLines} renderOrder={ORDER.lines} />
-      <points ref={goldPoints} geometry={gold.points} material={mats.goldPoints} renderOrder={ORDER.stars} />
-      <lineSegments ref={goldLines} geometry={gold.lines} material={mats.goldLines} renderOrder={ORDER.lines} />
       {RING.map((r, i) => (
-        <group key={r.id} position={scaled(r.label)}>
-          <Billboard>
-            <mesh
-              ref={(m) => {
-                labels.current[i] = m
-              }}
-              renderOrder={ORDER.label}
-            >
-              <planeGeometry args={[LABEL_WIDTH, (LABEL_WIDTH * LABEL_PX.h) / LABEL_PX.w]} />
-              <meshBasicMaterial
-                map={labelTexture(r.name,COLOR.labelBg, r.id === mySign ? COLOR.gold : COLOR.labelText)}
-                transparent
-                depthWrite={false}
-                toneMapped={false}
-              />
-            </mesh>
-          </Billboard>
+        <group key={r.id}>
+          <points
+            ref={(o) => {
+              points.current[i] = o
+            }}
+            geometry={figures[i].points}
+            material={mats[i].points}
+            renderOrder={ORDER.stars}
+          />
+          <lineSegments
+            ref={(o) => {
+              lines.current[i] = o
+            }}
+            geometry={figures[i].lines}
+            material={mats[i].lines}
+            renderOrder={ORDER.lines}
+          />
+          <group position={scaled(r.label)}>
+            <Billboard>
+              <mesh
+                ref={(m) => {
+                  labels.current[i] = m
+                }}
+                renderOrder={ORDER.label}
+              >
+                <planeGeometry args={[LABEL_WIDTH, (LABEL_WIDTH * LABEL_PX.h) / LABEL_PX.w]} />
+                <meshBasicMaterial
+                  map={labelTexture(r.name, COLOR.labelBg, r.id === mySign ? COLOR.gold : COLOR.labelText)}
+                  transparent
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+            </Billboard>
+          </group>
         </group>
       ))}
     </group>

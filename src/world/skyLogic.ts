@@ -213,3 +213,16 @@ export function parseClock(search: string, nowMs: number): Clock {
 }
 
 export const worldTime = (clock: Clock, nowMs: number) => clock.start + (nowMs - clock.base) * clock.speed
+
+// ── 달과 별자리 겹침 (#344) ─────────────────────────────────────────
+// 구름은 달을 가리고 별자리는 구름에 가리지 않게 그리는 순서를 정해서(#317), 달이 별자리를 가리게 할 수는 없습니다(순서가 돌고 돔).
+// 대신 달이 지나가는 별자리를 흐리게 합니다. 별자리 반지름 6°(starLogic 의 RING.size / 2), 달 반지름 약 1.6°.
+// 달 가운데가 별자리 가운데에서 outer 안으로 들어오면 흐려지기 시작해, inner 안이면 min 만 남습니다.
+export const MOON_FADE = { inner: 6.5 * RAD, outer: 9.5 * RAD, min: 0.12 }
+
+// 별자리 하나의 투명도 배율 (1 그대로 ~ min). moon·center 는 단위 방향, moonShow 는 달이 보이는 정도(0~1)
+export function moonOverlapFade(moon: Vec3, center: Vec3, moonShow: number): number {
+  const cos = Math.min(1, Math.max(-1, moon.x * center.x + moon.y * center.y + moon.z * center.z))
+  const t = clamp01((MOON_FADE.outer - Math.acos(cos)) / (MOON_FADE.outer - MOON_FADE.inner)) // 0 멀리 ~ 1 겹침
+  return 1 - (1 - MOON_FADE.min) * smooth(t) * clamp01(moonShow)
+}
