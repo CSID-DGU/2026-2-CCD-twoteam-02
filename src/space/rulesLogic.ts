@@ -33,3 +33,11 @@ export function lockedSettings(rules?: BranchRules): { allowOtherScreen: boolean
 }
 
 export const emotesAllowed = (rules?: BranchRules) => rules?.emotes !== false
+
+// 건물에 들어설 때 잠깐 띄우는 안내 ("캠빛 중앙도서관 · 도서관은 조용히 …"). 앉기 전에 규칙을 알 수 있게.
+// 규칙 안내(label)가 있거나 휴식방(rest)일 때만, 아니면 null
+export const REST_NOTICE = '누워서 쉬는 곳이에요. 공부 기록은 남지 않아요.'
+export function entryNotice(branch: { name: string; rules?: BranchRules; rest?: boolean }): string | null {
+  const text = branch.rules?.label ?? (branch.rest ? REST_NOTICE : null)
+  return text ? `${branch.name} · ${text}` : null
+}

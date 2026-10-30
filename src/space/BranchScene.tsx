@@ -56,7 +56,8 @@ import world from "../world/world.json";
 import { useMyTitle } from "../level/useMyTitle";
 import { sharedLevel } from "../level/levelLogic";
 import { LevelUpCard } from "../level/LevelUpCard";
-import { emotesAllowed } from "./rulesLogic";
+import { emotesAllowed, entryNotice } from "./rulesLogic";
+import { EntryNotice } from "./EntryNotice";
 import { setQuietLock } from "../chat/quietLock";
 import { worldOfBranch } from "../world/worldConfig";
 import { useClassPhase } from "../study/useClassPhase";
@@ -102,6 +103,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
   // 휴식방(숨 라운지): DB 에서는 카페와 같고, 누우면 공부 시작 창·트래킹·타이머 없이 쉬기만 합니다.
   const isRest = branch.rest === true;
+  // 들어서는 순간 그곳의 규칙을 몇 초 알려 줍니다 (도서관·강의동·정보관·휴식방). 앉기 전에 알 수 있게
+  const [entry, setEntry] = useState(() => entryNotice(branch));
   // 강의실 공동 시간표 (캠빛 강의동): 칠판 글씨, 쉬는 시간엔 타이머·기록 멈춤(breakTime), 바뀌는 순간 종 알림
   const classNow = useClassPhase(branch.rules?.timetable === true);
   const [bell, setBell] = useState<"class" | "break" | null>(null);
@@ -580,6 +583,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
     )}
     {bell && <ClassBellNotice key={bell} phase={bell} onDone={() => setBell(null)} />}
+    {entry && !bell && <EntryNotice text={entry} onDone={() => setEntry(null)} />}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
     {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
     <PerfReadout perf={perf} />
