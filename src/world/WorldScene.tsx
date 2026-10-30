@@ -24,6 +24,7 @@ import { Canvas } from '@react-three/fiber'
 import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
+import { SeatCamera } from '../space/SeatCamera'
 import { TopDownCamera } from '../space/TopDownCamera'
 import { Minimap } from '../space/Minimap'
 import { FpsProbe, PerfReadout } from '../space/PerfReadout'
@@ -47,7 +48,7 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic'
+import { REST_NO_BASE, WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
@@ -79,11 +80,13 @@ type Props = {
 export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 월드의 배치와 미리 계산한 값 (월드마다 한 번만 계산해 둠, worldConfig.computedOf)
   const PLAZA = world.layout
-  const { placed: PLACED, gates: GATES, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
+  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
   const navigate = useNavigate()
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
+  // 앉아 있는 쉬는 자리 번호 (캠퍼스 쿼드의 돗자리·빈백). 기록 없이 쉬기만 합니다. 서 있으면 null
+  const [seat, setSeat] = useState<number | null>(null)
   // 처음엔 1인칭. V 로 바꾸면 지점에 다녀와도 유지합니다. (useWalkView)
   const [view, setView] = useWalkView()
   // 지점에서 나왔으면 그 건물 입구 앞에 건물을 등지고 섭니다(#150). 주소로 바로 들어오면 분수 남쪽 시작 위치.
@@ -199,12 +202,20 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     if (!g) return
     navigate(worldOf(g.spec.to).path, { state: { from: WORLD_FROM + world.id, heading: bodyHeading.current } })
   }
-  // 입장 자리에서 E: 건물이면 그 지점으로, 정문이면 다른 월드로
+  // 자리에서 E: 건물이면 그 지점으로, 정문이면 다른 월드로, 쉬는 자리면 앉음(일어나면 null)
   const handleSeat = (no: number | null) => {
-    if (no === null) return
-    if (spotKindOf(no) === 'gate') goGate(no)
-    else if (spotKindOf(no) === 'building') void tryEnter(no)
+    if (no === null) {
+      setSeat(null)
+      return
+    }
+    const kind = spotKindOf(no)
+    if (kind === 'gate') goGate(no)
+    else if (kind === 'rest') setSeat(no)
+    else void tryEnter(no)
   }
+  // 쉬는 자리 이름 (안내 글자)
+  const restKind = (no: number) => PLAZA.rests?.[no - REST_NO_BASE]?.kind
+  const seatSpot = REST_SPOTS.find((r) => r.no === seat)
   const blockedEnter = (no: number) => {
     const b = PLACED.find((p) => p.no === no)
     if (b) setMessage(`${b.name}은 아직 준비 중입니다.`)
@@ -218,6 +229,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panel
     ? ''
+    : seat !== null
+      ? `${restKind(seat) === 'mat' ? '돗자리' : '빈백'} · 쉬는 중 · 끌어서 둘러보기 · ${K.interact} 일어나기`
+    : near !== null && spotKindOf(near) === 'rest'
+      ? restKind(near) === 'mat'
+        ? `돗자리 · ${K.interact} 앉기`
+        : `빈백 · ${K.interact} 눕기`
     : nearGate
       ? `${nearGate.spec.label} · ${K.interact} 들어가기`
     : nearBuilding
@@ -229,7 +246,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   return (
     <>
       <Canvas>
-        {view === 'first' ? (
+        {seatSpot ? (
+          // 돗자리·빈백에 앉았으면 그 자리 시점 (빈백은 기대 누워 조금 위를 봄, spot 의 y·lie)
+          <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={() => {}} paused={panel !== null || fortune !== null} />
+        ) : view === 'first' ? (
           <>
             <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || fortune !== null} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
             {/* 걸을 때만 뜨는 미니맵 (#290). 광장은 넓어서 내 둘레만 */}
@@ -263,7 +283,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
 
         {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 광장에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
         {condition === 'visible' && (
-          <OtherParticipants others={others} spots={[]} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
+          <OtherParticipants others={others} spots={REST_SPOTS} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
         )}
 
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
@@ -292,10 +312,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
               pos.current.x = x
               pos.current.z = z
               bodyHeading.current = h
-              // 광장에서는 앉는 자리가 없고 모두 공부 전(idle)입니다.
+              // 바깥에서는 모두 공부 전(idle)입니다. 쉬는 자리에 앉았으면 그 번호를 보내 다른 사람 화면에도 앉은 모습으로.
               // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
               const e = emote.current
-              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(myLv ? { lv: myLv } : {}) }
+              if (session) me.current = { userId: session.user.id, x, z, h, seat, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(myLv ? { lv: myLv } : {}) }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
@@ -307,9 +327,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       <PerfReadout perf={perf} />
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
-      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || fortune !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
+      <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || fortune !== null || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
-      {locked && <div style={crosshair} />}
+      {locked && seat === null && <div style={crosshair} />}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
