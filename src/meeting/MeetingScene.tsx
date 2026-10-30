@@ -49,6 +49,8 @@ import { MEETING_ROOM, elapsedLabel, meetingChairs, meetingObstacles, meetingPla
 import { SeatedTracking } from './SeatedTracking'
 import { MeetingChair, MeetingTable } from './MeetingDecor'
 import { chairKindOf, meetingRoomTheme } from './meetingTheme'
+import { useMyTitle } from '../level/useMyTitle'
+import { sharedLevel } from '../level/levelLogic'
 import { useMeeting } from './useMeeting'
 import { useSignalPort, useVoice } from './useVoice'
 import type { MeetingInfo, MeetingPerson } from './useMeeting'
@@ -156,6 +158,9 @@ type SpaceProps = {
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
 function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place, slug }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
+  // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참석자에게 단계를 보냅니다(sharedLevel).
+  const myTitle = useMyTitle(myId)
+  const myLv = sharedLevel(myTitle.visibility, myTitle.level)
   // 지점 테마를 회의실 크기에 맞춘 것 (없으면 기본 모습). 구석 화분·나무도 부딪힙니다.
   const branchLayout = BRANCH_LAYOUTS[slug]
   const theme = useMemo(() => meetingRoomTheme(branchLayout?.theme, info.capacity), [branchLayout, info.capacity])
@@ -276,6 +281,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
       ...(sync ? { sync } : {}),
       mic: voice.micOn, // 다른 사람 목록에 🔇 표시 (#46)
+      ...(myLv ? { lv: myLv } : {}), // 칭호 리본 (공개 범위 '모두'일 때만)
     }
   }
 

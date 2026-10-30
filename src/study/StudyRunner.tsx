@@ -17,6 +17,8 @@ import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
 import { useSampleRecorder } from '../report/useSampleRecorder'
+import { levelCrossed } from '../level/levelLogic'
+import { setLiveSeconds } from '../level/liveTitle'
 
 // 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (표시등 색과 같은 규칙, space/status.ts)
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
@@ -42,9 +44,13 @@ type Props = {
   condition: StudyCondition // 사용자 실험 조건 (기록에 같이 남김)
   onStatus: (status: PresenceStatus) => void // 집중 상태가 바뀔 때 (다른 참여자에게 보내는 표시등용). 보류 중이면 hold
   onChangeSubject: () => void
+  // 꽃 피는 칭호: 이 공부 전 누적(초, 못 읽었으면 null — 넘김을 잡지 않음), 단계가 오르면 알림, 공부가 끝날 때 확정 공부 시간(ms)
+  titleBaseSeconds?: number | null
+  onLevelUp?: (level: number) => void
+  onRunEnd?: (studyMs: number) => void
 }
 
-export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused, onPausedChange, choice, userId, sessionId, condition, onStatus, onChangeSubject }: Props) {
+export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused, onPausedChange, choice, userId, sessionId, condition, onStatus, onChangeSubject, titleBaseSeconds = null, onLevelUp, onRunEnd }: Props) {
   const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone, paused })
   const [saveError, setSaveError] = useState('')
 
@@ -53,6 +59,29 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     studyMs.current = focus.studyMs
   }, [focus.studyMs])
+
+  // 꽃 피는 칭호: "이 공부 전 누적 + 이번 확정분(보류분 제외)"이 지금까지 본 가장 큰 누적을 넘을 때만 비교해,
+  // 단계가 오르면 알립니다. 보류분은 버려질 수 있어 넣지 않습니다. (같은 규칙을 levelLogic.runCrossings 로 검사)
+  const titleBest = useRef<number | null>(null)
+  useEffect(() => {
+    if (titleBaseSeconds === null) return
+    const now = titleBaseSeconds + focus.studyMs / 1000
+    setLiveSeconds(userId, Math.floor(now)) // 프로필·내 기록 창이 저장 전에도 지금 칭호를 보이게 (초 단위로만 알림)
+    const best = titleBest.current ?? titleBaseSeconds
+    if (now <= best) {
+      titleBest.current = best
+      return
+    }
+    titleBest.current = now
+    const crossed = levelCrossed(best, now)
+    if (crossed !== null) onLevelUp?.(crossed)
+  }, [focus.studyMs, titleBaseSeconds, onLevelUp, userId])
+  // 공부가 끝나면(일어나기·과목 바꾸기·나가기) 확정 공부 시간을 바깥에 알려, 다음 공부의 "이 공부 전 누적"에 더하게 합니다.
+  const runEnd = useRef(onRunEnd)
+  useEffect(() => {
+    runEnd.current = onRunEnd
+  }, [onRunEnd])
+  useEffect(() => () => runEnd.current?.(studyMs.current), [])
 
   // 보류 중(의심)이면 다른 참여자에게도 노란불로 보입니다. 산만하면 내 화면에만 보이게 되돌릴 수 있습니다. (2026-10-21)
   // 중지한 시각(경과 시간 표시용)과 다시 시작한 시각.

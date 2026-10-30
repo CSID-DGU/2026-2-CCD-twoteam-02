@@ -52,6 +52,9 @@ import { FloorPicker } from "../world/FloorPicker";
 import { buildingOf, placeBuildings } from "../world/worldLogic";
 import type { PlazaLayout } from "../world/worldLogic";
 import world from "../world/world.json";
+import { useMyTitle } from "../level/useMyTitle";
+import { sharedLevel } from "../level/levelLogic";
+import { LevelUpCard } from "../level/LevelUpCard";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -143,6 +146,19 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [panel, setPanel] = useState<PanelView | null>(null);
   const panelOpen = panel !== null;
   const { session } = useSession();
+  // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
+  const myTitle = useMyTitle(session?.user.id, false); // 실시간 구독 끔: 공부 중 오른 단계는 liveLevel 로
+  // 이 지점에서 끝난 공부들의 확정 공부 시간(ms). 과목을 바꾸면 StudyRunner 가 새로 만들어지므로, 다음 공부의 누적에 더합니다.
+  const [titleDoneMs, setTitleDoneMs] = useState(0);
+  const [liveLevel, setLiveLevel] = useState(0); // 공부 중에 오른 단계 (다시 들어오면 저장된 누적에서 다시 계산)
+  const [levelUp, setLevelUp] = useState<number | null>(null); // 축하 카드에 띄울 단계
+  const myLevel = Math.max(myTitle.level, liveLevel);
+  const titleBaseSeconds = myTitle.savedSeconds === null ? null : myTitle.savedSeconds + titleDoneMs / 1000;
+  const handleLevelUp = useCallback((level: number) => {
+    setLiveLevel((v) => Math.max(v, level));
+    setLevelUp(level);
+  }, [setLiveLevel, setLevelUp]);
+  const handleRunEnd = useCallback((ms: number) => setTitleDoneMs((v) => v + ms), []);
   const { model: myModel } = useMyAvatar(); // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 내 위치·상태를 담아 두는 곳. 매 프레임 바뀌므로 state 가 아니라 ref 에 둡니다.
   const me = useRef<PresenceState | null>(null);
@@ -199,6 +215,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
       // 서서 감정표현 중이면 같이 실어 보냅니다. 보고 있는 사람 화면에서도 같은 동작을 합니다. (#162)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
+      ...(sharedLevel(myTitle.visibility, myLevel) ? { lv: sharedLevel(myTitle.visibility, myLevel) } : {}), // 칭호 리본
     };
   };
 
@@ -573,8 +590,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         onDialogChange={setStudyDialogOpen}
         onPausedChange={setStudyPaused}
         onTracking={handleTracking}
+        titleBaseSeconds={titleBaseSeconds}
+        onLevelUp={handleLevelUp}
+        onRunEnd={handleRunEnd}
       />
     )}
+    {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
+    {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
     <PerfReadout perf={perf} />
     {locked && seat === null && (
       // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필)

@@ -56,6 +56,8 @@ import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
 import world from './world.json'
+import { useMyTitle } from '../level/useMyTitle'
+import { sharedLevel } from '../level/levelLogic'
 
 const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. 아래 Player 주석 참고
 const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
@@ -101,6 +103,9 @@ export default function WorldScene({ onEnter }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
   const { session } = useSession()
+  // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
+  const myTitle = useMyTitle(session?.user.id)
+  const myLv = sharedLevel(myTitle.visibility, myTitle.level)
   // 내 생일 → 내 별자리 (#321). 밤하늘에서 금색으로 보여 줍니다. 생일이 없으면 null
   const { birthday } = useMyBirthday(session?.user.id)
   const mySign = birthday ? signOfBirthday(birthday.month, birthday.day) : null
@@ -267,7 +272,7 @@ export default function WorldScene({ onEnter }: Props) {
               // 광장에서는 앉는 자리가 없고 모두 공부 전(idle)입니다.
               // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
               const e = emote.current
-              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}) }
+              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(myLv ? { lv: myLv } : {}) }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />

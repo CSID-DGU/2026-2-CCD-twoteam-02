@@ -2,6 +2,7 @@
 // 프로필 페이지(/profile/:id)와 지점 안 프로필 창이 같이 씁니다.
 // 내 프로필이면 공개 범위를 바꾸는 칸과 "캐릭터"(#131)·"정보 변경" 탭이 붙습니다.
 // 남의 프로필이면 이름 옆에 친구 버튼이 붙습니다(#153).
+// 이름 옆 칭호 리본(꽃 피는 칭호)은 공부 기록을 볼 수 있을 때만(공개 범위), 진행 막대는 내 프로필에서만 보입니다.
 //
 // 탭을 페이지가 아니라 여기에 둔 이유: 로비·지점에서는 페이지로 가지 않고 창으로 열기
 // 때문입니다(#70). 페이지 쪽에만 두면 실제로 쓰는 경로에서는 보이지 않습니다.
@@ -16,9 +17,13 @@ import { dayLabel } from './profileLogic'
 import { AccountTab } from './AccountTab'
 import { FriendButton } from '../friends/FriendButton'
 import { CharacterTab } from './CharacterTab'
+import { TitleBadge, TitleProgress } from '../level/TitleBadge'
+import { levelOf } from '../level/levelLogic'
+import { shownSeconds, useLiveSeconds } from '../level/liveTitle'
 
 export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean }) {
   const { summary, loading, error, setVisibility } = useProfile(userId)
+  const live = useLiveSeconds(isMe ? userId : undefined) // 내 프로필: 저장 전 공부까지 합쳐 칭호를 보임
   const [message, setMessage] = useState('')
   // 내 프로필에서만 탭이 보입니다. 남의 프로필에는 공부 기록만 나옵니다.
   const [tab, setTab] = useState<'records' | 'character' | 'account'>('records')
@@ -27,12 +32,22 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
   if (error || !summary) return <p style={styles.error}>{error || '프로필을 찾지 못했어요.'}</p>
 
   const daily = summary.daily ?? []
+  // 공개 범위가 허락할 때만 누적 시간이 와서, 칭호도 그때만 보입니다. (내 것은 늘 허락)
+  const titleSeconds = summary.allowed ? shownSeconds(summary.total_seconds ?? 0, live) : null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={styles.nameRow}>
-        <div style={styles.name}>{displayName(summary.nickname, summary.id)}</div>
+        <div style={styles.name}>
+          {displayName(summary.nickname, summary.id)}{' '}
+          {titleSeconds !== null && (
+            <span style={{ verticalAlign: 'middle' }}>
+              <TitleBadge level={levelOf(titleSeconds)} />
+            </span>
+          )}
+        </div>
         {!isMe && <FriendButton otherId={summary.id} />}
       </div>
+      {isMe && titleSeconds !== null && <TitleProgress seconds={titleSeconds} />}
 
       {isMe && (
         <nav style={styles.tabs} role="tablist">
@@ -73,6 +88,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
           </div>
         </div>
       )}
+      {tab === 'records' && isMe && <p style={styles.muted}>칭호도 이 범위를 따라요 (머리 위 칭호는 '모두'일 때만 보여요)</p>}
       {tab === 'records' && message && <p style={styles.error}>{message}</p>}
 
       {tab === 'records' && (!summary.allowed ? (
