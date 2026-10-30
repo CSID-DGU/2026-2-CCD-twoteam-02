@@ -1,0 +1,274 @@
+{
+  "id": "cambit-info",
+  "name": "캠빛 정보관",
+  "size": {
+    "w": 16,
+    "d": 16
+  },
+  "spawn": {
+    "x": 0,
+    "z": 7
+  },
+  "door": {
+    "x": 0,
+    "z": 8,
+    "w": 1.6,
+    "d": 0.3
+  },
+  "walls": [
+    {
+      "x": 0,
+      "z": -8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": 0,
+      "z": 8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": -8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    },
+    {
+      "x": 8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    }
+  ],
+  "seats": [
+    {
+      "no": 1,
+      "x": -4.5,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 2,
+      "x": -3.25,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 3,
+      "x": -2.0,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 4,
+      "x": 2.0,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 5,
+      "x": 3.25,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 6,
+      "x": 4.5,
+      "z": -5.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 7,
+      "x": -4.5,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 8,
+      "x": -3.25,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 9,
+      "x": -2.0,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 10,
+      "x": 2.0,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 11,
+      "x": 3.25,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 12,
+      "x": 4.5,
+      "z": -2.4,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 13,
+      "x": -4.5,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 14,
+      "x": -3.25,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 15,
+      "x": -2.0,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 16,
+      "x": 2.0,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 17,
+      "x": 3.25,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 18,
+      "x": 4.5,
+      "z": 0.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 19,
+      "x": -4.5,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 20,
+      "x": -3.25,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 21,
+      "x": -2.0,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 22,
+      "x": 2.0,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 23,
+      "x": 3.25,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    },
+    {
+      "no": 24,
+      "x": 4.5,
+      "z": 3.6,
+      "rot": 3.142,
+      "desk": "computer"
+    }
+  ],
+  "rules": {
+    "allowOtherScreen": true,
+    "allowDevices": true,
+    "label": "정보관은 인강·코딩처럼 다른 화면과 학습기기를 써도 공부로 인정돼요."
+  },
+  "theme": {
+    "floor": {
+      "pattern": "concrete",
+      "colors": [
+        "#59616b",
+        "#4f565f"
+      ],
+      "cell": 2
+    },
+    "wall": {
+      "color": "#e8e4dc"
+    },
+    "ceiling": {
+      "color": "#f2f2f0",
+      "height": 3.6,
+      "lamps": [
+        {
+          "x": -3,
+          "z": -4
+        },
+        {
+          "x": 3,
+          "z": -4
+        },
+        {
+          "x": -3,
+          "z": 2
+        },
+        {
+          "x": 3,
+          "z": 2
+        }
+      ]
+    },
+    "furniture": {
+      "style": "wood",
+      "accent": "#3a5a8a",
+      "chrome": "#3a3d44",
+      "trim": "#3a3d44"
+    },
+    "desk": "#cfc6b8",
+    "chair": "#3a5a8a",
+    "light": {
+      "ambient": 1.0,
+      "sun": 0.8,
+      "color": "#f4f8ff"
+    },
+    "door": {
+      "style": "wood",
+      "color": "#6b4a2e",
+      "chrome": "#3a2a1e",
+      "signBg": "#3a5a8a",
+      "knob": "#c9a24a"
+    }
+  }
+}

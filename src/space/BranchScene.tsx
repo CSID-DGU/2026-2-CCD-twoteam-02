@@ -6,10 +6,9 @@ import { CHAIR, KIOSK, SEAT, elevatorFront, meetingDoorFront, obstaclesOf, spots
 import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
-import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { BarTable, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
+import { BarTable, Carrel, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -23,6 +22,8 @@ import { Minimap } from "./Minimap";
 import { SeatedStudy } from "../study/SeatedStudy";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
+import { useCafeSeat } from "./useCafeSeat";
+import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
@@ -55,6 +56,10 @@ import world from "../world/world.json";
 import { useMyTitle } from "../level/useMyTitle";
 import { sharedLevel } from "../level/levelLogic";
 import { LevelUpCard } from "../level/LevelUpCard";
+import { emotesAllowed } from "./rulesLogic";
+import { setQuietLock } from "../chat/quietLock";
+import { worldOfBranch } from "../world/worldConfig";
+import { toward } from "../lib/josa";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -94,6 +99,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
   // 휴식방(숨 라운지): DB 에서는 카페와 같고, 누우면 공부 시작 창·트래킹·타이머 없이 쉬기만 합니다.
   const isRest = branch.rest === true;
+  // 건물 규칙(캠빛 대학교 도서관): 이 지점에 있는 동안 방해금지를 켠 채로 고정, 나가면 풂
+  useEffect(() => {
+    if (!branch.rules?.quiet) return;
+    setQuietLock(true);
+    return () => setQuietLock(false);
+  }, [branch]);
   const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
@@ -220,64 +231,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     };
   };
 
-  // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44) ──
-  // 앉기 전에 DB에 자리를 잡아 봅니다(sit_cafe_seat, 0014). 두 사람이 동시에 눌러도 DB가 한 명만 통과시킵니다.
-  // 잡히면 Player 에게 앉으라고 알리고(sitRequest), 실패하면 안내를 띄웁니다.
-  const sitRequest = useRef<number | null>(null);
-  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
-  const [conflict, setConflict] = useState<{ message: string; seatNo: number } | null>(null); // 다른 자리를 쓰는 중
-  const claimSeat = async (no: number) => {
-    const { error } = await supabase.rpc("sit_cafe_seat", { p_branch_id: BRANCH_ID, p_seat_number: no });
-    if (error) {
-      // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
-      if (error.code === "DT001") setConflict({ message: error.message, seatNo: no });
-      else setCafeMessage(error.message);
-      return;
-    }
-    setCafeMessage("");
-    setMySeat(no);
-    sitRequest.current = no;
-  };
-  const releaseAndSit = async () => {
-    if (!conflict) return;
-    const no = conflict.seatNo;
-    setConflict(null);
-    const { error } = await supabase.rpc("release_my_place"); // 0008: 쓰고 있던 자리 반납
-    if (error) {
-      setCafeMessage(`반납하지 못했어요: ${error.message}`);
-      return;
-    }
-    await claimSeat(no);
-  };
-  useEffect(() => {
-    if (!cafeMessage) return;
-    const t = setTimeout(() => setCafeMessage(""), 4000);
-    return () => clearTimeout(t);
-  }, [cafeMessage]);
-
-  // 카페 자리는 앉아 있는 동안만 내 것입니다. 지점을 나가거나 창을 닫으면 놓고,
-  // 들어올 때는 지난번에 놓지 못한 자리가 남아 있으면 정리합니다.
-  const seatedRef = useRef(false);
-  useEffect(() => {
-    seatedRef.current = seat !== null;
-  }, [seat]);
-  useEffect(() => {
-    if (!isCafe) return;
-    void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
-    const leave = () => {
-      if (seatedRef.current) void supabase.rpc("leave_cafe_seat");
-    };
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.removeEventListener("pagehide", leave);
-      leave();
-    };
-  }, [isCafe, setMySeat]);
+  // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44, useCafeSeat) ──
+  const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat);
+  const { conflict, message: cafeMessage } = cafe;
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
     // 카페에서 일어나면 자리를 놓습니다.
-    if (no === null && isCafe) void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
+    if (no === null && isCafe) cafe.leave();
     setSeat(no);
   };
   const handleArrive = () => {
@@ -303,7 +264,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   }, [kioskOpen, panelOpen, meetingOpen, elevatorOpen, setView]);
 
   // 광장으로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 광장의 이 건물 입구 앞에 섭니다(#150, #315).
-  const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
+  // 이 지점이 있는 바깥 공간: 광장 지점이면 광장(/), 캠빛 대학교 건물이면 캠퍼스(/campus)로 돌아갑니다.
+  const outside = worldOfBranch(branch.id);
+  const goLobby = () => navigate(outside.path, { state: { from: branch.id, heading: bodyHeading.current } });
   // 트래킹 검증 화면으로 (#250). 다른 주소라 지점 화면이 닫히므로 키는 서 있을 때만 받습니다.
   const goTracking = () => navigate("/tracking");
   // 오른쪽 위 버튼 단축키 R·F·P·L (#205). 키오스크·확인 창·공부 시작 창이 떠 있으면 쓰지 않습니다.
@@ -332,7 +295,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       : nearElevator // 엘리베이터 문 앞 (여러 층 건물)
         ? `엘리베이터 · ${K.interact} 층 고르기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
-        ? `출입문 · ${K.interact} 광장으로 나가기`
+        ? `출입문 · ${K.interact} ${toward(outside.title)} 나가기`
       : isRest
         ? near !== null
           ? `${near}번 소파 · ${K.interact} 눕기`
@@ -404,9 +367,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {furniture?.rings?.map((r, i) => (
         <RingTable key={i} ring={r} color={colors.desk} height={DINER_DESK.height} /> // 나무를 둘러싼 고리 테이블
       ))}
-      {branch.seats.map((s) =>
-        s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
-          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
+      {branch.seats.map((s) => {
+        // 계단식 단 위 자리(강의실, rise)는 책상째 그만큼 올립니다.
+        const deskEl = s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
+          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "carrel" ? (
+            <Carrel key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 도서관 칸막이 책상
+          ) : s.desk === "computer" ? (
+            <ComputerDesk key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 정보관 컴퓨터 책상
+          ) : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
             <RoundTable key={s.no} x={s.x} z={s.z} color={colors.desk} marble={branch.theme?.booth?.marble} />
           ) : s.desk === "low" ? (
             <LowTable key={s.no} x={s.x} z={s.z} color={colors.desk} />
@@ -418,14 +386,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
             <meshStandardMaterial color={colors.desk} />
           </mesh>
-        ),
-      )}
+        );
+        return s.rise ? <group key={s.no} position-y={s.rise}>{deskEl}</group> : deskEl;
+      })}
 
       {/* 의자: 가까이·내 자리 강조색은 테마와 무관하게 그대로, 기본색만 테마를 따릅니다 */}
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
-        return c.chair === "lounger" ? (
+        const chairEl = c.chair === "lounger" ? (
           // 누워 쉬는 라운지 소파 (숨 라운지): 강조색은 쿠션 색으로
           <Lounger
             key={c.no}
@@ -463,6 +432,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             <meshStandardMaterial color={chairColor} />
           </mesh>
         );
+        return c.rise ? <group key={c.no} position-y={c.rise}>{chairEl}</group> : chairEl; // 계단식 단 위 의자
       })}
 
       {/* 엘리베이터 문 (여러 층 건물): 표시판에 지금 층 */}
@@ -497,9 +467,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </group>
       )}
 
-      {/* 출입문: 남쪽 벽에 붙은 문과 "광장" 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
+      {/* 출입문: 남쪽 벽에 붙은 문과 바깥 이름("광장"·"캠빛 대학교") 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
       {branch.door && branch.theme?.door ? (
-        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="광장" door={branch.theme.door} along="x" />
+        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label={outside.title} door={branch.theme.door} along="x" />
       ) : branch.door && (
         <group>
           <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>
@@ -509,7 +479,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           {/* 표지판은 문 안쪽 면(지점 쪽, -Z)을 보게 반 바퀴 돌립니다. */}
           <mesh position={[branch.door.x, DOOR_SIGN.y, branch.door.z - branch.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
             <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-            <meshBasicMaterial map={labelTexture("광장", "#14532d")} transparent />
+            <meshBasicMaterial map={labelTexture(outside.title, "#14532d")} transparent />
           </mesh>
         </group>
       )}
@@ -575,8 +545,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onElevator={() => setElevatorOpen(true)}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
-          onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
-          sitRef={sitRequest}
+          onSitBlocked={isCafe ? (no) => void cafe.claim(no) : undefined}
+          sitRef={cafe.sitRequest}
           onMove={handleMove}
           headingRef={view === "first" ? heading : undefined}
         />
@@ -594,6 +564,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         titleBaseSeconds={titleBaseSeconds}
         onLevelUp={handleLevelUp}
         onRunEnd={handleRunEnd}
+        rules={branch.rules}
       />
     )}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
@@ -637,24 +608,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     <EmoteControls
       emoteRef={emote}
       suspendLookRef={suspendLook}
-      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null}
+      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
-    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} onTracking={studyPaused ? undefined : goTracking} />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
-    {conflict && (
-      // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
-      <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
-        <div style={{ width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 12, background: "#20232a", color: "#fff", font: "14px/1.6 system-ui, sans-serif" }}>
-          <p style={{ margin: "0 0 16px" }}>{conflict.message}</p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button type="button" style={dialogButton} onClick={() => setConflict(null)}>닫기</button>
-            <button type="button" style={{ ...dialogButton, ...dialogPrimary }} onClick={() => void releaseAndSit()}>반납하고 앉기</button>
-          </div>
-        </div>
-      </div>
-    )}
+    {conflict && <CafeConflictDialog message={conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
     {elevatorOpen && (
       // 층 고르는 창. 고르면 그 층 지점으로 옮겨 엘리베이터 문 앞에 섭니다(지점 화면은 새로 그려짐).
       <FloorPicker
@@ -699,9 +659,3 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     </>
   );
 }
-
-const dialogButton: React.CSSProperties = {
-  padding: "6px 12px", borderRadius: 6, border: "1px solid #4b5563", background: "transparent",
-  color: "#fff", cursor: "pointer", font: "inherit",
-};
-const dialogPrimary: React.CSSProperties = { border: "none", background: "#22c55e", color: "#0b1a10", fontWeight: 600 };

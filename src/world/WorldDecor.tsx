@@ -9,7 +9,7 @@ import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
-import { BENCH, FENCE_T, facingAngle, rotate } from './worldLogic'
+import { BENCH, facingAngle, fenceSegments, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
 import { COLOR, MAT, colorMat } from './worldMaterials'
 
@@ -31,15 +31,30 @@ const WATER_WAVE_S = 2.5 // 분수 물빛이 한 번 오가는 시간(초)
 // ── 땅 ──────────────────────────────────────────────────────────────
 
 // 잔디(월드 전체) + 광장 돌바닥 + 길
+// 가운데 바닥: 광장은 돌바닥, 캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)
+const LAWN = { stripe: 2, light: '#8fca72', dark: '#7dbb63' } // 줄 폭(m), 두 잔디 색
 export function Ground({ plaza }: { plaza: PlazaLayout }) {
+  const lawn = plaza.ground === 'lawn'
+  const stripes = lawn ? Math.ceil(plaza.plaza.w / LAWN.stripe) : 0
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
         <planeGeometry args={[plaza.size.w, plaza.size.d]} />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
-        <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
-      </mesh>
+      {lawn ? (
+        Array.from({ length: stripes }, (_, i) => {
+          const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
+          return (
+            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={colorMat(i % 2 ? LAWN.dark : LAWN.light)}>
+              <planeGeometry args={[w, plaza.plaza.d]} />
+            </mesh>
+          )
+        })
+      ) : (
+        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
+          <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
+        </mesh>
+      )}
       {plaza.paths.map((p, i) => (
         <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
           <planeGeometry args={[p.w, p.d]} />
@@ -49,20 +64,15 @@ export function Ground({ plaza }: { plaza: PlazaLayout }) {
   )
 }
 
-// 가장자리 낮은 울타리 (부딪힘은 worldLogic 의 plazaObstacles 가 같은 자리로 만듦)
-export function Fence({ size }: { size: PlazaLayout['size'] }) {
-  const { w, d } = size
-  const sides: [number, number, number, number][] = [
-    [0, -(d / 2 - FENCE_T / 2), w, FENCE_T],
-    [0, d / 2 - FENCE_T / 2, w, FENCE_T],
-    [-(w / 2 - FENCE_T / 2), 0, FENCE_T, d],
-    [w / 2 - FENCE_T / 2, 0, FENCE_T, d],
-  ]
+// 가장자리 낮은 울타리 (부딪힘은 worldLogic 의 plazaObstacles 가 같은 자리로 만듦).
+// 정문이 붙은 쪽은 문 폭만큼 비워 그려, 문 너머로 이어지는 길이 보이게 합니다(fenceSegments).
+export function Fence({ plaza }: { plaza: PlazaLayout }) {
+  const boxes = useMemo(() => fenceSegments(plaza), [plaza])
   return (
     <group>
-      {sides.map(([x, z, sw, sd], i) => (
-        <mesh key={i} position={[x, FENCE_H / 2, z]} material={MAT.fence}>
-          <boxGeometry args={[sw, FENCE_H, sd]} />
+      {boxes.map((b, i) => (
+        <mesh key={i} position={[b.x, FENCE_H / 2, b.z]} material={MAT.fence}>
+          <boxGeometry args={[b.w, FENCE_H, b.d]} />
         </mesh>
       ))}
     </group>
@@ -72,7 +82,7 @@ export function Fence({ size }: { size: PlazaLayout['size'] }) {
 // ── 분수 ────────────────────────────────────────────────────────────
 
 // 둥근 수반 + 물 + 가운데 기둥과 위 접시. 물빛만 천천히 밝아졌다 어두워집니다(입자 없음).
-export function Fountain({ fountain }: { fountain: PlazaLayout['fountain'] }) {
+export function Fountain({ fountain }: { fountain: NonNullable<PlazaLayout['fountain']> }) {
   const { x, z, r } = fountain
   const water = useMemo(() => MAT.water.clone(), []) // 물빛을 바꾸므로 공용 재질을 복사해 이 분수만 씀
   useEffect(() => () => water.dispose(), [water]) // 광장을 떠나면 복사한 재질을 지움 (들어올 때마다 쌓이지 않게)

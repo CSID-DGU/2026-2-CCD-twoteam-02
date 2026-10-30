@@ -19,6 +19,7 @@
 //   - 누가 들어오거나 나가면 그룹 방에 알려, 다른 멤버가 멤버 목록을 다시 읽게 합니다.
 // 회의 채팅(#298): 회의에 있는 사람끼리는 자동으로 회의 방(meeting:회의번호)에서 이야기합니다.
 //   회의 화면이 그 방에 들어가 있으므로(useParticipants) 회의 화면이 보내기·받기를 이어 줍니다(useMeetingChat).
+import { useQuietLock } from './quietLock'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -92,7 +93,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [muted, setMutedState] = useState(readMuted)
   const [openKey, setOpenKey] = useState(0)
   const [hasOverlay, setHasOverlay] = useState(false)
-  const quiet = isQuiet(studying, manualQuiet, studyQuietOff)
+  const quietLocked = useQuietLock() // 지점 규칙으로 방해금지 고정 (캠빛 대학교 도서관)
+  const quiet = isQuiet(studying, manualQuiet, studyQuietOff, quietLocked)
   useQuietFlag(Boolean(myId) && quiet) // 친구에게 "방해금지 중" 알리기
 
   // 로그를 바꿉니다. 다른 계정의 로그였으면 새로 시작합니다.
@@ -550,7 +552,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     note: (text: string) => addLine({ kind: 'system', text }),
     quiet,
     studying,
-    setQuiet: (on: boolean) => (studying ? setStudyQuietOff(!on) : setManualQuiet(on)),
+    quietLocked,
+    setQuiet: (on: boolean) => {
+      if (quietLocked) return // 고정 중에는 바꾸지 않음
+      if (studying) setStudyQuietOff(!on)
+      else setManualQuiet(on)
+    },
     muted,
     setMuted,
     startWhisper: (friendId: string) => {

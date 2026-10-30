@@ -1,0 +1,191 @@
+{
+  "id": "cambit-lounge",
+  "name": "학생 라운지",
+  "size": {
+    "w": 16,
+    "d": 16
+  },
+  "spawn": {
+    "x": 0,
+    "z": 7
+  },
+  "door": {
+    "x": 0,
+    "z": 8,
+    "w": 1.6,
+    "d": 0.3
+  },
+  "walls": [
+    {
+      "x": 0,
+      "z": -8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": 0,
+      "z": 8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": -8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    },
+    {
+      "x": 8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    }
+  ],
+  "seats": [
+    {
+      "no": 1,
+      "x": -5.15,
+      "z": -5,
+      "rot": 1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 2,
+      "x": -5.15,
+      "z": -2.5,
+      "rot": 1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 3,
+      "x": -5.15,
+      "z": 0,
+      "rot": 1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 4,
+      "x": -5.15,
+      "z": 2.5,
+      "rot": 1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 5,
+      "x": -5.15,
+      "z": 5,
+      "rot": 1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 6,
+      "x": 5.15,
+      "z": -5,
+      "rot": -1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 7,
+      "x": 5.15,
+      "z": -2.5,
+      "rot": -1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 8,
+      "x": 5.15,
+      "z": 0,
+      "rot": -1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 9,
+      "x": 5.15,
+      "z": 2.5,
+      "rot": -1.571,
+      "chair": "lounger"
+    },
+    {
+      "no": 10,
+      "x": 5.15,
+      "z": 5,
+      "rot": -1.571,
+      "chair": "lounger"
+    }
+  ],
+  "rest": true,
+  "theme": {
+    "floor": {
+      "pattern": "concrete",
+      "colors": [
+        "#a07c58",
+        "#8f6d4b"
+      ],
+      "cell": 3
+    },
+    "wall": {
+      "color": "#f1e9dc"
+    },
+    "ceiling": {
+      "color": "#f4efe6",
+      "height": 3.8,
+      "globes": [
+        {
+          "x": 0,
+          "z": -3,
+          "y": 2.6,
+          "light": true
+        },
+        {
+          "x": 0,
+          "z": 3,
+          "y": 2.6
+        }
+      ]
+    },
+    "rugs": [
+      {
+        "x": 0,
+        "z": 0,
+        "r": 2.4,
+        "color": "#2f3e5c"
+      }
+    ],
+    "planters": [
+      {
+        "x": -6.6,
+        "z": -7.0,
+        "w": 1.0,
+        "d": 1.0,
+        "tile": "#b9b2a6",
+        "tree": true
+      },
+      {
+        "x": 6.6,
+        "z": -7.0,
+        "w": 1.0,
+        "d": 1.0,
+        "tile": "#b9b2a6",
+        "tree": true
+      }
+    ],
+    "lounger": {
+      "base": "#2f3e5c",
+      "cushion": "#d9c7a0",
+      "pillow": "#efe3c8"
+    },
+    "chair": "#d9c7a0",
+    "light": {
+      "ambient": 1.0,
+      "sun": 0.7,
+      "color": "#fff3e2"
+    },
+    "door": {
+      "style": "wood",
+      "color": "#6b4a2e",
+      "chrome": "#3a2a1e",
+      "signBg": "#1f3b2d",
+      "knob": "#c9a24a"
+    }
+  }
+}

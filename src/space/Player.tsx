@@ -190,6 +190,12 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     if (seated.current) {
       if (em) clearEmoteRequest(em) // 앉아 있을 때는 감정표현을 하지 않습니다 (다리 자세·트래킹과 겹침)
       if (!wantToggle) return
+      // 단 위 자리(강의실)면 단 뒤 통로로 내려섭니다
+      const standAt = seated.current.standAt
+      if (standAt) {
+        p.x = standAt.x
+        p.z = standAt.z
+      }
       seated.current = null
       g.visible = true
       onSeat(null)
