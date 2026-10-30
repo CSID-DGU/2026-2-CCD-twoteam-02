@@ -6,7 +6,7 @@
 
 export type Title = { level: number; hours: number; name: string; emoji: string; color: string }
 
-// 단계표 (사용자 결정, 2026-10-31). color: 리본 바탕색 — 위로 갈수록 눈에 띄게 (흙빛 → 초록 → 분홍 → 보라 → 금색)
+// 단계표 (사용자 결정, 2026-10-31). color: 리본 바탕색·닉네임판 테두리 색 — 위로 갈수록 눈에 띄게 (흙빛 → 초록 → 분홍 → 보라 → 금색)
 export const TITLES: Title[] = [
   { level: 1, hours: 1, name: '씨앗', emoji: '🌰', color: '#8b6a4e' },
   { level: 2, hours: 5, name: '새싹', emoji: '🌱', color: '#8cc152' },

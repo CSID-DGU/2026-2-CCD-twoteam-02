@@ -60,6 +60,7 @@ export type PlazaLayout = {
   trees: Point[]
   benches: (Point & { facing: Facing })[] // facing: 앉은 사람이 보는 쪽
   lamps: (Point & { light?: boolean })[] // light: 밤에 둘레를 비추는 점광원을 단 가로등 (#316)
+  board?: Point & { facing: Facing } // 순위 게시판 (#59). facing: 판 앞면이 보는 쪽
 }
 
 // 건물을 놓는 데 필요한 지점 정보 (이름, 지도에서 줄일 실내 크기, 입구 문 폭)
@@ -95,6 +96,8 @@ export const GATE_NO_BASE = 50 // 정문 입장 자리 번호 시작 (건물 입
 export const REST_NO_BASE = 100 // 쉬는 자리 번호 시작
 export const MAT_SIT = { y: -0.38 } // 돗자리: 바닥에 앉음 (앉은 자세를 의자 높이만큼 내림)
 export const BEANBAG = { y: -0.12, lie: 0.45 } // 빈백: 조금 낮게, 뒤로 기대 누움(라디안)
+export const BOARD = { w: 2.4, d: 0.3 } // 순위 게시판 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
+export const BOARD_NO = 1000 // 게시판 앞 자리의 "앉는 자리" 번호. 건물 번호(1부터)와 겹치지 않게 큰 수
 const DOOR_W = 1.6 // 지점 JSON 에 출입문이 없을 때 입구 문 폭
 const DOOR_T = 0.3 // 입구 문 두께
 
@@ -231,7 +234,9 @@ export function restSpots(layout: PlazaLayout): Spot[] {
 }
 
 // Player 의 "앉는 자리" 번호가 무엇인지
-export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' => (no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building')
+// 순위 게시판 앞 자리(BOARD_NO)는 따로 'board'
+export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' | 'board' =>
+  no === BOARD_NO ? 'board' : no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building'
 
 // 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치, 정문 기둥
 export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
@@ -253,7 +258,22 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
       sideways(b.facing) ? { x: b.x, z: b.z, w: BENCH.d, d: BENCH.w } : { x: b.x, z: b.z, w: BENCH.w, d: BENCH.d },
     ),
     ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences]),
+    ...(plaza.board ? [boardBox(plaza.board)] : []),
   ]
+}
+
+// 순위 게시판 부딪힘 상자
+function boardBox(b: Point & { facing: Facing }): Box {
+  return sideways(b.facing) ? { x: b.x, z: b.z, w: BOARD.d, d: BOARD.w } : { x: b.x, z: b.z, w: BOARD.w, d: BOARD.d }
+}
+
+// 순위 게시판 앞 자리 (#59): 판 앞 DOOR_GAP 만큼. 건물 입구처럼 Player 의 "앉는 자리"로 넘겨 E 를 받습니다.
+// rot 은 판을 바라보는 방향. 게시판이 없으면 null
+export function boardSpot(plaza: PlazaLayout): { no: number; x: number; z: number; rot: number } | null {
+  const b = plaza.board
+  if (!b) return null
+  const a = facingAngle(b.facing)
+  return { no: BOARD_NO, x: b.x + Math.sin(a) * DOOR_GAP, z: b.z + Math.cos(a) * DOOR_GAP, rot: normalizeAngle(a + Math.PI) }
 }
 
 // 광장에 들어올 때 설 자리와 방향.
