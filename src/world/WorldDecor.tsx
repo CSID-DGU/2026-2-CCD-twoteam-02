@@ -31,15 +31,30 @@ const WATER_WAVE_S = 2.5 // 분수 물빛이 한 번 오가는 시간(초)
 // ── 땅 ──────────────────────────────────────────────────────────────
 
 // 잔디(월드 전체) + 광장 돌바닥 + 길
+// 가운데 바닥: 광장은 돌바닥, 캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)
+const LAWN = { stripe: 2, light: '#8fca72', dark: '#7dbb63' } // 줄 폭(m), 두 잔디 색
 export function Ground({ plaza }: { plaza: PlazaLayout }) {
+  const lawn = plaza.ground === 'lawn'
+  const stripes = lawn ? Math.ceil(plaza.plaza.w / LAWN.stripe) : 0
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
         <planeGeometry args={[plaza.size.w, plaza.size.d]} />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
-        <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
-      </mesh>
+      {lawn ? (
+        Array.from({ length: stripes }, (_, i) => {
+          const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
+          return (
+            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={colorMat(i % 2 ? LAWN.dark : LAWN.light)}>
+              <planeGeometry args={[w, plaza.plaza.d]} />
+            </mesh>
+          )
+        })
+      ) : (
+        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
+          <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
+        </mesh>
+      )}
       {plaza.paths.map((p, i) => (
         <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
           <planeGeometry args={[p.w, p.d]} />

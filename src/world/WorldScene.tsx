@@ -51,6 +51,7 @@ import { WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
+import { Beanbags, CampusBuildingTrim, IvyGate, Mats } from './CampusDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
@@ -251,6 +252,14 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
           <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
         ))}
+        {/* 캠퍼스 건물: 흰 코니스·담쟁이·도서관 시계탑 */}
+        {world.id === 'campus' && PLACED.map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
+        {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
+        {GATES.map((g) => (
+          <IvyGate key={g.no} gate={g} near={near === g.no} />
+        ))}
+        {PLAZA.rests && <Mats rests={PLAZA.rests} />}
+        {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
 
         {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 광장에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
         {condition === 'visible' && (
