@@ -4,6 +4,8 @@ import type { Sample, StudyContext } from './recentSamples'
 
 export const MESSAGE_MAX = 500 // reports.message 의 check 제약과 같은 값
 export const LIST_LIMIT = 200 // 신고 목록에 불러오는 최대 건수
+// 주소에 ?branch= 가 없는 바깥 화면의 이름 (#342). 광장은 DB 지점 이름과 같은 plaza(벤치 공부, 0038)
+const PAGE_BRANCH: Record<string, string> = { '/': 'plaza', '/campus': 'campus' }
 
 export type ReportKind = 'judgment' | 'bug' | 'other'
 export type JudgmentDetail = 'false_alarm' | 'missed' | 'unsure'
@@ -33,7 +35,7 @@ export function validateDraft(d: Draft): string | null {
 // 신고에 같이 저장하는 화면 정보. 공부 중이 아니면 sessionId·status·hold·allow 둘은 null
 export type ReportContext = {
   page: string
-  branch: string | null // ?branch= 값
+  branch: string | null // ?branch= 값. 없으면 광장 'plaza'·캠퍼스 'campus' (그 밖의 화면은 null)
   sessionId: string | null // seat_sessions.id (공부 중일 때)
   userAgent: string
   status: FocusStatus | null
@@ -51,7 +53,7 @@ export function buildContext(input: {
 }): ReportContext {
   return {
     page: input.page,
-    branch: new URLSearchParams(input.search).get('branch'),
+    branch: new URLSearchParams(input.search).get('branch') ?? PAGE_BRANCH[input.page] ?? null,
     sessionId: input.study?.sessionId ?? null,
     userAgent: input.userAgent,
     status: input.last?.status ?? null,
