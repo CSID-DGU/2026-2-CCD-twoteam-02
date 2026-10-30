@@ -10,10 +10,11 @@ import { useSkin } from '../tracking/useSkin'
 import { useFace } from '../tracking/useFace'
 import { useHair } from '../tracking/useHair'
 import { RUN_KEYS, RUN_SPEED, WALK_SPEED } from './moveSpeed'
-import { EMOTE_CLIPS, beginEmote, clearEmoteRequest, emoteById, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
+import { EMOTE_CLIPS, beginEmote, cancelJump, clearEmoteRequest, emoteById, startJump, emoteSeconds, endEmote, prepareEmoteAction } from './emotes'
 import type { EmoteState } from './emotes'
 import { holdStandingPose } from './standStill'
 import { getKeymap } from '../menu/keymap'
+import { inAir, jumpHeight } from './jumpLogic'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -60,6 +61,7 @@ type Props = {
   // 바깥에서 "이 번호 자리에 앉아라" 요청. 그 자리 앞에 서 있으면 다음 프레임에 앉습니다. (카페: 자리를 잡은 뒤)
   sitRef?: RefObject<number | null>
   // 감정표현 (#162). 바깥(EmoteControls)에서 request 를 넣으면 서 있을 때 그 동작을 합니다. 움직이면 멈춥니다.
+  // 점프할 때마다 여기의 jump 번호도 올려, 위치 메시지로 다른 사람 화면에도 뛰는 모습이 보이게 합니다.
   emoteRef?: RefObject<EmoteState>
 }
 
@@ -70,6 +72,8 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   const animRoot = useRef<Group>(null!)
   const keys = useRef(new Set<string>())
   const toggle = useRef(false) // 앉기/일어나기 키가 눌렸는지
+  const jumpKey = useRef(false) // 점프 키가 눌렸는지
+  const jumpStart = useRef(-Infinity) // 마지막으로 뛴 시각(ms). 떠 있는 동안 높이를 계산하는 기준
   const anim = useRef('idle')
   const near = useRef<Spot | null>(null)
   const nearKiosk = useRef(false)
@@ -98,6 +102,8 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.code.startsWith('Arrow')) e.preventDefault() // 방향키로 페이지가 스크롤되지 않게
       if (e.code === getKeymap().interact && !e.repeat) toggle.current = true // 앉기·일어나기·입장 (기본 E, 설정에서 바꿈 #250)
+      // 점프: 앉았을 때 "정면 보기" 키(기본 Space)를 서 있을 때는 점프로 씁니다. 앉아 있으면 아래에서 무시합니다.
+      if (e.code === getKeymap().recenter && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) jumpKey.current = true
       pressed.add(e.code)
     }
     const up = (e: KeyboardEvent) => pressed.delete(e.code)
@@ -163,6 +169,12 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       play('idle')
     }
 
+    // 점프 높이: 떠 있으면 포물선대로, 아니면 바닥. 창이 뜨거나 앉아도 하던 점프는 내려와서 끝납니다.
+    const wantJump = jumpKey.current
+    jumpKey.current = false
+    const jumped = (performance.now() - jumpStart.current) / 1000
+    p.y = seated.current ? 0 : jumpHeight(jumped)
+
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
       if (em) clearEmoteRequest(em)
@@ -203,7 +215,10 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       stopEmote()
       const s = near.current
       seated.current = s
+      jumpStart.current = -Infinity // 뛰다가 앉으면 바로 의자에 (다시 일어나도 떠 있지 않게)
+      if (em) cancelJump(em)
       p.x = s.x
+      p.y = 0
       p.z = s.z
       g.rotation.y = s.rot
       if (headingRef) headingRef.current = s.rot // 일어났을 때 책상 쪽을 보고 있도록 맞춥니다.
@@ -266,6 +281,13 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       }
     }
     const moving = dx !== 0 || dz !== 0
+
+    // 점프: 바닥에 있을 때만 뜁니다. 감정표현 중이면 멈추고 뜁니다.
+    if (wantJump && !inAir(jumped)) {
+      stopEmote()
+      jumpStart.current = performance.now()
+      if (em) startJump(em, jumpStart.current)
+    }
 
     // 감정표현: 움직이면 멈추고, 서 있을 때 고른 것이 있으면 시작합니다. 하는 동안은 걷기·서기 동작을 바꾸지 않습니다.
     if (em) {

@@ -325,7 +325,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
-      : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+      : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
@@ -410,7 +410,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
               }
               // 쉬는 자리·벤치에 앉았으면 그 번호를 보내 다른 사람 화면에도 앉은 모습으로.
               // 벤치에서 공부 중이면 집중 상태와 고개·눈(얼굴을 찾았을 때)·팔도 싣습니다(지점 화면과 같음). 그 밖에는 공부 전(idle).
-              // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
+              // 서서 감정표현 중이면 같이 실어 보냅니다. (#162) 점프 번호도.
               if (!session) return
               const tracking = benchSeated ? myTracking.current : null
               const face = tracking?.face.current ?? null
@@ -429,6 +429,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
                 ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
                 ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
                 ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}),
+                ...(e.jump ? { jump: e.jump } : {}), // 점프 번호 (바뀌면 보는 사람 화면에서도 뜀)
                 ...(myLv ? { lv: myLv } : {}),
               }
             }}

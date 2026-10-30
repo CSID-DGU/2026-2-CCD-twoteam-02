@@ -8,6 +8,7 @@
 //
 // 감정표현(#162) 중에는 오버워치처럼 카메라가 앞으로 빠져 돌아서서 내 캐릭터를 비추고, 끝나면 돌아옵니다.
 // 감정표현 바퀴를 고르는 동안에는 마우스로 시점이 돌지 않습니다(바퀴 고르기에 마우스를 씀).
+// 점프하면 눈높이도 캐릭터와 같은 포물선으로 올라갔다 내려옵니다(jumpLogic.ts).
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
@@ -17,6 +18,7 @@ import type { PerspectiveCamera as PerspectiveCameraImpl } from 'three'
 import type { EmoteState } from './emotes'
 import { isShortcut } from '../menu/shortcuts'
 import { getMouseSensitivity } from '../menu/lookSettings'
+import { jumpHeight } from './jumpLogic'
 
 const EYE_HEIGHT = 1.45 // 서 있을 때 눈높이 (캐릭터 키 약 1.6)
 const WALK_FOV = 70 // 걸을 때는 앉았을 때보다 조금 넓게 봅니다.
@@ -33,7 +35,7 @@ type Props = {
   headingRef: RefObject<number> // 바라보는 좌우 방향(라디안). 0이면 +Z 쪽
   paused?: boolean // 키오스크·프로필 창이 떠 있으면 잠금을 풀고 다시 잠그지 않습니다.
   onLockChange?: (locked: boolean) => void // 안내 문구·조준점 표시용
-  emoteRef?: RefObject<EmoteState> // 감정표현 중이면 카메라가 앞으로 빠져 나를 비춤
+  emoteRef?: RefObject<EmoteState> // 감정표현 중이면 카메라가 앞으로 빠져 나를 비춤. 점프하면 눈높이를 같이 올림
   suspendLookRef?: RefObject<boolean> // true 인 동안 마우스로 시점을 돌리지 않음 (감정표현 바퀴)
 }
 
@@ -95,8 +97,9 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
     const target = emoteRef?.current.playing ? 1 : 0
     swing.current += (target - swing.current) * (1 - Math.exp(-EMOTE_SWING * delta))
     const s = swing.current
+    const lift = jumpHeight((performance.now() - (emoteRef?.current.jumpAt ?? -Infinity)) / 1000) // 점프 중이면 그만큼 위로
     // 내 앞쪽(보는 방향)으로 s 만큼 빠집니다. 앞 = (sin h, cos h)
-    cam.current.position.set(x + Math.sin(h) * EMOTE_DISTANCE * s, EYE_HEIGHT + EMOTE_LIFT * s, z + Math.cos(h) * EMOTE_DISTANCE * s)
+    cam.current.position.set(x + Math.sin(h) * EMOTE_DISTANCE * s, EYE_HEIGHT + EMOTE_LIFT * s + lift, z + Math.cos(h) * EMOTE_DISTANCE * s)
     // 좌우를 먼저 돌리고(Y) 그다음 위아래로 기울입니다(X). 카메라는 기본으로 -Z 를 보므로 반 바퀴 더 돕니다.
     // 감정표현 때는 그 반 바퀴를 빼서 나를 마주 봅니다.
     cam.current.rotation.set(pitch.current * (1 - s) + EMOTE_PITCH * s, h + Math.PI * (1 - s), 0, 'YXZ')

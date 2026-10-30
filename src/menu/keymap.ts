@@ -12,7 +12,7 @@ export type Keymap = Record<KeyAction, string>
 export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'interact', label: '앉기·입장·일어나기' },
   { action: 'view', label: '시점 바꾸기 (1인칭·위에서)' },
-  { action: 'recenter', label: '정면 보기 (앉았을 때)' },
+  { action: 'recenter', label: '정면 보기 (앉았을 때) · 점프 (서 있을 때)' },
   { action: 'emoteWheel', label: '감정표현 바퀴' },
   { action: 'map', label: '전체 지도' },
   { action: 'records', label: '내 기록' },
@@ -27,7 +27,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
 export const DEFAULT_KEYMAP: Keymap = {
   interact: 'KeyE',
   view: 'KeyV',
-  recenter: 'Space', // 앉아서 둘러본 시점을 책상 정면으로 되돌림 (#112)
+  recenter: 'Space', // 앉아서 둘러본 시점을 책상 정면으로 되돌림 (#112). 서 있을 때는 점프
   emoteWheel: 'KeyX',
   records: 'KeyR',
   friends: 'KeyF',

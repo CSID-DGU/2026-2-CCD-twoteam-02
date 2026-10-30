@@ -226,6 +226,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
       // 서서 감정표현 중이면 같이 실어 보냅니다. 보고 있는 사람 화면에서도 같은 동작을 합니다. (#162)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
+      ...(emote.current.jump ? { jump: emote.current.jump } : {}), // 점프 번호 (바뀌면 보는 사람 화면에서도 뜀)
       ...(sharedLevel(myTitle.visibility, myLevel) ? { lv: sharedLevel(myTitle.visibility, myLevel) } : {}), // 칭호
     };
   };
