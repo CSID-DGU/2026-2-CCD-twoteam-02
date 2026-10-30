@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
 import world from '../world/world.json'
+import campus from '../world/campus.json'
+import { CAMPUS_PLACE } from '../realtime/online'
 import type { PlazaLayout } from '../world/worldLogic'
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { KIOSK, SEAT, CHAIR, spotsOf } from '../space/layout'
@@ -13,8 +15,8 @@ import type { Box } from '../space/layout'
 import { MY_SEAT_COLOR } from '../space/MySeatMarker'
 import { useOnline } from '../realtime/onlineContext'
 import { keyLabel, useKeymap } from '../menu/keymap'
-import { boxToMap, buildWorld, countByPlace, findPlace, toMap } from './mapLogic'
-import type { MapBranch, MapPlace, Rect } from './mapLogic'
+import { boxToMap, buildWorld, countByPlace, findPlace, mapWorldFor, toMap } from './mapLogic'
+import type { MapBranch, MapPlace, Rect, WorldLayout } from './mapLogic'
 
 // 지도를 연 화면이 알려 주는 "지금 나": 있는 곳(접속 상태와 같은 이름), 그 공간 안 위치와 몸 방향, 이 지점의 내 자리
 export type MapHere = {
@@ -24,7 +26,8 @@ export type MapHere = {
   mySeat?: number | null
 }
 
-const WORLD = buildWorld(world as PlazaLayout, BRANCH_LAYOUTS) // 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만
+// 배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만. 광장과 캠빛 대학교 캠퍼스, 지금 있는 곳의 월드를 그립니다.
+const WORLDS = { plaza: buildWorld(world as PlazaLayout, BRANCH_LAYOUTS), campus: buildWorld(campus as PlazaLayout, BRANCH_LAYOUTS, CAMPUS_PLACE) }
 
 const WALL = '#5d4a3a'
 const FLOOR = '#e8e2d6' // 3D 바닥과 같은 색
@@ -41,6 +44,7 @@ export function WorldMap({ here }: { here?: MapHere }) {
   const people = useOnline()
   const counts = useMemo(() => countByPlace([...people.values()].map((p) => p.place)), [people])
   const keys = useKeymap()
+  const WORLD = mapWorldFor(WORLDS, here?.place ?? '')
   const me = here ? findPlace(WORLD, here.place) : null
   const [hovered, setHovered] = useState<string | null>(null)
   // 눌러서 열어 둔 건물 (터치 화면용). 처음에는 내가 있는 건물을 열어 둡니다. (광장은 지붕이 없음, 회의실은 그 지점 건물)
@@ -91,7 +95,7 @@ export function WorldMap({ here }: { here?: MapHere }) {
         <rect x={b.x - b.w / 2} y={b.z - b.d / 2} width={b.w} height={b.d} fill="url(#map-grass)" />
 
         {/* 광장 돌바닥과 건물 입구로 가는 돌길 */}
-        <Plaza count={counts.get(WORLD.lobby.place) ?? 0} />
+        <Plaza world={WORLD} count={counts.get(WORLD.lobby.place) ?? 0} />
 
         {WORLD.trees.map((t, i) => (
           <g key={i} transform={`translate(${t.x} ${t.z})`}>
@@ -143,7 +147,7 @@ function arrowPoints(l: number) {
 const rectProps = (r: Rect) => ({ x: r.x - r.w / 2, y: r.z - r.d / 2, width: r.w, height: r.d })
 
 // 광장: 돌바닥, 돌길, 가운데 분수, 이름표
-function Plaza({ count }: { count: number }) {
+function Plaza({ world: WORLD, count }: { world: WorldLayout; count: number }) {
   const l = WORLD.lobby
   const f = WORLD.fountain
   return (
@@ -154,7 +158,16 @@ function Plaza({ count }: { count: number }) {
       <rect {...rectProps(l.rect)} fill="url(#map-plaza)" stroke="#8a7a5e" strokeWidth="0.3" />
       {f && <circle cx={f.x} cy={f.z} r={f.r} fill={STONE} />}
       {f && <circle cx={f.x} cy={f.z} r={f.r * 0.85} fill={WATER} />}
-      <Label x={l.rect.x} z={l.rect.z + l.rect.d / 2 - 2.6} name="광장" count={count} />
+      {/* 다른 월드로 가는 정문 */}
+      {WORLD.gates.map((g, i) => (
+        <g key={i}>
+          <rect x={g.x - 1.2} y={g.z - 0.6} width={2.4} height={1.2} fill="#8a4b35" stroke="#2f7a3a" strokeWidth="0.4" />
+          <text x={g.x} y={g.z - 1.4} fontSize={1.4} textAnchor="middle" fill="#fff" stroke="#3b2a1a" strokeWidth={0.3} paintOrder="stroke">
+            {g.label}
+          </text>
+        </g>
+      ))}
+      <Label x={l.rect.x} z={l.rect.z + l.rect.d / 2 - 2.6} name={l.name} count={count} />
     </g>
   )
 }
