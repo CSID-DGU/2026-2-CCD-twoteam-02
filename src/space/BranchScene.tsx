@@ -59,6 +59,9 @@ import { LevelUpCard } from "../level/LevelUpCard";
 import { emotesAllowed } from "./rulesLogic";
 import { setQuietLock } from "../chat/quietLock";
 import { worldOfBranch } from "../world/worldConfig";
+import { useClassPhase } from "../study/useClassPhase";
+import { boardText } from "../study/timetableLogic";
+import { ClassBellNotice } from "../study/ClassBellNotice";
 import { toward } from "../lib/josa";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
@@ -99,6 +102,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
   // 휴식방(숨 라운지): DB 에서는 카페와 같고, 누우면 공부 시작 창·트래킹·타이머 없이 쉬기만 합니다.
   const isRest = branch.rest === true;
+  // 강의실 공동 시간표 (캠빛 강의동): 칠판 글씨, 쉬는 시간엔 타이머·기록 멈춤(breakTime), 바뀌는 순간 종 알림
+  const classNow = useClassPhase(branch.rules?.timetable === true);
+  const [bell, setBell] = useState<"class" | "break" | null>(null);
+  const [seenPhase, setSeenPhase] = useState(classNow?.phase ?? null);
+  if ((classNow?.phase ?? null) !== seenPhase) {
+    // 처음 읽을 때(null → 값)는 알리지 않고, 수업 ↔ 쉬는 시간이 바뀔 때만 (렌더 중 이전 값과 비교하는 React 권장 방식)
+    if (seenPhase !== null && classNow) setBell(classNow.phase);
+    setSeenPhase(classNow?.phase ?? null);
+  }
   // 건물 규칙(캠빛 대학교 도서관): 이 지점에 있는 동안 방해금지를 켠 채로 고정, 나가면 풂
   useEffect(() => {
     if (!branch.rules?.quiet) return;
@@ -357,7 +369,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ))}
 
       {/* 천장·팬·네온·액자 (테마가 있을 때만) */}
-      <Decor theme={branch.theme} size={branch.size} />
+      <Decor theme={branch.theme} size={branch.size} boardText={classNow ? boardText(classNow) : undefined} />
 
       {/* 책상: 테마에 가구 모양(furniture)이 있으면 크롬 테두리·다리 테이블, 없으면 상자 */}
       {furniture?.tables?.map((t, i) => (
@@ -564,8 +576,10 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         onLevelUp={handleLevelUp}
         onRunEnd={handleRunEnd}
         rules={branch.rules}
+        breakTime={classNow?.phase === "break" ? { leftMs: classNow.leftMs } : null}
       />
     )}
+    {bell && <ClassBellNotice key={bell} phase={bell} onDone={() => setBell(null)} />}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
     {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
     <PerfReadout perf={perf} />

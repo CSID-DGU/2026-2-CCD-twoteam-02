@@ -11,6 +11,7 @@ export type BranchRules = {
   allowDevices?: boolean // 휴대폰·학습기기 사용함 고정 값
   quiet?: boolean // 이 지점에 있는 동안 방해금지를 켠 채로 고정
   emotes?: boolean // false 면 내 감정표현 바퀴·단축키를 끔
+  timetable?: boolean // 강의실 공동 시간표(매시 50분 수업·10분 쉬는 시간, timetableLogic.ts). 쉬는 시간엔 타이머·기록 멈춤
   label?: string // 공부 시작 창 맨 위 안내 ("도서관은 조용히 혼자 몰입하는 곳이에요")
 }
 

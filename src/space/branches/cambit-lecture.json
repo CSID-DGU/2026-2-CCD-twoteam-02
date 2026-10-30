@@ -203,6 +203,10 @@
       "rise": 0.6
     }
   ],
+  "rules": {
+    "timetable": true,
+    "label": "강의동은 다 같이 매시 50분 공부하고 10분 쉬어요. 쉬는 시간엔 타이머가 멈췄다가 수업 시작에 이어져요."
+  },
   "theme": {
     "floor": {
       "pattern": "concrete",
