@@ -18,7 +18,7 @@ import type { WeatherFrame } from './weatherLogic'
 
 const BOX = { w: 40, h: 25 } // 상자 가로·세로 폭, 높이 (m)
 const RAIN = { count: 2000, speed: 12, length: 0.6, slant: 0.15, color: '#b8c4d4', opacity: 0.5 } // slant: 1m 떨어질 때 동쪽으로 가는 거리
-const SNOW = { count: 1500, speed: 1, size: 0.12, sway: 0.3, swaySeconds: 3, texPx: 32 }
+const SNOW = { count: 1500, speed: 1, size: 0.12, topPx: 3, sway: 0.3, swaySeconds: 3, texPx: 32 } // topPx: 위에서 보기의 눈송이 크기(픽셀, #344)
 const MAX_DT = 0.1 // 탭을 오래 비웠다 돌아와도 한 번에 너무 멀리 움직이지 않게 (초)
 const SEED = 3170
 
@@ -114,7 +114,8 @@ export function Precipitation({ stateRef, followRef }: { stateRef: RefObject<Wea
     [rainGeo, snowGeo, rainMat, snowMat],
   )
 
-  useFrame(({ clock }, delta) => {
+  const snowTopView = useRef(false) // 눈송이를 위에서 보기(정사영) 크기로 그리는 중인지 (#344)
+  useFrame(({ clock, camera }, delta) => {
     const f = stateRef.current
     const me = followRef.current
     const rain = rainRef.current
@@ -150,6 +151,16 @@ export function Precipitation({ stateRef, followRef }: { stateRef: RefObject<Wea
 
     const snowN = Math.round(SNOW.count * f.weather.snow)
     snow.visible = snowN > 0
+    // 위에서 보기(정사영 카메라)에서는 거리에 맞춘 크기(0.12m)가 0.12 픽셀이 되어 눈이 안 보입니다(#344).
+    // 그래서 위에서 볼 때는 픽셀 크기로 바꿉니다. 바뀔 때만 재질을 다시 만듭니다(셰이더 설정이 달라짐).
+    const top = (camera as THREE.OrthographicCamera).isOrthographicCamera === true
+    if (top !== snowTopView.current) {
+      const m = snow.material as THREE.PointsMaterial
+      m.sizeAttenuation = !top
+      m.size = top ? SNOW.topPx : SNOW.size
+      m.needsUpdate = true
+      snowTopView.current = top
+    }
     if (snowN > 0) {
       const { rel, phase } = parts.current.snow
       const pos = snow.geometry.getAttribute('position') as THREE.BufferAttribute
