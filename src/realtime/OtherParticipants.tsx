@@ -98,13 +98,13 @@ export function OtherParticipants({
             {spot ? (
               <>
                 <SeatedCharacter spot={spot} model={p.model} head={p.head} eyes={p.eyes} arms={p.arms} mouth={p.mouth} />
-                <NameTag x={x} z={z} name={p.nickname} />
+                <NameTag x={x} z={z} name={p.nickname} level={p.lv} />
                 {showStatus && <StatusMarker x={x} z={z} status={p.status} />}
               </>
             ) : (
               // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
               <WalkingCharacter x={p.x} z={p.z} h={p.h} model={p.model} emote={p.emote} emoteSeq={p.emoteSeq}>
-                <NameTag x={0} z={0} name={p.nickname} />
+                <NameTag x={0} z={0} name={p.nickname} level={p.lv} />
                 {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
               </WalkingCharacter>
             )}
