@@ -9,7 +9,7 @@ import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { BarTable, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
+import { BarTable, Carrel, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -415,9 +415,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {furniture?.rings?.map((r, i) => (
         <RingTable key={i} ring={r} color={colors.desk} height={DINER_DESK.height} /> // 나무를 둘러싼 고리 테이블
       ))}
-      {branch.seats.map((s) =>
-        s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
-          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
+      {branch.seats.map((s) => {
+        // 계단식 단 위 자리(강의실, rise)는 책상째 그만큼 올립니다.
+        const deskEl = s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
+          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "carrel" ? (
+            <Carrel key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 도서관 칸막이 책상
+          ) : s.desk === "computer" ? (
+            <ComputerDesk key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 정보관 컴퓨터 책상
+          ) : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
             <RoundTable key={s.no} x={s.x} z={s.z} color={colors.desk} marble={branch.theme?.booth?.marble} />
           ) : s.desk === "low" ? (
             <LowTable key={s.no} x={s.x} z={s.z} color={colors.desk} />
@@ -429,14 +434,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             <boxGeometry args={[SEAT.w, 0.74, SEAT.d]} />
             <meshStandardMaterial color={colors.desk} />
           </mesh>
-        ),
-      )}
+        );
+        return s.rise ? <group key={s.no} position-y={s.rise}>{deskEl}</group> : deskEl;
+      })}
 
       {/* 의자: 가까이·내 자리 강조색은 테마와 무관하게 그대로, 기본색만 테마를 따릅니다 */}
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
-        return c.chair === "lounger" ? (
+        const chairEl = c.chair === "lounger" ? (
           // 누워 쉬는 라운지 소파 (숨 라운지): 강조색은 쿠션 색으로
           <Lounger
             key={c.no}
@@ -474,6 +480,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             <meshStandardMaterial color={chairColor} />
           </mesh>
         );
+        return c.rise ? <group key={c.no} position-y={c.rise}>{chairEl}</group> : chairEl; // 계단식 단 위 의자
       })}
 
       {/* 엘리베이터 문 (여러 층 건물): 표시판에 지금 층 */}
