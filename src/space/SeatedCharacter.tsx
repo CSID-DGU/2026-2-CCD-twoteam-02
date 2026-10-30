@@ -20,6 +20,7 @@ const SCALE = 0.6 // Player와 같은 크기
 const HEAD_NODE = 'head'
 const HEAD_FOLLOW = 8 // 머리가 받은 각도를 따라가는 빠르기 (값이 띄엄띄엄 와서 내 모습 화면보다 조금 느리게)
 const ARM_FOLLOW = 8 // 팔이 받은 방향을 따라가는 빠르기 (내 모습 화면과 같은 값)
+const HIP = 0.42 // 누울 때(spot.lie) 몸을 뒤로 눕히는 축 높이: 앉은 엉덩이 (라운지 소파 쿠션 높이)
 
 const toDir = (v: ArmVector | null | undefined) => (v ? { x: v[0], y: v[1], z: v[2] } : null)
 
@@ -66,8 +67,11 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
 
   return (
     <group ref={ref} position={[spot.x, spot.y ?? 0, spot.z]} rotation={[0, spot.rot, 0]}> {/* y: 높은 의자면 올라감 (#57) */}
-      <group ref={animRoot} key={model}>
-        <primitive object={copy} scale={SCALE} />
+      {/* 라운지 소파(lie): 앉은 자세를 엉덩이를 축으로 뒤로 눕힙니다. (x 축 음수 회전 = 머리가 뒤(-z)로) */}
+      <group position-y={HIP} rotation-x={-(spot.lie ?? 0)}>
+        <group ref={animRoot} key={model} position-y={-HIP}>
+          <primitive object={copy} scale={SCALE} />
+        </group>
       </group>
     </group>
   )

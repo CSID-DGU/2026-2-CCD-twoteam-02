@@ -9,6 +9,7 @@ import obsidian from './obsidian.json'
 import walnut from './walnut.json'
 import moss from './moss.json'
 import stream from './stream.json'
+import breath from './breath.json'
 
 export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   byeol, // 별다방 (스터디카페, 키오스크)
@@ -23,6 +24,8 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   walnut: { ...walnut, seats: walnut.seats as BranchLayout['seats'], theme: walnut.theme as BranchTheme },
   moss: { ...moss, seats: moss.seats as BranchLayout['seats'], theme: moss.theme as BranchTheme },
   stream: { ...stream, seats: stream.seats as BranchLayout['seats'], theme: stream.theme as BranchTheme },
+  // 휴식방 숨 라운지 (올리브 테라스 건물 4층): 둥근 방·천창·라운지 소파 12개, 누워 쉬기만 함(rest)
+  breath: { ...breath, seats: breath.seats as BranchLayout['seats'], theme: breath.theme as BranchTheme },
 }
 
 export const DEFAULT_BRANCH = 'byeol'

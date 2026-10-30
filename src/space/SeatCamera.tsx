@@ -21,6 +21,10 @@ const KEY_LOOK_SPEED = 1.2; // WASD·방향키로 둘러볼 때 도는 빠르기
 const LOOK_FOLLOW = 20; // 시점이 마우스를 따라가는 빠르기
 const RECENTER_SEC = 0.9; // 정면 보기(Space)로 책상 정면까지 돌아오는 시간(초). 천천히 돌아오게 (#112)
 const UP = new Vector3(0, 1, 0);
+// 누운 자리(라운지 소파, spot.lie): 눈을 뒤·아래로 옮기고 정면 시선을 위로 들어 천장(천창)과 가운데를 함께 봅니다.
+const LIE_BACK = 0.55; // 누운 각도 1 라디안당 눈이 뒤로 가는 거리
+const LIE_DROP = 0.35; // 누운 각도 1 라디안당 눈이 내려가는 거리
+const LIE_LOOK_UP = 0.6; // 누운 각도에 곱해 정면 시선을 위로 드는 비율
 
 // 3D 좌석 모드: 앉은 자리에서 책상 쪽을 바라보는 1인칭 카메라.
 // 자리 뒤쪽 위에서 시작해 눈높이로 내려앉으며 전환합니다.
@@ -43,9 +47,10 @@ export function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: (
   // 카메라가 전환 시작 위치(자리 뒤 위쪽)로 튀어 오른 채 남습니다. 회의 화면은 참석자가 바뀔 때마다 자리를 새로 만듭니다. (#45)
   const { x, z, rot } = spot;
   const raise = spot.y ?? 0; // 높은 의자면 눈높이와 책상도 그만큼 위 (#57)
+  const lie = spot.lie ?? 0;
   const pose = useMemo(() => {
     const fx = Math.sin(rot), fz = Math.cos(rot); // 책상 쪽 방향
-    const endPos = new Vector3(x, EYE_HEIGHT + raise, z);
+    const endPos = new Vector3(x - fx * lie * LIE_BACK, EYE_HEIGHT + raise - lie * LIE_DROP, z - fz * lie * LIE_BACK);
     const startPos = new Vector3(x - fx * START_BACK, START_HEIGHT, z - fz * START_BACK);
     const desk = new Vector3(x + fx, SEAT_HEIGHT + raise, z + fz);
     const startQuat = new Quaternion().setFromRotationMatrix(
@@ -53,7 +58,7 @@ export function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: (
     );
     // 매 프레임 새로 만들지 않도록 계산용 값을 미리 만들어 둡니다.
     return { startPos, startQuat, endPos, target: new Quaternion(), euler: new Euler(0, 0, 0, "YXZ") };
-  }, [x, z, rot, raise]);
+  }, [x, z, rot, raise, lie]);
 
   // 화면을 끌면 끄는 쪽으로 장면이 따라오도록 시점을 돌립니다.
   useEffect(() => {
@@ -135,7 +140,7 @@ export function SeatCamera({ spot, onArrive, paused }: { spot: Spot; onArrive: (
     }
     // 바라볼 방향 = 좌석 정면에서 좌우(yaw)로 돌리고 위아래(pitch)로 기울인 방향.
     // 카메라는 기본으로 -Z를 보므로 반 바퀴 돌려 좌석 방향(+Z 기준)에 맞춥니다.
-    pose.euler.set(pitch.current, rot + Math.PI + yaw.current, 0);
+    pose.euler.set(pitch.current + lie * LIE_LOOK_UP, rot + Math.PI + yaw.current, 0);
     pose.target.setFromEuler(pose.euler);
 
     if (progress.current < 1) {
