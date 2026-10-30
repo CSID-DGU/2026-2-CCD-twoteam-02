@@ -58,3 +58,19 @@ export const daysLeft = (leftSeconds: number) => Math.ceil(leftSeconds / (DAILY_
 // '친구만'도 싣지 않습니다: 위치 메시지는 같은 방 모두에게 한 번에 가서 친구에게만 골라 보낼 수 없습니다.
 export const sharedLevel = (visibility: string | null, level: number): number | undefined =>
   visibility === 'public' && level > 0 ? level : undefined
+
+// 공부 한 번(StudyRunner 하나) 동안의 넘김 규칙. baseSeconds: 이 공부 전 누적, studyMsSteps: 확정 공부 시간(ms)이 바뀌어 온 값들.
+// 지금까지 본 가장 큰 누적보다 늘었을 때만 비교해, 같은 단계 축하가 두 번 나오지 않습니다. 돌려주는 값: 축하할 단계들(순서대로)
+// StudyRunner 는 같은 규칙을 ref(가장 큰 누적)로 따라 합니다. 이 함수는 그 규칙을 검사하는 데 씁니다.
+export function runCrossings(baseSeconds: number, studyMsSteps: number[]): number[] {
+  const out: number[] = []
+  let best = baseSeconds
+  for (const ms of studyMsSteps) {
+    const now = baseSeconds + ms / 1000
+    if (now <= best) continue
+    const crossed = levelCrossed(best, now)
+    if (crossed !== null) out.push(crossed)
+    best = now
+  }
+  return out
+}
