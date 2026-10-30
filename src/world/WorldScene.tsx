@@ -14,7 +14,8 @@
 //
 // 시점은 지점과 같다: 처음엔 1인칭으로 걸어 다니고, V 로 위에서 보기와 바꾼다. (#71)
 // 광장은 넓어서 위에서 보기·미니맵이 전체 대신 내 둘레를 따라다니며 보여 준다.
-// 하늘과 빛은 WorldSky 가 현실 시각(서울)을 따라 바꾼다(#316, 확인용 주소 ?time=21:30 · ?speed=600). 날씨는 #317.
+// 하늘과 빛은 WorldSky 가 현실 시각(서울)을 따라 바꾼다(#316, 확인용 주소 ?time=21:30 · ?speed=600).
+// 날씨는 실제 서울 날씨(Open-Meteo 시간별 예보, #317, 확인용 주소 ?weather=rain · snow · cloudy · clear).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useLocation } from 'react-router'
@@ -53,6 +54,7 @@ import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
+import { useWorldWeather } from './useWorldWeather'
 import world from './world.json'
 
 const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. 아래 Player 주석 참고
@@ -102,6 +104,7 @@ export default function WorldScene({ onEnter }: Props) {
   // 내 생일 → 내 별자리 (#321). 밤하늘에서 금색으로 보여 줍니다. 생일이 없으면 null
   const { birthday } = useMyBirthday(session?.user.id)
   const mySign = birthday ? signOfBirthday(birthday.month, birthday.day) : null
+  const weather = useWorldWeather() // 실제 서울 날씨 (#317). ref 라 받아도 다시 그리지 않음
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 광장에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   // 실시간 방 이름은 예전 로비와 같은 LOBBY_CHANNEL 그대로입니다(experiment 와 어긋나지 않게).
@@ -216,8 +219,8 @@ export default function WorldScene({ onEnter }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         <FpsProbe onSample={handleFps} />
-        {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321) */}
-        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && setFortune(id)} />
+        {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321), 구름·비·눈 (#317) */}
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && setFortune(id)} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />

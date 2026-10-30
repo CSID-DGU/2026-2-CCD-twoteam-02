@@ -10,27 +10,35 @@
 //             밝은 쪽이 화면에서 해가 있는 쪽을 보도록 판을 돌림
 //   빛        방향광(낮 해·밤 달), 주변광, world.json 에서 light 를 단 가로등의 점광원(밤에만 세기를 올림)
 //
+//   날씨     실제 서울 날씨(#317, useWorldWeather 가 받음)로 빛·별·달을 어둡게 하고(applyWeather) 회색 "흐림 덮개"를 씌움.
+//            흩뿌린 별만 흐려지고 별자리는 그대로(stars 는 바꾸지 않고 fieldStars 를 따로 씀)
+//
 // 하늘 부품은 레이어 2(SKY_LAYER)에 둡니다. 화면 카메라만 레이어 2 를 켜고 미니맵 카메라는 켜지 않아서,
 // 미니맵의 월드 바깥은 지금처럼 어두운 색으로 남습니다.
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { ComponentRef } from 'react'
+import type { ComponentRef, RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard, Sky } from '@react-three/drei'
 import * as THREE from 'three'
 import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime } from './skyLogic'
 import type { Clock } from './skyLogic'
 import type { Point } from './worldLogic'
+import { applyWeather, weatherAt } from './weatherLogic'
+import type { WeatherFrame, WeatherSource } from './weatherLogic'
 import { setNightGlow } from './worldMaterials'
 import { Constellations } from './Constellations'
-import type { SkyFrame } from './Constellations'
+import { Clouds } from './Clouds'
+import { Precipitation } from './Precipitation'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
 const SKY_DISTANCE = 450
 const DOME = { r: 400, top: '#0b1630', horizon: '#24365f' }
+const OVERCAST_COLOR = '#8a9099' // 흐림 덮개 (비·눈·구름 많음)
 const STARS = { r: 350, count: 2500, seed: 316, size: 1.6 }
 const MOON = { distance: 330, size: 18, px: 128, lit: '#f4f1e6', shade: '#283152' }
 // 그리는 순서: 하늘 부품은 다른 투명한 것(이름표 등, 순서 0)보다 먼저 그려야 그 위를 덮지 않습니다. 그래서 음수.
-const ORDER = { dome: -4, stars: -3, moonShade: -2, moonLit: -1 }
+// 구름(−3, Clouds)은 해·달을 가리고 별자리(−2·−1, Constellations)는 가리지 않도록 그 사이에 둡니다. (#317)
+const ORDER = { dome: -8, stars: -7, moonShade: -6, moonLit: -5, overcast: -4 }
 const LIGHT_DISTANCE = 50 // 방향광을 놓는 거리 (방향만 의미 있음)
 // 가로등 점광원. height 는 가로등 머리 높이(WorldDecor 의 기둥 높이), power × 밤 빛남 = 세기
 const LAMP_LIGHT = { color: '#ffd28a', range: 12, power: 12, height: 3 }
@@ -60,9 +68,12 @@ function starPositions(): Float32Array {
   return out
 }
 
+// 덮개 반구 (머리 위부터 지평선 조금 아래까지)
+const hemisphere = () => new THREE.SphereGeometry(DOME.r, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6)
+
 // 밤 덮개: 반구 안쪽 면에 지평선 → 머리 위 남색 그라데이션 (정점 색)
 function domeGeometry(): THREE.SphereGeometry {
-  const g = new THREE.SphereGeometry(DOME.r, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6)
+  const g = hemisphere()
   const pos = g.getAttribute('position')
   const top = new THREE.Color(DOME.top)
   const horizon = new THREE.Color(DOME.horizon)
@@ -95,12 +106,22 @@ function drawMoon(ctx: CanvasRenderingContext2D, phase: number) {
 // lamps: 점광원을 켤 가로등 자리 (world.json 의 lamps 중 light 를 단 것)
 // onPickSign: 밤에 별자리를 누르면 그 별자리 id 로 불림 (오늘의 운세 창, #321)
 // mySign: 내 별자리 id (생일로 정함, 없으면 null). 하늘에서 금색으로 보임
-export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamps: Point[]; onPickSign?: (id: string) => void; mySign?: string | null }) {
-  const frame = useRef<SkyFrame | null>(null) // 이번 프레임 하늘 값. 별자리가 같이 씀
+// weatherRef: 받은 날씨 예보(useWorldWeather, #317). followRef: 내 위치 (비·눈이 내 둘레에 내림)
+type Props = {
+  lamps: Point[]
+  onPickSign?: (id: string) => void
+  mySign?: string | null
+  weatherRef: RefObject<WeatherSource>
+  followRef: RefObject<{ x: number; z: number }>
+}
+
+export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherRef, followRef }: Props) {
+  const frame = useRef<WeatherFrame | null>(null) // 이번 프레임 하늘·날씨 값. 별자리·구름·비가 같이 씀
   const camera = useThree((s) => s.camera)
   const clock = useRef<Clock | null>(null)
   const sky = useRef<ComponentRef<typeof Sky>>(null)
   const dome = useRef<THREE.Mesh>(null)
+  const overcast = useRef<THREE.Mesh>(null) // 흐림 덮개 (#317)
   const stars = useRef<THREE.Points>(null)
   const moon = useRef<THREE.Group>(null)
   const moonMesh = useRef<THREE.Mesh>(null)
@@ -116,6 +137,11 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamp
   const domeGeo = useMemo(() => domeGeometry(), [])
   const domeMat = useMemo(
     () => new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }),
+    [],
+  )
+  const overcastGeo = useMemo(() => hemisphere(), [])
+  const overcastMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: OVERCAST_COLOR, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }),
     [],
   )
   const starGeo = useMemo(() => {
@@ -156,14 +182,14 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamp
   // 화면을 떠나면 직접 만든 것들을 지웁니다.
   useEffect(
     () => () => {
-      for (const o of [domeGeo, domeMat, starGeo, starMat, moonMat, shadeMat]) o.dispose()
+      for (const o of [domeGeo, domeMat, overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat]) o.dispose()
     },
-    [domeGeo, domeMat, starGeo, starMat, moonMat, shadeMat],
+    [domeGeo, domeMat, overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat],
   )
 
   // 하늘 부품은 레이어 2. 화면 카메라(1인칭·위에서 보기가 바뀔 때마다)만 레이어 2 를 봅니다.
   useLayoutEffect(() => {
-    for (const o of [sky.current, dome.current, stars.current, moonMesh.current, moonShade.current]) o?.layers.set(SKY_LAYER)
+    for (const o of [sky.current, dome.current, overcast.current, stars.current, moonMesh.current, moonShade.current]) o?.layers.set(SKY_LAYER)
   }, [])
   useEffect(() => {
     camera.layers.enable(SKY_LAYER)
@@ -174,8 +200,11 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamp
     // 주소(?time, ?speed)는 처음 한 번 읽습니다.
     if (!clock.current) clock.current = parseClock(window.location.search, now)
     const ms = worldTime(clock.current, now)
-    const s = skyState(ms)
-    frame.current = { ...s, ms }
+    // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
+    const src = weatherRef.current
+    const weather = src.override ?? weatherAt(src.hours, now)
+    const s = applyWeather(skyState(ms), weather)
+    frame.current = { ...s, ms, now, weather }
     const v = tmp.current
 
     const sunDir = toDirection(s.sun, v.sun)
@@ -187,9 +216,13 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamp
       ;(dome.current.material as THREE.MeshBasicMaterial).opacity = s.night
       dome.current.visible = s.night > 0
     }
+    if (overcast.current) {
+      ;(overcast.current.material as THREE.MeshBasicMaterial).opacity = s.overcast
+      overcast.current.visible = s.overcast > 0
+    }
     if (stars.current) {
-      ;(stars.current.material as THREE.PointsMaterial).opacity = s.stars
-      stars.current.visible = s.stars > 0
+      ;(stars.current.material as THREE.PointsMaterial).opacity = s.fieldStars
+      stars.current.visible = s.fieldStars > 0
     }
 
     const moonDir = toDirection(s.moon, v.moon)
@@ -241,7 +274,10 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null }: { lamp
     <>
       <Sky ref={sky} distance={SKY_DISTANCE} />
       <Constellations stateRef={frame} mySign={mySign} onPick={onPickSign} />
+      <Clouds stateRef={frame} />
+      <Precipitation stateRef={frame} followRef={followRef} />
       <mesh ref={dome} geometry={domeGeo} material={domeMat} renderOrder={ORDER.dome} />
+      <mesh ref={overcast} geometry={overcastGeo} material={overcastMat} renderOrder={ORDER.overcast} />
       <points ref={stars} geometry={starGeo} material={starMat} renderOrder={ORDER.stars} />
       <group ref={moon}>
         <Billboard>
