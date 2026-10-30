@@ -281,7 +281,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
       ...(sync ? { sync } : {}),
       mic: voice.micOn, // 다른 사람 목록에 🔇 표시 (#46)
-      ...(myLv ? { lv: myLv } : {}), // 칭호 리본 (공개 범위 '모두'일 때만)
+      ...(myLv ? { lv: myLv } : {}), // 칭호 (공개 범위 '모두'일 때만)
     }
   }
 
