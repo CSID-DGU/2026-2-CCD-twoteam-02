@@ -8,6 +8,7 @@ import type { CSSProperties, ReactNode, RefObject } from 'react'
 import world from '../world/world.json'
 import campus from '../world/campus.json'
 import { CAMPUS_PLACE } from '../realtime/online'
+import { toward } from '../lib/josa'
 import type { PlazaLayout } from '../world/worldLogic'
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { KIOSK, SEAT, CHAIR, spotsOf } from '../space/layout'
@@ -161,9 +162,9 @@ function Plaza({ world: WORLD, count }: { world: WorldLayout; count: number }) {
       {/* 다른 월드로 가는 정문 */}
       {WORLD.gates.map((g, i) => (
         <g key={i}>
-          <rect x={g.x - 1.2} y={g.z - 0.6} width={2.4} height={1.2} fill="#8a4b35" stroke="#2f7a3a" strokeWidth="0.4" />
-          <text x={g.x} y={g.z - 1.4} fontSize={1.4} textAnchor="middle" fill="#fff" stroke="#3b2a1a" strokeWidth={0.3} paintOrder="stroke">
-            {g.label}
+          <rect {...rectProps({ x: g.x, z: g.z, w: g.sideways ? 1.2 : 2.4, d: g.sideways ? 2.4 : 1.2 })} fill="#8a4b35" stroke="#2f7a3a" strokeWidth="0.4" />
+          <text x={g.x} y={g.z - 1.8} fontSize={1.4} textAnchor="middle" fill="#fff" stroke="#3b2a1a" strokeWidth={0.3} paintOrder="stroke">
+            {toward(WORLDS[g.to].lobby.name)} 가는 문
           </text>
         </g>
       ))}

@@ -13,7 +13,7 @@ import type { Box, BranchLayout } from '../space/layout'
 import { LOBBY_PLACE } from '../realtime/online'
 import { MEETING_PLACE_PREFIX } from '../meeting/meetingLogic'
 import { normalizeAngle, placeBuildings, placeGates, rotate } from '../world/worldLogic'
-import type { PlazaLayout } from '../world/worldLogic'
+import type { PlazaLayout, WorldId } from '../world/worldLogic'
 
 export type Rect = { x: number; z: number; w: number; d: number } // 가운데 좌표와 크기
 export type Point = { x: number; z: number }
@@ -31,7 +31,7 @@ export type WorldLayout = {
   branches: MapBranch[]
   paths: Rect[] // 광장 → 건물 입구 돌길
   fountain?: { x: number; z: number; r: number } // 캠퍼스에는 없음
-  gates: { x: number; z: number; label: string }[] // 다른 월드로 가는 정문 (광장 ↔ 캠퍼스)
+  gates: { x: number; z: number; to: WorldId; sideways: boolean }[] // 다른 월드로 가는 정문 (광장 ↔ 캠퍼스). sideways: 동·서를 봄
   trees: Point[]
   bounds: Rect // 지도 전체 = 월드 전체
 }
@@ -68,7 +68,7 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
     branches,
     paths: plaza.paths,
     fountain: plaza.fountain,
-    gates: placeGates(plaza).map((g) => ({ x: g.spec.x, z: g.spec.z, label: g.spec.label })),
+    gates: placeGates(plaza).map((g) => ({ x: g.spec.x, z: g.spec.z, to: g.spec.to, sideways: g.spec.facing === 'east' || g.spec.facing === 'west' })),
     trees: plaza.trees,
     bounds: { x: 0, z: 0, w: plaza.size.w, d: plaza.size.d },
   }

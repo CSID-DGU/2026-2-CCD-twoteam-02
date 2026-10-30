@@ -51,6 +51,7 @@ import { newEmoteState } from '../space/emotes'
 import { REST_NO_BASE, WORLD_FROM, arrivalOf, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
+import { topic, toward } from '../lib/josa'
 import { Benches, Building, Fence, Fountain, Ground, Lamps, Trees } from './WorldDecor'
 import { Beanbags, CampusBuildingTrim, IvyGate, Mats } from './CampusDecor'
 import { WorldSky } from './WorldSky'
@@ -176,7 +177,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     const list = branches ?? (await loadBranches())
     const found = list.find((x) => x.slug === b.slug)
     if (!found) {
-      setMessage(`${b.name}은 아직 준비 중입니다.`)
+      setMessage(`${topic(b.name)} 아직 준비 중입니다.`)
       return
     }
     setMessage('')
@@ -218,7 +219,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const seatSpot = REST_SPOTS.find((r) => r.no === seat)
   const blockedEnter = (no: number) => {
     const b = PLACED.find((p) => p.no === no)
-    if (b) setMessage(`${b.name}은 아직 준비 중입니다.`)
+    if (b) setMessage(`${topic(b.name)} 아직 준비 중입니다.`)
   }
 
   const nearBuilding = PLACED.find((b) => b.no === near)
@@ -236,7 +237,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ? `돗자리 · ${K.interact} 앉기`
         : `빈백 · ${K.interact} 눕기`
     : nearGate
-      ? `${nearGate.spec.label} · ${K.interact} 들어가기`
+      ? `${toward(worldOf(nearGate.spec.to).title)} 가는 문 · ${K.interact} 지나가기` // 현판 글자가 아니라 행선지로
     : nearBuilding
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
