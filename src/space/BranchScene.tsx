@@ -9,7 +9,7 @@ import type { BranchInfo } from "./useBranchInfo";
 import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { BarTable, Counter, Decor, DinerDesk, ElevatorDoor, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
+import { BarTable, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
@@ -89,6 +89,8 @@ function Notice({ text }: { text: string }) {
 function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo }) {
   const BRANCH_ID = info.id;
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
+  // 휴식방(숨 라운지): DB 에서는 카페와 같고, 누우면 공부 시작 창·트래킹·타이머 없이 쉬기만 합니다.
+  const isRest = branch.rest === true;
   const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
@@ -304,13 +306,19 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
   const walkHint =
     seat !== null
-      ? `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      ? isRest
+        ? `${seat}번 소파 · 누워서 쉬는 중 · WASD·끌어서 둘러보기 · ${K.interact} 일어나기`
+        : `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
       : nearMeeting // 회의실 문 앞 (#45)
         ? `회의실 · ${K.interact} 들어가기`
       : nearElevator // 엘리베이터 문 앞 (여러 층 건물)
         ? `엘리베이터 · ${K.interact} 층 고르기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
         ? `출입문 · ${K.interact} 광장으로 나가기`
+      : isRest
+        ? near !== null
+          ? `${near}번 소파 · ${K.interact} 눕기`
+          : `빈 소파에서 ${K.interact}로 눕기 · 여기서는 공부 기록 없이 쉬어요`
       : isCafe
         ? near !== null
           ? `${near}번 좌석 · ${K.interact} 앉기`
@@ -379,7 +387,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <RingTable key={i} ring={r} color={colors.desk} height={DINER_DESK.height} /> // 나무를 둘러싼 고리 테이블
       ))}
       {branch.seats.map((s) =>
-        furniture ? (
+        s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
           insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
             <RoundTable key={s.no} x={s.x} z={s.z} color={colors.desk} marble={branch.theme?.booth?.marble} />
           ) : s.desk === "low" ? (
@@ -399,7 +407,18 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
-        return furniture?.style === "wood" ? (
+        return c.chair === "lounger" ? (
+          // 누워 쉬는 라운지 소파 (숨 라운지): 강조색은 쿠션 색으로
+          <Lounger
+            key={c.no}
+            x={c.x}
+            z={c.z}
+            rot={c.rot}
+            color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : branch.theme?.lounger?.cushion ?? colors.chair}
+            base={branch.theme?.lounger?.base ?? colors.chair}
+            pillow={branch.theme?.lounger?.pillow ?? colors.chair}
+          />
+        ) : furniture?.style === "wood" ? (
           // 원목 테마: 자리마다 원목 부스 또는 원목 의자. 강조색(주황·내 자리)은 방석 색으로
           c.chair === "stool" ? (
             // 높은 원목 스툴 (곡선 바 자리): 방석은 테마 강조색(겨자색 등)
@@ -545,7 +564,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         />
       )}
     </Canvas>
-    {seat !== null && session && (
+    {seat !== null && session && !isRest && ( // 휴식방에서는 공부 시작 창·트래킹을 띄우지 않음
       <SeatedStudy
         userId={session.user.id}
         sessionId={sessionId}

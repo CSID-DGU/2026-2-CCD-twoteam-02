@@ -58,6 +58,13 @@ export type Rug = { x: number; z: number; r: number; color: string; wobble?: num
 export type Planter = { x: number; z: number; w: number; d: number; tile: string; tree?: boolean }
 // 물길: 바닥보다 낮은 물 + 돌 테두리. 사각형 여러 개를 이어 꺾인 물길을 만듭니다
 export type Water = { x: number; z: number; w: number; d: number }
+// 둥근 방 (숨 라운지): 네모난 방 안에 반지름 r 의 곡선 벽을 두르고, 벽을 따라 세로 곡선 기둥(fin) fins 개.
+// gaps: 벽을 비우는 쪽(자리 각도 규칙: 0 = 남쪽 출입문, -π/2 = 서쪽 엘리베이터). 곡선 벽은 작은 상자를 이어 부딪히게 합니다
+export type RoundRoom = { r: number; color: string; fin: string; fins: number; gaps: number[] }
+// 천장 천창: 천장(높이 h)에 반지름 R 로 뚫린 구멍에서 위로 depth 만큼 좁아지는 깔때기, 맨 위 반지름 r 은 빛나는 판
+export type Dome = { x: number; z: number; R: number; r: number; depth: number; color: string; glow: string }
+// 가운데 돌 수반 + 낮게 깔리는 안개
+export type Basin = { x: number; z: number; r: number; color: string; water: string }
 // 곡선 바: 반지름 inner~outer, 각도 from~to(자리 각도 규칙: 0 = +z 남쪽) 인 원목 바 + 대리석 상판
 export type Bar = { x: number; z: number; inner: number; outer: number; from: number; to: number; height: number }
 // 바 뒤 둥근 진열장: 원통 받침 + 놋쇠 테 선반 3단 + 병
@@ -95,6 +102,10 @@ export type BranchTheme = {
   water?: Water[]
   bars?: Bar[]
   backbar?: BackBar
+  round?: RoundRoom // 둥근 방 (숨 라운지)
+  dome?: Dome // 천장 천창 (있으면 평평한 천장에 구멍을 뚫음)
+  basin?: Basin
+  lounger?: { base: string; cushion: string; pillow: string } // 누워 쉬는 라운지 소파 색 (자리 chair 'lounger')
   pillars?: Pillar[]
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
@@ -190,13 +201,50 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
   const water = (theme?.water ?? []).map((w) => ({ x: w.x, z: w.z, w: w.w, d: w.d }))
   const pillars = (theme?.pillars ?? []).map((p) => ({ x: p.x, z: p.z, w: PILLAR.r * 2, d: PILLAR.r * 2 }))
   const bars = (theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, w: b.inner * 2, d: b.inner * 2 }))
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars]
+  const basin = theme?.basin ? [{ x: theme.basin.x, z: theme.basin.z, w: theme.basin.r * 2, d: theme.basin.r * 2 }] : []
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round)]
+}
+
+// 둥근 방 곡선 벽을 부딪히게 하는 작은 상자들: 벽을 따라 ROUND_ROOM.boxStep 간격, 벽 바로 바깥에. 비운 쪽(gaps)은 뺍니다
+export function roundWallBoxes(round?: RoundRoom): { x: number; z: number; w: number; d: number }[] {
+  if (!round) return []
+  const R = ROUND_ROOM
+  const n = Math.ceil((Math.PI * 2 * round.r) / R.boxStep)
+  const out: { x: number; z: number; w: number; d: number }[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2
+    if (inRoundGap(round, a)) continue
+    const r = round.r + R.boxSize / 2
+    out.push({ x: Math.sin(a) * r, z: Math.cos(a) * r, w: R.boxSize, d: R.boxSize })
+  }
+  return out
+}
+
+// 각도 a(자리 각도 규칙)가 둥근 벽을 비운 쪽(문·엘리베이터 앞)인지
+export function inRoundGap(round: RoundRoom, a: number): boolean {
+  const half = ROUND_ROOM.gapHalf / round.r // 비운 폭(m)을 각도로
+  return round.gaps.some((g) => Math.abs(Math.atan2(Math.sin(a - g), Math.cos(a - g))) < half)
 }
 
 // 천장 팬: 허브 원통 + 날개 상자 4개, 초당 회전 수
 export const FAN = { hubR: 0.06, hubH: 0.3, bladeL: 0.7, bladeW: 0.14, bladeT: 0.03, turnsPerSec: 1.5 }
 
 // 다이너 테이블: 상판 + 둘레 크롬 띠 + 크롬 다리 4개. 높이는 상자 책상(0.74)과 같고 충돌 범위(SEAT)도 그대로.
+// 둥근 방: 곡선 벽 두께, 부딪힘 상자 간격·크기, 문 앞 비우는 반폭(m), 곡선 기둥 크기
+export const ROUND_ROOM = { t: 0.25, boxStep: 0.45, boxSize: 0.6, gapHalf: 1.3, fin: { w: 0.7, out: 0.35 } }
+// 천창: 빛 세기·거리, 깔때기 안쪽 동심원 줄 수
+export const DOME = { intensity: 6, distance: 14, rings: 9 }
+// 돌 수반: 높이, 아래 반지름 비율, 안개 덩이 수·높이
+export const BASIN = { h: 0.45, foot: 0.75, fog: 7, fogY: 0.35 }
+// 라운지 소파: 기울기(누운 각도, 라디안), 폭, 쿠션 두께, 받침 두께
+//   옆모습(엉덩이 = 의자 자리 기준, 앞 = 가운데 쪽): 머리 → 등 → 엉덩이 → 무릎 → 발. 앉은 동작을 lie 만큼 뒤로 눕힌 모양에 맞춤
+export const LOUNGER = {
+  lie: 0.6,
+  w: 0.78,
+  cushionT: 0.1,
+  baseT: 0.07,
+  profile: [[-0.62, 1.12], [-0.05, 0.42], [0.42, 0.66], [0.98, 0.38], [1.18, 0.34]] as [number, number][],
+}
 export const DINER_DESK = { height: 0.74, topT: 0.06, trimT: 0.04, trimOut: 0.04, legR: 0.025, legInset: 0.1 }
 
 // 소파(부스 의자): 둥근 양끝 방석 + 둥근 등받이 + 둥근 흰 띠. 의자 자리(spot)에 두고 책상을 보게 돌립니다.

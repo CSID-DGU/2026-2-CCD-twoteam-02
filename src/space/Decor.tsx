@@ -3,11 +3,11 @@
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { DoubleSide, Path, Shape } from 'three'
+import { DoubleSide, ExtrudeGeometry, LatheGeometry, Path, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_TOP, ELEVATOR, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
-import type { BackBar, Bar, Booth, BranchTheme, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
+import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import type { BackBar, Bar, Basin, Booth, BranchTheme, Dome, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
@@ -28,7 +28,10 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
   const h = ceilingHeightOf(theme)
   return (
     <group>
-      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} height={h} />}
+      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} height={h} hole={theme.dome} />}
+      {theme.dome && <DomeSkylight dome={theme.dome} height={h} />}
+      {theme.round && <RoundWall round={theme.round} height={h} />}
+      {theme.basin && <FogBasin basin={theme.basin} />}
       {theme.ceiling?.fans?.map((f, i) => <CeilingFan key={i} spot={f} height={h} />)}
       {theme.ceiling?.lamps?.map((l, i) => <PendantLamp key={i} x={l.x} z={l.z} height={h} />)}
       {theme.wall?.neon && <NeonStrip color={theme.wall.neon} size={size} height={h} />}
@@ -77,11 +80,25 @@ export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor
 }
 
 // 천장: 아래를 보는 평면. planeGeometry 의 앞면은 +z 라 x 축으로 +90° 돌리면 앞면이 -y(아래)를 봅니다.
-function Ceiling({ color, size, height }: { color: string; size: Size; height: number }) {
+// hole: 천창이 있으면 그 자리에 둥근 구멍 (ShapeGeometry 는 x·y 평면이라, x 축으로 돌리면 y 가 월드 z 가 됩니다)
+function Ceiling({ color, size, height, hole }: { color: string; size: Size; height: number; hole?: Dome }) {
+  const holed = useMemo(() => {
+    if (!hole) return null
+    const shape = new Shape()
+    shape.moveTo(-size.w / 2, -size.d / 2)
+    shape.lineTo(size.w / 2, -size.d / 2)
+    shape.lineTo(size.w / 2, size.d / 2)
+    shape.lineTo(-size.w / 2, size.d / 2)
+    shape.closePath()
+    const p = new Path()
+    p.absarc(hole.x, hole.z, hole.R, 0, Math.PI * 2, true)
+    shape.holes.push(p)
+    return new ShapeGeometry(shape, 64)
+  }, [hole, size.w, size.d])
   return (
-    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]}>
-      <planeGeometry args={[size.w, size.d]} />
-      <meshStandardMaterial color={color} />
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]} geometry={holed ?? undefined}>
+      {!holed && <planeGeometry args={[size.w, size.d]} />}
+      <meshStandardMaterial color={color} roughness={1} side={DoubleSide} />
     </mesh>
   )
 }
@@ -1090,6 +1107,162 @@ export function ElevatorDoor({ box, height, near, nearColor, label }: { box: Box
           <meshStandardMaterial color={near ? '#f59e0b' : '#e8e6e2'} emissive={near ? '#f59e0b' : '#000000'} emissiveIntensity={near ? 1 : 0} />
         </mesh>
       </group>
+    </group>
+  )
+}
+
+// ── 숨 라운지 (휴식방) ───────────────────────────────────────────────
+// 매끈하지 않게: 모두 roughness 1, 금속감 없음. 벽·천창은 콘크리트 무늬로 푸석한 결을 냅니다.
+
+// 둥근 곡선 벽: 문·엘리베이터 쪽(gaps)을 비운 원호들 + 벽을 따라 아래가 넓은 곡선 기둥.
+// three.js 원기둥의 각도(theta)는 x = sin, z = cos 이라 자리 각도 규칙(0 = 남쪽)과 같습니다.
+function RoundWall({ round, height }: { round: RoundRoom; height: number }) {
+  const R = ROUND_ROOM
+  const half = R.gapHalf / round.r
+  const gaps = [...round.gaps].map((g) => ((g % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)).sort((a, b) => a - b)
+  // 비운 쪽 사이사이의 원호 [시작, 길이]
+  const arcs: [number, number][] = gaps.length
+    ? gaps.map((g, i) => {
+        const next = i + 1 < gaps.length ? gaps[i + 1] : gaps[0] + Math.PI * 2
+        return [g + half, next - g - half * 2] as [number, number]
+      })
+    : [[0, Math.PI * 2]]
+  const map = concreteTexture([round.color, round.fin], { x: 6, y: 1 })
+  const fins = Array.from({ length: round.fins }, (_, i) => (i / round.fins) * Math.PI * 2).filter((a) => !inRoundGap(round, a))
+  return (
+    <group>
+      {arcs.map(([start, len], i) => (
+        <mesh key={i} position-y={height / 2}>
+          <cylinderGeometry args={[round.r, round.r, height, 96, 1, true, start, len]} />
+          <meshStandardMaterial map={map} roughness={1} side={DoubleSide} />
+        </mesh>
+      ))}
+      {fins.map((a, i) => (
+        // 곡선 기둥: 아래가 넓게 벌어진 원기둥을 벽 쪽으로 납작하게 (가운데를 보게 돌림)
+        <group key={i} position={[Math.sin(a) * (round.r - R.fin.out / 2), 0, Math.cos(a) * (round.r - R.fin.out / 2)]} rotation-y={a}>
+          <mesh position-y={height / 2} scale={[R.fin.w, 1, R.fin.out]}>
+            <cylinderGeometry args={[0.4, 0.75, height, 24]} />
+            <meshStandardMaterial color={round.fin} roughness={1} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// 천창: 천장 구멍(R)에서 위로 좁아지는 깔때기(동심원 홈) + 맨 위 빛나는 판 + 아래로 비추는 빛
+function DomeSkylight({ dome, height }: { dome: Dome; height: number }) {
+  const geom = useMemo(() => {
+    // 옆모습: 바깥(R, 0)에서 안쪽 위(r, depth)로. 줄마다 살짝 턱을 둬 동심원 홈이 보이게
+    const pts: Vector2[] = []
+    for (let i = 0; i <= DOME.rings; i++) {
+      const t = i / DOME.rings
+      const rr = dome.R + (dome.r - dome.R) * t
+      const y = dome.depth * Math.sin((t * Math.PI) / 2) // 아래는 완만, 위로 갈수록 가파르게
+      pts.push(new Vector2(rr, y))
+      if (i < DOME.rings) pts.push(new Vector2(rr - 0.03, y + 0.02))
+    }
+    return new LatheGeometry(pts, 96)
+  }, [dome])
+  const map = concreteTexture([dome.color, '#d8d3c5'], { x: 8, y: 2 })
+  return (
+    <group position={[dome.x, height, dome.z]}>
+      <mesh geometry={geom}>
+        <meshStandardMaterial map={map} roughness={1} side={DoubleSide} />
+      </mesh>
+      <mesh position-y={dome.depth} rotation-x={Math.PI / 2}>
+        <circleGeometry args={[dome.r, 48]} />
+        <meshBasicMaterial color={dome.glow} side={DoubleSide} />
+      </mesh>
+      <pointLight position-y={dome.depth - 0.4} color={dome.glow} intensity={DOME.intensity} distance={DOME.distance} decay={1.2} />
+    </group>
+  )
+}
+
+// 가운데 돌 수반 + 수면 + 낮게 깔린 안개 덩이 (천천히 돌고 부풀었다 줄었다)
+function FogBasin({ basin }: { basin: Basin }) {
+  const fog = useRef<Group>(null)
+  useFrame(({ clock }) => {
+    const g = fog.current
+    if (!g) return
+    g.rotation.y = clock.elapsedTime * 0.05
+    g.children.forEach((c, i) => {
+      const k = 1 + Math.sin(clock.elapsedTime * 0.6 + i * 1.7) * 0.12
+      c.scale.set(k, 0.28 * k, k)
+    })
+  })
+  const B = BASIN
+  return (
+    <group position={[basin.x, 0, basin.z]}>
+      <mesh position-y={B.h / 2}>
+        <cylinderGeometry args={[basin.r, basin.r * B.foot, B.h, 48]} />
+        <meshStandardMaterial color={basin.color} roughness={1} />
+      </mesh>
+      <mesh position-y={B.h + 0.001} rotation-x={-Math.PI / 2}>
+        <circleGeometry args={[basin.r - 0.08, 48]} />
+        <meshStandardMaterial color={basin.water} roughness={0.9} />
+      </mesh>
+      <group ref={fog}>
+        {Array.from({ length: B.fog }, (_, i) => {
+          const a = (i / B.fog) * Math.PI * 2
+          const rr = basin.r * (i % 2 ? 0.7 : 1.15)
+          return (
+            <mesh key={i} position={[Math.sin(a) * rr, B.fogY + (i % 3) * 0.08, Math.cos(a) * rr]}>
+              <sphereGeometry args={[0.7, 16, 12]} />
+              <meshStandardMaterial color="#ffffff" transparent opacity={0.18} depthWrite={false} roughness={1} />
+            </mesh>
+          )
+        })}
+      </group>
+    </group>
+  )
+}
+
+// 누워 쉬는 라운지 소파. 옆모습(LOUNGER.profile)을 폭만큼 밀어 만든 쿠션 + 그 아래 받침 + 받침대 + 머리 베개.
+// 무리는 자리(의자 자리 = 엉덩이)에 두고 rot 방향(가운데 쪽)이 발 쪽입니다. color: 쿠션 색(가까이·내 자리면 강조색)
+export function Lounger({ x, z, rot, color, base, pillow }: { x: number; z: number; rot: number; color: string; base: string; pillow: string }) {
+  const L = LOUNGER
+  const { cushion, frame } = useMemo(() => {
+    // 옆모습 띠: 위 선(top)과 그 아래로 t 만큼 내린 선으로 닫은 모양
+    const strip = (top: [number, number][], t: number) => {
+      const sh = new Shape()
+      sh.moveTo(top[0][0], top[0][1])
+      top.slice(1).forEach(([u, v]) => sh.lineTo(u, v))
+      ;[...top].reverse().forEach(([u, v]) => sh.lineTo(u, v - t))
+      sh.closePath()
+      const g = new ExtrudeGeometry(sh, { depth: L.w, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 3, curveSegments: 4 })
+      g.translate(0, 0, -L.w / 2)
+      return g
+    }
+    const under = L.profile.map(([u, v]) => [u, v - L.cushionT] as [number, number])
+    return { cushion: strip(L.profile, L.cushionT), frame: strip(under, L.baseT) }
+  }, [L])
+  const [head] = L.profile
+  return (
+    <group position={[x, 0, z]} rotation-y={rot}>
+      {/* 옆모습의 가로(u)가 앞쪽(+z)이 되도록 돌립니다 */}
+      <group rotation-y={-Math.PI / 2}>
+        <mesh geometry={cushion}>
+          <meshStandardMaterial color={color} roughness={1} />
+        </mesh>
+        <mesh geometry={frame}>
+          <meshStandardMaterial color={base} roughness={1} />
+        </mesh>
+      </group>
+      {/* 받침대: 엉덩이 아래 넓게, 발 쪽 작게 */}
+      <mesh position={[0, 0.15, 0.15]}>
+        <boxGeometry args={[L.w * 0.7, 0.3, 0.55]} />
+        <meshStandardMaterial color={base} roughness={1} />
+      </mesh>
+      <mesh position={[0, 0.12, 0.95]}>
+        <boxGeometry args={[L.w * 0.5, 0.24, 0.2]} />
+        <meshStandardMaterial color={base} roughness={1} />
+      </mesh>
+      {/* 머리 베개: 가로로 누운 원통 */}
+      <mesh position={[0, head[1] + 0.02, head[0] + 0.1]} rotation-z={Math.PI / 2}>
+        <cylinderGeometry args={[0.1, 0.1, L.w * 0.8, 16]} />
+        <meshStandardMaterial color={pillow} roughness={1} />
+      </mesh>
     </group>
   )
 }
