@@ -26,12 +26,14 @@ const TICK_MS = 1000
 const RELOAD_MS = 60 * 1000
 // 막 발급된 영수증을 펼쳐 둔 뒤 접기까지의 시간 (#39)
 const PRINT_SHOW_MS = 5000
+const LOST_TEXT = '접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.'
 
 // onLost: 접속이 끊겨 자리를 잃었을 때 부릅니다. 지점 화면이 들고 있던 내 자리도
 // 같이 비워야 "화면에는 내 자리, DB 에는 없음"으로 어긋나지 않습니다. (#135 와 같은 문제)
+// lostText: 자리를 잃었을 때 안내 문구 (광장 벤치는 키오스크가 없어 다르게, #341)
 // placeKey: 지점 화면이 아는 내 자리 번호. 키오스크 배정·반납, 카페 앉기·일어나기로 바뀌면
 // 1분을 기다리지 않고 바로 다시 읽습니다. 새로 받은 자리면 영수증이 출력되듯 펼쳐집니다. (#39)
-export default function SeatTimeCorner({ onLost, placeKey = null }: { onLost?: () => void; placeKey?: number | null }) {
+export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOST_TEXT }: { onLost?: () => void; placeKey?: number | null; lostText?: string }) {
   // 쓰는 쪽에서 onLost={() => ...} 로 넘기면 매 렌더마다 다른 함수가 됩니다.
   // 그대로 의존성에 넣으면 아래 타이머가 계속 지워졌다 다시 걸립니다. ref 에 담아 둡니다.
   const lostRef = useRef(onLost)
@@ -124,9 +126,7 @@ export default function SeatTimeCorner({ onLost, placeKey = null }: { onLost?: (
     return (
       <div style={styles.corner}>
         <div style={styles.panel}>
-          <p style={styles.line}>
-            접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.
-          </p>
+          <p style={styles.line}>{lostText}</p>
           <div style={styles.row}>
             <button type="button" style={styles.primary} onClick={() => setLost(false)}>
               확인

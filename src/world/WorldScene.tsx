@@ -32,6 +32,7 @@ import { WalkCamera } from '../space/WalkCamera'
 import { SeatCamera } from '../space/SeatCamera'
 import { useBranchInfo } from '../space/useBranchInfo'
 import { useMySeat } from '../space/useMySeat'
+import SeatTimeCorner from '../kiosk/SeatTimeCorner' // 남은 시간·자리 잃음 안내 (#38, #341)
 import { useCafeSeat } from '../space/useCafeSeat'
 import { CafeConflictDialog } from '../space/CafeConflictDialog'
 import type { PresenceStatus } from '../space/status'
@@ -116,7 +117,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const benchSeated = seat !== null && spotKindOf(seat) === 'bench'
   const { info: plazaInfo } = useBranchInfo(PLAZA_SLUG) // 0038 실행 전이면 null (벤치에 앉을 수 없음)
   const plazaId = world.id === 'plaza' && plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
-  const { sessionId, setMySeat } = useMySeat(plazaId ?? -1)
+  const { mySeat, sessionId, setMySeat } = useMySeat(plazaId ?? -1)
   const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch') // 광장 벤치 자리만 정리 (다른 기기의 카페 자리는 그대로)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>('idle') // 벤치에 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false) // 공부 시작 창이 떠 있는지 (중지 중 포함)
@@ -446,6 +447,11 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && seat === null && <div style={crosshair} />}
+      {/* 벤치에 앉아 있는 동안: 지점 카페와 같은 남은 시간 영수증, 자리를 잃으면(다른 기기에서 반납·5분 넘게 신호 없음 등) 안내 (#341).
+          잃으면 내 자리를 비워 공부 타이머가 끝난 이용 기록에 더 저장하지 않습니다(지점과 같음). */}
+      {benchSeated && session && (
+        <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} lostText="벤치 자리가 반납되었습니다. 일어났다가 다시 앉아 주세요." />
+      )}
       {/* 벤치에서 공부: 지점 좌석과 같은 웹캠 트래킹·공부 시작 창·집중 타이머 */}
       {benchSeated && session && (
         <SeatedStudy
