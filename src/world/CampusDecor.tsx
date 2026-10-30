@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import { checkerTexture } from '../space/patternTexture'
 import { GATE_FENCE, GATE_POST } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, RestSpec } from './worldLogic'
-import { MAT as WMAT, colorMat } from './worldMaterials'
+import { MAT as WMAT, colorMat, roofMat } from './worldMaterials'
 
 // 색
 const C = {
@@ -378,7 +378,7 @@ export function GateBackdrop({ gate }: { gate: PlacedGate }) {
               <mesh position-y={2} material={colorMat('#e8d9c4')}>
                 <boxGeometry args={[6, 4, 5]} />
               </mesh>
-              <mesh position-y={4.2} material={colorMat(roof as string)}>
+              <mesh position-y={4.2} material={roofMat(roof as string)}>
                 <boxGeometry args={[6.4, 0.4, 5.4]} />
               </mesh>
             </group>
@@ -453,7 +453,7 @@ export function CampusBuildingTrim({ b }: { b: PlacedBuilding }) {
           <mesh position-y={TOWER.h + 0.1} material={MAT.cap}>
             <boxGeometry args={[TOWER.w + 0.3, 0.2, TOWER.w + 0.3]} />
           </mesh>
-          <mesh position-y={TOWER.h + 0.2 + TOWER.roofH / 2} rotation-y={Math.PI / 4} material={colorMat(b.spec.roof)}>
+          <mesh position-y={TOWER.h + 0.2 + TOWER.roofH / 2} rotation-y={Math.PI / 4} material={roofMat(b.spec.roof)}>
             <coneGeometry args={[TOWER.w * 0.78, TOWER.roofH, 4]} />
           </mesh>
           <mesh position={[0, TOWER.h * 0.62, TOWER.w / 2 + 0.01]} material={MAT.clockFace}>
