@@ -6,7 +6,6 @@ import { CHAIR, KIOSK, SEAT, elevatorFront, meetingDoorFront, obstaclesOf, spots
 import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
-import { supabase } from "../lib/supabase";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
 import { BarTable, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
@@ -23,6 +22,8 @@ import { Minimap } from "./Minimap";
 import { SeatedStudy } from "../study/SeatedStudy";
 import { MY_SEAT_COLOR, MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
+import { useCafeSeat } from "./useCafeSeat";
+import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
@@ -219,64 +220,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     };
   };
 
-  // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44) ──
-  // 앉기 전에 DB에 자리를 잡아 봅니다(sit_cafe_seat, 0014). 두 사람이 동시에 눌러도 DB가 한 명만 통과시킵니다.
-  // 잡히면 Player 에게 앉으라고 알리고(sitRequest), 실패하면 안내를 띄웁니다.
-  const sitRequest = useRef<number | null>(null);
-  const [cafeMessage, setCafeMessage] = useState(""); // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
-  const [conflict, setConflict] = useState<{ message: string; seatNo: number } | null>(null); // 다른 자리를 쓰는 중
-  const claimSeat = async (no: number) => {
-    const { error } = await supabase.rpc("sit_cafe_seat", { p_branch_id: BRANCH_ID, p_seat_number: no });
-    if (error) {
-      // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
-      if (error.code === "DT001") setConflict({ message: error.message, seatNo: no });
-      else setCafeMessage(error.message);
-      return;
-    }
-    setCafeMessage("");
-    setMySeat(no);
-    sitRequest.current = no;
-  };
-  const releaseAndSit = async () => {
-    if (!conflict) return;
-    const no = conflict.seatNo;
-    setConflict(null);
-    const { error } = await supabase.rpc("release_my_place"); // 0008: 쓰고 있던 자리 반납
-    if (error) {
-      setCafeMessage(`반납하지 못했어요: ${error.message}`);
-      return;
-    }
-    await claimSeat(no);
-  };
-  useEffect(() => {
-    if (!cafeMessage) return;
-    const t = setTimeout(() => setCafeMessage(""), 4000);
-    return () => clearTimeout(t);
-  }, [cafeMessage]);
-
-  // 카페 자리는 앉아 있는 동안만 내 것입니다. 지점을 나가거나 창을 닫으면 놓고,
-  // 들어올 때는 지난번에 놓지 못한 자리가 남아 있으면 정리합니다.
-  const seatedRef = useRef(false);
-  useEffect(() => {
-    seatedRef.current = seat !== null;
-  }, [seat]);
-  useEffect(() => {
-    if (!isCafe) return;
-    void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
-    const leave = () => {
-      if (seatedRef.current) void supabase.rpc("leave_cafe_seat");
-    };
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.removeEventListener("pagehide", leave);
-      leave();
-    };
-  }, [isCafe, setMySeat]);
+  // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44, useCafeSeat) ──
+  const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat);
+  const { conflict, message: cafeMessage } = cafe;
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
     // 카페에서 일어나면 자리를 놓습니다.
-    if (no === null && isCafe) void supabase.rpc("leave_cafe_seat").then(() => setMySeat(null));
+    if (no === null && isCafe) cafe.leave();
     setSeat(no);
   };
   const handleArrive = () => {
@@ -574,8 +525,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onElevator={() => setElevatorOpen(true)}
           onKiosk={() => setKioskOpen(true)}
           canSit={(no) => no === mySeat}
-          onSitBlocked={isCafe ? (no) => void claimSeat(no) : undefined}
-          sitRef={sitRequest}
+          onSitBlocked={isCafe ? (no) => void cafe.claim(no) : undefined}
+          sitRef={cafe.sitRequest}
           onMove={handleMove}
           headingRef={view === "first" ? heading : undefined}
         />
@@ -642,18 +593,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
-    {conflict && (
-      // 다른 자리를 이용 중일 때: 반납하고 바로 이 자리에 앉을 수 있게 합니다.
-      <div style={{ position: "fixed", inset: 0, zIndex: 20, display: "grid", placeItems: "center", background: "rgba(0,0,0,.45)" }}>
-        <div style={{ width: "min(380px, calc(100vw - 32px))", padding: 20, borderRadius: 12, background: "#20232a", color: "#fff", font: "14px/1.6 system-ui, sans-serif" }}>
-          <p style={{ margin: "0 0 16px" }}>{conflict.message}</p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button type="button" style={dialogButton} onClick={() => setConflict(null)}>닫기</button>
-            <button type="button" style={{ ...dialogButton, ...dialogPrimary }} onClick={() => void releaseAndSit()}>반납하고 앉기</button>
-          </div>
-        </div>
-      </div>
-    )}
+    {conflict && <CafeConflictDialog message={conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
     {elevatorOpen && (
       // 층 고르는 창. 고르면 그 층 지점으로 옮겨 엘리베이터 문 앞에 섭니다(지점 화면은 새로 그려짐).
       <FloorPicker
@@ -698,9 +638,3 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     </>
   );
 }
-
-const dialogButton: React.CSSProperties = {
-  padding: "6px 12px", borderRadius: 6, border: "1px solid #4b5563", background: "transparent",
-  color: "#fff", cursor: "pointer", font: "inherit",
-};
-const dialogPrimary: React.CSSProperties = { border: "none", background: "#22c55e", color: "#0b1a10", fontWeight: 600 };

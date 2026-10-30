@@ -19,12 +19,28 @@
 //
 // 같은 화면으로 두 바깥 공간(월드)을 그립니다: 광장(/)과 캠빛 대학교 캠퍼스(/campus). 무엇을 그릴지는 world(worldConfig.ts)가 정합니다.
 // 월드 사이는 정문(gates)으로 오갑니다. 정문 앞에서 E 를 누르면 다른 월드로 넘어가 그쪽 정문 앞에 문을 등지고 섭니다.
+//
+// 벤치에서 공부하기 (광장만): 광장은 DB 에서 카페 종류 지점 'plaza' 이고(0038) 벤치마다 두 자리가 그 좌석이다.
+// 빈 벤치 자리에서 E 를 누르면 카페처럼 DB 에 자리를 잡고(useCafeSeat) 앉아, 지점과 똑같이 좌석 공부(SeatCamera·SeatedStudy)를 한다.
+// 일어나거나 광장을 떠나면 자리를 놓는다. 다른 사람에게는 벤치에 앉은 모습과 공부 상태 표시등이 보인다.
+// 캠퍼스의 벤치는 DB 자리가 없어 앉지 않는다(보기만).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { SeatCamera } from '../space/SeatCamera'
+import { useBranchInfo } from '../space/useBranchInfo'
+import { useMySeat } from '../space/useMySeat'
+import { useCafeSeat } from '../space/useCafeSeat'
+import { CafeConflictDialog } from '../space/CafeConflictDialog'
+import type { PresenceStatus } from '../space/status'
+import { SeatedStudy } from '../study/SeatedStudy'
+import type { MyTracking } from '../study/SeatedStudy'
+import { headAngles, nextEyesClosed } from '../tracking/faceSync'
+import { characterArms } from '../tracking/armLogic'
+import type { Direction } from '../tracking/armLogic'
+import { LevelUpCard } from '../level/LevelUpCard'
 import { TopDownCamera } from '../space/TopDownCamera'
 import { Minimap } from '../space/Minimap'
 import { FpsProbe, PerfReadout } from '../space/PerfReadout'
@@ -48,7 +64,7 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
+import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, benchSeats, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
@@ -71,6 +87,9 @@ const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
 const MINIMAP_SPAN = 40 // 미니맵: 내 둘레 이 거리(m)
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
+// 벤치에서 공부하기 (광장만, 0038): 벤치 자리와 DB 의 광장 지점
+const PLAZA_BENCH_SPOTS = benchSeats(PLAZA_WORLD.layout)
+const PLAZA_SLUG = 'plaza' // DB 에서 광장 지점 (카페 종류, 벤치 자리가 좌석)
 
 type Branch = { id: number; slug: string; name: string }
 
@@ -92,6 +111,21 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [message, setMessage] = useState('')
   // 앉아 있는 쉬는 자리 번호 (캠퍼스 쿼드의 돗자리·빈백). 기록 없이 쉬기만 합니다. 서 있으면 null
   const [seat, setSeat] = useState<number | null>(null)
+  // 벤치에서 공부하기 (광장만): 벤치 자리 번호는 BENCH_SEAT_BASE 초과(spotKindOf 'bench')
+  const BENCH_SPOTS = world.id === 'plaza' ? PLAZA_BENCH_SPOTS : []
+  const benchSeated = seat !== null && spotKindOf(seat) === 'bench'
+  const { info: plazaInfo } = useBranchInfo(PLAZA_SLUG) // 0038 실행 전이면 null (벤치에 앉을 수 없음)
+  const plazaId = world.id === 'plaza' && plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
+  const { sessionId, setMySeat } = useMySeat(plazaId ?? -1)
+  const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch') // 광장 벤치 자리만 정리 (다른 기기의 카페 자리는 그대로)
+  const [studyStatus, setStudyStatus] = useState<PresenceStatus>('idle') // 벤치에 앉아 있을 때의 집중 상태
+  const [studyDialogOpen, setStudyDialogOpen] = useState(false) // 공부 시작 창이 떠 있는지 (중지 중 포함)
+  const [studyPaused, setStudyPaused] = useState(false) // 공부 중지 중 (#236)
+  const myTracking = useRef<MyTracking | null>(null) // 앉아 있는 동안 내 트래킹 (고개·눈·팔을 다른 참여자에게)
+  const myEyesClosed = useRef(false)
+  const handleTracking = useCallback((tracking: MyTracking | null) => {
+    myTracking.current = tracking
+  }, [])
   // 처음엔 1인칭. V 로 바꾸면 지점에 다녀와도 유지합니다. (useWalkView)
   const [view, setView] = useWalkView()
   // 지점에서 나왔으면 그 건물 입구 앞에 건물을 등지고 섭니다(#150). 주소로 바로 들어오면 분수 남쪽 시작 위치.
@@ -110,12 +144,22 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
-  const overlay = fortune !== null || rankingOpen // 광장 위에 운세·순위 창이 떠 있음 (메뉴 창 panel 과 따로)
+  const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
   const { session } = useSession()
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
   const myTitle = useMyTitle(session?.user.id)
-  const myLv = sharedLevel(myTitle.visibility, myTitle.level)
+  // 벤치에서 공부하는 동안 오른 단계와 끝난 공부 시간 (지점 화면과 같은 방식)
+  const [liveLevel, setLiveLevel] = useState(0)
+  const [titleDoneMs, setTitleDoneMs] = useState(0)
+  const [levelUp, setLevelUp] = useState<number | null>(null) // 축하 카드에 띄울 단계
+  const myLv = sharedLevel(myTitle.visibility, Math.max(myTitle.level, liveLevel))
+  const titleBaseSeconds = myTitle.savedSeconds === null ? null : myTitle.savedSeconds + titleDoneMs / 1000
+  const handleLevelUp = useCallback((level: number) => {
+    setLiveLevel((v) => Math.max(v, level))
+    setLevelUp(level)
+  }, [setLiveLevel, setLevelUp])
+  const handleRunEnd = useCallback((ms: number) => setTitleDoneMs((v) => v + ms), [setTitleDoneMs])
   // 내 생일 → 내 별자리 (#321). 밤하늘에서 금색으로 보여 줍니다. 생일이 없으면 null
   const { birthday } = useMyBirthday(session?.user.id)
   const mySign = birthday ? signOfBirthday(birthday.month, birthday.day) : null
@@ -202,8 +246,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 안 연 건물 입구에서는 Player 가 입구 자리에 앉히지(숨기지) 않게 하고 "준비 중"만 띄웁니다.
   // (앉히면 캐릭터가 사라지고 E 를 다시 누를 때까지 움직일 수 없음)
   // 게시판 앞 자리도 "앉을 수 없는 자리"로 두어, E 를 누르면 blockedEnter 에서 순위 창을 엽니다(캐릭터가 앉거나 숨지 않음).
+  // 벤치 자리도 앉기 전에 DB 에 자리를 잡아야 하므로 false 로 두고, E 를 누르면 blockedEnter 에서 잡습니다(카페와 같음).
   const canEnter = (no: number) => {
-    if (spotKindOf(no) === 'board') return false
+    if (spotKindOf(no) === 'board' || spotKindOf(no) === 'bench') return false
     if (spotKindOf(no) !== 'building') return true // 정문·쉬는 자리
     const b = PLACED.find((p) => p.no === no)
     return !b || isOpen(b.slug)
@@ -220,18 +265,28 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 자리에서 E: 건물이면 그 지점으로, 정문이면 다른 월드로, 쉬는 자리면 앉음(일어나면 null)
   const handleSeat = (no: number | null) => {
     if (no === null) {
+      if (benchSeated) cafe.leave() // 벤치에서 일어나면 자리를 놓습니다
       setSeat(null)
+      setStudyStatus('idle')
       return
     }
     const kind = spotKindOf(no)
     if (kind === 'gate') goGate(no)
-    else if (kind === 'rest') setSeat(no)
+    else if (kind === 'rest' || kind === 'bench') setSeat(no)
     else void tryEnter(no)
   }
   // 쉬는 자리 이름 (안내 글자)
   const restKind = (no: number) => PLAZA.rests?.[no - REST_NO_BASE]?.kind
-  const seatSpot = REST_SPOTS.find((r) => r.no === seat)
+  const seatSpot = REST_SPOTS.find((r) => r.no === seat) ?? BENCH_SPOTS.find((s) => s.no === seat)
+  // 다른 참여자가 앉아 있는 벤치 자리에는 앉을 수 없습니다.
+  const taken = new Set(others.map((p) => p.seat).filter((no): no is number => no !== null))
+  const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
   const blockedEnter = (no: number) => {
+    if (spotKindOf(no) === 'bench') {
+      if (plazaId === null) setMessage('벤치 자리를 아직 쓸 수 없어요. 잠시 뒤 다시 해 주세요.') // 광장 지점(0038)을 못 읽음
+      else void cafe.claim(benchSeatNumber(no), no)
+      return
+    }
     if (no === BOARD_NO) {
       if (panel === null && !overlay) setRankingOpen(true)
       return
@@ -244,10 +299,18 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const nearGate = GATES.find((g) => g.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
-  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) }
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) }
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
-  const hint = panel
+  const hint = panel || cafe.conflict
     ? ''
+    : studyPaused
+      ? '⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요'
+    : cafe.message
+      ? cafe.message
+    : benchSeated
+      ? `벤치 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+    : near !== null && spotKindOf(near) === 'bench'
+      ? `벤치 · ${K.interact} 앉아서 공부하기`
     : near === BOARD_NO
       ? `순위 게시판 · ${K.interact} 보기`
     : seat !== null
@@ -268,7 +331,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     <>
       <Canvas>
         {seatSpot ? (
-          // 돗자리·빈백에 앉았으면 그 자리 시점 (빈백은 기대 누워 조금 위를 봄, spot 의 y·lie)
+          // 돗자리·빈백·벤치에 앉았으면 그 자리 시점 (빈백은 기대 누워 조금 위를 봄, spot 의 y·lie). 벤치는 지점 좌석과 같은 좌우 60도씩
           <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={() => {}} paused={panel !== null || overlay} />
         ) : view === 'first' ? (
           <>
@@ -281,7 +344,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         )}
         <FpsProbe onSample={handleFps} />
         {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321), 구름·비·눈 (#317) */}
-        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && !rankingOpen && setFortune(id)} weatherRef={weather} followRef={pos} />
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && !overlay && seat === null && setFortune(id)} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} />
         <Fence plaza={PLAZA} />
@@ -307,9 +370,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
 
-        {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 광장에서는 모두 공부 전이라 상태 표시등은 끕니다. */}
+        {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 쉬는 자리·벤치에 앉은 사람은 앉은 모습으로.
+            표시등은 벤치에서 공부 중인 사람만 보입니다 (걷거나 쉬는 사람은 idle 이라 표시등이 없음). */}
         {condition === 'visible' && (
-          <OtherParticipants others={others} spots={REST_SPOTS} showStatus={false} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
+          <OtherParticipants others={others} spots={[...REST_SPOTS, ...BENCH_SPOTS]} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
         )}
 
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
@@ -320,7 +384,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             spawn={arrival.spawn}
             spawnHeading={arrival.heading}
             emoteRef={emote}
-            spots={ENTRIES}
+            spots={freeSpots}
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={NO_KIOSK}
@@ -334,6 +398,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             onSeat={handleSeat}
             canSit={canEnter}
             onSitBlocked={blockedEnter}
+            sitRef={cafe.sitRequest}
             onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z
@@ -343,10 +408,29 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
                 const crossed = GATES.find((g) => gateCrossed(g, x, z))
                 if (crossed) goGate(crossed.no)
               }
-              // 바깥에서는 모두 공부 전(idle)입니다. 쉬는 자리에 앉았으면 그 번호를 보내 다른 사람 화면에도 앉은 모습으로.
+              // 쉬는 자리·벤치에 앉았으면 그 번호를 보내 다른 사람 화면에도 앉은 모습으로.
+              // 벤치에서 공부 중이면 집중 상태와 고개·눈(얼굴을 찾았을 때)·팔도 싣습니다(지점 화면과 같음). 그 밖에는 공부 전(idle).
               // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
+              if (!session) return
+              const tracking = benchSeated ? myTracking.current : null
+              const face = tracking?.face.current ?? null
+              const angles = face ? headAngles(face, false) : null
+              myEyesClosed.current = face ? nextEyesClosed(myEyesClosed.current, face) : false
+              const arms = tracking ? characterArms(tracking.arms.current, false) : null
+              const vec = (d: Direction | null): [number, number, number] | null => (d ? [d.x, d.y, d.z] : null)
               const e = emote.current
-              if (session) me.current = { userId: session.user.id, x, z, h, seat, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(myLv ? { lv: myLv } : {}) }
+              me.current = {
+                userId: session.user.id,
+                x,
+                z,
+                h,
+                seat,
+                status: benchSeated ? studyStatus : 'idle',
+                ...(angles ? { head: [angles.yaw, angles.pitch, angles.roll], eyes: myEyesClosed.current } : {}),
+                ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
+                ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}),
+                ...(myLv ? { lv: myLv } : {}),
+              }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
@@ -361,6 +445,25 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
       {locked && seat === null && <div style={crosshair} />}
+      {/* 벤치에서 공부: 지점 좌석과 같은 웹캠 트래킹·공부 시작 창·집중 타이머 */}
+      {benchSeated && session && (
+        <SeatedStudy
+          userId={session.user.id}
+          sessionId={sessionId}
+          condition={condition}
+          onStatus={setStudyStatus}
+          onDialogChange={setStudyDialogOpen}
+          onPausedChange={setStudyPaused}
+          onTracking={handleTracking}
+          titleBaseSeconds={titleBaseSeconds}
+          onLevelUp={handleLevelUp}
+          onRunEnd={handleRunEnd}
+        />
+      )}
+      {/* 칭호가 오르면 잠깐 뜨는 축하 카드 (공부를 끊지 않음) */}
+      {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
+      {/* 다른 자리(예: 별다방 7번)를 쓰는 중이면: 반납하고 이 벤치에 앉기 */}
+      {cafe.conflict && <CafeConflictDialog message={cafe.conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {rankingOpen && (
