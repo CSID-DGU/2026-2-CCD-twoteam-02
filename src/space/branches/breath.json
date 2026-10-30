@@ -1,0 +1,198 @@
+{
+  "id": "breath",
+  "name": "숨 라운지",
+  "rest": true,
+  "size": {
+    "w": 16,
+    "d": 16
+  },
+  "spawn": {
+    "x": 0,
+    "z": 7
+  },
+  "door": {
+    "x": 0,
+    "z": 8,
+    "w": 1.6,
+    "d": 0.3
+  },
+  "walls": [
+    {
+      "x": 0,
+      "z": -8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": 0,
+      "z": 8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": -8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    },
+    {
+      "x": 8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    }
+  ],
+  "seats": [
+    {
+      "no": 1,
+      "x": 1.385,
+      "z": 5.168,
+      "rot": -2.88,
+      "chair": "lounger"
+    },
+    {
+      "no": 2,
+      "x": 3.783,
+      "z": 3.783,
+      "rot": -2.356,
+      "chair": "lounger"
+    },
+    {
+      "no": 3,
+      "x": 5.168,
+      "z": 1.385,
+      "rot": -1.833,
+      "chair": "lounger"
+    },
+    {
+      "no": 4,
+      "x": 5.168,
+      "z": -1.385,
+      "rot": -1.309,
+      "chair": "lounger"
+    },
+    {
+      "no": 5,
+      "x": 3.783,
+      "z": -3.783,
+      "rot": -0.785,
+      "chair": "lounger"
+    },
+    {
+      "no": 6,
+      "x": 1.385,
+      "z": -5.168,
+      "rot": -0.262,
+      "chair": "lounger"
+    },
+    {
+      "no": 7,
+      "x": -1.385,
+      "z": -5.168,
+      "rot": 0.262,
+      "chair": "lounger"
+    },
+    {
+      "no": 8,
+      "x": -3.783,
+      "z": -3.783,
+      "rot": 0.785,
+      "chair": "lounger"
+    },
+    {
+      "no": 9,
+      "x": -5.168,
+      "z": -1.385,
+      "rot": 1.309,
+      "chair": "lounger"
+    },
+    {
+      "no": 10,
+      "x": -5.168,
+      "z": 1.385,
+      "rot": 1.833,
+      "chair": "lounger"
+    },
+    {
+      "no": 11,
+      "x": -3.783,
+      "z": 3.783,
+      "rot": 2.356,
+      "chair": "lounger"
+    },
+    {
+      "no": 12,
+      "x": -1.385,
+      "z": 5.168,
+      "rot": 2.88,
+      "chair": "lounger"
+    }
+  ],
+  "elevator": {
+    "x": -8,
+    "z": 0,
+    "w": 0.3,
+    "d": 1.4
+  },
+  "theme": {
+    "floor": {
+      "pattern": "concrete",
+      "colors": [
+        "#d6dec8",
+        "#c4ceb2"
+      ],
+      "cell": 4
+    },
+    "wall": {
+      "color": "#b4c69d"
+    },
+    "ceiling": {
+      "color": "#e6e4d8",
+      "height": 4.2
+    },
+    "round": {
+      "r": 7.6,
+      "color": "#a7bd8f",
+      "fin": "#bacda4",
+      "fins": 12,
+      "gaps": [
+        0,
+        -1.5708
+      ]
+    },
+    "dome": {
+      "x": 0,
+      "z": 0,
+      "R": 5.6,
+      "r": 1.9,
+      "depth": 2.2,
+      "color": "#e9e5d9",
+      "glow": "#fff2d2"
+    },
+    "basin": {
+      "x": 0,
+      "z": 0,
+      "r": 1.3,
+      "color": "#d9d5c9",
+      "water": "#c8d6c2"
+    },
+    "lounger": {
+      "base": "#8fac78",
+      "cushion": "#a9c590",
+      "pillow": "#c2d8ac"
+    },
+    "chair": "#a9c590",
+    "light": {
+      "ambient": 1.0,
+      "sun": 0.55,
+      "color": "#fff5e4"
+    },
+    "door": {
+      "style": "wood",
+      "color": "#98b083",
+      "chrome": "#6c8258",
+      "signBg": "#7d996a",
+      "knob": "#e8e4d8"
+    }
+  }
+}

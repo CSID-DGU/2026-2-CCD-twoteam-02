@@ -55,6 +55,10 @@
         {
           "slug": "stream",
           "window": "#5b7480"
+        },
+        {
+          "slug": "breath",
+          "window": "#d8e6c8"
         }
       ]
     },
