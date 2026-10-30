@@ -7,7 +7,7 @@
 // 값은 React 상태가 아니라 ref 로 넘깁니다. WorldSky 가 매 프레임 읽는 값이라, 받을 때마다 광장을 다시 그릴 필요가 없습니다.
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
-import { nextFetchDelay, parseForecast, parseWeatherOverride, weatherUrl } from './weatherLogic'
+import { nextFetchDelay, parseCoverOverride, parseForecast, parseWeatherOverride, weatherUrl } from './weatherLogic'
 import type { Hour, WeatherSource } from './weatherLogic'
 
 const HOUR_MS = 3_600_000
@@ -18,12 +18,14 @@ const TIMEOUT_MS = 10_000 // 한 번 받기에 이보다 오래 걸리면 그만
 const cache: { hours: Hour[] | null; hour: number } = { hours: null, hour: -1 }
 
 export function useWorldWeather(): RefObject<WeatherSource> {
-  const source = useRef<WeatherSource>({ hours: cache.hours, override: null })
+  const source = useRef<WeatherSource>({ hours: cache.hours, override: null, cover: null })
 
   useEffect(() => {
     const override = parseWeatherOverride(window.location.search)
+    const cover = parseCoverOverride(window.location.search) // ?snowcover= (쌓인 정도만 따로, 실제 날씨와 같이 써도 됨, #329)
+    source.current = { ...source.current, cover }
     if (override) {
-      source.current = { hours: null, override }
+      source.current = { hours: null, override, cover }
       return
     }
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -45,7 +47,7 @@ export function useWorldWeather(): RefObject<WeatherSource> {
         const now = Date.now()
         cache.hours = hours
         cache.hour = Math.floor(now / HOUR_MS)
-        source.current = { hours, override: null }
+        source.current = { hours, override: null, cover }
         schedule(nextFetchDelay(now))
       } catch (e) {
         if (stopped) return

@@ -11,7 +11,7 @@ import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { BENCH, facingAngle, fenceSegments, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-import { COLOR, MAT, colorMat } from './worldMaterials'
+import { COLOR, MAT, colorMat, lawnMat, roofMat } from './worldMaterials'
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -45,7 +45,7 @@ export function Ground({ plaza }: { plaza: PlazaLayout }) {
         Array.from({ length: stripes }, (_, i) => {
           const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
           return (
-            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={colorMat(i % 2 ? LAWN.dark : LAWN.light)}>
+            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={lawnMat(i % 2 ? LAWN.dark : LAWN.light)}>
               <planeGeometry args={[w, plaza.plaza.d]} />
             </mesh>
           )
@@ -124,7 +124,7 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
   const doorX = rotate(b.door.x - b.spec.x, b.door.z - b.spec.z, -b.angle).x // 실내 기준 입구 x
   const doorW = sideways ? b.door.d : b.door.w
   const wall = colorMat(b.spec.wall)
-  const roof = colorMat(b.spec.roof)
+  const roof = roofMat(b.spec.roof) // 지붕 전용 재질 (눈이 쌓이면 하얗게, #329)
   const multi = b.floors.length > 1
   const height = BUILDING_H * b.floors.length
   const signBg = open ? '#14532d' : '#374151'

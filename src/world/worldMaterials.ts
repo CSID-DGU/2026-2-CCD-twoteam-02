@@ -70,3 +70,57 @@ export function colorMat(color: string) {
   }
   return m
 }
+
+// ── 눈 쌓임 (#329) ──────────────────────────────────────────────────
+// 실제 서울 적설(Open-Meteo snow_depth)로 정한 쌓인 정도(0~1)만큼 공용 재질의 색을 눈 색 쪽으로 섞습니다.
+// 새 물체를 더하지 않고 색만 바꾸므로 가볍습니다. 재질을 여러 물체가 같이 쓰므로 한 번 바꾸면 광장·캠퍼스가 전부 바뀝니다.
+//   잔디·캠퍼스 줄무늬 잔디·지붕·나무 위쪽 100%, 나무 아래쪽 50%, 광장 돌바닥·길 50%(밟힌 느낌, 길이 구분되게)
+//   벤치·울타리·가로등·벽은 그대로
+// 지붕과 줄무늬 잔디는 같은 색의 다른 부분(벽 등)까지 하얘지지 않게 전용 재질(roofMat·lawnMat)을 씁니다.
+const SNOW_COLOR = new THREE.Color('#f2f5f9')
+const SNOW_PART = { full: 1, half: 0.5 } // 재질마다 덮이는 정도 (쌓인 정도에 곱함)
+const COVER_STEP = 100 // 쌓인 정도를 1/100 단위로 바꿈 (매 프레임 색을 다시 칠하지 않게)
+type Snowy = { mat: THREE.MeshStandardMaterial; base: THREE.Color; part: number }
+const snowy: Snowy[] = []
+let lastCover = 0
+const addSnowy = (m: THREE.MeshStandardMaterial, part: number) => {
+  const s = { mat: m, base: m.color.clone(), part }
+  snowy.push(s)
+  m.color.copy(s.base).lerp(SNOW_COLOR, lastCover * part) // 이미 쌓여 있으면 새로 만든 재질도 맞춰 칠함
+  return m
+}
+addSnowy(MAT.grass, SNOW_PART.full)
+addSnowy(MAT.leavesTop, SNOW_PART.full)
+addSnowy(MAT.leaves, SNOW_PART.half)
+addSnowy(MAT.plaza, SNOW_PART.half)
+addSnowy(MAT.path, SNOW_PART.half)
+
+// 지붕 전용 재질 (색별로 한 번만). 눈이 오면 다 덮임
+const roofMats = new Map<string, THREE.MeshStandardMaterial>()
+export function roofMat(color: string) {
+  let m = roofMats.get(color)
+  if (!m) {
+    m = addSnowy(mat(color), SNOW_PART.full)
+    roofMats.set(color, m)
+  }
+  return m
+}
+
+// 줄무늬 잔디 전용 재질 (색별로 한 번만). 눈이 오면 다 덮임
+const lawnMats = new Map<string, THREE.MeshStandardMaterial>()
+export function lawnMat(color: string) {
+  let m = lawnMats.get(color)
+  if (!m) {
+    m = addSnowy(mat(color), SNOW_PART.full)
+    lawnMats.set(color, m)
+  }
+  return m
+}
+
+// 쌓인 정도를 바꿉니다 (0 없음 ~ 1 다 덮임). WorldSky 가 매 프레임 불러도 1/100 단위로 바뀔 때만 다시 칠합니다.
+export function setSnowCover(cover: number) {
+  const c = Math.round(Math.min(1, Math.max(0, cover)) * COVER_STEP) / COVER_STEP
+  if (c === lastCover) return
+  lastCover = c
+  for (const s of snowy) s.mat.color.copy(s.base).lerp(SNOW_COLOR, c * s.part)
+}

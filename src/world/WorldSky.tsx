@@ -27,7 +27,7 @@ import type { Point } from './worldLogic'
 import { OVERCAST_COLOR, applyWeather, weatherAt } from './weatherLogic'
 import type { WeatherFrame, WeatherSource } from './weatherLogic'
 import { applyLightning, lightningAt, parseLightningFast } from './lightningLogic'
-import { setNightGlow } from './worldMaterials'
+import { setNightGlow, setSnowCover } from './worldMaterials'
 import { Constellations } from './Constellations'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
@@ -208,7 +208,8 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
     const ms = worldTime(clock.current, now)
     // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
     const src = weatherRef.current
-    const weather = src.override ?? weatherAt(src.hours, now)
+    const base = src.override ?? weatherAt(src.hours, now)
+    const weather = src.cover === null ? base : { ...base, cover: src.cover } // ?snowcover= 로 쌓인 정도만 바꿈 (#329)
     // 번개도 실제 시각으로 정해 모두 같은 때 번쩍입니다. 뇌우가 아니면 lightning.flash = 0 이라 하늘 값이 그대로
     const lightning = lightningAt(now, weather.storm, fastLightning.current)
     const s = applyLightning(applyWeather(skyState(ms), weather), lightning.flash)
@@ -281,6 +282,7 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
       if (l) l.intensity = LAMP_LIGHT.power * s.glow
     }
     setNightGlow(s.glow)
+    setSnowCover(weather.cover) // 눈 쌓임: 잔디·지붕·나무·길 색 (#329, 바뀔 때만 다시 칠함)
   })
 
   return (
