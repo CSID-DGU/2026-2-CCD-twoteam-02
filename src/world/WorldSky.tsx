@@ -12,6 +12,7 @@
 //
 //   날씨     실제 서울 날씨(#317, useWorldWeather 가 받음)로 빛·별·달을 어둡게 하고(applyWeather) 회색 "흐림 덮개"를 씌움.
 //            흩뿌린 별만 흐려지고 별자리는 그대로(stars 는 바꾸지 않고 fieldStars 를 따로 씀)
+//   번개     뇌우일 때(#328) lightningLogic 으로 주변광·흐림 덮개를 잠깐 밝히고(applyLightning), 먼 하늘에 줄기(LightningBolt)를 그림
 //
 // 하늘 부품은 레이어 2(SKY_LAYER)에 둡니다. 화면 카메라만 레이어 2 를 켜고 미니맵 카메라는 켜지 않아서,
 // 미니맵의 월드 바깥은 지금처럼 어두운 색으로 남습니다.
@@ -23,21 +24,23 @@ import * as THREE from 'three'
 import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime } from './skyLogic'
 import type { Clock } from './skyLogic'
 import type { Point } from './worldLogic'
-import { applyWeather, weatherAt } from './weatherLogic'
+import { OVERCAST_COLOR, applyWeather, weatherAt } from './weatherLogic'
 import type { WeatherFrame, WeatherSource } from './weatherLogic'
+import { applyLightning, lightningAt, parseLightningFast } from './lightningLogic'
 import { setNightGlow } from './worldMaterials'
 import { Constellations } from './Constellations'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
+import { LightningBolt } from './LightningBolt'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
 const SKY_DISTANCE = 450
 const DOME = { r: 400, top: '#0b1630', horizon: '#24365f' }
-const OVERCAST_COLOR = '#8a9099' // 흐림 덮개 (비·눈·구름 많음)
 const STARS = { r: 350, count: 2500, seed: 316, size: 1.6 }
 const MOON = { distance: 330, size: 18, px: 128, lit: '#f4f1e6', shade: '#283152' }
 // 그리는 순서: 하늘 부품은 다른 투명한 것(이름표 등, 순서 0)보다 먼저 그려야 그 위를 덮지 않습니다. 그래서 음수.
 // 구름(−3, Clouds)은 해·달을 가리고 별자리(−2·−1, Constellations)는 가리지 않도록 그 사이에 둡니다. (#317)
+// 번개 줄기(−3.5, LightningBolt)는 흐림 덮개 위, 구름 아래입니다. (#328)
 const ORDER = { dome: -8, stars: -7, moonShade: -6, moonLit: -5, overcast: -4 }
 const LIGHT_DISTANCE = 50 // 방향광을 놓는 거리 (방향만 의미 있음)
 // 가로등 점광원. height 는 가로등 머리 높이(WorldDecor 의 기둥 높이), power × 밤 빛남 = 세기
@@ -119,6 +122,8 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
   const frame = useRef<WeatherFrame | null>(null) // 이번 프레임 하늘·날씨 값. 별자리·구름·비가 같이 씀
   const camera = useThree((s) => s.camera)
   const clock = useRef<Clock | null>(null)
+  const fastLightning = useRef<boolean | null>(null) // ?weather=storm:fast (처음 한 번 읽음)
+  const overcastColor = useRef(OVERCAST_COLOR) // 흐림 덮개에 지금 칠해 둔 색 (바뀔 때만 바꿈)
   const sky = useRef<ComponentRef<typeof Sky>>(null)
   const dome = useRef<THREE.Mesh>(null)
   const overcast = useRef<THREE.Mesh>(null) // 흐림 덮개 (#317)
@@ -199,12 +204,15 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
     const now = Date.now()
     // 주소(?time, ?speed)는 처음 한 번 읽습니다.
     if (!clock.current) clock.current = parseClock(window.location.search, now)
+    if (fastLightning.current === null) fastLightning.current = parseLightningFast(window.location.search)
     const ms = worldTime(clock.current, now)
     // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
     const src = weatherRef.current
     const weather = src.override ?? weatherAt(src.hours, now)
-    const s = applyWeather(skyState(ms), weather)
-    frame.current = { ...s, ms, now, weather }
+    // 번개도 실제 시각으로 정해 모두 같은 때 번쩍입니다. 뇌우가 아니면 lightning.flash = 0 이라 하늘 값이 그대로
+    const lightning = lightningAt(now, weather.storm, fastLightning.current)
+    const s = applyLightning(applyWeather(skyState(ms), weather), lightning.flash)
+    frame.current = { ...s, ms, now, weather, lightning }
     const v = tmp.current
 
     const sunDir = toDirection(s.sun, v.sun)
@@ -217,7 +225,12 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
       dome.current.visible = s.night > 0
     }
     if (overcast.current) {
-      ;(overcast.current.material as THREE.MeshBasicMaterial).opacity = s.overcast
+      const mat = overcast.current.material as THREE.MeshBasicMaterial
+      mat.opacity = s.overcast
+      if (s.overcastColor !== overcastColor.current) {
+        mat.color.setHex(s.overcastColor)
+        overcastColor.current = s.overcastColor
+      }
       overcast.current.visible = s.overcast > 0
     }
     if (stars.current) {
@@ -275,6 +288,7 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
       <Sky ref={sky} distance={SKY_DISTANCE} />
       <Constellations stateRef={frame} mySign={mySign} onPick={onPickSign} />
       <Clouds stateRef={frame} />
+      <LightningBolt stateRef={frame} />
       <Precipitation stateRef={frame} followRef={followRef} />
       <mesh ref={dome} geometry={domeGeo} material={domeMat} renderOrder={ORDER.dome} />
       <mesh ref={overcast} geometry={overcastGeo} material={overcastMat} renderOrder={ORDER.overcast} />

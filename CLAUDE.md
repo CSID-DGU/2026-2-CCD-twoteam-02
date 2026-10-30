@@ -52,7 +52,7 @@ src/
                        테마(theme: 바닥·벽·천장·액자·카운터 색과 배치, 없으면 기본 모습. 타입은 theme.ts, 소품은 Decor.tsx)
                        별다방(byeol, 스터디카페: 키오스크로 자리 배정), 솔카페(sol, 카페: 앉으면 내 자리)
   auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
-  world/               광장 월드 (첫 화면. 지점 건물·분수·나무, world.json에 배치. 건물 입구에서 E로 입장. worldLogic.ts는 배치, skyLogic.ts는 하늘·시간, weatherLogic.ts는 날씨 순수 로직)
+  world/               광장 월드 (첫 화면. 지점 건물·분수·나무, world.json에 배치. 건물 입구에서 E로 입장. worldLogic.ts는 배치, skyLogic.ts는 하늘·시간, weatherLogic.ts는 날씨, lightningLogic.ts는 뇌우 번개 순수 로직)
   kiosk/               키오스크 (이용 시간 선택, 좌석 배치도, 자리 배정)
   study/               공부 시작(과목·허용 설정 선택), 집중 타이머, 공부 기록 저장, 내 기록 화면 (studyLogic.ts·recordsLogic.ts는 순수 로직)
   friends/             친구 찾기·요청·수락·목록 (friendsLogic.ts는 순수 로직, 닉네임#태그로 구분)

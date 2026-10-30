@@ -3,7 +3,7 @@
 //   모양   납작하게 누른 낮은 면수 구(덩어리) 5개가 구름 하나. 광장 장식처럼 단순한(로우폴리) 모양입니다
 //   자리   weatherLogic 의 cloudLayout: 실제 시각만으로 정해져 같은 시각이면 모두 같은 자리, 늘 서쪽 → 동쪽으로 흐름
 //   양     실제 서울 구름 양(%)만큼 구름이 하나씩 자라 나타남 (최대 40개)
-//   색     cloudTint: 낮 흰색, 노을 주황빛, 밤 남회색, 비·눈이 올수록 회색
+//   색     cloudTint: 낮 흰색, 노을 주황빛, 밤 남회색, 비·눈이 올수록 회색. 번개가 칠 때 잠깐 흰색 쪽으로(#328)
 //
 // 덩어리 200개를 InstancedMesh 하나로 그립니다. 같은 모양을 자리·크기만 바꿔 한 번의 그리기 명령으로 그리는 방법이라 가볍습니다.
 // 재질은 빛을 받지 않는 MeshBasicMaterial 이고, 위는 밝고 아래는 어둡게 정점 색을 미리 넣어 입체감을 냅니다.
@@ -16,6 +16,7 @@ import * as THREE from 'three'
 import { SKY_LAYER } from './skyLogic'
 import { CLOUD_COUNT, PUFFS, PUFF_STRIDE, cloudLayout, cloudTint } from './weatherLogic'
 import type { WeatherFrame } from './weatherLogic'
+import { flashCloudTint } from './lightningLogic'
 
 const COUNT = CLOUD_COUNT * PUFFS
 const SHADE = { top: 1, bottom: 0.78 } // 덩어리 위·아래 밝기 (정점 색)
@@ -73,7 +74,7 @@ export function Clouds({ stateRef }: { stateRef: RefObject<WeatherFrame | null> 
       m.setMatrixAt(k, t.m.compose(t.p, t.q, t.s))
     }
     m.instanceMatrix.needsUpdate = true
-    const tint = cloudTint(f, f.weather)
+    const tint = flashCloudTint(cloudTint(f, f.weather), f.lightning.flash)
     if (tint !== t.tint) {
       ;(m.material as THREE.MeshBasicMaterial).color.setHex(tint)
       t.tint = tint
