@@ -3,11 +3,11 @@
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { DoubleSide, ExtrudeGeometry, LatheGeometry, Path, Shape, ShapeGeometry, Vector2 } from 'three'
+import { CanvasTexture, DoubleSide, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
 import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
-import type { BackBar, Bar, Basin, Booth, BranchTheme, Dome, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
+import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
@@ -50,6 +50,8 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
       {theme.backbar && <BackBarShelf backbar={theme.backbar} />}
       {theme.pillars?.map((pl, i) => <SlatPillar key={i} pillar={pl} />)}
       {theme.wall?.band && <MosaicBand band={theme.wall.band} size={size} />}
+      {theme.risers?.map((r, i) => <RiserStep key={i} riser={r} />)}
+      {theme.board && <Blackboard board={theme.board} />}
       {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
     </group>
   )
@@ -1262,6 +1264,162 @@ export function Lounger({ x, z, rot, color, base, pillow }: { x: number; z: numb
       <mesh position={[0, head[1] + 0.02, head[0] + 0.1]} rotation-z={Math.PI / 2}>
         <cylinderGeometry args={[0.1, 0.1, L.w * 0.8, 16]} />
         <meshStandardMaterial color={pillow} roughness={1} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── 캠빛 대학교 실내 ──────────────────────────────────────────────────
+// 책상 높이·크기는 다른 책상과 같게(0.74m, 1.2×0.6). rot 방향(앉은 사람이 보는 쪽)이 책상 안쪽입니다.
+const CAMPUS_DESK = { h: 0.74, w: 1.2, d: 0.6, top: 0.04, leg: 0.04 }
+const CARREL = { panelH: 0.5, panelT: 0.025, panel: '#d9cfbd', lampShade: '#1f6b3a', lampGlow: '#ffe7a8' }
+const COMPUTER = { screen: { w: 0.56, h: 0.34 }, frame: '#2a2d33', glow: '#2b4a6b', keyboard: '#3a3d44' }
+const BOARD_FRAME = '#6b4a2e'
+
+// 책상 상판 + 다리 네 개 (원목)
+function DeskBody({ color }: { color: string }) {
+  const D = CAMPUS_DESK
+  return (
+    <group>
+      <mesh position-y={D.h - D.top / 2}>
+        <boxGeometry args={[D.w, D.top, D.d]} />
+        <meshStandardMaterial color={color} {...WOOD} />
+      </mesh>
+      {[-1, 1].flatMap((sx) => [-1, 1].map((sz) => (
+        <mesh key={`${sx}${sz}`} position={[sx * (D.w / 2 - 0.05), (D.h - D.top) / 2, sz * (D.d / 2 - 0.05)]}>
+          <boxGeometry args={[D.leg, D.h - D.top, D.leg]} />
+          <meshStandardMaterial color={color} {...WOOD} />
+        </mesh>
+      )))}
+    </group>
+  )
+}
+
+// 도서관 칸막이 책상: 책상 + 앞·양옆 칸막이 + 초록 갓 독서등(은은한 빛)
+export function Carrel({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
+  const D = CAMPUS_DESK
+  const C = CARREL
+  const y = D.h + C.panelH / 2
+  return (
+    <group position={[x, 0, z]} rotation-y={rot}>
+      <DeskBody color={color} />
+      {/* 칸막이: 앉은 사람 앞(+z)과 양옆 */}
+      <mesh position={[0, y, D.d / 2 - C.panelT / 2]}>
+        <boxGeometry args={[D.w, C.panelH, C.panelT]} />
+        <meshStandardMaterial color={C.panel} roughness={0.9} />
+      </mesh>
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * (D.w / 2 - C.panelT / 2), y, 0]}>
+          <boxGeometry args={[C.panelT, C.panelH, D.d]} />
+          <meshStandardMaterial color={C.panel} roughness={0.9} />
+        </mesh>
+      ))}
+      {/* 초록 독서등: 받침 + 기둥 + 반원통 갓 (아랫면이 따뜻하게 빛남) */}
+      <group position={[-D.w / 2 + 0.2, D.h, D.d / 2 - 0.15]}>
+        <mesh position-y={0.01}>
+          <cylinderGeometry args={[0.06, 0.07, 0.02, 12]} />
+          <meshStandardMaterial color="#b08d3c" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position-y={0.14}>
+          <cylinderGeometry args={[0.008, 0.008, 0.26, 6]} />
+          <meshStandardMaterial color="#b08d3c" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0.1, 0.28, 0]} rotation-z={Math.PI / 2}>
+          <cylinderGeometry args={[0.06, 0.06, 0.3, 12, 1, true, 0, Math.PI]} />
+          <meshStandardMaterial color={C.lampShade} side={DoubleSide} />
+        </mesh>
+        <mesh position={[0.1, 0.27, 0]} rotation-x={Math.PI / 2}>
+          <planeGeometry args={[0.28, 0.1]} />
+          <meshStandardMaterial color={C.lampGlow} emissive={C.lampGlow} emissiveIntensity={0.8} side={DoubleSide} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
+// 정보관 컴퓨터 책상: 책상 + 모니터(받침·화면이 푸르게 빛남) + 키보드
+export function ComputerDesk({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
+  const D = CAMPUS_DESK
+  const M = COMPUTER
+  return (
+    <group position={[x, 0, z]} rotation-y={rot}>
+      <DeskBody color={color} />
+      <group position={[0, D.h, D.d / 2 - 0.15]}>
+        <mesh position-y={0.01}>
+          <boxGeometry args={[0.2, 0.02, 0.14]} />
+          <meshStandardMaterial color={M.frame} />
+        </mesh>
+        <mesh position-y={0.1}>
+          <boxGeometry args={[0.04, 0.18, 0.03]} />
+          <meshStandardMaterial color={M.frame} />
+        </mesh>
+        <mesh position-y={0.19 + M.screen.h / 2}>
+          <boxGeometry args={[M.screen.w + 0.03, M.screen.h + 0.03, 0.025]} />
+          <meshStandardMaterial color={M.frame} />
+        </mesh>
+        {/* 화면: 앉은 사람 쪽(-z)을 봄 */}
+        <mesh position={[0, 0.19 + M.screen.h / 2, -0.014]} rotation-y={Math.PI}>
+          <planeGeometry args={[M.screen.w, M.screen.h]} />
+          <meshStandardMaterial color={M.glow} emissive={M.glow} emissiveIntensity={0.7} />
+        </mesh>
+      </group>
+      <mesh position={[0, D.h + 0.01, -0.05]}>
+        <boxGeometry args={[0.44, 0.02, 0.14]} />
+        <meshStandardMaterial color={M.keyboard} />
+      </mesh>
+    </group>
+  )
+}
+
+// 계단식 단 (강의실): 원목 판 + 앞쪽 가장자리 띠
+function RiserStep({ riser }: { riser: Riser }) {
+  return (
+    <group position={[riser.x, 0, riser.z]}>
+      <mesh position-y={riser.h / 2}>
+        <boxGeometry args={[riser.w, riser.h, riser.d]} />
+        <meshStandardMaterial color="#8a6a4a" {...WOOD} />
+      </mesh>
+      <mesh position={[0, riser.h + 0.005, -riser.d / 2 + 0.04]}>
+        <boxGeometry args={[riser.w, 0.01, 0.06]} />
+        <meshStandardMaterial color="#d9c9a8" />
+      </mesh>
+    </group>
+  )
+}
+
+// 칠판 (강의실): 원목 틀 + 짙은 초록 판 + 분필 글씨. 3단계에서 공동 시간표를 이 칠판에 씁니다.
+function Blackboard({ board }: { board: Board }) {
+  const pose = wallPose(board.x, board.z, board.face, 1.75)
+  const texture = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = 1024
+    c.height = Math.round((1024 * board.h) / board.w)
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#244634'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = 'rgba(240,240,230,.85)'
+    ctx.font = `600 ${Math.round(c.height * 0.16)}px "Comic Sans MS", system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(board.text, c.width / 2, c.height / 2)
+    const t = new CanvasTexture(c)
+    t.colorSpace = SRGBColorSpace
+    return t
+  }, [board.text, board.w, board.h])
+  return (
+    <group position={[pose.x, pose.y, pose.z]} rotation-y={pose.rotY}>
+      <mesh position-z={-0.02}>
+        <boxGeometry args={[board.w + 0.16, board.h + 0.16, 0.04]} />
+        <meshStandardMaterial color={BOARD_FRAME} {...WOOD} />
+      </mesh>
+      <mesh position-z={0.005}>
+        <planeGeometry args={[board.w, board.h]} />
+        <meshStandardMaterial map={texture} roughness={0.95} />
+      </mesh>
+      {/* 분필 받침 */}
+      <mesh position={[0, -board.h / 2 - 0.1, 0.06]}>
+        <boxGeometry args={[board.w, 0.04, 0.1]} />
+        <meshStandardMaterial color={BOARD_FRAME} {...WOOD} />
       </mesh>
     </group>
   )

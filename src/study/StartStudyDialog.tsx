@@ -1,4 +1,6 @@
 // 공부 시작 창: 과목과 두 가지 허용(다른 탭·앱 사용, 휴대폰·학습기기 사용)을 고릅니다. 내 자리에 앉으면 뜹니다.
+import { lockedSettings } from '../space/rulesLogic'
+import type { BranchRules } from '../space/rulesLogic'
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { SUBJECT_MAX } from './useSubjects'
@@ -15,13 +17,15 @@ type Props = {
   addSubject: (name: string) => Promise<Subject | string>
   onStart: (choice: StudyChoice) => void
   onCancel: () => void
+  rules?: BranchRules // 건물별 규칙 (캠빛 대학교 도서관·정보관). 고정된 칸은 바꿀 수 없음
 }
 
-export function StartStudyDialog({ subjects, loading, loadError, addSubject, onStart, onCancel }: Props) {
+export function StartStudyDialog({ subjects, loading, loadError, addSubject, onStart, onCancel, rules }: Props) {
+  const fixed = lockedSettings(rules) // 고정된 칸 (null 이면 고를 수 있음)
   const [picked, setPicked] = useState<Subject | null>(null)
   const [newName, setNewName] = useState('')
-  const [allowOtherScreen, setAllowOtherScreen] = useState(false) // 기본은 둘 다 사용 안 함
-  const [allowDevices, setAllowDevices] = useState(false)
+  const [allowOtherScreen, setAllowOtherScreen] = useState(fixed.allowOtherScreen ?? false) // 기본은 둘 다 사용 안 함 (고정이면 그 값)
+  const [allowDevices, setAllowDevices] = useState(fixed.allowDevices ?? false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -81,14 +85,15 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, onS
         </form>
         {error && <div style={styles.error}>{error}</div>}
 
-        <label style={styles.check}>
-          <input type="checkbox" checked={allowOtherScreen} onChange={(e) => setAllowOtherScreen(e.target.checked)} />{' '}
-          다른 탭·앱 사용함
+        {rules?.label && <div style={styles.rule}>🏛 {rules.label}</div>}
+        <label style={{ ...styles.check, ...(fixed.allowOtherScreen !== null ? styles.fixed : null) }}>
+          <input type="checkbox" checked={allowOtherScreen} disabled={fixed.allowOtherScreen !== null} onChange={(e) => setAllowOtherScreen(e.target.checked)} />{' '}
+          다른 탭·앱 사용함{fixed.allowOtherScreen !== null && ' (이 건물은 고정)'}
           <div style={styles.hint}>켜면 다른 탭·다른 앱을 써도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
         </label>
-        <label style={styles.check}>
-          <input type="checkbox" checked={allowDevices} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
-          휴대폰·학습기기 사용함
+        <label style={{ ...styles.check, ...(fixed.allowDevices !== null ? styles.fixed : null) }}>
+          <input type="checkbox" checked={allowDevices} disabled={fixed.allowDevices !== null} onChange={(e) => setAllowDevices(e.target.checked)} />{' '}
+          휴대폰·학습기기 사용함{fixed.allowDevices !== null && ' (이 건물은 고정)'}
           <div style={styles.hint}>켜면 휴대폰·패드 등이 카메라에 보여도 공부로 인정합니다. 자리 이탈·졸음 판정은 그대로입니다.</div>
           {/* 사용 안 함이면 휴대폰이 3초 넘게 화면에 보일 때 빨간불이 되므로 미리 알립니다. (focusLogic PHONE_SECONDS) */}
           {!allowDevices && (
@@ -139,6 +144,8 @@ const styles: Record<string, CSSProperties> = {
     color: '#fff', font: 'inherit',
   },
   check: { cursor: 'pointer', marginTop: 4 },
+  fixed: { cursor: 'default', opacity: 0.75 }, // 건물 규칙으로 고정된 칸
+  rule: { padding: '8px 10px', borderRadius: 8, background: 'rgba(212,178,90,.15)', color: '#e9d39a', fontSize: 13 }, // 건물 안내
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 },
   primary: {
     padding: '6px 14px', borderRadius: 6, border: 'none', background: '#22c55e', color: '#0b1a10',

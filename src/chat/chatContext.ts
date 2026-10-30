@@ -46,6 +46,7 @@ export type ChatValue = {
   sendInvite: (to: string, meetingId: number) => Promise<boolean> // 회의 초대 알림 (#45). 친구가 접속해 있지 않으면 false
   note: (text: string) => void // 로그에 안내 한 줄
   quiet: boolean // 방해금지인지 (공부를 시작하면 자동으로 켜짐, 언제든 직접 끄고 켬, #216)
+  quietLocked: boolean // 지점 규칙으로 방해금지가 고정됨 (캠빛 대학교 도서관). 끌 수 없음
   studying: boolean
   setQuiet: (on: boolean) => void // 방해금지 켜고 끄기. 공부 중에 끈 것은 그 공부 동안만
   muted: boolean // 소리 끔

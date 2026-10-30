@@ -2,6 +2,8 @@
 //
 // 트래킹(얼굴·팔)을 여기서 한 번만 켜고, 내 모습 화면과 집중 타이머가 같은 결과를 같이 씁니다.
 // 앉으면 공부 시작 창이 뜨고, 과목을 고르면 그때부터 타이머가 돌며 기록이 저장됩니다.
+import { applyRules } from '../space/rulesLogic'
+import type { BranchRules } from '../space/rulesLogic'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { useTracking } from '../tracking/useTracking'
@@ -32,13 +34,14 @@ type Props = {
   onPausedChange?: (paused: boolean) => void // 공부 중지 중인지 (지점 화면의 안내 문구·메뉴용, #236)
   // 내 트래킹 결과를 알립니다. 지점 화면이 다른 참여자에게 내 고개·눈·팔을 보내는 데 씁니다. (#129) 일어나면 null
   onTracking?: (tracking: MyTracking | null) => void
+  rules?: BranchRules // 건물별 규칙: 공부 시작 창 잠금 + 실제 판정 값 (applyRules)
   // 꽃 피는 칭호: 이 공부 전 누적(초, 못 읽었으면 null — 넘김을 잡지 않음), 단계가 오르면 알림, 공부가 끝날 때 확정 공부 시간(ms)
   titleBaseSeconds?: number | null
   onLevelUp?: (level: number) => void
   onRunEnd?: (studyMs: number) => void
 }
 
-export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onPausedChange, onTracking, titleBaseSeconds, onLevelUp, onRunEnd }: Props) {
+export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogChange, onPausedChange, onTracking, titleBaseSeconds, onLevelUp, onRunEnd, rules }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [choice, setChoice] = useState<StudyChoice | null>(null) // null 이면 아직 공부 전
   // 중지(#236): 웹캠을 끄고 타이머를 멈춘 채 아무것도 못 움직이게 합니다. 다시 시작하면 같은 과목·설정으로 이어 갑니다.
@@ -120,8 +123,9 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           loading={loading}
           loadError={loadError}
           addSubject={addSubject}
+          rules={rules}
           onStart={(c) => {
-            setChoice(c)
+            setChoice(applyRules(c, rules)) // 창에서 잠갔더라도 판정에 들어가는 값은 여기서 한 번 더 맞춤
             setDialogOpen(false)
             if (!calibrated) setCalibrating(true)
           }}

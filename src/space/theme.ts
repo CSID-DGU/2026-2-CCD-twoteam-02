@@ -65,6 +65,10 @@ export type RoundRoom = { r: number; color: string; fin: string; fins: number; g
 export type Dome = { x: number; z: number; R: number; r: number; depth: number; color: string; glow: string }
 // 가운데 돌 수반 + 낮게 깔리는 안개
 export type Basin = { x: number; z: number; r: number; color: string; water: string }
+// 계단식 단 (강의실): 바닥보다 h 만큼 높은 판. 부딪힘 상자 — 단 위 자리는 뒤쪽 통로에서 E 로 앉음
+export type Riser = { x: number; z: number; w: number; d: number; h: number }
+// 칠판 (강의실): 벽에 붙은 판. face 는 칠판이 보는 쪽(벽 안쪽), text 는 분필 글씨
+export type Board = { x: number; z: number; w: number; h: number; face: Frame['face']; text: string }
 // 곡선 바: 반지름 inner~outer, 각도 from~to(자리 각도 규칙: 0 = +z 남쪽) 인 원목 바 + 대리석 상판
 export type Bar = { x: number; z: number; inner: number; outer: number; from: number; to: number; height: number }
 // 바 뒤 둥근 진열장: 원통 받침 + 놋쇠 테 선반 3단 + 병
@@ -106,6 +110,8 @@ export type BranchTheme = {
   dome?: Dome // 천장 천창 (있으면 평평한 천장에 구멍을 뚫음)
   basin?: Basin
   lounger?: { base: string; cushion: string; pillow: string } // 누워 쉬는 라운지 소파 색 (자리 chair 'lounger')
+  risers?: Riser[] // 계단식 단 (캠빛 강의동)
+  board?: Board // 칠판 (캠빛 강의동)
   pillars?: Pillar[]
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
@@ -202,7 +208,8 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
   const pillars = (theme?.pillars ?? []).map((p) => ({ x: p.x, z: p.z, w: PILLAR.r * 2, d: PILLAR.r * 2 }))
   const bars = (theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, w: b.inner * 2, d: b.inner * 2 }))
   const basin = theme?.basin ? [{ x: theme.basin.x, z: theme.basin.z, w: theme.basin.r * 2, d: theme.basin.r * 2 }] : []
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round)]
+  const risers = (theme?.risers ?? []).map((r) => ({ x: r.x, z: r.z, w: r.w, d: r.d }))
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers]
 }
 
 // 둥근 방 곡선 벽을 부딪히게 하는 작은 상자들: 벽을 따라 ROUND_ROOM.boxStep 간격, 벽 바로 바깥에. 비운 쪽(gaps)은 뺍니다

@@ -12,11 +12,12 @@ import { useIsTeam } from '../report/useIsTeam'
 type Props = {
   myId: string
   onOpen: (view: PanelView) => void
-  onLobby?: () => void // 지점에서만: 로비로 나가기
+  onLobby?: () => void // 지점에서만: 바깥(광장·캠퍼스)으로 나가기
+  lobbyLabel?: string // 나가기 버튼 글자 (없으면 "광장으로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
   onTracking?: () => void // 지점에서만: 트래킹 검증 화면으로 가는 버튼
 }
 
-export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
+export function SceneMenu({ myId, onOpen, onLobby, onTracking, lobbyLabel = '광장으로' }: Props) {
   const keys = useKeymap()
   const team = useIsTeam(myId)
   return (
@@ -36,10 +37,10 @@ export function SceneMenu({ myId, onOpen, onLobby, onTracking }: Props) {
         {onLobby && (
           <>
             <div style={menuDivider} />
-            {/* 버튼으로 나가도 보던 방향 그대로 광장의 그 건물 입구 앞에 섭니다. (#150, #315) */}
+            {/* 버튼으로 나가도 보던 방향 그대로 바깥(광장·캠퍼스)의 그 건물 입구 앞에 섭니다. (#150, #315) */}
             <button type="button" style={menuRow} onClick={onLobby}>
               <span style={keyCap}>{keyLabel(keys.lobby)}</span>
-              광장으로
+              {lobbyLabel}
             </button>
           </>
         )}

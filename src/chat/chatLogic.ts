@@ -108,7 +108,8 @@ export function pickColor(used: string[], random: number): string {
 // 방해금지인지 (#216)
 //   공부 중: 공부를 시작하면 자동으로 켜지고, 그 공부 동안 직접 끌 수 있음(studyOff)
 //   공부 중이 아닐 때: 직접 켰는지(manual)
-export const isQuiet = (studying: boolean, manual: boolean, studyOff: boolean) => (studying ? !studyOff : manual)
+// locked: 지점 규칙으로 방해금지가 고정됨(캠빛 대학교 도서관). 그동안은 직접 꺼도 켜져 있습니다.
+export const isQuiet = (studying: boolean, manual: boolean, studyOff: boolean, locked = false) => locked || (studying ? !studyOff : manual)
 
 // 몇 분 전에 주고받았는지 (#211). 채팅창을 열었을 때 줄 끝에 붙입니다.
 export function timeAgo(at: number, now: number): string {
