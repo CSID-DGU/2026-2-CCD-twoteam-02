@@ -72,7 +72,7 @@ export function Fence({ size }: { size: PlazaLayout['size'] }) {
 // ── 분수 ────────────────────────────────────────────────────────────
 
 // 둥근 수반 + 물 + 가운데 기둥과 위 접시. 물빛만 천천히 밝아졌다 어두워집니다(입자 없음).
-export function Fountain({ fountain }: { fountain: PlazaLayout['fountain'] }) {
+export function Fountain({ fountain }: { fountain: NonNullable<PlazaLayout['fountain']> }) {
   const { x, z, r } = fountain
   const water = useMemo(() => MAT.water.clone(), []) // 물빛을 바꾸므로 공용 재질을 복사해 이 분수만 씀
   useEffect(() => () => water.dispose(), [water]) // 광장을 떠나면 복사한 재질을 지움 (들어올 때마다 쌓이지 않게)

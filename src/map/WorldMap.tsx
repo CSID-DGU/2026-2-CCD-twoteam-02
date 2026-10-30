@@ -152,8 +152,8 @@ function Plaza({ count }: { count: number }) {
         <rect key={i} {...rectProps(p)} fill="url(#map-plaza)" />
       ))}
       <rect {...rectProps(l.rect)} fill="url(#map-plaza)" stroke="#8a7a5e" strokeWidth="0.3" />
-      <circle cx={f.x} cy={f.z} r={f.r} fill={STONE} />
-      <circle cx={f.x} cy={f.z} r={f.r * 0.85} fill={WATER} />
+      {f && <circle cx={f.x} cy={f.z} r={f.r} fill={STONE} />}
+      {f && <circle cx={f.x} cy={f.z} r={f.r * 0.85} fill={WATER} />}
       <Label x={l.rect.x} z={l.rect.z + l.rect.d / 2 - 2.6} name="광장" count={count} />
     </g>
   )

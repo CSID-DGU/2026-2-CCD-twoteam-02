@@ -229,7 +229,7 @@ export default function WorldScene({ onEnter }: Props) {
 
         <Ground plaza={PLAZA} />
         <Fence size={PLAZA.size} />
-        <Fountain fountain={PLAZA.fountain} />
+        {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
         <Trees trees={PLAZA.trees} />
         <Benches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />

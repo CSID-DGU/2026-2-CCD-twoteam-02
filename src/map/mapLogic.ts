@@ -30,7 +30,7 @@ export type WorldLayout = {
   lobby: MapPlace // 광장 (접속 장소 이름은 lobby 그대로)
   branches: MapBranch[]
   paths: Rect[] // 광장 → 건물 입구 돌길
-  fountain: { x: number; z: number; r: number }
+  fountain?: { x: number; z: number; r: number } // 캠퍼스에는 없음
   trees: Point[]
   bounds: Rect // 지도 전체 = 월드 전체
 }

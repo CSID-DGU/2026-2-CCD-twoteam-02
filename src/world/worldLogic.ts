@@ -20,7 +20,13 @@
 //     광장 방향 = 실내 방향 + 입구 각도
 //   들어갈 때는 보던 방향에서 입구 각도를 빼서 넘기고(toBranchHeading), 나올 때는 더합니다(toWorldHeading).
 //   예: 동쪽 건물(입구가 서쪽, -π/2)에 동쪽(π/2)을 보며 들어가면 실내에서는 π(북쪽, 안쪽)를 봅니다.
-import type { Box, BranchLayout } from '../space/layout'
+//
+// ── 월드 사이 정문과 쉬는 자리 (캠빛 대학교) ─────────────────────────────
+//   바깥 공간(월드)이 광장과 캠퍼스 둘입니다. 정문(gates)은 다른 월드로 가는 문이고, 건물 입구처럼
+//   문 앞 입장 자리에서 E 를 누르면 넘어갑니다. 넘어가면 그쪽 월드에서 "이쪽으로 오는 정문" 앞에 문을 등지고 섭니다.
+//   쉬는 자리(rests)는 캠퍼스 쿼드의 돗자리·빈백. 앉아도 기록 없이 쉬기만 합니다.
+//   Player 의 "앉는 자리" 번호가 건물 입구(1~)·정문(GATE_NO_BASE~)·쉬는 자리(REST_NO_BASE~)로 나뉩니다(spotKindOf).
+import type { Box, BranchLayout, Spot } from '../space/layout'
 
 export type Facing = 'south' | 'north' | 'east' | 'west'
 export type Point = { x: number; z: number }
@@ -32,11 +38,22 @@ export type FloorSpec = { slug: string; window?: string }
 export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[] }
 
 // world.json 모양
+// 바깥 공간(월드) 이름. 광장(첫 화면)과 캠빛 대학교 캠퍼스
+export type WorldId = 'plaza' | 'campus'
+// 다른 월드로 가는 정문. x·z 문 가운데, w 문 폭(두 기둥 사이), facing 문 앞면(입장 쪽)이 보는 방향, label 현판 글자
+export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: Facing; label: string }
+// 쉬는 자리(돗자리·빈백). rot: 앉은 사람이 보는 방향
+export type RestSpec = { x: number; z: number; rot: number; kind: 'mat' | 'beanbag' }
+
 export type PlazaLayout = {
   size: { w: number; d: number } // 월드 전체 (가운데 0, 0)
-  plaza: { w: number; d: number } // 가운데 돌바닥
+  plaza: { w: number; d: number } // 가운데 바닥 (광장 돌바닥, 캠퍼스 쿼드)
+  ground?: 'stone' | 'lawn' // 가운데 바닥 모양. 없으면 돌바닥(광장), lawn 이면 잔디 쿼드(캠퍼스)
+  title?: string // 이 월드의 이름 (안내·지도). 없으면 "광장"
   spawn: { x: number; z: number; heading: number } // 주소로 바로 들어오면 서는 자리
-  fountain: { x: number; z: number; r: number }
+  fountain?: { x: number; z: number; r: number } // 가운데 분수 (캠퍼스에는 없음)
+  gates?: GateSpec[]
+  rests?: RestSpec[]
   buildings: BuildingSpec[]
   paths: Box[] // 광장 → 건물 입구 돌길
   trees: Point[]
@@ -71,6 +88,11 @@ export const FENCE_T = 0.3 // 가장자리 울타리 두께
 export const TRUNK = 0.5 // 나무 줄기 부딪힘 상자 한 변
 export const LAMP_POST = 0.3 // 가로등 기둥 부딪힘 상자 한 변
 export const BENCH = { w: 1.6, d: 0.6 } // 벤치 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
+export const GATE_POST = 0.9 // 정문 벽돌 기둥 한 변 (부딪힘)
+export const GATE_NO_BASE = 50 // 정문 입장 자리 번호 시작 (건물 입구 번호와 겹치지 않게)
+export const REST_NO_BASE = 100 // 쉬는 자리 번호 시작
+export const MAT_SIT = { y: -0.38 } // 돗자리: 바닥에 앉음 (앉은 자세를 의자 높이만큼 내림)
+export const BEANBAG = { y: -0.12, lie: 0.45 } // 빈백: 조금 낮게, 뒤로 기대 누움(라디안)
 const DOOR_W = 1.6 // 지점 JSON 에 출입문이 없을 때 입구 문 폭
 const DOOR_T = 0.3 // 입구 문 두께
 
@@ -150,7 +172,54 @@ export function placeBuildings(plaza: PlazaLayout, layouts: Record<string, Branc
   return placed
 }
 
-// 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치
+// 정문이 놓인 자리 (건물과 같은 규칙: 문 기준 +Z 가 앞면, facing 만큼 돌림)
+export type PlacedGate = {
+  no: number // GATE_NO_BASE + 순서. Player 의 "앉는 자리" 번호
+  spec: GateSpec
+  angle: number
+  entry: { no: number; x: number; z: number; rot: number } // 입장 자리. rot 은 문을 바라보는 방향
+  arrive: Point // 다른 월드에서 넘어오면 서는 자리 (문을 등짐)
+  posts: Box[] // 양쪽 벽돌 기둥 (부딪힘)
+}
+
+const gateFrame = (g: GateSpec) => ({ x: g.x, z: g.z, facing: g.facing })
+function gatePoint(g: GateSpec, x: number, z: number): Point {
+  const c = rotate(x, z, facingAngle(g.facing))
+  return { x: g.x + c.x, z: g.z + c.z }
+}
+
+export function placeGates(layout: PlazaLayout): PlacedGate[] {
+  return (layout.gates ?? []).map((spec, i) => {
+    const no = GATE_NO_BASE + i
+    const angle = facingAngle(gateFrame(spec).facing)
+    const entry = gatePoint(spec, 0, DOOR_GAP)
+    const postX = spec.w / 2 + GATE_POST / 2
+    return {
+      no,
+      spec,
+      angle,
+      entry: { no, ...entry, rot: normalizeAngle(angle + Math.PI) },
+      arrive: gatePoint(spec, 0, ARRIVE_GAP),
+      posts: [-postX, postX].map((x) => ({ ...gatePoint(spec, x, 0), w: GATE_POST, d: GATE_POST })),
+    }
+  })
+}
+
+// 쉬는 자리 → Player·다른 참여자 그리기에 쓰는 자리. 돗자리는 바닥에 앉고(y 음수), 빈백은 조금 낮게 기대 눕습니다(lie).
+export function restSpots(layout: PlazaLayout): Spot[] {
+  return (layout.rests ?? []).map((r, i) => ({
+    no: REST_NO_BASE + i,
+    x: r.x,
+    z: r.z,
+    rot: r.rot,
+    ...(r.kind === 'mat' ? { y: MAT_SIT.y } : { y: BEANBAG.y, lie: BEANBAG.lie }),
+  }))
+}
+
+// Player 의 "앉는 자리" 번호가 무엇인지
+export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' => (no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building')
+
+// 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치, 정문 기둥
 export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
   const { w, d } = plaza.size
   const fence: Box[] = [
@@ -163,25 +232,34 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
   return [
     ...fence,
     ...placed.map((b) => b.rect),
-    { x: f.x, z: f.z, w: f.r * 2, d: f.r * 2 },
+    ...(f ? [{ x: f.x, z: f.z, w: f.r * 2, d: f.r * 2 }] : []),
     ...plaza.trees.map((t) => ({ x: t.x, z: t.z, w: TRUNK, d: TRUNK })),
     ...plaza.lamps.map((l) => ({ x: l.x, z: l.z, w: LAMP_POST, d: LAMP_POST })),
     ...plaza.benches.map((b) =>
       sideways(b.facing) ? { x: b.x, z: b.z, w: BENCH.d, d: BENCH.w } : { x: b.x, z: b.z, w: BENCH.w, d: BENCH.d },
     ),
+    ...placeGates(plaza).flatMap((g) => g.posts),
   ]
 }
 
 // 광장에 들어올 때 설 자리와 방향.
 // 지점에서 나왔으면(from) 그 건물 입구 앞에 건물을 등지고 섭니다. 위층 지점에서 나와도 그 건물입니다.
 // heading 은 실내에서 보던 방향(없으면 0, 출입문 쪽).
+// 다른 월드에서 정문으로 넘어왔으면(from 'world:<WorldId>') 그 월드로 가는 정문 앞에 문을 등지고 섭니다.
 // 광장에 없는 지점이거나 주소로 바로 들어오면 시작 위치에 섭니다.
 export function arrivalOf(plaza: PlazaLayout, placed: PlacedBuilding[], from?: string, heading?: number): { spawn: Point; heading: number } {
+  if (from?.startsWith(WORLD_FROM)) {
+    const g = placeGates(plaza).find((x) => x.spec.to === from.slice(WORLD_FROM.length))
+    if (g) return { spawn: g.arrive, heading: g.angle }
+  }
   const b = from === undefined ? undefined : buildingOf(placed, from)
   // world.json 의 시작 방향(3.1416 등)도 범위를 맞춰 다른 방향 값들과 같게 둡니다.
   if (!b) return { spawn: { x: plaza.spawn.x, z: plaza.spawn.z }, heading: normalizeAngle(plaza.spawn.heading) }
   return { spawn: b.arrive, heading: toWorldHeading(heading ?? 0, b.spec.facing) }
 }
+
+// 정문으로 넘어갈 때 넘기는 from 값의 앞부분 ('world:plaza' 처럼)
+export const WORLD_FROM = 'world:'
 
 // 그 지점(slug)이 있는 건물. 위층 지점이면 그 층이 있는 건물입니다.
 export function buildingOf(placed: PlacedBuilding[], slug: string): PlacedBuilding | undefined {
