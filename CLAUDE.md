@@ -24,6 +24,7 @@
 - 캐릭터: GLB 모델(`public/models/character-a.glb`)을 drei `useGLTF`로 불러온다. 18종은 모양이 같고 스킨만 달라서 모델 하나에 맨몸(피부색)과 고른 부품(머리·상의·하의·신발, `public/models/Parts/`)을 겹치고 색을 입힌 스킨을 입힌다(#56). 눈·눈썹·입은 얼굴 앞에 붙인 판에 스티커처럼 얹어, 사용자가 위치·크기를 옮길 수 있다(#293). VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL, Realtime(Broadcast·Presence), 좌석 배정 DB 함수). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
+- 날씨: Open-Meteo 시간별 예보(키 없음, 브라우저에서 직접 받음, `src/world/useWorldWeather.ts`). 서울 고정 좌표만 보낸다.
 - 배포: Vercel. `develop`과 `experiment`가 각각 따로 배포된다(아래 "배포" 참고).
 
 위 목록에 없는 라이브러리를 추가해야 하면 먼저 이유를 설명하고 확인을 받는다.
@@ -51,7 +52,7 @@ src/
                        테마(theme: 바닥·벽·천장·액자·카운터 색과 배치, 없으면 기본 모습. 타입은 theme.ts, 소품은 Decor.tsx)
                        별다방(byeol, 스터디카페: 키오스크로 자리 배정), 솔카페(sol, 카페: 앉으면 내 자리)
   auth/                로그인·회원가입 화면, 로그인 상태 확인, 출입 통제
-  world/               광장 월드 (첫 화면. 지점 건물·분수·나무, world.json에 배치. 건물 입구에서 E로 입장. worldLogic.ts는 배치, skyLogic.ts는 하늘·시간 순수 로직)
+  world/               광장 월드 (첫 화면. 지점 건물·분수·나무, world.json에 배치. 건물 입구에서 E로 입장. worldLogic.ts는 배치, skyLogic.ts는 하늘·시간, weatherLogic.ts는 날씨 순수 로직)
   kiosk/               키오스크 (이용 시간 선택, 좌석 배치도, 자리 배정)
   study/               공부 시작(과목·허용 설정 선택), 집중 타이머, 공부 기록 저장, 내 기록 화면 (studyLogic.ts·recordsLogic.ts는 순수 로직)
   friends/             친구 찾기·요청·수락·목록 (friendsLogic.ts는 순수 로직, 닉네임#태그로 구분)

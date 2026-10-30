@@ -28,7 +28,7 @@ const LABEL_WIDTH = 40
 const CLICK_STARS = 0.5 // 별 투명도가 이보다 클 때만 눌림
 const NEAR_IGNORE = 1 // 이보다 가까이 맞은 것(내 캐릭터 머리 등)은 가리는 물체로 치지 않음
 const BLOCK_RANGE = 400 // 이 거리 안에서 보이는 물체에 먼저 맞으면 별자리가 가려진 것
-const ORDER = { lines: -3, stars: -3, label: -1 }
+const ORDER = { lines: -2, stars: -2, label: -1 } // 구름(−3, #317) 다음에 그려 구름에 가리지 않음
 
 // WorldSky 가 매 프레임 채우는 하늘 값 + 그 월드 시각(ms)
 export type SkyFrame = SkyState & { ms: number }
