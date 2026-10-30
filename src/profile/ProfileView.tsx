@@ -19,9 +19,11 @@ import { FriendButton } from '../friends/FriendButton'
 import { CharacterTab } from './CharacterTab'
 import { TitleBadge, TitleProgress } from '../level/TitleBadge'
 import { levelOf } from '../level/levelLogic'
+import { shownSeconds, useLiveSeconds } from '../level/liveTitle'
 
 export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean }) {
   const { summary, loading, error, setVisibility } = useProfile(userId)
+  const live = useLiveSeconds(isMe ? userId : undefined) // 내 프로필: 저장 전 공부까지 합쳐 칭호를 보임
   const [message, setMessage] = useState('')
   // 내 프로필에서만 탭이 보입니다. 남의 프로필에는 공부 기록만 나옵니다.
   const [tab, setTab] = useState<'records' | 'character' | 'account'>('records')
@@ -31,7 +33,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
 
   const daily = summary.daily ?? []
   // 공개 범위가 허락할 때만 누적 시간이 와서, 칭호도 그때만 보입니다. (내 것은 늘 허락)
-  const titleSeconds = summary.allowed ? (summary.total_seconds ?? 0) : null
+  const titleSeconds = summary.allowed ? shownSeconds(summary.total_seconds ?? 0, live) : null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={styles.nameRow}>

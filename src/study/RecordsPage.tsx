@@ -28,7 +28,7 @@ const TABS: { key: Period; label: string }[] = [
 export function RecordsView() {
   const { session } = useSession()
   const { subjects } = useSubjects(session?.user.id)
-  const { savedSeconds } = useMyTitle(session?.user.id) // 꽃 피는 길: 전체 누적 (기간과 무관)
+  const { seconds: titleSeconds } = useMyTitle(session?.user.id) // 꽃 피는 길: 전체 누적 (기간과 무관, 저장 전 공부 포함)
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState(() => new Date()) // 보고 있는 날짜
   const [subjectId, setSubjectId] = useState<number | null>(null) // null 이면 전체
@@ -62,7 +62,7 @@ export function RecordsView() {
 
   return (
     <div style={styles.body}>
-      {savedSeconds !== null && <FlowerPath seconds={savedSeconds} />}
+      {titleSeconds !== null && <FlowerPath seconds={titleSeconds} />}
       <div style={styles.row}>
         <div style={styles.tabs} role="tablist">
           {TABS.map((t) => (

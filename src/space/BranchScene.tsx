@@ -147,7 +147,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const panelOpen = panel !== null;
   const { session } = useSession();
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
-  const myTitle = useMyTitle(session?.user.id);
+  const myTitle = useMyTitle(session?.user.id, false); // 실시간 구독 끔: 공부 중 오른 단계는 liveLevel 로
   // 이 지점에서 끝난 공부들의 확정 공부 시간(ms). 과목을 바꾸면 StudyRunner 가 새로 만들어지므로, 다음 공부의 누적에 더합니다.
   const [titleDoneMs, setTitleDoneMs] = useState(0);
   const [liveLevel, setLiveLevel] = useState(0); // 공부 중에 오른 단계 (다시 들어오면 저장된 누적에서 다시 계산)

@@ -18,6 +18,7 @@ import type { Baseline } from '../focus/calibration'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
 import { useSampleRecorder } from '../report/useSampleRecorder'
 import { levelCrossed } from '../level/levelLogic'
+import { setLiveSeconds } from '../level/liveTitle'
 
 // 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (표시등 색과 같은 규칙, space/status.ts)
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
@@ -65,6 +66,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     if (titleBaseSeconds === null) return
     const now = titleBaseSeconds + focus.studyMs / 1000
+    setLiveSeconds(userId, Math.floor(now)) // 프로필·내 기록 창이 저장 전에도 지금 칭호를 보이게 (초 단위로만 알림)
     const best = titleBest.current ?? titleBaseSeconds
     if (now <= best) {
       titleBest.current = best
@@ -73,7 +75,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     titleBest.current = now
     const crossed = levelCrossed(best, now)
     if (crossed !== null) onLevelUp?.(crossed)
-  }, [focus.studyMs, titleBaseSeconds, onLevelUp])
+  }, [focus.studyMs, titleBaseSeconds, onLevelUp, userId])
   // 공부가 끝나면(일어나기·과목 바꾸기·나가기) 확정 공부 시간을 바깥에 알려, 다음 공부의 "이 공부 전 누적"에 더하게 합니다.
   const runEnd = useRef(onRunEnd)
   useEffect(() => {
