@@ -5,7 +5,6 @@
 import { useMemo } from 'react'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
-import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { checkerTexture } from '../space/patternTexture'
 import { GATE_FENCE, GATE_POST } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, RestSpec } from './worldLogic'
@@ -27,7 +26,8 @@ const C = {
 // 정문 큰 기둥 높이 단(m): 흰 돌 받침 위 끝, 흰 띠 아래 끝·두께, 흰 돌 머리 아래 끝, 위 끝
 const PILLAR = { base: 0.7, band: 2.6, bandT: 0.25, head: 4.0, top: 5.0 }
 // 아치: 기둥 위쪽 시작 높이, 가운데가 솟는 높이, 두 줄 사이, 줄·살 굵기, 나눔 수, 글자(곡선 위 각도 범위, 한 글자 폭)
-const ARCH = { base: 4.3, rise: 1.3, gap: 0.55, chordT: 0.1, barT: 0.05, segments: 28, text: 'CAMBIT UNIVERSITY', letterArc: 2.2, letterW: 0.34 }
+// textArc: 글자 띠가 차지하는 곡선 각도 범위(라디안), textH: 글자 띠 높이 — 아치 두 줄(gap)보다 커서 위아래로 삐져나옴 (크게 보이게, 사용자 요구)
+const ARCH = { base: 4.3, rise: 1.3, gap: 0.55, chordT: 0.1, barT: 0.05, segments: 28, text: 'CAMBIT UNIVERSITY', textArc: 2.5, textH: 0.9 }
 const IRON = { h: 1.9, bar: 0.035, step: 0.16 } // 양옆 철제 울타리: 높이, 살 굵기, 간격
 const END_POST = { h: 1.7, lampR: 0.22 } // 울타리 끝 작은 기둥 높이, 둥근 등 반지름
 const BACKDROP = { width: 46, depth: 36, road: 4, treeX: 4.5, treeStep: 5 } // 문 너머 풍경 (m)
@@ -128,15 +128,26 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
       const [bx, by] = pt(t0, 0)
       if (i > 0) bars.push({ p: [bx, by + ARCH.gap / 2, 0], r: [0, 0, (i % 2 ? 1 : -1) * 0.5], s: ARCH.gap / Math.cos(0.5) })
     }
-    // 글자: 아래 줄과 위 줄 사이, 곡선을 따라 한 글자씩 (가운데 정렬)
-    const text = ARCH.text
-    const span = ARCH.letterArc
-    const letters = [...text].map((ch, i) => {
-      const t = Math.PI / 2 + span / 2 - (i + 0.5) * (span / text.length)
-      const [x, y] = pt(t, ARCH.gap / 2)
-      return { ch, x, y, rz: t - Math.PI / 2 }
+    // 글자 띠: 아래 줄과 위 줄 사이를 아치 곡선 그대로 따라 휘는 띠 한 장. 문구 전체를 텍스처 하나로 붙여
+    // 글자 높이·간격·기울기가 고르게 나옵니다. (한 자씩 놓으면 납작한 곡선에서 기울기가 어긋나 삐뚤빼뚤했음)
+    // 왼쪽(-x)에서 오른쪽으로 u 가 0 → 1 이라 앞(+Z)에서 바르게 읽힙니다. u 는 곡선 길이에 비례(글자 간격 고르게).
+    const segs = 48
+    const ts = Array.from({ length: segs + 1 }, (_, i) => Math.PI / 2 + ARCH.textArc / 2 - (i / segs) * ARCH.textArc)
+    const mid = ts.map((t) => pt(t, ARCH.gap / 2))
+    const len = [0]
+    for (let i = 1; i <= segs; i++) len.push(len[i - 1] + Math.hypot(mid[i][0] - mid[i - 1][0], mid[i][1] - mid[i - 1][1]))
+    const pos: number[] = [], uv: number[] = [], index: number[] = []
+    mid.forEach(([x, y], i) => {
+      const u = len[i] / len[segs]
+      pos.push(x, y - ARCH.textH / 2, 0, x, y + ARCH.textH / 2, 0)
+      uv.push(u, 0, u, 1)
+      if (i < segs) index.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3)
     })
-    return { chords, bars, letters }
+    const strip = new THREE.BufferGeometry()
+    strip.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    strip.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+    strip.setIndex(index)
+    return { chords, bars, strip, stripLen: len[segs] }
   }, [postX])
   // 철제 울타리: 기둥 바깥으로 양쪽 GATE_FENCE.len 만큼, 세로 살 + 창끝 + 위아래 가로대
   const fence = useMemo(() => {
@@ -158,7 +169,7 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
     return { bars, ivy }
   }, [w, gate.spec.x, gate.spec.z])
   const endX = w / 2 + GATE_POST + GATE_FENCE.len + GATE_FENCE.endPost / 2
-  const plaque = labelTexture('CAMBIT UNIVERSITY · 캠빛 대학교', '#5a4128', '#e9d39a')
+  const text = goldText(arch.stripLen / ARCH.textH, near)
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
       {/* 큰 기둥: 흰 돌 받침 / 벽돌 / 흰 띠 / 벽돌 / 흰 돌 머리 / 갓 */}
@@ -185,11 +196,6 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
           <mesh position-y={P.top + 0.26} material={MAT.cap}>
             <boxGeometry args={[GATE_POST - 0.1, 0.2, GATE_POST - 0.1]} />
           </mesh>
-          {/* 청동 명판 (앞면) */}
-          <mesh position={[0, P.base + 0.75, GATE_POST / 2 + 0.01]}>
-            <planeGeometry args={[0.8, (0.8 * LABEL_PX.h) / LABEL_PX.w]} />
-            <meshBasicMaterial map={plaque} />
-          </mesh>
         </group>
       ))}
       {/* 철제 트러스 아치 */}
@@ -205,16 +211,11 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
           <Instance key={i} position={b.p} rotation={b.r} scale={[1, b.s, 1]} />
         ))}
       </Instances>
-      {/* 금색 글자: 앞·뒤 양면 (뒤에서도 바르게 읽히게 뒷면은 순서를 뒤집어 반 바퀴) */}
-      {arch.letters.map((l, i) => (
-        <group key={i}>
-          <mesh position={[l.x, l.y, 0.06]} rotation-z={l.rz}>
-            <planeGeometry args={[ARCH.letterW, ARCH.letterW * 1.3]} />
-            <meshBasicMaterial map={goldLetter(l.ch, near)} transparent depthWrite={false} />
-          </mesh>
-          <mesh position={[-l.x, l.y, -0.06]} rotation={[0, Math.PI, -l.rz]}>
-            <planeGeometry args={[ARCH.letterW, ARCH.letterW * 1.3]} />
-            <meshBasicMaterial map={goldLetter(l.ch, near)} transparent depthWrite={false} />
+      {/* 금색 글자 띠: 앞·뒤 양면 (뒷면은 반 바퀴 돌려 뒤에서도 바르게 읽힘) */}
+      {[0, Math.PI].map((ry) => (
+        <group key={ry} rotation-y={ry}>
+          <mesh geometry={arch.strip} position-z={0.06}>
+            <meshBasicMaterial map={text} transparent depthWrite={false} />
           </mesh>
         </group>
       ))}
@@ -257,26 +258,46 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
   )
 }
 
-// 금색 글자 한 자 (투명 바탕). 글자·강조 여부마다 한 번만 만듭니다.
-const letterCache = new Map<string, THREE.CanvasTexture>()
-function goldLetter(ch: string, near: boolean) {
-  const key = `${ch}|${near}`
-  let t = letterCache.get(key)
+// 금색 문구 (투명 바탕) 한 장. aspect: 띠의 길이 ÷ 높이 (캔버스 비율을 맞춰 글자가 눌리지 않게). 강조 여부마다 한 번만
+const textCache = new Map<string, THREE.CanvasTexture>()
+function goldText(aspect: number, near: boolean) {
+  const key = `${aspect.toFixed(2)}|${near}`
+  let t = textCache.get(key)
   if (!t) {
+    const H = 128
     const c = document.createElement('canvas')
-    c.width = 64
-    c.height = 84
+    c.width = Math.round(H * aspect)
+    c.height = H
     const ctx = c.getContext('2d')!
-    ctx.font = '700 64px Georgia, "Times New Roman", serif'
+    // 띠 길이에 맞춰 글자 사이를 고르게 벌림 (양끝 여백 4%). 글자가 띠보다 길면 글자 크기를 줄여 맞춤
+    const chars = [...ARCH.text]
+    let size = Math.round(H * 0.82)
+    const measure = () => {
+      ctx.font = `700 ${size}px Georgia, "Times New Roman", serif`
+      return chars.map((ch) => ctx.measureText(ch).width)
+    }
+    let widths = measure()
+    const room = c.width * 0.92 - (chars.length - 1) * H * 0.05 // 글자 사이 최소 간격
+    while (widths.reduce((a, b) => a + b, 0) > room && size > 20) {
+      size -= 4
+      widths = measure()
+    }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    const free = c.width * 0.92 - widths.reduce((a, b) => a + b, 0)
+    const gap = Math.max(0, free / (chars.length - 1))
     ctx.fillStyle = near ? '#ffd27a' : '#d8b25a'
     ctx.shadowColor = 'rgba(0,0,0,.45)'
-    ctx.shadowBlur = 3
-    ctx.fillText(ch, 32, 46)
+    ctx.shadowBlur = 4
+    let x = c.width * 0.04
+    chars.forEach((ch, i) => {
+      ctx.fillText(ch, x + widths[i] / 2, H * 0.54)
+      x += widths[i] + gap
+    })
     t = new THREE.CanvasTexture(c)
     t.colorSpace = THREE.SRGBColorSpace
-    letterCache.set(key, t)
+    t.anisotropy = 4
+    textCache.set(key, t)
   }
   return t
 }
