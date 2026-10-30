@@ -11,17 +11,19 @@
 //   날씨는 하늘(?time)과 달리 실제 시각으로 고릅니다. 예보가 지금 앞뒤 하루치뿐이라서입니다.
 //
 // ── 확인용 주소 ─────────────────────────────────────────────────────
-//   ?weather=clear|cloudy|rain|snow, 비·눈은 세기를 붙일 수 있음(?weather=rain:0.3). 있으면 예보를 받지 않고 그 날씨로 고정.
+//   ?weather=clear|cloudy|rain|snow|storm, 비·눈은 세기를 붙일 수 있음(?weather=rain:0.3). 있으면 예보를 받지 않고 그 날씨로 고정.
+//   뇌우는 ?weather=storm, 번개를 6~10초마다 치게 하려면 ?weather=storm:fast (#328, lightningLogic.ts)
 import { SEOUL, mix } from './skyLogic'
 import type { SkyState } from './skyLogic'
+import type { Lightning } from './lightningLogic'
 
-export type Weather = { cloud: number; rain: number; snow: number; dim: number } // 모두 0~1
+export type Weather = { cloud: number; rain: number; snow: number; dim: number; storm: number } // 모두 0~1 (storm: 뇌우 정도, #328)
 // 예보 한 칸. ms = 구간 끝 T (값은 T−1h ~ T), cloud 0~1, precip 시간당 강수량 mm (눈도 물로 바꾼 양)
 export type Hour = { ms: number; code: number; cloud: number; precip: number }
 // useWorldWeather 가 넘기는 값: 받은 예보, 또는 확인용 주소의 날씨
 export type WeatherSource = { hours: Hour[] | null; override: Weather | null }
 
-export const CLEAR: Weather = { cloud: 0, rain: 0, snow: 0, dim: 0 }
+export const CLEAR: Weather = { cloud: 0, rain: 0, snow: 0, dim: 0, storm: 0 }
 
 const HOUR_MS = 3_600_000
 const BLEND_MS = 5 * 60_000 // 정각 앞뒤로 섞는 시간
@@ -42,6 +44,7 @@ const OVERRIDE = { cloudy: 0.8, wetCloud: 0.9, strength: 0.6 } // 확인용 주�
 const FORECAST = { pastHours: 3, forecastHours: 24 }
 
 // 하늘·빛 어둡게 (스펙 6절)
+export const OVERCAST_COLOR = 0x8a9099 // 흐림 덮개 색 (번쩍일 때 lightningLogic 이 밝힘)
 const SHADE = { light: 0.6, ambient: 0.3, moon: 0.4, glow: 0.5, overcast: 0.6, overcastNight: 0.7 }
 const AMBIENT_WET_COLOR = 0x9aa6b8 // 흐리면 주변광을 이 회청색 쪽으로
 
@@ -91,11 +94,11 @@ export function precipStrength(mm: number): number {
   return 1
 }
 
-// 구름 양·비·눈 세기로 어두움까지 채운 Weather
-function makeWeather(cloud: number, rain: number, snow: number): Weather {
+// 구름 양·비·눈 세기(·뇌우 정도)로 어두움까지 채운 Weather
+function makeWeather(cloud: number, rain: number, snow: number, storm = 0): Weather {
   const wet = Math.max(rain, snow)
   const dim = Math.max(DIM.cloud * cloud, wet > 0 ? DIM.wet + DIM.wetScale * wet : 0)
-  return { cloud, rain, snow, dim }
+  return { cloud, rain, snow, dim, storm }
 }
 
 // 예보 한 칸 → Weather
@@ -106,7 +109,7 @@ export function hourWeather(h: Hour): Weather {
     const storm = h.code >= 95
     const s = storm ? 1 : h.precip < MIN_PRECIP_MM ? MIN_PRECIP : precipStrength(h.precip)
     const cloud = Math.max(h.cloud, WET_CLOUD)
-    return kind === 'rain' ? makeWeather(cloud, s, 0) : makeWeather(cloud, 0, s)
+    return kind === 'rain' ? makeWeather(cloud, s, 0, storm ? 1 : 0) : makeWeather(cloud, 0, s)
   }
   return makeWeather(fog ? Math.max(h.cloud, WET_CLOUD) : h.cloud, 0, 0)
 }
@@ -133,6 +136,7 @@ const mixWeather = (a: Weather, b: Weather, t: number): Weather => ({
   rain: a.rain + (b.rain - a.rain) * t,
   snow: a.snow + (b.snow - a.snow) * t,
   dim: a.dim + (b.dim - a.dim) * t,
+  storm: a.storm + (b.storm - a.storm) * t, // 뇌우가 끝날 무렵 번쩍임이 서서히 약해짐
 })
 
 // 지금(ms) 날씨. 받은 범위 밖이거나 목록이 없으면 맑음 (오래된 예보로 어제 비가 계속 오지 않게)
@@ -155,7 +159,10 @@ export function weatherAt(hours: Hour[] | null, ms: number): Weather {
 
 // 확인용 주소 ?weather=... → 고정 날씨. 없거나 틀리면 null (실제 날씨를 씀)
 export function parseWeatherOverride(search: string): Weather | null {
-  const m = (new URLSearchParams(search).get('weather') ?? '').match(/^(clear|cloudy|rain|snow)(?::(.+))?$/)
+  const v = new URLSearchParams(search).get('weather') ?? ''
+  // 뇌우: 세기 없이 storm, 또는 번개를 빨리 치게 하는 storm:fast 만 받음
+  if (v === 'storm' || v === 'storm:fast') return makeWeather(OVERRIDE.wetCloud, 1, 0, 1)
+  const m = v.match(/^(clear|cloudy|rain|snow)(?::(.+))?$/)
   if (!m) return null
   const [, kind, raw] = m
   if (raw !== undefined && (kind === 'clear' || kind === 'cloudy')) return null
@@ -175,11 +182,12 @@ export function nextFetchDelay(nowMs: number): number {
 
 // ── 하늘에 날씨 반영 ───────────────────────────────────────────────────
 // fieldStars: 흩뿌린 별 투명도 (구름·비에 가려짐). 별자리는 날씨와 상관없이 보이도록 stars 는 그대로 둡니다(#321).
-// overcast: 흐림 덮개(회색 반구) 투명도
-export type WeatherSky = SkyState & { fieldStars: number; overcast: number }
+// overcast: 흐림 덮개(회색 반구) 투명도, overcastColor: 그 색(0xrrggbb, 번개가 칠 때 밝아짐)
+export type WeatherSky = SkyState & { fieldStars: number; overcast: number; overcastColor: number }
 // WorldSky 가 매 프레임 채워 구름·비·눈에 넘기는 값. ms 는 하늘 시각(?time 을 따름), now 는 실제 시각
 // (구름 자리는 날씨처럼 실제 시각으로 정해, ?time 으로 하늘만 바꿔도 구름은 모두 같은 자리에서 흐름)
-export type WeatherFrame = WeatherSky & { ms: number; now: number; weather: Weather }
+// lightning: 이번 프레임 번개 (#328, 번쩍임은 이미 하늘 값에 들어 있음. 구름·번개 줄기가 씀)
+export type WeatherFrame = WeatherSky & { ms: number; now: number; weather: Weather; lightning: Lightning }
 
 export function applyWeather(sky: SkyState, w: Weather): WeatherSky {
   const moon = 1 - SHADE.moon * w.dim
@@ -192,6 +200,7 @@ export function applyWeather(sky: SkyState, w: Weather): WeatherSky {
     glow: Math.max(sky.glow, SHADE.glow * w.dim), // 비 오는 낮에도 가로등·창문이 살짝 켜짐
     fieldStars: sky.stars * (1 - w.cloud) * (1 - Math.max(w.rain, w.snow)),
     overcast: SHADE.overcast * w.dim * (1 - SHADE.overcastNight * sky.night), // 밤에는 남색 덮개가 있어 덜 씌움
+    overcastColor: OVERCAST_COLOR,
   }
 }
 
