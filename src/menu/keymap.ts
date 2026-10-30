@@ -10,7 +10,7 @@ export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
 export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
-  { action: 'interact', label: '앉기·입장·일어나기' },
+  { action: 'interact', label: '앉기·입장·일어나기·프로필 보기' },
   { action: 'view', label: '시점 바꾸기 (1인칭·위에서)' },
   { action: 'recenter', label: '정면 보기 (앉았을 때) · 점프 (서 있을 때)' },
   { action: 'emoteWheel', label: '감정표현 바퀴' },
