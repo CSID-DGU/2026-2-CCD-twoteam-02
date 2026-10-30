@@ -98,6 +98,10 @@ export const MAT_SIT = { y: -0.38 } // 돗자리: 바닥에 앉음 (앉은 자�
 export const BEANBAG = { y: -0.12, lie: 0.45 } // 빈백: 조금 낮게, 뒤로 기대 누움(라디안)
 export const BOARD = { w: 2.4, d: 0.3 } // 순위 게시판 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
 export const BOARD_NO = 1000 // 게시판 앞 자리의 "앉는 자리" 번호. 건물 번호(1부터)와 겹치지 않게 큰 수
+// 벤치 자리 (벤치에서 공부하기). 광장은 DB 에서 카페 종류 지점 'plaza' 이고 벤치 자리가 그 지점의 좌석이다(0038).
+export const BENCH_SEATS_PER_BENCH = 2
+export const BENCH_SEAT_BASE = 2000 // Player "앉는 자리" 번호 = 2000 + DB 좌석 번호. 건물(1부터)·게시판(1000)과 겹치지 않게
+const BENCH_SEAT_GAP = 0.4 // 벤치 가운데에서 자리까지 (벤치 길이 방향)
 const DOOR_W = 1.6 // 지점 JSON 에 출입문이 없을 때 입구 문 폭
 const DOOR_T = 0.3 // 입구 문 두께
 
@@ -234,9 +238,9 @@ export function restSpots(layout: PlazaLayout): Spot[] {
 }
 
 // Player 의 "앉는 자리" 번호가 무엇인지
-// 순위 게시판 앞 자리(BOARD_NO)는 따로 'board'
-export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' | 'board' =>
-  no === BOARD_NO ? 'board' : no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building'
+// 순위 게시판 앞 자리(BOARD_NO)는 따로 'board', 벤치 공부 자리(BENCH_SEAT_BASE 초과)는 'bench'
+export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' | 'board' | 'bench' =>
+  no > BENCH_SEAT_BASE ? 'bench' : no === BOARD_NO ? 'board' : no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building'
 
 // 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치, 정문 기둥
 export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
@@ -348,3 +352,19 @@ export function fenceSegments(plaza: PlazaLayout): Box[] {
     ...side(false, w / 2 - FENCE_T / 2, d),
   ]
 }
+
+// 벤치 자리 (벤치에서 공부하기): world.json 벤치 순서대로 벤치마다 두 자리. 왼쪽(벤치 기준 -x)부터.
+// DB 좌석 번호는 1부터(0038 의 seats 와 같은 순서), Player 의 자리 번호는 BENCH_SEAT_BASE 를 더한 값.
+// rot 은 앉은 사람이 보는 쪽(벤치가 보는 쪽). 자리는 벤치 상자 안이지만 Player 는 장애물 안에서 나가는 걸음은 막지 않는다.
+export function benchSeats(plaza: PlazaLayout): Spot[] {
+  return plaza.benches.flatMap((b, i) => {
+    const angle = facingAngle(b.facing)
+    return [-1, 1].map((side, j) => {
+      const r = rotate(side * BENCH_SEAT_GAP, 0, angle)
+      return { no: BENCH_SEAT_BASE + i * BENCH_SEATS_PER_BENCH + j + 1, x: b.x + r.x, z: b.z + r.z, rot: angle }
+    })
+  })
+}
+
+export const isBenchSpot = (no: number) => no > BENCH_SEAT_BASE
+export const benchSeatNumber = (no: number) => no - BENCH_SEAT_BASE
