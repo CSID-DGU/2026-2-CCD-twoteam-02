@@ -121,8 +121,10 @@ export function prepareEmoteAction(action: AnimationAction, emote: Emote) {
 // ── 지금 감정표현 상태 (화면끼리 같이 쓰는 ref 에 담음) ────────────
 // request: 고른 감정표현 (Player 가 다음 프레임에 받아 시작), playing: 지금 하는 것, until: 끝나는 시각(ms)
 // seq: 시작할 때마다 1 올라감. 다른 참여자 화면이 "새로 시작했는지" 알아보는 데 씁니다.
-export type EmoteState = { request: EmoteId | null; playing: EmoteId | null; until: number; seq: number }
-export const newEmoteState = (): EmoteState => ({ request: null, playing: null, until: 0, seq: 0 })
+// jump: 점프할 때마다 1 올라가는 번호(jumpLogic.ts). 감정표현과 같이 위치 메시지에 실어 보내므로 같은 상태에 둡니다.
+// jumpAt: 마지막으로 뛴 시각(ms). 1인칭 카메라(WalkCamera)가 이 시각으로 눈높이를 같이 올립니다.
+export type EmoteState = { request: EmoteId | null; playing: EmoteId | null; until: number; seq: number; jump: number; jumpAt: number }
+export const newEmoteState = (): EmoteState => ({ request: null, playing: null, until: 0, seq: 0, jump: 0, jumpAt: -Infinity })
 
 // 상태 바꾸기. (컴포넌트 안에서 ref 값을 직접 고치지 않도록 여기서 합니다)
 export function clearEmoteRequest(s: EmoteState) {
@@ -138,6 +140,13 @@ export function endEmote(s: EmoteState) {
 }
 export function requestEmote(s: EmoteState, id: EmoteId) {
   s.request = id
+}
+export function startJump(s: EmoteState, at: number) {
+  s.jump += 1
+  s.jumpAt = at
+}
+export function cancelJump(s: EmoteState) {
+  s.jumpAt = -Infinity
 }
 
 // 감정표현 바퀴에서 마우스를 움직인 방향(dx, dy)으로 고른 칸. 너무 조금 움직였으면 null

@@ -279,6 +279,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
       ...(arms ? { arms: [vec(arms.armLeft), vec(arms.armRight)] } : {}),
       ...(face ? { mouth: mouthOpen(face) } : {}), // 입 벌림 (회의실에서만 보냄, #61)
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
+      ...(emote.current.jump ? { jump: emote.current.jump } : {}), // 점프 번호
       ...(sync ? { sync } : {}),
       mic: voice.micOn, // 다른 사람 목록에 🔇 표시 (#46)
       ...(myLv ? { lv: myLv } : {}), // 칭호 (공개 범위 '모두'일 때만)

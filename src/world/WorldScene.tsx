@@ -217,7 +217,7 @@ export default function WorldScene({ onEnter }: Props) {
   const nearBuilding = PLACED.find((b) => b.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
-  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel) }
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), jump: keyLabel(keymap.recenter) }
   const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const hint = panel
     ? ''
@@ -227,7 +227,7 @@ export default function WorldScene({ onEnter }: Props) {
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
-      : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+      : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.jump} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
@@ -290,9 +290,9 @@ export default function WorldScene({ onEnter }: Props) {
               pos.current.z = z
               bodyHeading.current = h
               // 광장에서는 앉는 자리가 없고 모두 공부 전(idle)입니다.
-              // 서서 감정표현 중이면 같이 실어 보냅니다. (#162)
+              // 서서 감정표현 중이면 같이 실어 보냅니다. (#162) 점프 번호도 (바뀌면 보는 사람 화면에서도 뜀)
               const e = emote.current
-              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(myLv ? { lv: myLv } : {}) }
+              if (session) me.current = { userId: session.user.id, x, z, h, seat: null, status: 'idle', ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}), ...(e.jump ? { jump: e.jump } : {}), ...(myLv ? { lv: myLv } : {}) }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
