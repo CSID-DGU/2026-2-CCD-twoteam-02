@@ -57,6 +57,8 @@ import { sharedLevel } from "../level/levelLogic";
 import { LevelUpCard } from "../level/LevelUpCard";
 import { emotesAllowed } from "./rulesLogic";
 import { setQuietLock } from "../chat/quietLock";
+import { worldOfBranch } from "../world/worldConfig";
+import { toward } from "../lib/josa";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -310,7 +312,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   }, [kioskOpen, panelOpen, meetingOpen, elevatorOpen, setView]);
 
   // 광장으로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 광장의 이 건물 입구 앞에 섭니다(#150, #315).
-  const goLobby = () => navigate("/", { state: { from: branch.id, heading: bodyHeading.current } });
+  // 이 지점이 있는 바깥 공간: 광장 지점이면 광장(/), 캠빛 대학교 건물이면 캠퍼스(/campus)로 돌아갑니다.
+  const outside = worldOfBranch(branch.id);
+  const goLobby = () => navigate(outside.path, { state: { from: branch.id, heading: bodyHeading.current } });
   // 트래킹 검증 화면으로 (#250). 다른 주소라 지점 화면이 닫히므로 키는 서 있을 때만 받습니다.
   const goTracking = () => navigate("/tracking");
   // 오른쪽 위 버튼 단축키 R·F·P·L (#205). 키오스크·확인 창·공부 시작 창이 떠 있으면 쓰지 않습니다.
@@ -339,7 +343,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       : nearElevator // 엘리베이터 문 앞 (여러 층 건물)
         ? `엘리베이터 · ${K.interact} 층 고르기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
-        ? `출입문 · ${K.interact} 광장으로 나가기`
+        ? `출입문 · ${K.interact} ${toward(outside.title)} 나가기`
       : isRest
         ? near !== null
           ? `${near}번 소파 · ${K.interact} 눕기`
@@ -506,7 +510,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       {/* 출입문: 남쪽 벽에 붙은 문과 "광장" 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
       {branch.door && branch.theme?.door ? (
-        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label="광장" door={branch.theme.door} along="x" />
+        <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label={outside.title} door={branch.theme.door} along="x" />
       ) : branch.door && (
         <group>
           <mesh position={[branch.door.x, DOOR_HEIGHT / 2, branch.door.z]}>
@@ -516,7 +520,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           {/* 표지판은 문 안쪽 면(지점 쪽, -Z)을 보게 반 바퀴 돌립니다. */}
           <mesh position={[branch.door.x, DOOR_SIGN.y, branch.door.z - branch.door.d / 2 - 0.01]} rotation={[0, Math.PI, 0]}>
             <planeGeometry args={[DOOR_SIGN.width, (DOOR_SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-            <meshBasicMaterial map={labelTexture("광장", "#14532d")} transparent />
+            <meshBasicMaterial map={labelTexture(outside.title, "#14532d")} transparent />
           </mesh>
         </group>
       )}

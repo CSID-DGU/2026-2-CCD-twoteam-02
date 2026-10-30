@@ -4,7 +4,7 @@
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { CAMPUS_CHANNEL, LOBBY_CHANNEL } from '../realtime/participants'
 import { CAMPUS_PLACE, LOBBY_PLACE } from '../realtime/online'
-import { boardSpot, placeBuildings, placeGates, plazaObstacles, restSpots } from './worldLogic'
+import { boardSpot, buildingOf, placeBuildings, placeGates, plazaObstacles, restSpots } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, PlazaLayout, WorldId } from './worldLogic'
 import type { Box, Spot } from '../space/layout'
 import world from './world.json'
@@ -59,4 +59,9 @@ export function computedOf(w: WorldConfig): WorldComputed {
     computed.set(w.id, c)
   }
   return c
+}
+
+// 그 지점(위층 포함)이 있는 월드. 지점에서 나가면 이 월드의 그 건물 앞으로 돌아갑니다. 없는 지점이면 광장
+export function worldOfBranch(slug: string): WorldConfig {
+  return [CAMPUS_WORLD, PLAZA_WORLD].find((w) => buildingOf(computedOf(w).placed, slug)) ?? PLAZA_WORLD
 }
