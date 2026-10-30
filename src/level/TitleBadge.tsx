@@ -1,4 +1,4 @@
-// 화면(DOM)에 그리는 칭호 리본과 진행 막대 (꽃 피는 칭호). 머리 위 3D 리본(ribbonTexture)과 같은 모양·색입니다.
+// 화면(DOM)에 그리는 칭호 리본과 진행 막대 (꽃 피는 칭호). 머리 위에는 리본 대신 닉네임판 안에 꽃 그림·단계 색 테두리로 보입니다(NameTag).
 // 프로필 창(내 것·남의 것)과 내 기록 창이 씁니다.
 import type { CSSProperties } from 'react'
 import { MAX_LEVEL, progressOf, titleOf } from './levelLogic'
