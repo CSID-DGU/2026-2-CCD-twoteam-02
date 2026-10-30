@@ -32,6 +32,7 @@ import { Constellations } from './Constellations'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
 import { LightningBolt } from './LightningBolt'
+import type { AimTarget } from '../space/aimLogic'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
 const SKY_DISTANCE = 450
@@ -107,18 +108,19 @@ function drawMoon(ctx: CanvasRenderingContext2D, phase: number) {
 }
 
 // lamps: 점광원을 켤 가로등 자리 (world.json 의 lamps 중 light 를 단 것)
-// onPickSign: 밤에 별자리를 누르면 그 별자리 id 로 불림 (오늘의 운세 창, #321)
+// aimSign·onAimSign: 밤에 조준점이 가리키는 별자리를 알림 (E 로 오늘의 운세 창, #321). Constellations 참고
 // mySign: 내 별자리 id (생일로 정함, 없으면 null). 하늘에서 금색으로 보임
 // weatherRef: 받은 날씨 예보(useWorldWeather, #317). followRef: 내 위치 (비·눈이 내 둘레에 내림)
 type Props = {
   lamps: Point[]
-  onPickSign?: (id: string) => void
+  aimSign?: boolean
+  onAimSign?: (target: AimTarget | null) => void
   mySign?: string | null
   weatherRef: RefObject<WeatherSource>
   followRef: RefObject<{ x: number; z: number }>
 }
 
-export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherRef, followRef }: Props) {
+export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign = null, weatherRef, followRef }: Props) {
   const frame = useRef<WeatherFrame | null>(null) // 이번 프레임 하늘·날씨 값. 별자리·구름·비가 같이 씀
   const camera = useThree((s) => s.camera)
   const clock = useRef<Clock | null>(null)
@@ -288,7 +290,7 @@ export function WorldSky({ lamps: lampSpots, onPickSign, mySign = null, weatherR
   return (
     <>
       <Sky ref={sky} distance={SKY_DISTANCE} />
-      <Constellations stateRef={frame} mySign={mySign} onPick={onPickSign} />
+      <Constellations stateRef={frame} mySign={mySign} aimOn={aimSign} onAim={onAimSign} />
       <Clouds stateRef={frame} />
       <LightningBolt stateRef={frame} />
       <Precipitation stateRef={frame} followRef={followRef} />

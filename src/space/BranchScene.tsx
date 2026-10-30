@@ -31,6 +31,8 @@ import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
+import { useAim } from "./useAim";
+import type { AimTarget } from "./aimLogic";
 import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
 import { EmoteControls } from "./EmoteControls";
@@ -295,6 +297,11 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   });
 
   const seatSpot = spots.find((c) => c.no === seat);
+  // 조준점이 가리키는 사람 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
+  const aim = useAim();
+  const { set: setAim } = aim;
+  const aimOn = view === "first" && seat === null && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen);
+  const aimPerson = useCallback((t: AimTarget | null) => setAim("person", t), [setAim]);
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) };
@@ -330,7 +337,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -533,7 +540,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         return desk && <MySeatMarker x={desk.x} z={desk.z} />;
       })()}
 
-      {condition === "visible" && <OtherParticipants others={others} spots={spots} onSelect={(userId) => setPanel({ kind: "profile", userId })} />}
+      {/* 다른 참여자의 프로필 창: 1인칭은 조준점 + E, 위에서 보면 클릭. 앉아 있으면 열지 않음 */}
+      {condition === "visible" && (
+        <OtherParticipants
+          others={others}
+          spots={spots}
+          onSelect={view === "top" && seat === null ? (userId) => setPanel({ kind: "profile", userId }) : undefined}
+          aimOn={aimOn}
+          onAim={aimPerson}
+        />
+      )}
 
       {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
       {myModel && (
@@ -562,6 +578,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           canSit={(no) => no === mySeat}
           onSitBlocked={isCafe ? (no) => void cafe.claim(no) : undefined}
           sitRef={cafe.sitRequest}
+          aimRef={aim.current}
+          onAim={(t) => setPanel({ kind: "profile", userId: t.id })}
           onMove={handleMove}
           headingRef={view === "first" ? heading : undefined}
         />
@@ -589,7 +607,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
     <PerfReadout perf={perf} />
     {locked && seat === null && (
-      // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필)
+      // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람을 가리키고 E 를 누르면 프로필
       <div
         style={{
           position: "fixed",

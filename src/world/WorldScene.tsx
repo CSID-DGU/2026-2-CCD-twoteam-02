@@ -76,6 +76,8 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
+import { useAim } from '../space/useAim'
+import type { AimTarget } from '../space/aimLogic'
 import { RankingBoard } from './RankingBoard'
 import { RankingPanel } from '../ranking/RankingPanel'
 import { useRanking } from '../ranking/useRanking'
@@ -141,11 +143,18 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
   // 광장 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null)
-  // 오늘의 별자리 운세 창 (#321): 밤하늘에서 누른 별자리 id. 다른 창이 떠 있으면 열지 않음
+  // 오늘의 별자리 운세 창 (#321): 밤하늘에서 조준점으로 고르고 E 를 누른 별자리 id
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
   const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
+  // 조준점이 가리키는 사람·별자리 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
+  const aim = useAim()
+  const { set: setAim } = aim
+  const aimOn = view === 'first' && seat === null && panel === null && !overlay
+  const aimPerson = useCallback((t: AimTarget | null) => setAim('person', t), [setAim])
+  const aimSign = useCallback((t: AimTarget | null) => setAim('sign', t), [setAim])
+  const openAim = (t: AimTarget) => (t.kind === 'person' ? setPanel({ kind: 'profile', userId: t.id }) : setFortune(t.id))
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
   const { session } = useSession()
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
@@ -308,6 +317,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       ? '⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요'
     : cafe.message
       ? cafe.message
+    : aimOn && aim.target
+      ? aim.target.kind === 'person'
+        ? `${aim.target.name} · ${K.interact} 프로필 보기`
+        : `${aim.target.name} · ${K.interact} 오늘의 운세`
     : benchSeated
       ? `벤치 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
     : near !== null && spotKindOf(near) === 'bench'
@@ -344,8 +357,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         <FpsProbe onSample={handleFps} />
-        {/* 하늘·해·달·별과 빛 (#316), 별자리를 누르면 운세 창 (#321), 구름·비·눈 (#317) */}
-        <WorldSky lamps={LIT_LAMPS} mySign={mySign} onPickSign={(id) => panel === null && !overlay && seat === null && setFortune(id)} weatherRef={weather} followRef={pos} />
+        {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
+        <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} />
         <Fence plaza={PLAZA} />
@@ -371,10 +384,16 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
 
-        {/* 광장의 다른 참여자. 누르면 프로필 창 (#166). 쉬는 자리·벤치에 앉은 사람은 앉은 모습으로.
+        {/* 광장의 다른 참여자. 프로필 창 (#166): 1인칭은 조준점 + E, 위에서 보면 클릭. 앉아 있으면 열지 않음. 쉬는 자리·벤치에 앉은 사람은 앉은 모습으로.
             표시등은 벤치에서 공부 중인 사람만 보입니다 (걷거나 쉬는 사람은 idle 이라 표시등이 없음). */}
         {condition === 'visible' && (
-          <OtherParticipants others={others} spots={[...REST_SPOTS, ...BENCH_SPOTS]} onSelect={(userId) => setPanel({ kind: 'profile', userId })} />
+          <OtherParticipants
+            others={others}
+            spots={[...REST_SPOTS, ...BENCH_SPOTS]}
+            onSelect={view === 'top' && seat === null ? (userId) => setPanel({ kind: 'profile', userId }) : undefined}
+            aimOn={aimOn}
+            onAim={aimPerson}
+          />
         )}
 
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
@@ -400,6 +419,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             canSit={canEnter}
             onSitBlocked={blockedEnter}
             sitRef={cafe.sitRequest}
+            aimRef={aim.current}
+            onAim={openAim}
             onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z
@@ -445,7 +466,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       <PerfReadout perf={perf} />
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
-      {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데가 클릭 위치입니다. (캐릭터를 누르면 프로필, #166) */}
+      {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람·별자리를 가리키고 E 를 누르면 프로필·운세 (#166, #321) */}
       {locked && seat === null && <div style={crosshair} />}
       {/* 벤치에 앉아 있는 동안: 지점 카페와 같은 남은 시간 영수증, 자리를 잃으면(다른 기기에서 반납·5분 넘게 신호 없음 등) 안내 (#341).
           잃으면 내 자리를 비워 공부 타이머가 끝난 이용 기록에 더 저장하지 않습니다(지점과 같음). */}

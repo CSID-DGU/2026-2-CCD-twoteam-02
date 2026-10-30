@@ -15,6 +15,7 @@ import type { EmoteState } from './emotes'
 import { holdStandingPose } from './standStill'
 import { getKeymap } from '../menu/keymap'
 import { inAir, jumpHeight } from './jumpLogic'
+import type { AimTarget } from './aimLogic'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -63,9 +64,13 @@ type Props = {
   // 감정표현 (#162). 바깥(EmoteControls)에서 request 를 넣으면 서 있을 때 그 동작을 합니다. 움직이면 멈춥니다.
   // 점프할 때마다 여기의 jump 번호도 올려, 위치 메시지로 다른 사람 화면에도 뛰는 모습이 보이게 합니다.
   emoteRef?: RefObject<EmoteState>
+  // 조준점이 가리키는 사람·별자리 (useAim). 서 있을 때 E 를 누르면 가까운 의자·문보다 먼저 onAim 으로 엽니다.
+  // 앉아 있을 때는 보지 않고 E 는 언제나 일어나기입니다. (#354)
+  aimRef?: RefObject<AimTarget | null>
+  onAim?: (target: AimTarget) => void
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -207,6 +212,12 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     const requested = sitRef?.current ?? null
     const forced = requested !== null && near.current?.no === requested
     if (forced && sitRef) sitRef.current = null
+    // 조준점이 사람·별자리를 가리키면 E 는 그것을 엽니다(가까운 의자·문보다 먼저)
+    const aimed = wantToggle && !forced ? (aimRef?.current ?? null) : null
+    if (aimed) {
+      onAim?.(aimed)
+      return
+    }
     if (wantToggle && near.current && !forced && !(canSit?.(near.current.no) ?? true)) {
       onSitBlocked?.(near.current.no)
       return
