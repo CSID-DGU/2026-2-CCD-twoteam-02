@@ -13,17 +13,22 @@
 // ── 확인용 주소 ─────────────────────────────────────────────────────
 //   ?weather=clear|cloudy|rain|snow|storm, 비·눈은 세기를 붙일 수 있음(?weather=rain:0.3). 있으면 예보를 받지 않고 그 날씨로 고정.
 //   뇌우는 ?weather=storm, 번개를 6~10초마다 치게 하려면 ?weather=storm:fast (#328, lightningLogic.ts)
+//   눈 쌓임은 ?weather=snow 면 다 쌓인 모습, ?snowcover=0.5 처럼 쌓인 정도만 따로 줄 수도 있음(실제 날씨와 같이 써도 됨, #329)
+//
+// ── 눈 쌓임 (#329) ──────────────────────────────────────────────────
+//   Open-Meteo 의 시간별 "땅에 쌓인 눈 깊이"(snow_depth, m)를 받아 쌓인 정도(cover 0~1)로 바꿉니다. SNOW_FULL_M 이상이면 1.
+//   실제 값이라 눈이 오면 한두 시간 안에 쌓이기 시작하고, 그치면 실제로 녹을 때까지(하루~며칠) 남습니다. 녹는 규칙을 따로 두지 않습니다.
 import { SEOUL, mix } from './skyLogic'
 import type { SkyState } from './skyLogic'
 import type { Lightning } from './lightningLogic'
 
-export type Weather = { cloud: number; rain: number; snow: number; dim: number; storm: number } // 모두 0~1 (storm: 뇌우 정도, #328)
-// 예보 한 칸. ms = 구간 끝 T (값은 T−1h ~ T), cloud 0~1, precip 시간당 강수량 mm (눈도 물로 바꾼 양)
-export type Hour = { ms: number; code: number; cloud: number; precip: number }
-// useWorldWeather 가 넘기는 값: 받은 예보, 또는 확인용 주소의 날씨
-export type WeatherSource = { hours: Hour[] | null; override: Weather | null }
+export type Weather = { cloud: number; rain: number; snow: number; dim: number; storm: number; cover: number } // 모두 0~1 (storm: 뇌우 정도 #328, cover: 눈 쌓인 정도 #329)
+// 예보 한 칸. ms = 구간 끝 T (값은 T−1h ~ T), cloud 0~1, precip 시간당 강수량 mm (눈도 물로 바꾼 양), snowDepth 쌓인 눈 깊이 m
+export type Hour = { ms: number; code: number; cloud: number; precip: number; snowDepth: number }
+// useWorldWeather 가 넘기는 값: 받은 예보, 또는 확인용 주소의 날씨. cover: 확인용 주소 ?snowcover= (없으면 null, #329)
+export type WeatherSource = { hours: Hour[] | null; override: Weather | null; cover: number | null }
 
-export const CLEAR: Weather = { cloud: 0, rain: 0, snow: 0, dim: 0, storm: 0 }
+export const CLEAR: Weather = { cloud: 0, rain: 0, snow: 0, dim: 0, storm: 0, cover: 0 }
 
 const HOUR_MS = 3_600_000
 const BLEND_MS = 5 * 60_000 // 정각 앞뒤로 섞는 시간
@@ -42,6 +47,7 @@ const DIM = { cloud: 0.4, wet: 0.6, wetScale: 0.4 } // 어두움 = max(0.4·구�
 const OVERRIDE = { cloudy: 0.8, wetCloud: 0.9, strength: 0.6 } // 확인용 주소의 구름 양·기본 세기
 
 const FORECAST = { pastHours: 3, forecastHours: 24 }
+export const SNOW_FULL_M = 0.03 // 쌓인 눈이 이 깊이(3cm) 이상이면 다 덮인 것으로 (#329)
 
 // 하늘·빛 어둡게 (스펙 6절)
 export const OVERCAST_COLOR = 0x8a9099 // 흐림 덮개 색 (번쩍일 때 lightningLogic 이 밝힘)
@@ -68,7 +74,7 @@ const SUNSET_SPAN_DEG = 6 //  여기서 ±6° 벗어나면 노을빛 없음 (−
 export function weatherUrl(): string {
   return (
     `https://api.open-meteo.com/v1/forecast?latitude=${SEOUL.lat}&longitude=${SEOUL.lon}` +
-    `&hourly=weather_code,cloud_cover,precipitation&past_hours=${FORECAST.pastHours}&forecast_hours=${FORECAST.forecastHours}` +
+    `&hourly=weather_code,cloud_cover,precipitation,snow_depth&past_hours=${FORECAST.pastHours}&forecast_hours=${FORECAST.forecastHours}` +
     '&timezone=UTC&timeformat=unixtime'
   )
 }
@@ -94,27 +100,35 @@ export function precipStrength(mm: number): number {
   return 1
 }
 
-// 구름 양·비·눈 세기(·뇌우 정도)로 어두움까지 채운 Weather
-function makeWeather(cloud: number, rain: number, snow: number, storm = 0): Weather {
+// 쌓인 눈 깊이(m) → 쌓인 정도 0~1
+export function snowCover(depthM: number): number {
+  if (!(depthM > 0)) return 0
+  return Math.min(1, depthM / SNOW_FULL_M)
+}
+
+// 구름 양·비·눈 세기(·뇌우 정도·쌓인 정도)로 어두움까지 채운 Weather
+function makeWeather(cloud: number, rain: number, snow: number, storm = 0, cover = 0): Weather {
   const wet = Math.max(rain, snow)
   const dim = Math.max(DIM.cloud * cloud, wet > 0 ? DIM.wet + DIM.wetScale * wet : 0)
-  return { cloud, rain, snow, dim, storm }
+  return { cloud, rain, snow, dim, storm, cover }
 }
 
 // 예보 한 칸 → Weather
 export function hourWeather(h: Hour): Weather {
   const kind = weatherKind(h.code)
   const fog = h.code === 45 || h.code === 48
+  const cover = snowCover(h.snowDepth) // 맑은 날에도 남은 눈은 보임 (그친 뒤 녹을 때까지)
   if (kind === 'rain' || kind === 'snow') {
     const storm = h.code >= 95
     const s = storm ? 1 : h.precip < MIN_PRECIP_MM ? MIN_PRECIP : precipStrength(h.precip)
     const cloud = Math.max(h.cloud, WET_CLOUD)
-    return kind === 'rain' ? makeWeather(cloud, s, 0, storm ? 1 : 0) : makeWeather(cloud, 0, s)
+    return kind === 'rain' ? makeWeather(cloud, s, 0, storm ? 1 : 0, cover) : makeWeather(cloud, 0, s, 0, cover)
   }
-  return makeWeather(fog ? Math.max(h.cloud, WET_CLOUD) : h.cloud, 0, 0)
+  return makeWeather(fog ? Math.max(h.cloud, WET_CLOUD) : h.cloud, 0, 0, 0, cover)
 }
 
 // Open-Meteo 응답 → 예보 칸 목록. 모양이 틀리면 null. 값이 빈(null) 칸은 그 시간만 뺍니다.
+// 쌓인 눈 깊이(snow_depth)는 없거나 빈 칸이면 0 으로 봅니다(그 때문에 날씨 칸을 버리지 않음).
 export function parseForecast(json: unknown): Hour[] | null {
   const hourly = (json as { hourly?: Record<string, unknown> } | null)?.hourly
   if (!hourly || typeof hourly !== 'object') return null
@@ -122,11 +136,14 @@ export function parseForecast(json: unknown): Hour[] | null {
   if (!cols.every(Array.isArray)) return null
   const [time, code, cloud, precip] = cols as unknown[][]
   if (!cols.every((c) => (c as unknown[]).length === time.length)) return null
+  const depthCol = hourly.snow_depth
+  if (depthCol !== undefined && (!Array.isArray(depthCol) || depthCol.length !== time.length)) return null
+  const depth = (depthCol ?? []) as unknown[]
   const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
   const out: Hour[] = []
   for (let i = 0; i < time.length; i++) {
-    const t = time[i], c = code[i], cl = cloud[i], p = precip[i]
-    if (num(t) && num(c) && num(cl) && num(p)) out.push({ ms: t * 1000, code: c, cloud: cl / 100, precip: p })
+    const t = time[i], c = code[i], cl = cloud[i], p = precip[i], d = depth[i]
+    if (num(t) && num(c) && num(cl) && num(p)) out.push({ ms: t * 1000, code: c, cloud: cl / 100, precip: p, snowDepth: num(d) ? d : 0 })
   }
   return out.sort((a, b) => a.ms - b.ms)
 }
@@ -137,6 +154,7 @@ const mixWeather = (a: Weather, b: Weather, t: number): Weather => ({
   snow: a.snow + (b.snow - a.snow) * t,
   dim: a.dim + (b.dim - a.dim) * t,
   storm: a.storm + (b.storm - a.storm) * t, // 뇌우가 끝날 무렵 번쩍임이 서서히 약해짐
+  cover: a.cover + (b.cover - a.cover) * t,
 })
 
 // 지금(ms) 날씨. 받은 범위 밖이거나 목록이 없으면 맑음 (오래된 예보로 어제 비가 계속 오지 않게)
@@ -170,7 +188,15 @@ export function parseWeatherOverride(search: string): Weather | null {
   if (!Number.isFinite(s) || s <= 0 || s > 1) return null
   if (kind === 'clear') return CLEAR
   if (kind === 'cloudy') return makeWeather(OVERRIDE.cloudy, 0, 0)
-  return kind === 'rain' ? makeWeather(OVERRIDE.wetCloud, s, 0) : makeWeather(OVERRIDE.wetCloud, 0, s)
+  return kind === 'rain' ? makeWeather(OVERRIDE.wetCloud, s, 0) : makeWeather(OVERRIDE.wetCloud, 0, s, 0, 1) // 눈이면 다 쌓인 모습
+}
+
+// 확인용 주소 ?snowcover=0~1 → 쌓인 정도만 따로 정함 (#329). 없거나 틀리면 null
+export function parseCoverOverride(search: string): number | null {
+  const raw = new URLSearchParams(search).get('snowcover')
+  if (raw === null || raw.trim() === '') return null
+  const v = Number(raw)
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : null
 }
 
 // 다음에 예보를 받을 때까지 남은 ms: 다음 정각 + 1분. 서울은 UTC 와 정시 단위로 차이 나서 UTC 정각 = 서울 정각
