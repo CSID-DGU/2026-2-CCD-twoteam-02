@@ -515,7 +515,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         </group>
       )}
 
-      {/* 출입문: 남쪽 벽에 붙은 문과 "광장" 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
+      {/* 출입문: 남쪽 벽에 붙은 문과 바깥 이름("광장"·"캠빛 대학교") 표지판. 앞에서 E 를 누르면 광장으로 나갑니다. (#150, #315) */}
       {branch.door && branch.theme?.door ? (
         <ThemedDoor box={branch.door} height={DOOR_HEIGHT} near={nearExit} nearColor={DOOR_COLOR.near} label={outside.title} door={branch.theme.door} along="x" />
       ) : branch.door && (
@@ -658,7 +658,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       suspendLookRef={suspendLook}
       disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
-    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} onTracking={studyPaused ? undefined : goTracking} />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}

@@ -63,8 +63,9 @@ export function obstaclesOf(b: Branch): Box[] {
 // 앉는 자리: 좌석 번호, 의자 위치, 앉았을 때 바라보는 방향(책상 쪽)
 // y: 앉는 높이 보정. 높은 의자면 TALL_RAISE, 아니면 0 (회의실처럼 따로 만드는 자리는 생략 = 0)
 // lie: 누운 각도(라운지 소파). 앉은 캐릭터를 이만큼 뒤로 눕히고, 1인칭 시점은 낮추고 위를 봄
-export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger'; lie?: number; rise?: number }
+export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger'; lie?: number; rise?: number; standAt?: { x: number; z: number } }
 const CHAIR_GAP = 0.65 // 책상 중심에서 의자까지 거리
+const STAND_BACK = 0.7 // 단 위 자리에서 일어날 때 의자 뒤로 물러서는 거리 (단 끝 0.3 + 캐릭터 반경 0.3 + 여유, 다시 앉는 거리 0.9 안)
 export const CHAIR = { w: 0.45, h: 0.45, d: 0.45 }
 
 // rot 방향으로 책상을 바라보므로, 의자는 책상의 반대쪽에 놓입니다.
@@ -79,6 +80,8 @@ export function spotsOf(b: Branch): Spot[] {
     chair: s.chair,
     lie: s.chair === 'lounger' ? LOUNGER.lie : undefined,
     rise: s.rise,
+    // 단 위 자리에서 일어나면 단 뒤 통로에 섭니다 (그 자리에 서면 바닥 높이라 단 속에 묻혀 보임)
+    ...(s.rise ? { standAt: { x: s.x - Math.sin(s.rot) * (CHAIR_GAP + STAND_BACK), z: s.z - Math.cos(s.rot) * (CHAIR_GAP + STAND_BACK) } } : {}),
   }))
 }
 
