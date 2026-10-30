@@ -27,7 +27,7 @@ const C = {
 const PILLAR = { base: 0.7, band: 2.6, bandT: 0.25, head: 4.0, top: 5.0 }
 // 아치: 기둥 위쪽 시작 높이, 가운데가 솟는 높이, 두 줄 사이, 줄·살 굵기, 나눔 수, 글자(곡선 위 각도 범위, 한 글자 폭)
 // textArc: 글자 띠가 차지하는 곡선 각도 범위(라디안), textH: 글자 띠 높이 — 아치 두 줄(gap)보다 커서 위아래로 삐져나옴 (크게 보이게, 사용자 요구)
-const ARCH = { base: 4.3, rise: 1.3, gap: 0.55, chordT: 0.1, barT: 0.05, segments: 28, text: 'CAMBIT UNIVERSITY', textArc: 2.5, textH: 0.9 }
+const ARCH = { base: 4.3, rise: 1.3, gap: 0.55, chordT: 0.1, barT: 0.05, segments: 28, text: 'CAMBIT UNIVERSITY', textArc: 2.1, textH: 0.9 }
 const IRON = { h: 1.9, bar: 0.035, step: 0.16 } // 양옆 철제 울타리: 높이, 살 굵기, 간격
 const END_POST = { h: 1.7, lampR: 0.22 } // 울타리 끝 작은 기둥 높이, 둥근 등 반지름
 const BACKDROP = { width: 46, depth: 36, road: 4, treeX: 4.5, treeStep: 5 } // 문 너머 풍경 (m)
@@ -111,6 +111,7 @@ function wallLeaves(rand: () => number, x0: number, zFace: number, w: number, h:
 // 무리는 정문 가운데에서 앞면(입장 쪽)이 +Z 가 되게 돌립니다(건물과 같은 규칙). 문 너머(-Z)는 GateBackdrop 이 그립니다.
 export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
   const { w } = gate.spec
+  const { fenceLen } = gate
   const postX = w / 2 + GATE_POST / 2
   const P = PILLAR
   // 아치: 기둥 안쪽 위에서 시작해 가운데가 솟는 곡선. 아래 줄(bottom)과 위 줄(+ARCH.gap) 두 줄 + 사이 세로 살
@@ -149,12 +150,12 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
     strip.setIndex(index)
     return { chords, bars, strip, stripLen: len[segs] }
   }, [postX])
-  // 철제 울타리: 기둥 바깥으로 양쪽 GATE_FENCE.len 만큼, 세로 살 + 창끝 + 위아래 가로대
+  // 철제 울타리: 기둥 바깥으로 양쪽 fenceLen 만큼(정문마다 다름), 세로 살 + 창끝 + 위아래 가로대
   const fence = useMemo(() => {
     const bars: [number, number][] = [] // [x, 살 번호]
     for (const sx of [-1, 1]) {
       const from = w / 2 + GATE_POST
-      for (let k = 0, x = from + IRON.step / 2; x < from + GATE_FENCE.len; k++, x += IRON.step) bars.push([sx * x, k])
+      for (let k = 0, x = from + IRON.step / 2; x < from + fenceLen; k++, x += IRON.step) bars.push([sx * x, k])
     }
     const rand = seeded(Math.round(gate.spec.x * 3 + gate.spec.z * 5) + 11)
     // 울타리 아래쪽을 감는 담쟁이 (조금만)
@@ -162,13 +163,13 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
     for (const sx of [-1, 1]) {
       const from = w / 2 + GATE_POST
       ivy.push(
-        ...wallLeaves(rand, sx * (from + GATE_FENCE.len * 0.35), 0.03, GATE_FENCE.len * 0.6, IRON.h * 0.7, 28, 0),
-        ...wallLeaves(rand, sx * (from + GATE_FENCE.len * 0.6), -0.03, GATE_FENCE.len * 0.5, IRON.h * 0.6, 18, Math.PI),
+        ...wallLeaves(rand, sx * (from + fenceLen * 0.35), 0.03, fenceLen * 0.6, IRON.h * 0.7, 28, 0),
+        ...wallLeaves(rand, sx * (from + fenceLen * 0.6), -0.03, fenceLen * 0.5, IRON.h * 0.6, 18, Math.PI),
       )
     }
     return { bars, ivy }
-  }, [w, gate.spec.x, gate.spec.z])
-  const endX = w / 2 + GATE_POST + GATE_FENCE.len + GATE_FENCE.endPost / 2
+  }, [w, fenceLen, gate.spec.x, gate.spec.z])
+  const endX = w / 2 + GATE_POST + fenceLen + GATE_FENCE.endPost / 2
   const text = goldText(arch.stripLen / ARCH.textH, near)
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
@@ -234,8 +235,8 @@ export function UniversityGate({ gate, near }: { gate: PlacedGate; near: boolean
       </Instances>
       {[-1, 1].map((sx) =>
         [0.2, IRON.h - 0.25].map((y) => (
-          <mesh key={`${sx}-${y}`} position={[sx * (w / 2 + GATE_POST + GATE_FENCE.len / 2), y, 0]} material={MAT.iron}>
-            <boxGeometry args={[GATE_FENCE.len, 0.05, 0.05]} />
+          <mesh key={`${sx}-${y}`} position={[sx * (w / 2 + GATE_POST + fenceLen / 2), y, 0]} material={MAT.iron}>
+            <boxGeometry args={[fenceLen, 0.05, 0.05]} />
           </mesh>
         )),
       )}

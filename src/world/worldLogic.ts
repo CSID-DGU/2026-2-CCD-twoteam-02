@@ -41,7 +41,8 @@ export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: n
 // 바깥 공간(월드) 이름. 광장(첫 화면)과 캠빛 대학교 캠퍼스
 export type WorldId = 'plaza' | 'campus'
 // 다른 월드로 가는 정문. x·z 문 가운데, w 문 폭(두 기둥 사이), facing 문 앞면(입장 쪽)이 보는 방향, label 현판 글자
-export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: Facing; label: string }
+// fence: 양옆 철제 울타리 길이 (없으면 GATE_FENCE.len). 옆에 건물이 가까우면 줄입니다
+export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: Facing; label: string; fence?: number }
 // 쉬는 자리(돗자리·빈백). rot: 앉은 사람이 보는 방향
 export type RestSpec = { x: number; z: number; rot: number; kind: 'mat' | 'beanbag' }
 
@@ -182,6 +183,7 @@ export type PlacedGate = {
   arrive: Point // 다른 월드에서 넘어오면 서는 자리 (문을 등짐)
   posts: Box[] // 양쪽 벽돌 기둥 (부딪힘)
   fences: Box[] // 양옆 철제 울타리와 끝 작은 기둥 (부딪힘)
+  fenceLen: number // 양옆 울타리 길이
 }
 
 const gateFrame = (g: GateSpec) => ({ x: g.x, z: g.z, facing: g.facing })
@@ -196,8 +198,9 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
     const angle = facingAngle(gateFrame(spec).facing)
     const entry = gatePoint(spec, 0, DOOR_GAP)
     const postX = spec.w / 2 + GATE_POST / 2
-    const fenceX = spec.w / 2 + GATE_POST + GATE_FENCE.len / 2 // 울타리 가운데 (기둥 바깥)
-    const endX = spec.w / 2 + GATE_POST + GATE_FENCE.len + GATE_FENCE.endPost / 2
+    const fenceLen = spec.fence ?? GATE_FENCE.len
+    const fenceX = spec.w / 2 + GATE_POST + fenceLen / 2 // 울타리 가운데 (기둥 바깥)
+    const endX = spec.w / 2 + GATE_POST + fenceLen + GATE_FENCE.endPost / 2
     // 문 기준 상자를 월드로: 동·서를 보면 가로·세로가 바뀜
     const box = (x: number, w: number, d: number) => {
       const c = gatePoint(spec, x, 0)
@@ -210,7 +213,8 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
       entry: { no, ...entry, rot: normalizeAngle(angle + Math.PI) },
       arrive: gatePoint(spec, 0, ARRIVE_GAP),
       posts: [-postX, postX].map((x) => ({ ...gatePoint(spec, x, 0), w: GATE_POST, d: GATE_POST })),
-      fences: [-1, 1].flatMap((sx) => [box(sx * fenceX, GATE_FENCE.len, GATE_FENCE.t), box(sx * endX, GATE_FENCE.endPost, GATE_FENCE.endPost)]),
+      fences: [-1, 1].flatMap((sx) => [box(sx * fenceX, fenceLen, GATE_FENCE.t), box(sx * endX, GATE_FENCE.endPost, GATE_FENCE.endPost)]),
+      fenceLen,
     }
   })
 }
@@ -287,16 +291,23 @@ export function gateCrossed(g: PlacedGate, x: number, z: number): boolean {
   return local.z < GATE_PASS && local.z > -GATE_BEHIND && Math.abs(local.x) < g.spec.w / 2
 }
 
-// 울타리를 그릴 상자. 정문이 붙은 쪽 울타리는 문 폭만큼 비워, 문 너머로 이어지는 길이 보이게 합니다.
-// (부딪힘은 plazaObstacles 의 통울타리 그대로 — 문 뒤로 걸어 나가지 않고 문 앞에서 넘어갑니다)
-const GATE_NEAR_FENCE = 3 // 울타리에서 이만큼 안쪽까지의 정문은 그 쪽 울타리에 붙은 것으로 봄
+// 울타리를 그릴 상자. 정문 뒤쪽(앞면 반대쪽) 울타리는 문 폭만큼 비워, 문 너머로 이어지는 길과 풍경이 보이게 합니다.
+// 정문이 울타리에서 떨어져 서 있어도 그 뒤쪽 울타리를 비웁니다(광장 정문은 건물에 가려지지 않게 앞으로 나와 있음).
+// (부딪힘은 plazaObstacles 의 통울타리 그대로 — 문 사이로 들어서면 그 자리에서 넘어갑니다)
+// 정문 앞면이 보는 쪽 → 비울 울타리: 동쪽을 보면 서쪽(-x), 서쪽 → 동쪽, 북쪽 → 남쪽(+z), 남쪽 → 북쪽
+const BACK_SIDE: Record<Facing, { alongX: boolean; sign: number }> = {
+  east: { alongX: false, sign: -1 },
+  west: { alongX: false, sign: 1 },
+  north: { alongX: true, sign: 1 },
+  south: { alongX: true, sign: -1 },
+}
 export function fenceSegments(plaza: PlazaLayout): Box[] {
   const { w, d } = plaza.size
   const gates = plaza.gates ?? []
   // 한 쪽 울타리: along 축(x 또는 z)으로 -len/2 ~ len/2, 다른 축은 fixed
   const side = (alongX: boolean, fixed: number, len: number): Box[] => {
     const gaps = gates
-      .filter((g) => Math.abs((alongX ? g.z : g.x) - fixed) < GATE_NEAR_FENCE)
+      .filter((g) => BACK_SIDE[g.facing].alongX === alongX && Math.sign(fixed) === BACK_SIDE[g.facing].sign)
       .map((g) => [(alongX ? g.x : g.z) - g.w / 2, (alongX ? g.x : g.z) + g.w / 2] as [number, number])
       .sort((a, b) => a[0] - b[0])
     const out: Box[] = []
