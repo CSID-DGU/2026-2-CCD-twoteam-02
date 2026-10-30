@@ -10,7 +10,7 @@ import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
 import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
-import { endSegments, pauseSegments, resumeSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
+import { breakSegments, endSegments, pauseSegments, resumeSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
 import type { Segment, SegmentState } from './segmentLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
@@ -211,18 +211,20 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     }
   }, [userId, sessionId, choice, condition])
 
-  // 상태 구간(하루 띠)은 멈춤이 시작·끝나는 순간에 끊고 잇습니다. 사용자 중지와 쉬는 시간이 겹쳐도 한 번만.
-  const wasHalted = useRef(halted)
+  // 상태 구간(하루 띠)은 멈춘 까닭이 바뀌는 순간에 끊고 잇습니다.
+  //   사용자 중지 → 빨강 '중지' 구간 (#236), 강의실 쉬는 시간 → 빈칸 (누르지 않은 멈춤이라), 다시 공부 → 새로 모음
+  // 쉬는 시간 중에 사용자가 중지하거나 풀어도 그 순간에 맞춰 바꿉니다.
+  const mode = paused ? 'paused' : breakNow ? 'break' : 'run'
+  const lastMode = useRef(mode)
   useEffect(() => {
-    if (wasHalted.current === halted) return
-    wasHalted.current = halted
+    if (lastMode.current === mode) return
+    lastMode.current = mode
     const at = Date.now()
-    if (halted) {
-      if (segments.current) segments.current = pauseSegments(segments.current, at)
-    } else {
-      if (segments.current) segments.current = resumeSegments(segments.current, at, studyMs.current)
-    }
-  }, [halted])
+    if (!segments.current) return
+    if (mode === 'paused') segments.current = pauseSegments(segments.current, at)
+    else if (mode === 'break') segments.current = breakSegments(segments.current, at)
+    else segments.current = resumeSegments(segments.current, at, studyMs.current)
+  }, [mode])
   const pause = () => {
     const at = Date.now()
     setPausedAt(at)

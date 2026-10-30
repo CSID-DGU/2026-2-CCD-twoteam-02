@@ -2,6 +2,7 @@
 //
 // 트래킹(얼굴·팔)을 여기서 한 번만 켜고, 내 모습 화면과 집중 타이머가 같은 결과를 같이 씁니다.
 // 앉으면 공부 시작 창이 뜨고, 과목을 고르면 그때부터 타이머가 돌며 기록이 저장됩니다.
+import { cameraOffNow } from './timetableLogic'
 import { applyRules } from '../space/rulesLogic'
 import type { BranchRules } from '../space/rulesLogic'
 import { useEffect, useRef, useState } from 'react'
@@ -50,15 +51,16 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   // 공부 세션이 도는 동안 "공부 중"으로 표시합니다. 귓속말 방해금지가 자동으로 켜지고, 친구에게도 공부 중으로 보입니다. (#49)
   useStudyingFlag(choice !== null)
   // 얼굴·팔을 같은 웹캠 영상으로 한 번에 추적합니다. 휴대폰 감지는 휴대폰·학습기기 사용함이 아닐 때만 켭니다.
-  // 쉬는 시간에도 웹캠을 끕니다(사용자 중지와 같음). 창·캐릭터 얼림(onDialogChange)에는 넣지 않습니다.
-  const cameraOff = paused || breakTime !== null
+  const [calibrating, setCalibrating] = useState(false)
+  const [calibrated, setCalibrated] = useState(false) // 보정을 마쳤거나 건너뛰었는지
+  // 쉬는 시간에도 웹캠을 끕니다(사용자 중지와 같음). 다만 막 앉아 공부 시작 창·자세 맞추기 중이면 켜 둡니다(cameraOffNow).
+  // 창·캐릭터 얼림(onDialogChange)에는 쉬는 시간을 넣지 않습니다.
+  const cameraOff = cameraOffNow({ paused, onBreak: breakTime !== null, studying: choice !== null && calibrated && !calibrating })
   const { face, pose, phone, status, message } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices, paused: cameraOff })
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
   const { subjects, loading, loadError, addSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
-  const [calibrating, setCalibrating] = useState(false)
-  const [calibrated, setCalibrated] = useState(false) // 보정을 마쳤거나 건너뛰었는지
   const [baseline, setBaseline] = useState<Baseline | null>(null) // 건너뛰면 null (눈 감음 판정 없음)
 
   useEffect(() => {

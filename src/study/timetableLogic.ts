@@ -31,3 +31,7 @@ export function boardText(p: ClassPhase): string {
   const minutes = Math.max(1, Math.ceil(p.leftMs / MIN))
   return p.phase === 'class' ? `${p.period}교시 · 남은 시간 ${minutes}분` : `쉬는 시간 · ${minutes}분`
 }
+
+// 웹캠을 끌지: 사용자가 누른 중지면 끔. 쉬는 시간이면 공부(StudyRunner)가 도는 동안만 끔 —
+// 쉬는 시간에 막 앉아 공부 시작 창·자세 맞추기(보정)를 하는 중에는 카메라가 있어야 해서 켜 둡니다.
+export const cameraOffNow = (s: { paused: boolean; onBreak: boolean; studying: boolean }) => s.paused || (s.onBreak && s.studying)
