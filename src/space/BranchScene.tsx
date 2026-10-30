@@ -55,6 +55,8 @@ import world from "../world/world.json";
 import { useMyTitle } from "../level/useMyTitle";
 import { sharedLevel } from "../level/levelLogic";
 import { LevelUpCard } from "../level/LevelUpCard";
+import { emotesAllowed } from "./rulesLogic";
+import { setQuietLock } from "../chat/quietLock";
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -94,6 +96,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const isCafe = info.kind === "cafe"; // 카페: 키오스크 없이 빈자리에 앉으면 내 자리, 일어나면 놓음
   // 휴식방(숨 라운지): DB 에서는 카페와 같고, 누우면 공부 시작 창·트래킹·타이머 없이 쉬기만 합니다.
   const isRest = branch.rest === true;
+  // 건물 규칙(캠빛 대학교 도서관): 이 지점에 있는 동안 방해금지를 켠 채로 고정, 나가면 풂
+  useEffect(() => {
+    if (!branch.rules?.quiet) return;
+    setQuietLock(true);
+    return () => setQuietLock(false);
+  }, [branch]);
   const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
@@ -593,6 +601,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         titleBaseSeconds={titleBaseSeconds}
         onLevelUp={handleLevelUp}
         onRunEnd={handleRunEnd}
+        rules={branch.rules}
       />
     )}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
@@ -636,7 +645,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     <EmoteControls
       emoteRef={emote}
       suspendLookRef={suspendLook}
-      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null}
+      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
     {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}

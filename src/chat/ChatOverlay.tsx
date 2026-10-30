@@ -241,15 +241,16 @@ export function ChatOverlay() {
           <div style={styles.controls}>
             <button
               type="button"
-              style={styles.toggle}
+              style={{ ...styles.toggle, ...(chat.quietLocked ? styles.toggleLocked : null) }}
+              disabled={chat.quietLocked}
               onMouseDown={(e) => e.preventDefault()} // 입력칸 커서를 뺏지 않게
               onClick={() => {
-                chat.setQuiet(!chat.quiet) // 공부 중에도 끄고 켤 수 있음 (#216)
+                chat.setQuiet(!chat.quiet) // 공부 중에도 끄고 켤 수 있음 (#216). 도서관에서는 고정
                 touch()
               }}
-              title={chat.studying ? '공부를 시작하면 자동으로 켜져요. 이번 공부 동안 끄고 켤 수 있어요' : '방해금지 켜고 끄기'}
+              title={chat.quietLocked ? '도서관에서는 방해금지가 켜져 있어요' : chat.studying ? '공부를 시작하면 자동으로 켜져요. 이번 공부 동안 끄고 켤 수 있어요' : '방해금지 켜고 끄기'}
             >
-              {chat.quiet ? '🔕 방해금지 켜짐' : '🔔 방해금지 꺼짐'}
+              {chat.quietLocked ? '🔕 방해금지 (도서관이라 켜져 있어요)' : chat.quiet ? '🔕 방해금지 켜짐' : '🔔 방해금지 꺼짐'}
             </button>
             {/* 방해금지 중에는 알림음이 나지 않으므로 꺼짐으로 고정해 보여 줍니다. 원래 소리 설정은 그대로 두었다가
                 방해금지를 끄면 다시 보여 줍니다. (#220) */}
