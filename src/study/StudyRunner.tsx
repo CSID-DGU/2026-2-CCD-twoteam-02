@@ -48,10 +48,16 @@ type Props = {
   titleBaseSeconds?: number | null
   onLevelUp?: (level: number) => void
   onRunEnd?: (studyMs: number) => void
+  // 강의실 공동 시간표(캠빛 강의동)의 쉬는 시간: 남은 시간. 있으면 타이머·기록·판정만 멈추고, 캐릭터·버튼은 사용자 중지와 따로 (#설계 6절)
+  breakTime?: { leftMs: number } | null
 }
 
-export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused, onPausedChange, choice, userId, sessionId, condition, onStatus, onChangeSubject, titleBaseSeconds = null, onLevelUp, onRunEnd }: Props) {
-  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone, paused })
+export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused, onPausedChange, choice, userId, sessionId, condition, onStatus, onChangeSubject, titleBaseSeconds = null, onLevelUp, onRunEnd, breakTime = null }: Props) {
+  // 멈춤 = 사용자가 누른 중지(paused) 또는 강의실 쉬는 시간(breakTime). 판정·기록·표시등은 둘 다 멈추고,
+  // 화면(다시 시작 버튼·캐릭터 얼림)은 사용자 중지만 따릅니다. 쉬는 시간이 끝나면 저절로 이어 갑니다.
+  const breakNow = breakTime !== null
+  const halted = paused || breakNow
+  const focus = useFocusState(face, { allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices }, undefined, { body: pose, baseline, phone, paused: halted })
   const [saveError, setSaveError] = useState('')
 
   // 타이머 값은 매번 바뀌므로, 저장 타이머와 정리 함수가 최신 값을 읽도록 ref 에 둡니다.
@@ -88,18 +94,25 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   // 다시 시작한 직후 첫 판정(0.1초)이 나오기 전까지는 중지 직전의 판정 값이 남아 있어(stale) 쓰지 않습니다.
   // 그대로 쓰면 노란불이 잠깐 남에게 보이거나, 띠가 중지 전 노란불에서 이어집니다.
   const [pausedAt, setPausedAt] = useState<number | null>(null)
-  const [resumedAt, setResumedAt] = useState<number | null>(null)
-  const stale = resumedAt !== null && (focus.lastMs ?? 0) < resumedAt
-  const judging = !paused && !stale
+  // 다시 시작한 순간의 마지막 판정 시각. 그 뒤 새 판정이 나오기 전까지가 stale 입니다.
+  // (멈춤이 풀리는 것을 렌더 중에 이전 값과 비교해 기록하는 React 권장 방식. 쉬는 시간이 끝나 저절로 풀려도 같음)
+  const [resumeMark, setResumeMark] = useState<number | null>(null)
+  const [seenHalted, setSeenHalted] = useState(halted)
+  if (halted !== seenHalted) {
+    setSeenHalted(halted)
+    if (!halted) setResumeMark(focus.lastMs ?? 0)
+  }
+  const stale = resumeMark !== null && (focus.lastMs ?? 0) <= resumeMark
+  const judging = !halted && !stale
 
   // 중지 중에는 표시등을 끕니다(idle, 앉기만 하고 공부 전과 같음). 남에게는 쉬는 이유를 보이지 않습니다.
   const hold = judging ? holdReason(focus) : null
   useEffect(() => {
-    onStatus(paused ? 'idle' : hold ? 'hold' : stale ? 'focus' : focus.status)
-  }, [paused, stale, focus.status, hold, onStatus])
+    onStatus(halted ? 'idle' : hold ? 'hold' : stale ? 'focus' : focus.status)
+  }, [halted, stale, focus.status, hold, onStatus])
 
   // 신고 창이 꺼내 쓸 최근 30초 수치 (#121). 영상은 없고 판정 수치만 1초마다 남깁니다.
-  useSampleRecorder({ face, pose, phone, focus, hold, paused, allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices, sessionId })
+  useSampleRecorder({ face, pose, phone, focus, hold, paused: halted, allowOtherScreen: choice.allowOtherScreen, allowDevices: choice.allowDevices, sessionId })
 
   // 이 화면이 중지 중에 사라지면(창 닫기 등) 중지도 풀어 둡니다. 남아 있으면 다음 공부의 웹캠이 꺼진 채 시작됩니다.
   useEffect(() => () => onPausedChange(false), [onPausedChange])
@@ -198,18 +211,26 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     }
   }, [userId, sessionId, choice, condition])
 
+  // 상태 구간(하루 띠)은 멈춤이 시작·끝나는 순간에 끊고 잇습니다. 사용자 중지와 쉬는 시간이 겹쳐도 한 번만.
+  const wasHalted = useRef(halted)
+  useEffect(() => {
+    if (wasHalted.current === halted) return
+    wasHalted.current = halted
+    const at = Date.now()
+    if (halted) {
+      if (segments.current) segments.current = pauseSegments(segments.current, at)
+    } else {
+      if (segments.current) segments.current = resumeSegments(segments.current, at, studyMs.current)
+    }
+  }, [halted])
   const pause = () => {
     const at = Date.now()
-    if (segments.current) segments.current = pauseSegments(segments.current, at)
     setPausedAt(at)
     setNow(at)
     onPausedChange(true)
   }
   const resume = () => {
-    const at = Date.now()
-    if (segments.current) segments.current = resumeSegments(segments.current, at, studyMs.current)
     setPausedAt(null)
-    setResumedAt(at)
     onPausedChange(false)
   }
 
@@ -226,6 +247,18 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
         <button type="button" style={{ ...styles.button, ...styles.resume }} onClick={resume}>
           ▶ 다시 시작
         </button>
+      </div>
+    )
+  }
+
+  if (breakTime) {
+    // 강의실 쉬는 시간: 타이머·기록만 멈춤. 다시 시작 버튼 없이 수업 시작에 저절로 이어 갑니다. 일어나 쉬러 가도 됩니다.
+    return (
+      <div style={styles.bar}>
+        <span>📘 {choice.subject.name}</span>
+        <span style={styles.time}>{formatDuration(focus.studyMs)}</span>
+        <span style={{ color: '#fbbf24' }}>☕ 쉬는 시간 · 다음 수업까지 {Math.max(1, Math.ceil(breakTime.leftMs / 60_000))}분</span>
+        {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
       </div>
     )
   }
