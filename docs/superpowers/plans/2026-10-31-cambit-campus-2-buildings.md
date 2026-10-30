@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 새 라이브러리 없음. experiment 건드리지 않음. 테이블 변경 없음 — 지점·좌석 행만 넣는 마이그레이션 `0038_cambit_campus.sql`(kind `cafe`, 회의실 없음, 다시 실행해도 됨).
+- 새 라이브러리 없음. experiment 건드리지 않음. 테이블 변경 없음 — 지점·좌석 행만 넣는 마이그레이션 `0039_cambit_campus.sql`(kind `cafe`, 회의실 없음, 다시 실행해도 됨).
 - 광장 지점들 동작 그대로(규칙 없는 지점은 지금과 같음).
 - 배치는 JSON, 기준값은 상수, 주석·화면 글자 한국어. 강의실 공동 시간표는 3단계(이번엔 칠판·좌석만).
 - 커밋 전 lint·build. 검사 스크립트는 scratchpad.
@@ -86,7 +86,7 @@
 ### Task 5: 마이그레이션
 
 **Files:**
-- Create: `supabase/migrations/0038_cambit_campus.sql` (생성 스크립트가 JSON 좌석으로 만듦; 0036 과 같은 모양: 지점 5개 + 좌석, `on conflict do nothing`)
+- Create: `supabase/migrations/0039_cambit_campus.sql` (생성 스크립트가 JSON 좌석으로 만듦; 0036 과 같은 모양: 지점 5개 + 좌석, `on conflict do nothing`)
 
 - [ ] **Step 1:** 생성·확인(행 수 = JSON 좌석 수), 커밋 — `feat: 캠빛 대학교 지점·좌석 마이그레이션`
 
