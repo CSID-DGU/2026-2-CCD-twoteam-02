@@ -12,8 +12,8 @@
 import type { Box, BranchLayout } from '../space/layout'
 import { LOBBY_PLACE } from '../realtime/online'
 import { MEETING_PLACE_PREFIX } from '../meeting/meetingLogic'
-import { normalizeAngle, placeBuildings, rotate } from '../world/worldLogic'
-import type { PlazaLayout } from '../world/worldLogic'
+import { normalizeAngle, placeBuildings, placeGates, rotate } from '../world/worldLogic'
+import type { PlazaLayout, WorldId } from '../world/worldLogic'
 
 export type Rect = { x: number; z: number; w: number; d: number } // 가운데 좌표와 크기
 export type Point = { x: number; z: number }
@@ -30,7 +30,8 @@ export type WorldLayout = {
   lobby: MapPlace // 광장 (접속 장소 이름은 lobby 그대로)
   branches: MapBranch[]
   paths: Rect[] // 광장 → 건물 입구 돌길
-  fountain: { x: number; z: number; r: number }
+  fountain?: { x: number; z: number; r: number } // 캠퍼스에는 없음
+  gates: { x: number; z: number; to: WorldId; sideways: boolean }[] // 다른 월드로 가는 정문 (광장 ↔ 캠퍼스). sideways: 동·서를 봄
   trees: Point[]
   bounds: Rect // 지도 전체 = 월드 전체
 }
@@ -39,7 +40,8 @@ export type WorldLayout = {
 const meetingOf = (layout: BranchLayout, slug: string, rect: Rect, rot: number): MapPlace | null =>
   layout.meetingDoor ? { place: MEETING_PLACE_PREFIX + slug, name: '회의실', rect, rot, scale: 0 } : null
 
-export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLayout>): WorldLayout {
+// place: 이 월드 바깥 공간의 접속 장소 이름 (광장 lobby, 캠퍼스 campus). 이름표는 배치의 title (없으면 광장)
+export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLayout>, place = LOBBY_PLACE): WorldLayout {
   const branches: MapBranch[] = placeBuildings(plaza, layouts).map((b, index) => ({
     place: b.slug,
     slug: b.slug,
@@ -62,10 +64,11 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
     })),
   }))
   return {
-    lobby: { place: LOBBY_PLACE, name: '광장', rect: { x: 0, z: 0, w: plaza.plaza.w, d: plaza.plaza.d }, rot: 0, scale: 1 },
+    lobby: { place, name: plaza.title ?? '광장', rect: { x: 0, z: 0, w: plaza.plaza.w, d: plaza.plaza.d }, rot: 0, scale: 1 },
     branches,
     paths: plaza.paths,
     fountain: plaza.fountain,
+    gates: placeGates(plaza).map((g) => ({ x: g.spec.x, z: g.spec.z, to: g.spec.to, sideways: g.spec.facing === 'east' || g.spec.facing === 'west' })),
     trees: plaza.trees,
     bounds: { x: 0, z: 0, w: plaza.size.w, d: plaza.size.d },
   }
@@ -75,6 +78,11 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
 export function toMap(p: MapPlace, x: number, z: number, heading: number): { x: number; z: number; heading: number } {
   const r = rotate(x * p.scale, z * p.scale, p.rot)
   return { x: p.rect.x + r.x, z: p.rect.z + r.z, heading: normalizeAngle(heading + p.rot) }
+}
+
+// 지금 있는 곳으로 어느 월드 지도를 보일지: 캠퍼스나 캠퍼스 건물(회의실·위층 포함)이면 캠퍼스, 아니면 광장
+export function mapWorldFor(worlds: { plaza: WorldLayout; campus: WorldLayout }, place: string): WorldLayout {
+  return findPlace(worlds.campus, place) ? worlds.campus : worlds.plaza
 }
 
 // 접속 상태의 "있는 곳"으로 지도의 공간을 찾습니다. 지도에 없는 곳(기록 페이지 등)이면 null

@@ -14,6 +14,7 @@ import ForgotPasswordPage from './auth/ForgotPasswordPage'
 import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
 import WorldScene from './world/WorldScene'
+import { CAMPUS_WORLD, PLAZA_WORLD } from './world/worldConfig'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
@@ -81,9 +82,21 @@ function AppRoutes() {
         element={
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}>
-              <WorldScene onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
+              <WorldScene key="plaza" world={PLAZA_WORLD} onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
             </div>
             {/* 오른쪽 위 메뉴(내 기록·친구·내 프로필·로그아웃)는 WorldScene 이 그립니다. (#70, #208) */}
+          </Protected>
+        }
+      />
+      {/* 캠빛 대학교 캠퍼스: 광장 남서쪽 정문으로 옵니다. 광장과 같은 화면(WorldScene)에 캠퍼스 배치를 넘깁니다.
+          key: 광장 ↔ 캠퍼스로 주소가 바뀌면 화면을 새로 그려 도착 자리·실시간 방을 다시 잡습니다. */}
+      <Route
+        path="/campus"
+        element={
+          <Protected>
+            <div style={{ width: '100vw', height: '100vh' }}>
+              <WorldScene key="campus" world={CAMPUS_WORLD} onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
+            </div>
           </Protected>
         }
       />
