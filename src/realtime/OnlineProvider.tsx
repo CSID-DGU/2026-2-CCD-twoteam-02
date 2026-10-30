@@ -4,6 +4,11 @@
 // 상태는 들어올 때와 있는 곳·공부 중·방해금지 여부가 바뀔 때만 바꿉니다. track 을 자주 부르면 목록에서 사라지는 문제가 있어서입니다(participants.ts).
 // 같은 계정으로 탭을 여러 개 열어도 한 사람으로 세도록 계정 번호를 Presence 키로 씁니다.
 //
+// 한 번에 한 탭만 쓰기 (#347): 탭마다 탭 번호·장면에 들어온 순서·장면 안인지를 같이 올립니다(tabLogic).
+// 장면(광장·캠퍼스·지점·회의실)에 들어갈 때 순서를 잡고, 같은 계정의 다른 탭이 더 나중에 장면에 들어오면
+// 이 탭은 양보(yielded)합니다. 양보한 탭은 App 이 장면 대신 "여기서 계속하기" 화면만 보여 줘 위치 전송·웹캠·타이머가 멈춥니다.
+// 양보는 "여기서 계속하기"(takeOver)를 누를 때까지 그대로입니다. 누르면 장면이 다시 열리며 이 탭이 순서를 새로 잡습니다.
+//
 // 다시 들어가기 (#226): 창을 오래 열어 두면 방 연결은 살아 있는데 새로 들어온 사람이 반영되지 않는 일이 있었다
 // (먼저 접속한 A 창에 나중에 들어온 B가 안 보이고, 새로고침하면 보임). 접속 상태는 처음 들어갈 때 명단을 통째로
 // 받고 그 뒤로는 변화만 더하는데, 라이브러리는 명단을 아직 못 받았다고 보면 변화를 쌓아 두기만 한다.
@@ -11,16 +16,18 @@
 //   - 연결 오류·시간 초과·끊김이 오면
 //   - 명단을 기다리는 상태가 STUCK_MS 넘게 이어지면 (WATCH_MS 마다 확인)
 //   - 창이 HIDDEN_REJOIN_MS 넘게 가려져 있다가 다시 보이거나, 인터넷이 다시 연결되면
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useSession } from '../auth/useSession'
 import { ELSEWHERE, ONLINE_CHANNEL } from './online'
+import { claimSince, shouldYield } from './tabLogic'
+import type { TabMeta } from './tabLogic'
 import { OnlineContext } from './onlineContext'
 import type { OnlineEntry } from './onlineContext'
 
-type Meta = { place?: string; studying?: boolean; quiet?: boolean }
+type Meta = { place?: string; studying?: boolean; quiet?: boolean } & TabMeta
 
 const RETRY_MS = 2000 // 연결 오류 뒤 다시 들어가기까지
 const WATCH_MS = 10000 // 방 상태를 확인하는 간격
@@ -43,7 +50,11 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   const [place, setPlace] = useState(ELSEWHERE)
   const [studying, setStudying] = useState(false)
   const [quiet, setQuiet] = useState(false)
-  const mine = useRef<Meta>({ place, studying, quiet }) // 지금 표시할 내 상태
+  const [tab] = useState(() => Math.random().toString(36).slice(2, 10)) // 이 탭의 번호 (#347)
+  const since = useRef(0) // 이 탭이 장면에 들어온 순서 (#347)
+  const reclaimOnSync = useRef(false) // 명단을 받기 전에 장면에 들어와 순서를 어림으로 잡았으면, 명단을 받은 뒤 다시 잡음
+  const [yielded, setYielded] = useState(false) // 다른 탭에 장면을 양보했는지 (#347)
+  const mine = useRef<Meta>({ place, studying, quiet, tab, since: 0, scene: false }) // 지금 표시할 내 상태
   const channelRef = useRef<RealtimeChannel | null>(null)
   const subscribed = useRef(false)
   const [joinCount, setJoinCount] = useState(0) // 올리면 방에 새로 들어갑니다
@@ -62,6 +73,17 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     dbg('채널 만듦', '나', short(myId), '채널 상태', channel.state)
     channelRef.current = channel
     const read = (event: string) => {
+      // 한 번에 한 탭만 쓰기 (#347): 같은 계정의 탭들을 보고 순서를 다시 잡거나 양보합니다.
+      const myTabs = channel.presenceState<Meta>()[myId] ?? []
+      const others = myTabs.filter((m) => m.tab !== tab)
+      if (reclaimOnSync.current && mine.current.scene) {
+        reclaimOnSync.current = false
+        since.current = claimSince(Date.now(), others)
+        mine.current = { ...mine.current, since: since.current }
+        void channel.track(mine.current)
+      } else if (mine.current.scene && shouldYield(mine.current, myTabs)) {
+        setYielded(true)
+      }
       const people = new Map<string, OnlineEntry>()
       for (const [id, metas] of Object.entries(channel.presenceState<Meta>())) {
         // 같은 계정으로 탭을 여러 개 열었으면 로비·지점에 있는 탭을 우선합니다. (탭 순서는 정해져 있지 않음)
@@ -128,16 +150,30 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       channelRef.current = null
       void channel.unsubscribe()
     }
-  }, [myId, joinCount])
+  }, [myId, joinCount, tab])
 
   // 있는 곳, 공부 중·방해금지 여부가 바뀌면 상태를 한 번 바꿉니다.
+  // 장면 밖에서 장면으로 들어오면 순서를 잡습니다 (#347). 명단을 아직 못 받았으면 지금 시각으로 어림하고 받은 뒤 다시 잡습니다.
   useEffect(() => {
-    mine.current = { place, studying, quiet }
+    const scene = place !== ELSEWHERE
+    if (scene && !mine.current.scene) {
+      const channel = channelRef.current
+      const others = (channel?.presenceState<Meta>()[myId ?? ''] ?? []).filter((m) => m.tab !== tab)
+      since.current = claimSince(Date.now(), others)
+      reclaimOnSync.current = !subscribed.current
+    }
+    mine.current = { place, studying, quiet, tab, since: since.current, scene }
     if (subscribed.current) void channelRef.current?.track(mine.current).then((r) => dbg('내 상태 보냄', JSON.stringify(mine.current), r))
-  }, [place, studying, quiet])
+  }, [place, studying, quiet, tab, myId])
 
   const people = result && result.myId === myId ? result.people : EMPTY
-  return <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet }}>{children}</OnlineContext.Provider>
+  // 여기서 계속하기 (#347): 양보를 풀면 App 이 장면을 다시 열고, 장면에 들어오며 이 탭이 순서를 새로 잡아 다른 탭이 양보합니다.
+  const takeOver = useCallback(() => setYielded(false), [])
+  return (
+    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver }}>
+      {children}
+    </OnlineContext.Provider>
+  )
 }
 
 const EMPTY = new Map<string, OnlineEntry>()
