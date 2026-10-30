@@ -18,6 +18,8 @@ export type OnlineValue = {
   setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
   setStudying: (studying: boolean) => void // 내 공부 중 여부를 바꿉니다
   setQuiet: (quiet: boolean) => void // 내 방해금지 여부를 바꿉니다
+  yielded: boolean // 같은 계정의 다른 탭(기기)에 장면을 양보했는지 (#347)
+  takeOver: () => void // 여기서 계속하기: 이 탭이 다시 장면을 씀
 }
 
 export const OnlineContext = createContext<OnlineValue>({
@@ -26,7 +28,15 @@ export const OnlineContext = createContext<OnlineValue>({
   setPlace: () => {},
   setStudying: () => {},
   setQuiet: () => {},
+  yielded: false,
+  takeOver: () => {},
 })
+
+// 같은 계정은 한 번에 한 탭만 쓰기 (#347): 이 탭이 양보했는지와 다시 쓰기
+export function useTabGate() {
+  const { yielded, takeOver } = useContext(OnlineContext)
+  return { yielded, takeOver }
+}
 
 // 접속 중인 사람들
 export function useOnline() {

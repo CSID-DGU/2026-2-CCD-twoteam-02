@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { OnlineProvider } from './realtime/OnlineProvider'
+import { TabGate } from './realtime/TabGate'
 import { ChatProvider } from './chat/ChatProvider'
 import HeadTrackingTest from './HeadTrackingTest'
 import { BranchScene } from './space/BranchScene'
@@ -159,7 +160,10 @@ function App() {
       <OnlineProvider>
         {/* 친구 귓속말 (#49). 접속 상태를 써서 그 안쪽에 둡니다. 로그는 여기 메모리에만 있습니다. */}
         <ChatProvider>
-          <AppRoutes />
+          {/* 같은 계정은 한 번에 한 탭만 광장·지점에 (#347). 다른 탭에 양보했으면 화면 대신 "여기서 계속하기" */}
+          <TabGate>
+            <AppRoutes />
+          </TabGate>
         </ChatProvider>
       </OnlineProvider>
     </BrowserRouter>
