@@ -112,6 +112,14 @@ export function pauseSegments(state: SegmentState, now: number): SegmentState {
   return { ...state, open: { kind: 'paused', startedAt }, holdSince: null, lastNow: now, done }
 }
 
+// 강의실 쉬는 시간(캠빛 강의동): 열린 구간을 닫고 빈칸으로 둡니다. 누르지 않은 멈춤이라 빨강 '중지'로 남기지 않습니다.
+// 노란불(보류)인 채로 들어가면 보류가 시작된 때 닫습니다(중지와 같은 규칙). 수업 시작에 resumeSegments 로 이어 갑니다.
+export function breakSegments(state: SegmentState, now: number): SegmentState {
+  const endedAt = state.holdSince ?? now
+  const done = state.open ? close(state.done, state.open.kind, state.open.startedAt, endedAt) : state.done
+  return { ...state, open: null, holdSince: null, lastNow: now, done }
+}
+
 // 다시 시작: 중지 구간을 닫고 새로 모읍니다. 판정도 새로 시작하므로(useFocusState) 이전 값과 이어 보지 않습니다.
 export function resumeSegments(state: SegmentState, now: number, studyMs: number): SegmentState {
   const done = state.open ? close(state.done, state.open.kind, state.open.startedAt, now) : state.done

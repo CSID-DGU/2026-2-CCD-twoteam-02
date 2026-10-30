@@ -1,7 +1,7 @@
 // 지점 테마 소품 (#57): 천장·팬·네온 띠·벽 액자·타일 카운터·스툴.
 // 전부 상자·원통과 캔버스 텍스처로 만들고 외부 모델은 없습니다. 테마가 없는 지점은 아무것도 그리지 않습니다.
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, DoubleSide, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
@@ -23,7 +23,8 @@ const COUNTER_NEON = 0.03 // 카운터 상판 가장자리 네온 두께
 
 type Size = { w: number; d: number }
 
-export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
+// boardText: 칠판 글씨를 바꿔 씀 (강의실 공동 시간표 "2교시 · 남은 시간 23분"). 없으면 테마의 글씨
+export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: Size; boardText?: string }) {
   if (!theme) return null
   const h = ceilingHeightOf(theme)
   return (
@@ -51,7 +52,7 @@ export function Decor({ theme, size }: { theme?: BranchTheme; size: Size }) {
       {theme.pillars?.map((pl, i) => <SlatPillar key={i} pillar={pl} />)}
       {theme.wall?.band && <MosaicBand band={theme.wall.band} size={size} />}
       {theme.risers?.map((r, i) => <RiserStep key={i} riser={r} />)}
-      {theme.board && <Blackboard board={theme.board} />}
+      {theme.board && <Blackboard board={boardText ? { ...theme.board, text: boardText } : theme.board} />}
       {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
     </group>
   )
@@ -1406,6 +1407,8 @@ function Blackboard({ board }: { board: Board }) {
     t.colorSpace = SRGBColorSpace
     return t
   }, [board.text, board.w, board.h])
+  // 강의실 시간표는 1분마다 글씨가 바뀌어 새 텍스처를 만들므로, 바뀌거나 방을 나가면 예전 것을 지웁니다(그래픽 메모리가 쌓이지 않게).
+  useEffect(() => () => texture.dispose(), [texture])
   return (
     <group position={[pose.x, pose.y, pose.z]} rotation-y={pose.rotY}>
       <mesh position-z={-0.02}>
