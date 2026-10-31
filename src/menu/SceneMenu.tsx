@@ -15,7 +15,7 @@ type Props = {
   onLobby?: () => void // 지점에서만: 바깥(광장·캠퍼스)으로 나가기
   lobbyLabel?: string // 나가기 버튼 글자 (없으면 "캠리단길로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
   onTracking?: () => void // 지점에서만: 트래킹 검증 화면으로 가는 버튼
-  onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 시간 조절판 열기·닫기
+  onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 조절판(시간·날씨) 열기·닫기
 }
 
 export function SceneMenu({ myId, onOpen, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로' }: Props) {
@@ -61,10 +61,10 @@ export function SceneMenu({ myId, onOpen, onLobby, onTracking, onSkyTime, lobbyL
             신고 목록
           </button>
         )}
-        {/* 팀에게만: 하늘 시각·빠르기 조절 (노을·밤 확인용, 내 화면만 바뀜) */}
+        {/* 팀에게만: 하늘 시각·빠르기·날씨 조절 (노을·밤·비·눈 확인용, 내 화면만 바뀜) */}
         {team && onSkyTime && (
           <button type="button" style={menuRowMinor} onClick={onSkyTime}>
-            하늘 시간
+            하늘 조절
           </button>
         )}
         {onTracking && (

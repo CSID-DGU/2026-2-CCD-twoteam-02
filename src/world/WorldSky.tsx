@@ -29,7 +29,7 @@ import { applyLightning, lightningAt, parseLightningFast } from './lightningLogi
 import { setNightGlow, setSnowCover } from './worldMaterials'
 import { Constellations } from './Constellations'
 import { GradientSky } from './GradientSky'
-import { getSkyClock, setSkyClock } from './skyClock'
+import { getSkyClock, getSkyCover, getSkyWeather, setSkyClock } from './skyClock'
 import { warmSky } from './skyColorLogic'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
@@ -189,10 +189,12 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
     }
     if (fastLightning.current === null) fastLightning.current = parseLightningFast(window.location.search)
     const ms = worldTime(clock, now)
-    // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
+    // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 팀 조절판에서 고른 날씨 → 확인용 주소 → 실제 날씨 순
     const src = weatherRef.current
-    const base = src.override ?? weatherAt(src.hours, now)
-    const weather = src.cover === null ? base : { ...base, cover: src.cover } // ?snowcover= 로 쌓인 정도만 바꿈 (#329)
+    const base = getSkyWeather() ?? src.override ?? weatherAt(src.hours, now)
+    // 쌓인 정도만 따로: 팀 조절판에서 고른 눈 쌓임 → 확인용 주소 ?snowcover= → 날씨 (#329)
+    const cover = getSkyCover() ?? src.cover
+    const weather = cover === null ? base : { ...base, cover }
     // 번개도 실제 시각으로 정해 모두 같은 때 번쩍입니다. 뇌우가 아니면 lightning.flash = 0 이라 하늘 값이 그대로
     const lightning = lightningAt(now, weather.storm, fastLightning.current)
     const s = applyLightning(applyWeather(warmSky(skyState(ms)), weather), lightning.flash) // 노을빛 주변광 → 날씨 → 번개

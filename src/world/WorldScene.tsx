@@ -155,7 +155,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
-  const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 시간 조절판 (창이 아니라 캐릭터는 그대로 움직임)
+  const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
   const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   // 조준점이 가리키는 사람·별자리 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim()
