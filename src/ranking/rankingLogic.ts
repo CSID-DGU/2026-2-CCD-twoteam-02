@@ -20,7 +20,7 @@ export const REFRESH_MS = 5 * 60_000 // 게시판 판의 순위를 다시 읽는
 
 export const PERIOD_LABEL: Record<Period, string> = { today: '오늘', week: '이번 주' }
 const VISIBILITY_NAME: Record<Visibility, string> = { private: '나만', friends: '친구만', public: '모두' }
-const EMPTY_BOARD = '아직 오늘 기록이 없어요'
+export const EMPTY_BOARD = '아직 오늘 기록이 없어요'
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isPeriod = (v: unknown): v is Period => v === 'today' || v === 'week'

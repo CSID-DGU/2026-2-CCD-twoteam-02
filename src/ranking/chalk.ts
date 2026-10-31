@@ -96,7 +96,7 @@ export function chalkCircle(ctx: CanvasRenderingContext2D, x: number, y: number,
 }
 
 // 별 하나 (외곽선만)
-function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+export function chalkStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath()
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * Math.PI) / 5
@@ -120,9 +120,9 @@ export function doodles(ctx: CanvasRenderingContext2D, w: number, h: number, s =
   ctx.bezierCurveTo(w * 0.07, h * 0.06, w * 0.1, h * 0.2, w * 0.13, h * 0.09)
   ctx.stroke()
   ctx.strokeStyle = CHALK.pink
-  star(ctx, w * 0.93, h * 0.36, 14 * s)
+  chalkStar(ctx, w * 0.93, h * 0.36, 14 * s)
   ctx.strokeStyle = CHALK.yellow
-  star(ctx, w * 0.88, h * 0.12, 9 * s)
+  chalkStar(ctx, w * 0.88, h * 0.12, 9 * s)
   ctx.strokeStyle = CHALK.green
   ctx.beginPath()
   ctx.moveTo(w * 0.04, h * 0.86)

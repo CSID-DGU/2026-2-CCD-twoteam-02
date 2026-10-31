@@ -1,46 +1,123 @@
-// 광장 순위 게시판 (#59). 나무 기둥 두 개에 판을 걸고, 앞면에 "오늘의 공부왕" 1~3위를 글씨로 그립니다.
+// 광장 순위 게시판 (#59). 나무 기둥 두 개에 판을 걸고, 앞면 칠판에 "오늘의 공부왕" 1~3위를 분필로 그립니다.
 //
 // 자리는 world.json 의 board(x, z, facing), 부딪힘 상자와 앞 자리(E)는 worldLogic 의 plazaObstacles·boardSpot 입니다.
 // 글씨 판은 캔버스에 그린 그림(CanvasTexture)이고, 빛을 받지 않는 재질이라 밤에도 또렷하게 읽힙니다.
-// 줄(lines)이 바뀔 때만 캔버스를 다시 그립니다. (WorldScene 이 5분마다 순위를 다시 읽어 넘김)
+// 칠판 모양(분필 글씨·낙서·케리스 케듀체)은 ranking/chalk 의 도우미로 그립니다.
+//   위쪽 띠   ☆ 오늘의 공부왕 ☆ 과 점선 (얼굴과 겹치지 않게 띠 안에만)
+//   아래      시상대: 가운데 1등(왕관·크게), 왼쪽 2등, 오른쪽 3등. 얼굴 = 그 사람 캐릭터 사진(없으면 이니셜)
+// 순위·얼굴·글꼴이 바뀔 때만 캔버스를 다시 그립니다. (WorldScene 이 5분마다 순위를 다시 읽어 넘김)
 // 판 아래쪽 E 로 여는 자세한 순위 창은 ranking/RankingPanel 입니다.
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { facingAngle } from './worldLogic'
 import type { Facing, Point } from './worldLogic'
 import { MAT, colorMat } from './worldMaterials'
+import { EMPTY_BOARD, initialOf, minutesText, podium } from '../ranking/rankingLogic'
+import type { Ranking } from '../ranking/rankingLogic'
+import { CHALK, chalkCircle, chalkStar, chalkText, doodles, drawBoard, loadChalkFont } from '../ranking/chalk'
 
 // 크기 (m). 판 폭은 worldLogic 의 BOARD.w 와 같게
 const POST = { size: 0.12, h: 2.3, x: 1.1 }
 const PANEL = { w: 2.4, h: 1.5, t: 0.08, y: 1.35 } // y: 판 가운데 높이 (아래 끝 0.6m)
 const ROOF = { w: 2.7, h: 0.12, d: 0.4, color: '#7a4a2a' }
 const FACE = { w: 2.2, h: 1.3 } // 글씨 판 (판 앞면보다 조금 작게)
-// 캔버스 (가로·세로 비율을 글씨 판과 같게)
-const CANVAS = { w: 660, h: 390 }
-const INK = { bg: '#22402f', frame: '#c9a46a', title: '#ffe08a', text: '#f4f1e6' }
+// 캔버스 (가로·세로 비율을 글씨 판과 같게, 분필 질감이 보이게 넉넉히)
+const CANVAS = { w: 1320, h: 780 }
+const TITLE_Y = 0.12 // 제목 띠 가운데 (판 높이 비율)
+const RULE_Y = 0.22 // 제목 아래 점선
+const SLOT_X = [0.25, 0.5, 0.75] // 시상대 칸 가운데 (2등, 1등, 3등)
+const FACE_R = { 1: 100, 2: 76, 3: 76 } as const // 얼굴 동그라미 반지름(px)
+const BOTTOM = { min: 728, name: 676, rank: 622 } // 아래에서부터 시간·이름·등수 줄 높이(px)
 
-// 캔버스에 칠판처럼 제목과 줄을 그립니다.
-function draw(ctx: CanvasRenderingContext2D, lines: string[]) {
-  const { w, h } = CANVAS
-  ctx.clearRect(0, 0, w, h)
-  ctx.fillStyle = INK.bg
-  ctx.fillRect(0, 0, w, h)
-  ctx.strokeStyle = INK.frame
-  ctx.lineWidth = 10
-  ctx.strokeRect(5, 5, w - 10, h - 10)
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillStyle = INK.title
-  ctx.font = 'bold 52px system-ui, sans-serif'
-  ctx.fillText('🏆 오늘의 공부왕', w / 2, 70, w - 60)
-  ctx.fillStyle = INK.text
-  ctx.font = 'bold 40px system-ui, sans-serif'
-  lines.forEach((line, i) => ctx.fillText(line, w / 2, 160 + i * 75, w - 60)) // 길면 판 안으로 줄여 그림
+// 칸 하나: [자리, 등수, 이름, 분, 사진 주소]
+type Slot = [1 | 2 | 3, number, string, number, string] | null
+
+// 분필 왕관 (1등 얼굴 위)
+function crown(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  ctx.save()
+  ctx.strokeStyle = CHALK.gold
+  ctx.lineWidth = 5
+  ctx.lineJoin = 'round'
+  ctx.globalAlpha = 0.95
+  ctx.beginPath()
+  ctx.moveTo(x - s, y)
+  ctx.lineTo(x - s, y - s * 0.9)
+  ctx.lineTo(x - s * 0.5, y - s * 0.4)
+  ctx.lineTo(x, y - s * 1.1)
+  ctx.lineTo(x + s * 0.5, y - s * 0.4)
+  ctx.lineTo(x + s, y - s * 0.9)
+  ctx.lineTo(x + s, y)
+  ctx.closePath()
+  ctx.stroke()
+  ctx.restore()
 }
 
-export function RankingBoard({ board, lines }: { board: Point & { facing: Facing }; lines: string[] }) {
+// 캔버스에 칠판을 그립니다. photos: 사진 주소 → 다 불러온 그림
+function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, HTMLImageElement>) {
+  const { w, h } = CANVAS
+  ctx.clearRect(0, 0, w, h)
+  drawBoard(ctx, w, h)
+  doodles(ctx, w, h, 2)
+
+  // 제목 띠
+  chalkText(ctx, '오늘의 공부왕', w / 2, h * TITLE_Y, { size: 84, bold: true, color: CHALK.yellow })
+  ctx.save()
+  ctx.strokeStyle = CHALK.yellow
+  ctx.lineWidth = 4
+  ctx.globalAlpha = 0.85
+  for (const side of [-1, 1]) chalkStar(ctx, w / 2 + side * 330, h * TITLE_Y, 26)
+  ctx.restore()
+  ctx.save()
+  ctx.strokeStyle = CHALK.white
+  ctx.globalAlpha = 0.35
+  ctx.lineWidth = 3
+  ctx.setLineDash([14, 10])
+  ctx.beginPath()
+  ctx.moveTo(w * 0.12, h * RULE_Y)
+  ctx.lineTo(w * 0.88, h * RULE_Y)
+  ctx.stroke()
+  ctx.restore()
+
+  if (slots.every((s) => s === null)) {
+    chalkText(ctx, EMPTY_BOARD, w / 2, h * 0.6, { size: 60 })
+    return
+  }
+
+  slots.forEach((slot, i) => {
+    if (!slot) return
+    const [place, rank, name, minutes, url] = slot
+    const x = w * SLOT_X[i]
+    const r = FACE_R[place]
+    const cy = BOTTOM.rank - 44 - r
+    // 얼굴: 동그라미 안에 캐릭터 사진, 없으면 이니셜
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(x, cy, r, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    ctx.fill()
+    const img = url ? photos.get(url) : undefined
+    if (img) {
+      ctx.clip()
+      ctx.drawImage(img, x - r, cy - r, r * 2, r * 2)
+    }
+    ctx.restore()
+    if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9, bold: true })
+    chalkCircle(ctx, x, cy, r, place === 1 ? CHALK.gold : CHALK.white, place === 1 ? 6 : 5)
+    if (place === 1) crown(ctx, x, cy - r - 12, 34)
+    const first = place === 1
+    chalkText(ctx, `${rank}`, x, BOTTOM.rank, { size: first ? 56 : 46, bold: true, color: first ? CHALK.gold : CHALK.white })
+    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 46 : 40, bold: true, maxWidth: w * 0.22 })
+    chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 34, maxWidth: w * 0.22 })
+  })
+}
+
+// ranking: 오늘 순위(아직이면 null), photos: 사람 id → 캐릭터 얼굴 사진 (ranking/usePortraits)
+export function RankingBoard({ board, ranking, photos }: { board: Point & { facing: Facing }; ranking: Ranking | null; photos: Record<string, string> }) {
   const face = useRef<THREE.Mesh>(null)
   const tex = useRef<THREE.CanvasTexture | null>(null)
+  const images = useRef(new Map<string, HTMLImageElement>()) // 사진 주소 → 다 불러온 그림
+  const [imageCount, setImageCount] = useState(0) // 그림을 다 불러올 때마다 늘려 다시 그림
+  const [fontReady, setFontReady] = useState(false)
 
   // 글씨 판 캔버스를 만들어 재질에 붙입니다.
   useLayoutEffect(() => {
@@ -61,15 +138,40 @@ export function RankingBoard({ board, lines }: { board: Point & { facing: Facing
     }
   }, [])
 
-  // 줄이 바뀔 때만 다시 그립니다. (배열은 매번 새로 만들어지므로 글자로 비교)
-  const text = lines.join('\n')
+  // 케리스 케듀체가 오면 다시 그려 글꼴을 바꿉니다.
+  useEffect(() => {
+    let alive = true
+    void loadChalkFont().then(() => alive && setFontReady(true))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 그릴 칸 (배열은 매번 새로 만들어지므로 글자로 비교)
+  const slots: Slot[] = podium(ranking?.top ?? []).map((s) => s && [s.place, s.row.rank, s.name, s.row.minutes, photos[s.row.id] ?? ''])
+  const text = JSON.stringify(slots)
+
+  // 새 사진은 그림으로 불러 둡니다. (dataURL 이라 금방 끝남)
+  useEffect(() => {
+    for (const slot of JSON.parse(text) as Slot[]) {
+      const url = slot?.[4]
+      if (!url || images.current.has(url)) continue
+      const img = new Image()
+      img.onload = () => {
+        images.current.set(url, img)
+        setImageCount((n) => n + 1)
+      }
+      img.src = url
+    }
+  }, [text])
+
   useEffect(() => {
     const t = tex.current
     const ctx = (t?.image as HTMLCanvasElement | undefined)?.getContext('2d')
     if (!t || !ctx) return
-    draw(ctx, text.split('\n'))
+    draw(ctx, JSON.parse(text) as Slot[], images.current)
     t.needsUpdate = true
-  }, [text])
+  }, [text, imageCount, fontReady])
 
   return (
     <group position={[board.x, 0, board.z]} rotation={[0, facingAngle(board.facing), 0]}>

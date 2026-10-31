@@ -83,7 +83,8 @@ import { RankingBoard } from './RankingBoard'
 import { RankingPanel } from '../ranking/RankingPanel'
 import { PortraitStudio } from '../ranking/PortraitStudio'
 import { useRanking } from '../ranking/useRanking'
-import { REFRESH_MS, boardLines } from '../ranking/rankingLogic'
+import { BOARD_TOP, REFRESH_MS } from '../ranking/rankingLogic'
+import { usePortraits } from '../ranking/usePortraits'
 import { useMyTitle } from '../level/useMyTitle'
 import { sharedLevel } from '../level/levelLogic'
 
@@ -198,6 +199,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   }, [panel, overlay])
   // 게시판 판의 오늘 1~3위 (#59). 들어올 때 읽고 5분마다 다시 읽습니다. 로그인 전에는 읽지 않음
   const { ranking: todayRanking } = useRanking('today', { refreshMs: REFRESH_MS, enabled: !!session })
+  const boardPhotos = usePortraits((todayRanking?.top ?? []).slice(0, BOARD_TOP).map((r) => r.id)) // 게시판 1~3등 캐릭터 얼굴
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
   useEffect(() => {
@@ -370,7 +372,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <Benches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />
         {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
-        {PLAZA.board && <RankingBoard board={PLAZA.board} lines={boardLines(todayRanking)} />}
+        {PLAZA.board && <RankingBoard board={PLAZA.board} ranking={todayRanking} photos={boardPhotos} />}
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
           <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
