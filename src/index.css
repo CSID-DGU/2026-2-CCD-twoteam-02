@@ -1,3 +1,18 @@
+/* 케리스 케듀체 © KERIS(한국교육학술정보원), SIL Open Font License. 순위 칠판(분필 글씨)에 씁니다.
+   글꼴 파일은 눈누(noonnu.cc)가 올려 둔 jsDelivr 주소에서 받습니다. 라이선스: https://copyright.keris.or.kr */
+@font-face {
+  font-family: 'KerisKedyuche';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-3@1.0/KERISKEDU_R.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'KerisKedyuche';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-3@1.0/KERISKEDU_B.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;

@@ -20,7 +20,7 @@ export const REFRESH_MS = 5 * 60_000 // 게시판 판의 순위를 다시 읽는
 
 export const PERIOD_LABEL: Record<Period, string> = { today: '오늘', week: '이번 주' }
 const VISIBILITY_NAME: Record<Visibility, string> = { private: '나만', friends: '친구만', public: '모두' }
-const EMPTY_BOARD = '아직 오늘 기록이 없어요'
+export const EMPTY_BOARD = '아직 오늘 기록이 없어요'
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isPeriod = (v: unknown): v is Period => v === 'today' || v === 'week'
@@ -68,3 +68,18 @@ export function boardLines(ranking: Ranking | null): string[] {
   const names = labelNames(all) // 순위 창과 같은 이름이 되도록 20줄 전체에서 겹치는 닉네임을 봄
   return top.map((r, i) => `${r.rank}위  ${names[i]}  ${minutesText(r.minutes)}`)
 }
+
+// ── 분필 칠판 (게시판·순위 창의 1~3등 시상대) ──────────────────────────
+// 시상대 한 칸: 자리(1·2·3등 단), 그 줄, 보일 이름
+export type PodiumSlot = { place: 1 | 2 | 3; row: RankRow; name: string }
+
+// 시상대 자리 순서 [2등, 1등, 3등] (가운데가 1등). 사람이 모자라면 그 자리는 null.
+// 동점이어도 받은 순서(DB 가 정함)대로 자리를 채우고, 글자에 보이는 등수는 DB 등수(row.rank)입니다.
+export function podium(rows: RankRow[]): (PodiumSlot | null)[] {
+  const names = labelNames(rows) // 순위 창과 같은 이름 (겹치는 닉네임엔 태그)
+  const slot = (i: number, place: 1 | 2 | 3): PodiumSlot | null => (rows[i] ? { place, row: rows[i], name: names[i] } : null)
+  return [slot(1, 2), slot(0, 1), slot(2, 3)]
+}
+
+// 얼굴 사진이 아직 없을 때 동그라미에 쓰는 첫 글자 (영문은 대문자)
+export const initialOf = (nickname: string) => nickname.trim().charAt(0).toUpperCase() || '?'
