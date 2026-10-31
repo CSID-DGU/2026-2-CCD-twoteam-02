@@ -57,6 +57,12 @@ export function takeChunk(state: ChunkState, studyMs: number, now: number): { ro
   }
 }
 
+// 저장할 때(5분)가 되어도 보류 중(노란불)이면 조각을 자르지 않고 보류가 끝날 때까지 기다립니다.
+// 보류 시간은 돌아오는 순간 한꺼번에 확정되므로, 보류 중에 자르면 앞 조각의 보류분이 다음 조각에 몰려
+// 다음 조각의 공부 시간이 조각 길이를 넘고 DB 검사(0040, 공부한 초 ≤ 조각 길이)에 걸려 그 조각이 통째로 저장되지 않았습니다.
+// 보류는 길어야 1분(AWAY_SECONDS)이라 그만큼만 늦어집니다. 멈춤(중지·쉬는 시간) 중에는 보류가 확정되지 않고 버려지므로 바로 자릅니다.
+export const canCutChunk = (pendingMs: number, halted: boolean) => halted || pendingMs <= 0
+
 // 밀리초 → "01:02:03"
 export function formatDuration(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000))
