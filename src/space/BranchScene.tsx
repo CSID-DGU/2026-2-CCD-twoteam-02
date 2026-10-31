@@ -66,6 +66,8 @@ import { emotesAllowed, entryNotice } from "./rulesLogic";
 import { EntryNotice } from "./EntryNotice";
 import { setQuietLock } from "../chat/quietLock";
 import { worldOfBranch } from "../world/worldConfig";
+import { CafeWindows } from "../world/CafeWindows";
+import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { useClassPhase } from "../study/useClassPhase";
 import { boardText } from "../study/timetableLogic";
 import { ClassBellNotice } from "../study/ClassBellNotice";
@@ -395,12 +397,18 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
 
       <ThemedFloor floor={floorPattern} size={branch.size} color={colors.floor} />
 
-      {branch.walls.map((w, i) => (
-        <mesh key={i} position={[w.x, wallH / 2, w.z]}>
-          <boxGeometry args={[w.w, wallH, w.d]} />
-          <meshStandardMaterial color={colors.wall} />
-        </mesh>
-      ))}
+      {/* 벽. 캠리단길 지점의 출입문 벽은 통창 자리를 비운 조각으로 그림 (부딪힘은 벽 그대로) */}
+      {branch.walls.map((w, i) =>
+        (cafeWallPieces(branch, w, wallH) ?? [{ x: w.x, y: wallH / 2, z: w.z, w: w.w, h: wallH, d: w.d }]).map((p, j) => (
+          <mesh key={`${i}-${j}`} position={[p.x, p.y, p.z]}>
+            <boxGeometry args={[p.w, p.h, p.d]} />
+            <meshStandardMaterial color={colors.wall} />
+          </mesh>
+        )),
+      )}
+
+      {/* 캠리단길 지점: 출입문 벽 문 양옆 통창으로 실제 거리가 보임 (캠빛 대학교 건물은 없음) */}
+      <CafeWindows layout={branch} showPeople={condition === "visible"} />
 
       {/* 천장·팬·네온·액자 (테마가 있을 때만) */}
       <Decor theme={branch.theme} size={branch.size} boardText={classNow ? boardText(classNow) : undefined} />

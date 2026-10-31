@@ -26,3 +26,10 @@ if (!url || !publishableKey) {
 export const supabase = createClient(url, publishableKey, {
   auth: { storage: choosingStorage },
 })
+
+// 보기 전용 실시간 연결: 캠리단길 지점 안 통창 너머로 광장을 걷는 사람을 볼 때만 씁니다(CafeWindows).
+// 광장 화면의 연결(supabase)과 따로 두어, 지점에서 광장으로 나가는 순간 닫히는 중인 광장 방을
+// 광장 화면이 이어받아 실시간이 끊기는 일을 막습니다. 공개 방을 듣기만 해서 로그인 정보는 쓰지 않습니다.
+export const watchSupabase = createClient(url, publishableKey, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'sb-watch-only' },
+})

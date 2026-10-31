@@ -37,7 +37,8 @@ export type Point = { x: number; z: number }
 export type FloorSpec = { slug: string; window?: string }
 // 앞면 모양 (캠리단길 파사드, Facades.tsx). 없으면 예전 모양(창 둘 + 초록 간판 + 색 문)
 export type FacadeStyle = 'classic' | 'diner' | 'garden' | 'modern' | 'woodbar'
-export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle }
+export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle; sideWindow?: 'west' | 'east' }
+// sideWindow: 캠리단길 지점 안 옆벽 통창 (실내 기준 서쪽·동쪽 벽, cafeWindowLogic). 출입문 벽 통창은 파사드가 있으면 늘 있음
 
 // world.json 모양
 // 바깥 공간(월드) 이름. 광장(첫 화면)과 캠빛 대학교 캠퍼스
