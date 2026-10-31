@@ -9,9 +9,10 @@ import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
-import { BENCH, facingAngle, fenceSegments, rotate } from './worldLogic'
+import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-import { COLOR, MAT, colorMat, lawnMat, roofMat } from './worldMaterials'
+import { COLOR, MAT, applyGroundTextures, colorMat, lawnMat, roofMat } from './worldMaterials'
+import { TILE, tiledPlane } from './worldTextures'
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -21,7 +22,7 @@ const DOOR_H = 2.2 // 입구 문 높이 (지점 출입문과 같음)
 const SIGN = { width: 2.4, y: 2.85 } // 입구 위 간판
 const WINDOW = { w: 2, h: 1.2, y: 1.7 } // 창문 판
 const FENCE_H = 0.8
-const LAYER = { plaza: 0.01, path: 0.02 } // 땅 위로 띄우는 높이 (겹친 판이 깜빡이지 않게)
+const LAYER = { plaza: 0.01, gravel: 0.014, path: 0.02 } // 땅 위로 띄우는 높이 (겹친 판이 깜빡이지 않게)
 const FOUNTAIN = { basinH: 0.6, rim: 0.3, pillarR: 0.3, pillarH: 1.6, bowlR: 0.8, bowlH: 0.2 }
 const TREE = { trunkR: 0.18, trunkH: 1.6, lowR: 1.4, lowH: 2, topR: 1.0, topH: 1.6 }
 const BENCH_SHAPE = { seatY: 0.45, seatT: 0.08, backH: 0.5, backT: 0.08, legT: 0.08 }
@@ -30,12 +31,15 @@ const WATER_WAVE_S = 2.5 // 분수 물빛이 한 번 오가는 시간(초)
 
 // ── 땅 ──────────────────────────────────────────────────────────────
 
-// 잔디(월드 전체) + 광장 돌바닥 + 길
-// 가운데 바닥: 광장은 돌바닥, 캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)
+// 잔디(월드 전체) + 가운데 바닥 + 길
+// 가운데 바닥: 캠리단길(광장)은 울퉁불퉁한 돌 포장, 길은 벽돌, 둘레와 골목 양옆은 자갈 띠 (무늬는 worldTextures)
+//             캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)와 예전 돌길 그대로
 const LAWN = { stripe: 2, light: '#8fca72', dark: '#7dbb63' } // 줄 폭(m), 두 잔디 색
-export function Ground({ plaza }: { plaza: PlazaLayout }) {
+export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: PlacedBuilding[] }) {
   const lawn = plaza.ground === 'lawn'
   const stripes = lawn ? Math.ceil(plaza.plaza.w / LAWN.stripe) : 0
+  useMemo(() => !lawn && applyGroundTextures(), [lawn]) // 처음 한 번 무늬를 재질에 붙임
+  const gravel = useMemo(() => gravelStrips(plaza, buildings.map((b) => b.rect)), [plaza, buildings])
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
@@ -51,15 +55,20 @@ export function Ground({ plaza }: { plaza: PlazaLayout }) {
           )
         })
       ) : (
-        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
-          <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
-        </mesh>
+        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza} geometry={tiledPlane(plaza.plaza.w, plaza.plaza.d, TILE.cobble)} />
       )}
-      {plaza.paths.map((p, i) => (
-        <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
-          <planeGeometry args={[p.w, p.d]} />
-        </mesh>
+      {gravel.map((g, i) => (
+        <mesh key={`g${i}`} rotation-x={-Math.PI / 2} position={[g.x, LAYER.gravel + (i % 2) * 0.001, g.z]} material={MAT.gravel} geometry={tiledPlane(g.w, g.d, TILE.gravel)} />
       ))}
+      {plaza.paths.map((p, i) =>
+        lawn ? (
+          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
+            <planeGeometry args={[p.w, p.d]} />
+          </mesh>
+        ) : (
+          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.brick} geometry={tiledPlane(p.w, p.d, TILE.brick)} />
+        ),
+      )}
     </group>
   )
 }

@@ -365,7 +365,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
 
-        <Ground plaza={PLAZA} />
+        <Ground plaza={PLAZA} buildings={PLACED} />
         <Fence plaza={PLAZA} />
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
         <Trees trees={PLAZA.trees} />
