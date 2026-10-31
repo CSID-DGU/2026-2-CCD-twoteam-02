@@ -24,7 +24,7 @@ export const SAMPLE_MAX = 8
 export const WALK_START_SPEED = 0.2 // 이보다 빠르면 걷기 시작 (m/초)
 export const WALK_STOP_SPEED = 0.08 // 이보다 느려져야 멈춤. 경계에서 깜빡이지 않게 두 값을 달리 둡니다.
 // 이보다 멀면 걸어가지 않고 바로 옮깁니다. (처음 나타날 때, 자리에서 일어날 때 등)
-// 달리면(RUN_SPEED 6.5) 0.25초에 약 1.6m 를 가므로, 메시지 하나가 늦게 와도 걸어가 보이도록 넉넉히 둡니다. (#118)
+// 달리면(RUN_SPEED 7.5) 0.25초에 약 1.9m 를 가므로, 메시지 하나가 늦게 와도 걸어가 보이도록 넉넉히 둡니다. (#118)
 export const TELEPORT_GAP = 5
 export const BACKWARD_DOT = -0.3 // 가는 방향과 보는 방향의 cos 값이 이보다 작으면 뒷걸음 (약 107도 이상 뒤쪽)
 
