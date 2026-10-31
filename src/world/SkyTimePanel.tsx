@@ -1,21 +1,36 @@
-// 팀 전용 하늘 시간 조절판. 광장·캠퍼스 메뉴의 "하늘 시간"(팀 계정에만 보임)으로 엽니다.
+// 팀 전용 하늘 조절판. 광장·캠퍼스 메뉴의 "하늘 조절"(팀 계정에만 보임)으로 엽니다.
 //
 // 하늘을 둘러보며 쓸 수 있게 창(InfoPanel)이 아니라 화면 왼쪽 위에 작게 띄웁니다. 창이 뜨면 캐릭터·시점이 멈추기 때문입니다.
 //   시각 버튼  동틀 녘·해 질 녘(그날 일출·일몰 EVENT_LEAD_MIN 분 전), 정오, 밤
 //   빠르기     지금 하늘 시각에서 끊기지 않고 이어서 빨라지거나 느려짐 (skyLogic 의 retime)
-//   지금으로   실제 시각, 1배속
-// 내 화면의 하늘만 바뀝니다(skyClock). 날씨·구름·번개는 그대로 실제 시각을 따릅니다.
+//   날씨       실제(서울 날씨) · 맑음 · 흐림 · 비 · 눈(쌓인 모습까지) · 뇌우. 확인용 주소 ?weather= 와 같은 날씨
+//   세기       비·눈을 고르면 약하게(0.3) · 보통(0.6) · 강하게(1)
+//   눈 쌓임    날씨대로 · 없음 · 조금 · 가득 (날씨와 따로. 맑은 날 쌓인 눈도 볼 수 있음, 주소 ?snowcover= 와 같음)
+//   지금 때    시각 버튼 중 지금 하늘 시각이 들어 있는 때(skyLogic 의 dayPeriod)를 초록으로 칠함. 시간이 흐르면 옮겨 감
+//   처음으로   실제 시각·1배속·실제 날씨·날씨대로 쌓임
+// 내 화면의 하늘만 바뀝니다(skyClock). 구름 자리·번개 때는 그대로 실제 시각을 따릅니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { retime, seoulClockText, seoulTimeOn, sunEvents, worldTime } from './skyLogic'
-import { getSkyClock, setSkyClock, useSkyClock } from './skyClock'
+import { dayPeriod, retime, seoulClockText, seoulTimeOn, sunEvents, worldTime } from './skyLogic'
+import type { DayPeriod } from './skyLogic'
+import { COVERS, STRENGTHS, getSkyClock, hasStrength, setSkyClock, setSkyCover, setSkyStrength, setSkyWeather, useSkyClock, useSkyCover, useSkyStrength, useSkyWeatherPick } from './skyClock'
+import type { WeatherPick } from './skyClock'
 
 const SPEEDS = [0, 1, 60, 300, 1800] // 0 은 멈춤. 300× 면 1분에 5시간
 const EVENT_LEAD_MIN = 20 // 동틀 녘·해 질 녘 버튼: 일출·일몰 이만큼 전으로
 const FIXED = { noon: [12, 0], night: [22, 0] } as const
 const TICK_MS = 500 // 시각 표시를 다시 그리는 간격
 
-type Jump = 'dawn' | 'noon' | 'dusk' | 'night'
+const WEATHERS: { id: WeatherPick | null; label: string }[] = [
+  { id: null, label: '실제' },
+  { id: 'clear', label: '맑음' },
+  { id: 'cloudy', label: '흐림' },
+  { id: 'rain', label: '비' },
+  { id: 'snow', label: '눈' },
+  { id: 'storm', label: '뇌우' },
+]
+
+type Jump = DayPeriod
 const JUMPS: { id: Jump; label: string }[] = [
   { id: 'dawn', label: '동틀 녘' },
   { id: 'noon', label: '정오' },
@@ -47,20 +62,29 @@ function jump(id: Jump) {
   if (at !== null) setSkyClock({ start: at, base: now, speed: c.speed })
 }
 
-// 실제 시각, 1배속으로
+// 실제 시각, 1배속, 실제 날씨(세기는 보통), 날씨대로 쌓임으로
 function reset() {
   const now = Date.now()
   setSkyClock({ start: now, base: now, speed: 1 })
+  setSkyWeather(null)
+  setSkyStrength(STRENGTHS[1].value)
+  setSkyCover(null)
 }
 
 export function SkyTimePanel({ onClose }: { onClose: () => void }) {
   const clock = useSkyClock()
+  const weather = useSkyWeatherPick()
+  const strength = useSkyStrength()
+  const cover = useSkyCover()
   const [shown, setShown] = useState('') // 지금 하늘 시각 글자
+  const [period, setPeriod] = useState<DayPeriod | null>(null) // 지금 하늘 시각이 들어 있는 때 (그 시각 버튼을 칠함)
 
   useEffect(() => {
     const tick = () => {
       const c = getSkyClock()
-      setShown(c ? seoulClockText(worldTime(c, Date.now())) : '')
+      const ms = c ? worldTime(c, Date.now()) : null
+      setShown(ms === null ? '' : seoulClockText(ms))
+      setPeriod(ms === null ? null : dayPeriod(ms))
     }
     tick()
     const t = setInterval(tick, TICK_MS)
@@ -72,7 +96,7 @@ export function SkyTimePanel({ onClose }: { onClose: () => void }) {
     <div style={styles.box} onMouseDown={(e) => e.preventDefault()}>
       <div style={styles.head}>
         <span>
-          🕒 하늘 시간 <b style={styles.time}>{shown}</b> {clock && (clock.speed === 0 ? '(멈춤)' : `(×${clock.speed})`)}
+          🕒 하늘 조절 <b style={styles.time}>{shown}</b> {clock && (clock.speed === 0 ? '(멈춤)' : `(×${clock.speed})`)}
         </span>
         <button type="button" style={styles.close} onClick={onClose} aria-label="닫기">
           ✕
@@ -80,7 +104,7 @@ export function SkyTimePanel({ onClose }: { onClose: () => void }) {
       </div>
       <div style={styles.row}>
         {JUMPS.map((j) => (
-          <button key={j.id} type="button" style={styles.button} onClick={() => jump(j.id)}>
+          <button key={j.id} type="button" style={{ ...styles.button, ...(period === j.id ? styles.on : null) }} onClick={() => jump(j.id)}>
             {j.label}
           </button>
         ))}
@@ -98,8 +122,49 @@ export function SkyTimePanel({ onClose }: { onClose: () => void }) {
           </button>
         ))}
       </div>
+      <div style={styles.row}>
+        <span style={styles.label}>날씨</span>
+        {WEATHERS.map((w) => (
+          <button
+            key={w.label}
+            type="button"
+            style={{ ...styles.button, ...(weather === w.id ? styles.on : null) }}
+            onClick={() => setSkyWeather(w.id)}
+          >
+            {w.label}
+          </button>
+        ))}
+      </div>
+      {hasStrength(weather) && (
+        <div style={styles.row}>
+          <span style={styles.label}>세기</span>
+          {STRENGTHS.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              style={{ ...styles.button, ...(strength === s.value ? styles.on : null) }}
+              onClick={() => setSkyStrength(s.value)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={styles.row}>
+        <span style={styles.label}>눈 쌓임</span>
+        {COVERS.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            style={{ ...styles.button, ...(cover === c.value ? styles.on : null) }}
+            onClick={() => setSkyCover(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
       <button type="button" style={{ ...styles.button, width: '100%' }} onClick={reset}>
-        지금 시각으로
+        지금 시각·실제 날씨로
       </button>
     </div>
   )
