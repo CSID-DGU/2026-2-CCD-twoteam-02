@@ -1,8 +1,10 @@
 // 오버워치식 귓속말·그룹 채팅 로그창 (#49, #298). 로비·지점 왼쪽 아래에 겹쳐 띄웁니다.
 //
-// Enter: 채팅창 열기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
-// Tab: 접속 중인 친구와 그룹을 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기
-// 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다(적던 글이 있거나 스크롤하는 중이면 기다림).
+// Enter: 채팅으로 가기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
+//        창이 열려 있는데 화면을 눌러 입력칸에서 커서가 빠졌어도 Enter 한 번이면 입력칸으로 돌아와 이어서 씁니다.
+// Tab: 접속 중인 친구와 그룹을 돌아가며 고르기 / Esc 또는 빈 칸에서 Enter: 닫기(Esc 는 적던 글도 지움)
+// 열어 두고 10초 동안 아무것도 안 하면 스르륵 사라집니다. 입력칸에서 글을 적는 중이거나 스크롤하는 중이면 기다립니다.
+// 화면을 눌러 입력칸을 떠나면 적던 글이 있어도 10초 뒤 사라지고, 적던 글은 남겨 두었다가 다시 열면 이어서 씁니다.
 // 열면 이번 접속의 대화(최대 100줄)를 모두 보여 주고 마우스 휠로 올려 볼 수 있습니다. 줄 끝에 몇 분 전인지 붙입니다(#211).
 // 닫혀 있을 때 새 귓속말은 10초 보였다가 스르륵 사라지고, "Enter 귓속말"과 안 읽은 개수만 남습니다.
 // 밝은 바닥 위에서도 보이도록 글자 뒤에 어두운 반투명 배경을 깝니다(#211).
@@ -35,6 +37,7 @@ export function ChatOverlay() {
   const [fading, setFading] = useState(false) // 열린 창이 사라지는 중
   const [activity, setActivity] = useState(0) // 무언가 할 때마다 올라감 (사라지기 시간 다시 세기)
   const [draft, setDraft] = useState('')
+  const [typing, setTyping] = useState(false) // 입력칸에 커서가 있는지 (화면을 누르면 빠짐)
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -64,23 +67,31 @@ export function ChatOverlay() {
     setActivity((a) => a + 1)
   }
 
-  const close = useCallback(() => {
+  // 닫기. keepDraft 면 적던 글을 남겨 둡니다(저절로 사라질 때). Esc·보내기 끝은 지웁니다.
+  const close = useCallback((keepDraft = false) => {
     setOpen(false)
     setFading(false)
-    setDraft('')
+    if (!keepDraft) setDraft('')
     input.current?.blur()
     setNow(Date.now())
   }, [])
 
-  // Enter 로 열기. 다른 입력칸·버튼에서 누른 Enter 는 그쪽 것이라 두지 않습니다.
+  // Enter 로 채팅으로 가기. 다른 입력칸·버튼에서 누른 Enter 는 그쪽 것이라 두지 않습니다(채팅 입력칸의 Enter 는 보내기).
   useEffect(() => {
-    if (!chat?.enabled || open) return
+    if (!chat?.enabled) return
     const down = (e: KeyboardEvent) => {
       if (e.code !== 'Enter' || e.isComposing) return
       const t = e.target
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLButtonElement || t instanceof HTMLSelectElement) return
       e.preventDefault()
       if (document.pointerLockElement) document.exitPointerLock()
+      // 이미 열려 있으면(화면을 눌러 커서만 빠진 상태) 입력칸으로 돌아가 이어서 씁니다.
+      if (open) {
+        input.current?.focus()
+        setFading(false)
+        setActivity((a) => a + 1)
+        return
+      }
       // 받는 사람을 미리 골라 둡니다: 지금 고른 곳 → 마지막으로 나에게 말을 건 곳 → 첫 번째
       const c = chatRef.current
       if (c) {
@@ -105,18 +116,19 @@ export function ChatOverlay() {
     if (unread > 0) markRead?.()
   }, [open, unread, markRead])
 
-  // 열어 두고 10초 동안 아무것도 안 하면 스르륵 닫습니다. 적던 글이 있거나 새 줄이 오면 다시 셉니다.
+  // 열어 두고 10초 동안 아무것도 안 하면 스르륵 닫습니다. 입력칸에서 글을 적는 중이면 기다리고, 새 줄이 오면 다시 셉니다.
+  // 화면을 눌러 입력칸을 떠났으면 적던 글이 있어도 닫습니다(글은 남겨 둠). 전에는 글이 남아 있으면 영영 안 닫혔습니다.
   // 새 줄은 줄 수가 아니라 마지막 줄 번호로 알아챕니다. 대화는 100줄까지만 들고 있어서, 넘으면 오래된 줄이
   // 빠지면서 줄 수는 그대로 100이기 때문입니다. (#242)
   const lastLineId = chat?.lines[chat.lines.length - 1]?.id ?? 0
   useEffect(() => {
-    if (!open || draft.trim()) return
+    if (!open || (typing && draft.trim())) return
     const id = setTimeout(() => setFading(true), IDLE_MS)
     return () => clearTimeout(id)
-  }, [open, draft, activity, lastLineId])
+  }, [open, typing, draft, activity, lastLineId])
   useEffect(() => {
     if (!fading) return
-    const id = setTimeout(close, FADE_MS)
+    const id = setTimeout(() => close(true), FADE_MS)
     return () => clearTimeout(id)
   }, [fading, close])
 
@@ -235,6 +247,8 @@ export function ChatOverlay() {
                 touch()
               }}
               onKeyDown={onKey}
+              onFocus={() => setTyping(true)}
+              onBlur={() => setTyping(false)}
               aria-label="채팅 입력"
             />
           </div>
