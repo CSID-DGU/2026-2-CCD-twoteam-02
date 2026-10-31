@@ -1,4 +1,5 @@
-// 내 프로필의 "정보 변경" 탭. 닉네임·이메일·비밀번호를 바꿉니다.
+// 설정 창의 "내 정보" 칸. 닉네임·생일(별자리)·이메일·비밀번호를 바꿉니다.
+// (예전에는 내 프로필의 "정보 변경" 탭이었고, 설정으로 옮겼습니다)
 //
 // 셋을 바꾸는 방법이 각각 다릅니다.
 //
@@ -18,15 +19,15 @@ import { useMyNickname } from '../auth/useMyNickname'
 import { toKoreanMessage } from '../auth/authErrors'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN } from '../auth/authLimits'
 import { emailChangedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
-import { announceMyProfileChanged } from './characters'
-import { BirthdayInput } from './BirthdayInput'
-import { useMyBirthday } from './useMyBirthday'
-import type { Birthday } from './useMyBirthday'
+import { announceMyProfileChanged } from '../profile/characters'
+import { BirthdayInput } from '../profile/BirthdayInput'
+import { useMyBirthday } from '../profile/useMyBirthday'
+import type { Birthday } from '../profile/useMyBirthday'
 import { SIGNS, signOfBirthday } from '../world/starLogic'
 
 const nameOfSign = (id: string) => SIGNS.find((s) => s.id === id)?.name ?? id
 
-export function AccountTab() {
+export function AccountSettings() {
   const { session, loading } = useSession()
   const myId = session?.user.id
   const current = session?.user.email ?? ''
