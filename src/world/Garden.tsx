@@ -90,7 +90,7 @@ export function Garden({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
 // ── 풍성한 활엽수 (캠리단길) ─────────────────────────────────────────
 // 줄기(가지 둘) + 둥근 잎 덩어리 여럿. 나무마다 크기·돌림을 조금씩 달리하고 잎 모양은 세 가지를 번갈아 씀.
 // 부딪힘은 지금처럼 줄기 자리(worldLogic 의 TRUNK)만. 캠퍼스는 예전 원뿔 나무(WorldDecor.Trees) 그대로
-const LUSH = { trunkH: 2.3, canopyY: 2.0, leaf: '#4f9a48', minS: 0.85, rangeS: 0.5 }
+const LUSH = { trunkH: 2.3, canopyY: 2.0, leaf: '#86c95a', minS: 0.85, rangeS: 0.5 }
 
 export function LushTrees({ trees }: { trees: Point[] }) {
   const sized = useMemo(() => {

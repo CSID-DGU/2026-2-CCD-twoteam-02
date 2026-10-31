@@ -79,7 +79,7 @@ export function bushShape() {
 
 // 장미 덤불: 초록 잎 덩어리 + 분홍 꽃송이 다섯
 export function roseShape() {
-  const leaf = paint(new THREE.IcosahedronGeometry(0.34, 1).scale(1, 0.9, 1).translate(0, 0.38, 0), hex('#3f7f45'))
+  const leaf = paint(new THREE.IcosahedronGeometry(0.34, 1).scale(1, 0.9, 1).translate(0, 0.38, 0), hex('#7cc254'))
   const flowers = [
     [0.18, 0.62, 0.1], [-0.2, 0.58, 0.05], [0.02, 0.7, -0.18], [0.12, 0.5, -0.24], [-0.1, 0.5, 0.26],
   ].map(([x, y, z], i) => paint(new THREE.IcosahedronGeometry(0.08 + (i % 2) * 0.02, 0).translate(x, y, z), hex(i % 3 ? '#f4a3c0' : '#ee7fa6')))
@@ -97,7 +97,7 @@ export function lavenderShape() {
     const z = Math.sin(a) * lean
     const stem = new THREE.CylinderGeometry(0.008, 0.012, h, 4).translate(0, h / 2, 0)
     stem.applyMatrix4(new THREE.Matrix4().makeShear(0, 0, x / h, 0, z / h, 0)) // 바깥으로 기울임
-    parts.push(paint(stem, hex('#6f8f5a')))
+    parts.push(paint(stem, hex('#9cc76a')))
     parts.push(paint(new THREE.ConeGeometry(0.03, 0.16, 5).rotateX(Math.PI).translate(x, h + 0.06, z), hex(i % 2 ? '#8e74c9' : '#a38ad8')))
   }
   return merge(parts)
@@ -121,12 +121,12 @@ export function daisyShape() {
     const h = 0.22 + (i % 3) * 0.06
     const x = Math.cos(a) * r
     const z = Math.sin(a) * r
-    parts.push(paint(new THREE.CylinderGeometry(0.006, 0.008, h, 4).translate(x, h / 2, z), hex('#5d8a4a')))
+    parts.push(paint(new THREE.CylinderGeometry(0.006, 0.008, h, 4).translate(x, h / 2, z), hex('#8cc65c')))
     parts.push(paint(new THREE.CircleGeometry(0.045, 8).rotateX(-Math.PI / 2).translate(x, h, z), hex(i % 4 ? '#fbfaf3' : '#f6e27a')))
     parts.push(paint(new THREE.CircleGeometry(0.015, 6).rotateX(-Math.PI / 2).translate(x, h + 0.003, z), hex('#f2c230')))
   }
   // 아래 잎 몇 장
-  for (let i = 0; i < 3; i++) parts.push(paint(blade(0.14, 0.05, 0.06, (i / 3) * Math.PI * 2), hex('#4f7d3f')))
+  for (let i = 0; i < 3; i++) parts.push(paint(blade(0.14, 0.05, 0.06, (i / 3) * Math.PI * 2), hex('#86c256')))
   return merge(parts)
 }
 
