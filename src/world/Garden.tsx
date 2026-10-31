@@ -10,9 +10,11 @@ import * as THREE from 'three'
 import { flowerBeds, grassTufts } from './gardenLogic'
 import type { Plant, PlantKind, Tuft } from './gardenLogic'
 import type { PlacedBuilding, PlazaLayout } from './worldLogic'
-import { MAT, plantMat, tickWind } from './worldMaterials'
+import { MAT, colorMat, plantMat, tickWind } from './worldMaterials'
 import { CANOPY_VARIANTS, bushShape, canopyShape, daisyShape, fernShape, lavenderShape, roseShape, trunkShape, tuftShape } from './plantShapes'
 import type { Point } from './worldLogic'
+import { facingAngle } from './worldLogic'
+import { benchIronShape, benchWoodShape } from './benchShapes'
 
 // 종류별 모양·색조 (색조: 초록만 있는 모양은 재질 색이 초록, 꽃이 있는 모양은 흰색)
 const KINDS: Record<PlantKind | 'tuft', { shape: () => THREE.BufferGeometry; tint: string; sway: boolean; jitter: number }> = {
@@ -123,4 +125,26 @@ function Instanced({ geometry, material, items, y, jitter }: { geometry: THREE.B
   }, [raised, jitter])
   if (items.length === 0) return null
   return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} />
+}
+
+// ── 정원 벤치 (캠리단길) ─────────────────────────────────────────────
+// 나무 살 + 주철 옆틀. 크기·자리·앉는 높이·부딪힘은 예전 벤치와 같음. 캠퍼스는 예전 벤치(WorldDecor.Benches)
+const BENCH_WOOD = '#9a6a43'
+export function GardenBenches({ benches }: { benches: PlazaLayout['benches'] }) {
+  const items = useMemo(() => benches.map((b) => ({ x: b.x, z: b.z, s: 1, rot: facingAngle(b.facing) })), [benches])
+  const wood = useMemo(() => benchWoodShape(), [])
+  const iron = useMemo(() => benchIronShape(), [])
+  useLayoutEffect(
+    () => () => {
+      wood.dispose()
+      iron.dispose()
+    },
+    [wood, iron],
+  )
+  return (
+    <group>
+      <Instanced geometry={wood} material={colorMat(BENCH_WOOD)} items={items} y={0} jitter={0.06} />
+      <Instanced geometry={iron} material={MAT.iron} items={items} y={0} jitter={0} />
+    </group>
+  )
 }
