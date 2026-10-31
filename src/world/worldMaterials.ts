@@ -23,6 +23,7 @@ export const COLOR = {
   wood: '#a0784d',
   iron: '#3a3f47',
   lampGlow: '#fff6d5',
+  bulb: '#ffd58a',
   window: '#2b3a4a',
   fence: '#9a7b55',
   // 입구 문: 지금 로비 문과 같은 색
@@ -32,7 +33,8 @@ export const COLOR = {
 }
 
 // 밤 빛남 (#316): 가로등 등은 낮에도 살짝, 밤에 밝게. 창문은 밤에만 따뜻한 노란빛
-const GLOW = { lampDay: 0.3, lampNight: 1.6, window: 0.9, windowColor: '#ffcf7a' }
+// bulb: 캠리단길 전구 줄 (가로등보다 노란 전구색)
+const GLOW = { lampDay: 0.3, lampNight: 1.6, window: 0.9, windowColor: '#ffcf7a', bulbDay: 0.2, bulbNight: 2.2 }
 
 // 재질 (모듈에서 한 번)
 const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, ...extra })
@@ -51,6 +53,7 @@ export const MAT = {
   wood: mat(COLOR.wood),
   iron: mat(COLOR.iron),
   lampGlow: mat(COLOR.lampGlow, { emissive: COLOR.lampGlow, emissiveIntensity: GLOW.lampDay }),
+  bulb: mat(COLOR.bulb, { emissive: COLOR.bulb, emissiveIntensity: GLOW.bulbDay }),
   window: mat(COLOR.window, { emissive: GLOW.windowColor, emissiveIntensity: 0 }),
   fence: mat(COLOR.fence),
   doorOpen: mat(COLOR.doorOpen),
@@ -66,6 +69,21 @@ export function setNightGlow(glow: number) {
   MAT.lampGlow.emissiveIntensity = GLOW.lampDay + (GLOW.lampNight - GLOW.lampDay) * glow
   MAT.window.emissiveIntensity = GLOW.window * glow
   for (const m of shopWindows.values()) m.emissiveIntensity = SHOP_GLOW.day + (SHOP_GLOW.night - SHOP_GLOW.day) * glow
+  for (const m of litWindows.values()) m.emissiveIntensity = GLOW.window * glow
+  MAT.bulb.emissiveIntensity = GLOW.bulbDay + (GLOW.bulbNight - GLOW.bulbDay) * glow
+}
+// 지금 밤 빛남 (0 낮 ~ 1 밤). 캠리단길 밤 채움광이 매 프레임 읽습니다
+export const nightGlow = () => Math.max(0, lastGlow)
+
+// 캠리단길 위층 창: 층마다 다른 유리 색 그대로, 밤에는 다른 창처럼 따뜻한 불빛 (colorMat 창은 밤에도 꺼져 보임)
+const litWindows = new Map<string, THREE.MeshStandardMaterial>()
+export function litWindowMat(color: string) {
+  let m = litWindows.get(color)
+  if (!m) {
+    m = mat(color, { emissive: GLOW.windowColor, emissiveIntensity: GLOW.window * Math.max(0, lastGlow) })
+    litWindows.set(color, m)
+  }
+  return m
 }
 
 // 캠리단길 가게 창: 실내 그림(facadeTextures.interiorTexture)을 붙이고, 같은 그림으로 빛나게 함

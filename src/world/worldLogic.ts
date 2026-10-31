@@ -62,6 +62,7 @@ export type PlazaLayout = {
   trees: Point[]
   benches: (Point & { facing: Facing })[] // facing: 앉은 사람이 보는 쪽
   lamps: (Point & { light?: boolean })[] // light: 밤에 둘레를 비추는 점광원을 단 가로등 (#316)
+  strings?: { from: Point; to: Point }[] // 캠리단길 전구 줄: 두 가로등 사이에 거는 줄 조명 (끝은 가로등 자리)
   board?: Point & { facing: Facing } // 순위 게시판 (#59). facing: 판 앞면이 보는 쪽
 }
 
