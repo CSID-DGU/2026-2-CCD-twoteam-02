@@ -354,6 +354,67 @@ export function fenceSegments(plaza: PlazaLayout): Box[] {
   ]
 }
 
+// ── 자갈 띠 (캠리단길) ───────────────────────────────────────────────
+// 돌바닥 광장 둘레와 긴 길(골목) 양옆에 까는 자갈 띠. 보기만 하고 부딪힘은 없습니다.
+// 길·건물·광장이 덮는 자리는 띠를 끊고, 너무 짧은 조각은 버립니다. 잔디 쿼드(캠퍼스)에는 없음.
+export const GRAVEL_W = 0.8 // 띠 폭(m)
+export const GRAVEL_MIN = 0.6 // 이보다 짧은 조각은 버림(m)
+const GRAVEL_PATH_MIN = 6 // 이만큼 긴 길만 양옆에 띠 (건물 입구 앞 짧은 길은 빼고)
+
+// 띠 하나(along: 긴 축이 x 면 true)에서 blockers 가 덮는 구간을 빼고 남은 조각들
+function cutStrip(strip: Box, alongX: boolean, blockers: Box[]): Box[] {
+  const lo = (b: Box) => (alongX ? b.x - b.w / 2 : b.z - b.d / 2)
+  const hi = (b: Box) => (alongX ? b.x + b.w / 2 : b.z + b.d / 2)
+  const crossLo = (b: Box) => (alongX ? b.z - b.d / 2 : b.x - b.w / 2)
+  const crossHi = (b: Box) => (alongX ? b.z + b.d / 2 : b.x + b.w / 2)
+  const EPS = 1e-6
+  const cuts = blockers
+    .filter((b) => crossLo(b) < crossHi(strip) - EPS && crossHi(b) > crossLo(strip) + EPS) // 띠 폭 방향으로 겹침
+    .map((b) => [lo(b), hi(b)] as [number, number])
+    .sort((a, b) => a[0] - b[0])
+  const out: Box[] = []
+  let from = lo(strip)
+  const end = hi(strip)
+  for (const [a, b] of [...cuts, [end, end] as [number, number]]) {
+    const to = Math.min(a, end)
+    if (to - from >= GRAVEL_MIN) {
+      const c = (from + to) / 2
+      out.push(alongX ? { x: c, z: strip.z, w: to - from, d: strip.d } : { x: strip.x, z: c, w: strip.w, d: to - from })
+    }
+    from = Math.max(from, b)
+    if (from >= end) break
+  }
+  return out
+}
+
+// buildings: 건물이 땅에서 차지하는 상자들 (PlacedBuilding.rect)
+export function gravelStrips(plaza: PlazaLayout, buildings: Box[]): Box[] {
+  if (plaza.ground === 'lawn') return []
+  const G = GRAVEL_W
+  const { w, d } = plaza.plaza
+  const square: Box = { x: 0, z: 0, w, d }
+  const out: Box[] = []
+  // 광장 둘레: 남·북은 모서리까지, 동·서는 그 사이
+  const ring: [Box, boolean][] = [
+    [{ x: 0, z: -(d / 2 + G / 2), w: w + 2 * G, d: G }, true],
+    [{ x: 0, z: d / 2 + G / 2, w: w + 2 * G, d: G }, true],
+    [{ x: -(w / 2 + G / 2), z: 0, w: G, d }, false],
+    [{ x: w / 2 + G / 2, z: 0, w: G, d }, false],
+  ]
+  for (const [strip, alongX] of ring) out.push(...cutStrip(strip, alongX, [...plaza.paths, ...buildings]))
+  // 긴 길 양옆
+  for (const p of plaza.paths) {
+    const alongX = p.w >= p.d
+    if (Math.max(p.w, p.d) < GRAVEL_PATH_MIN) continue
+    const sides: Box[] = alongX
+      ? [{ x: p.x, z: p.z - p.d / 2 - G / 2, w: p.w, d: G }, { x: p.x, z: p.z + p.d / 2 + G / 2, w: p.w, d: G }]
+      : [{ x: p.x - p.w / 2 - G / 2, z: p.z, w: G, d: p.d }, { x: p.x + p.w / 2 + G / 2, z: p.z, w: G, d: p.d }]
+    const blockers = [square, ...plaza.paths.filter((o) => o !== p), ...buildings]
+    for (const s of sides) out.push(...cutStrip(s, alongX, blockers))
+  }
+  return out
+}
+
 // 벤치 자리 (벤치에서 공부하기): world.json 벤치 순서대로 벤치마다 두 자리. 왼쪽(벤치 기준 -x)부터.
 // DB 좌석 번호는 1부터(0038 의 seats 와 같은 순서), Player 의 자리 번호는 BENCH_SEAT_BASE 를 더한 값.
 // rot 은 앉은 사람이 보는 쪽(벤치가 보는 쪽). 자리는 벤치 상자 안이지만 Player 는 장애물 안에서 나가는 걸음은 막지 않는다.
