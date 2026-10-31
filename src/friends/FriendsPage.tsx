@@ -15,6 +15,7 @@ import { InviteButton } from '../meeting/InviteButton'
 import type { InviteTarget } from '../meeting/InviteButton'
 import { useChat } from '../chat/chatContext'
 import { GroupInviteButton } from '../chat/GroupInviteButton'
+import { FollowButtons } from './FollowButtons'
 import type { OnlineEntry } from '../realtime/onlineContext'
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
@@ -157,6 +158,7 @@ export function FriendsView({ onOpenProfile, invite }: { onOpenProfile?: (userId
                   <InviteButton meetingId={invite.meetingId} friendId={otherOf(f, myId)} onMessage={setMessage} />
                 ))}
               <GroupInviteButton friendId={otherOf(f, myId)} onMessage={setMessage} />
+              <FollowButtons friendId={otherOf(f, myId)} onMessage={setMessage} />
               <button
                 type="button"
                 style={styles.ghost}
