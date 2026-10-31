@@ -10,8 +10,9 @@ import * as THREE from 'three'
 import { flowerBeds, grassTufts } from './gardenLogic'
 import type { Plant, PlantKind, Tuft } from './gardenLogic'
 import type { PlacedBuilding, PlazaLayout } from './worldLogic'
-import { plantMat, tickWind } from './worldMaterials'
-import { bushShape, daisyShape, fernShape, lavenderShape, roseShape, tuftShape } from './plantShapes'
+import { MAT, plantMat, tickWind } from './worldMaterials'
+import { CANOPY_VARIANTS, bushShape, canopyShape, daisyShape, fernShape, lavenderShape, roseShape, trunkShape, tuftShape } from './plantShapes'
+import type { Point } from './worldLogic'
 
 // 종류별 모양·색조 (색조: 초록만 있는 모양은 재질 색이 초록, 꽃이 있는 모양은 흰색)
 const KINDS: Record<PlantKind | 'tuft', { shape: () => THREE.BufferGeometry; tint: string; sway: boolean; jitter: number }> = {
@@ -33,7 +34,7 @@ function random(seed: number) {
 }
 
 // 자리·크기·돌림과 색 차이를 InstancedMesh 에 채움 (3D 객체를 바꾸는 일은 컴포넌트 밖에서)
-function fill(mesh: THREE.InstancedMesh, items: Tuft[], jitter: number) {
+function fill(mesh: THREE.InstancedMesh, items: (Tuft & { y?: number })[], jitter: number) {
   const m = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const up = new THREE.Vector3(0, 1, 0)
@@ -41,7 +42,7 @@ function fill(mesh: THREE.InstancedMesh, items: Tuft[], jitter: number) {
   const r = random(items.length * 7 + 3)
   items.forEach((t, i) => {
     q.setFromAxisAngle(up, t.rot)
-    m.compose(new THREE.Vector3(t.x, 0, t.z), q, new THREE.Vector3(t.s, t.s, t.s))
+    m.compose(new THREE.Vector3(t.x, t.y ?? 0, t.z), q, new THREE.Vector3(t.s, t.s, t.s))
     mesh.setMatrixAt(i, m)
     const k = 1 - jitter + r() * jitter * 2 // 밝기 차이
     c.setRGB(Math.min(1, k * (0.97 + r() * 0.06)), Math.min(1, k), Math.min(1, k * (0.9 + r() * 0.1)))
@@ -82,4 +83,44 @@ export function Garden({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
       ))}
     </group>
   )
+}
+
+// ── 풍성한 활엽수 (캠리단길) ─────────────────────────────────────────
+// 줄기(가지 둘) + 둥근 잎 덩어리 여럿. 나무마다 크기·돌림을 조금씩 달리하고 잎 모양은 세 가지를 번갈아 씀.
+// 부딪힘은 지금처럼 줄기 자리(worldLogic 의 TRUNK)만. 캠퍼스는 예전 원뿔 나무(WorldDecor.Trees) 그대로
+const LUSH = { trunkH: 2.3, canopyY: 2.0, leaf: '#4f9a48', minS: 0.85, rangeS: 0.5 }
+
+export function LushTrees({ trees }: { trees: Point[] }) {
+  const sized = useMemo(() => {
+    const r = random(trees.length * 13 + 5)
+    return trees.map((t) => ({ x: t.x, z: t.z, s: LUSH.minS + r() * LUSH.rangeS, rot: r() * Math.PI * 2 }))
+  }, [trees])
+  const trunk = useMemo(() => trunkShape(LUSH.trunkH), [])
+  useLayoutEffect(() => () => trunk.dispose(), [trunk])
+  const groups = useMemo(() => Array.from({ length: CANOPY_VARIANTS }, (_, v) => sized.filter((_, i) => i % CANOPY_VARIANTS === v)), [sized])
+  return (
+    <group>
+      <Instanced geometry={trunk} material={MAT.trunk} items={sized} y={0} jitter={0.1} />
+      {groups.map((items, v) => (
+        <Canopy key={v} variant={v} items={items} />
+      ))}
+    </group>
+  )
+}
+
+function Canopy({ variant, items }: { variant: number; items: Tuft[] }) {
+  const geometry = useMemo(() => canopyShape(variant), [variant])
+  useLayoutEffect(() => () => geometry.dispose(), [geometry])
+  return <Instanced geometry={geometry} material={plantMat(LUSH.leaf, false)} items={items} y={LUSH.canopyY} jitter={0.14} />
+}
+
+// 높이 y 만큼 올려 세움 (잎 덩어리는 크기만큼 높이도 같이 커지게)
+function Instanced({ geometry, material, items, y, jitter }: { geometry: THREE.BufferGeometry; material: THREE.Material; items: Tuft[]; y: number; jitter: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  const raised = useMemo(() => items.map((t) => ({ ...t, y: y * t.s })), [items, y])
+  useLayoutEffect(() => {
+    if (ref.current) fill(ref.current, raised, jitter)
+  }, [raised, jitter])
+  if (items.length === 0) return null
+  return <instancedMesh ref={ref} args={[geometry, material, items.length]} frustumCulled={false} />
 }

@@ -129,3 +129,34 @@ export function daisyShape() {
   for (let i = 0; i < 3; i++) parts.push(paint(blade(0.14, 0.05, 0.06, (i / 3) * Math.PI * 2), hex('#4f7d3f')))
   return merge(parts)
 }
+
+// 활엽수 잎 덩어리 (참고: 정원 카페의 풍성한 나무). 둥근 덩어리 여러 개를 겹쳐 뭉게뭉게, 아래쪽은 그늘져 어둡게.
+// variant 마다 덩어리 배치가 달라 나무끼리 똑같아 보이지 않음. 높이 0 = 잎 덩어리 아래 끝 (줄기 위에 얹음)
+export const CANOPY_VARIANTS = 3
+export function canopyShape(variant: number) {
+  let s = (variant + 1) * 9301
+  const r = () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 4294967296
+  }
+  const blobs: THREE.BufferGeometry[] = [new THREE.IcosahedronGeometry(1.35, 1).translate(0, 1.3, 0)]
+  const n = 6 + variant
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + r() * 0.6
+    const d = 0.8 + r() * 0.5
+    const rad = 0.75 + r() * 0.45
+    blobs.push(new THREE.IcosahedronGeometry(rad, 1).translate(Math.cos(a) * d, 0.8 + r() * 1.1, Math.sin(a) * d))
+  }
+  blobs.push(new THREE.IcosahedronGeometry(0.9, 1).translate(r() * 0.4 - 0.2, 2.3, r() * 0.4 - 0.2))
+  return paintByHeight(merge(blobs), [0.42, 0.45, 0.4], [1, 1, 0.95])
+}
+
+// 줄기: 아래가 굵고 위로 가늘어지는 기둥 + 위쪽에서 갈라지는 가지 둘
+export function trunkShape(h: number) {
+  const parts = [
+    new THREE.CylinderGeometry(0.13, 0.22, h, 8).translate(0, h / 2, 0),
+    new THREE.CylinderGeometry(0.05, 0.09, 1.1, 6).rotateZ(0.7).translate(0.35, h - 0.1, 0),
+    new THREE.CylinderGeometry(0.05, 0.09, 1.0, 6).rotateZ(-0.6).rotateY(1.9).translate(-0.2, h - 0.2, 0.25),
+  ]
+  return paintByHeight(merge(parts), [0.75, 0.75, 0.75], [1, 1, 1])
+}
