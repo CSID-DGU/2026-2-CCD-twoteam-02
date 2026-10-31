@@ -38,9 +38,13 @@ export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
   const gravel = useMemo(() => gravelStrips(plaza, buildings.map((b) => b.rect)), [plaza, buildings])
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
-        <planeGeometry args={[plaza.size.w, plaza.size.d]} />
-      </mesh>
+      {lawn ? (
+        <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
+          <planeGeometry args={[plaza.size.w, plaza.size.d]} />
+        </mesh>
+      ) : (
+        <mesh rotation-x={-Math.PI / 2} material={MAT.meadow} geometry={tiledPlane(plaza.size.w, plaza.size.d, TILE.grass)} />
+      )}
       {lawn ? (
         Array.from({ length: stripes }, (_, i) => {
           const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
