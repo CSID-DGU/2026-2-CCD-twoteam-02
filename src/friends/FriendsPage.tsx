@@ -16,12 +16,22 @@ import type { InviteTarget } from '../meeting/InviteButton'
 import { useChat } from '../chat/chatContext'
 import { GroupInviteButton } from '../chat/GroupInviteButton'
 import { FollowButtons } from './FollowButtons'
+import { useIsGuest } from '../auth/useIsGuest'
+import { GuestOnly } from '../auth/GuestOnly'
 import type { OnlineEntry } from '../realtime/onlineContext'
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
 // onOpenProfile 을 주면 이름을 눌렀을 때 페이지를 옮기지 않고 그 함수를 부릅니다(창 안에서 프로필 열기).
 // invite 를 주면(회의 중에 연 친구 창) 친구마다 "회의에 초대" 버튼이 보입니다. 이미 그 회의에 있는 친구는 "이 회의에 있음". (#45)
-export function FriendsView({ onOpenProfile, invite }: { onOpenProfile?: (userId: string) => void; invite?: InviteTarget }) {
+// 게스트(#375)는 친구를 맺지 못하므로 안내만 보입니다.
+type ViewProps = { onOpenProfile?: (userId: string) => void; invite?: InviteTarget }
+export function FriendsView(props: ViewProps) {
+  const guest = useIsGuest()
+  if (guest) return <GuestOnly what="친구·귓속말·그룹·따라가기는" />
+  return <FriendsBody {...props} />
+}
+
+function FriendsBody({ onOpenProfile, invite }: ViewProps) {
   const { session } = useSession()
   const myId = session?.user.id ?? ''
   const { nickname: myNickname } = useMyNickname() // 닉네임 원본은 profiles 다

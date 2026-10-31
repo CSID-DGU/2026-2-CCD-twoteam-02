@@ -10,6 +10,11 @@ import { keyLabel, useKeymap } from './keymap'
 import { useIsTeam } from '../report/useIsTeam'
 import { useIsTouch } from '../space/useIsTouch'
 import { useState } from 'react'
+import { useIsGuest } from '../auth/useIsGuest'
+import { GUEST_KEEP_DAYS } from '../auth/guestNotice'
+import type { CSSProperties } from 'react'
+
+const guestNote: CSSProperties = { display: 'block', padding: '4px 8px', color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }
 
 type Props = {
   myId: string
@@ -25,6 +30,7 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
   const team = useIsTeam(myId)
   // 폰(#377): 작은 화면을 가리지 않게 [☰] 하나로 접어 두고, 누르면 펼침. 고르면 다시 접힘
   const touch = useIsTouch()
+  const guest = useIsGuest()
   const [unfolded, setUnfolded] = useState(false)
   const onOpen = (view: PanelView) => {
     setUnfolded(false)
@@ -45,6 +51,15 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
         <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setUnfolded(false)} aria-label="메뉴 접기">
           ✕ 접기
         </button>
+      )}
+      {/* 게스트 (#375): 가입하면 친구·채팅·회의·순위를 쓰고 기록이 이어짐. 가입은 설정 → 내 정보 */}
+      {guest && (
+        <div style={menuBox}>
+          <span style={guestNote}>게스트로 둘러보는 중 · {GUEST_KEEP_DAYS}일 동안 접속하지 않으면 기록이 지워져요</span>
+          <button type="button" style={menuRow} onClick={() => onOpen({ kind: 'settings' })}>
+            가입하기 (기록 이어짐)
+          </button>
+        </div>
       )}
       <nav style={menuBox}>
         {PANEL_KEYS.filter((it) => it.action !== 'settings').map((it) => (

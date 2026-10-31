@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { MEETING_CAPACITIES } from './meetingLogic'
+import { useIsGuest } from '../auth/useIsGuest'
+import { GuestOnly } from '../auth/GuestOnly'
 
 const PASSWORD = /^[0-9]{4}$/ // 비공개 회의 비밀번호: 숫자 4자리 (0023 과 같은 규칙)
 const NEED_PASSWORD = 'DT003' // join_meeting 이 "비밀번호를 입력해 주세요" 로 거절할 때의 코드
@@ -29,7 +31,24 @@ type Props = {
   onClose: () => void
 }
 
-export function MeetingDialog({ branchId, onEnter, onClose }: Props) {
+// 게스트(#375)는 회의실을 쓰지 못하므로 안내만 보입니다(DB 0045 도 막음).
+export function MeetingDialog(props: Props) {
+  const guest = useIsGuest()
+  if (!guest) return <MeetingList {...props} />
+  return (
+    <div style={styles.backdrop} onClick={props.onClose}>
+      <div style={styles.box} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="회의실">
+        <div style={styles.head}>
+          <span style={styles.title}>회의실</span>
+          <button type="button" style={styles.ghost} onClick={props.onClose}>닫기</button>
+        </div>
+        <GuestOnly what="회의실은" />
+      </div>
+    </div>
+  )
+}
+
+function MeetingList({ branchId, onEnter, onClose }: Props) {
   const [rows, setRows] = useState<MeetingRow[] | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)

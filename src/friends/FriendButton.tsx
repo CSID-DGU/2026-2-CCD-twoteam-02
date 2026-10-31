@@ -11,6 +11,8 @@ import { useFriends } from './useFriends'
 import { WhisperButton } from '../chat/WhisperButton'
 import { GroupInviteButton } from '../chat/GroupInviteButton'
 import { FollowButtons } from './FollowButtons'
+import { useIsGuest, useIsGuestUser } from '../auth/useIsGuest'
+import { GuestOnly } from '../auth/GuestOnly'
 
 export function FriendButton({ otherId }: { otherId: string }) {
   const { session } = useSession()
@@ -18,8 +20,11 @@ export function FriendButton({ otherId }: { otherId: string }) {
   const { list, loading, request, accept, remove } = useFriends(myId)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const guest = useIsGuest() // 내가 게스트면 친구를 맺지 못함 (#375)
+  const otherGuest = useIsGuestUser(otherId) // 상대가 게스트면 친구 요청을 받지 못함
 
   if (!myId || myId === otherId || loading) return null
+  if (guest) return <GuestOnly what="친구 맺기는" compact />
   const relation = relationOf(list, myId, otherId)
   const friendship = list.find((f) => otherOf(f, myId) === otherId)
 
@@ -33,7 +38,8 @@ export function FriendButton({ otherId }: { otherId: string }) {
   return (
     <div style={styles.wrap}>
       <div style={styles.row}>
-        {relation === 'none' && (
+        {relation === 'none' && otherGuest && <span style={styles.muted}>게스트 (가입 전이라 친구를 맺을 수 없어요)</span>}
+        {relation === 'none' && !otherGuest && (
           <button type="button" style={styles.primary} disabled={busy} onClick={() => run(() => request(otherId))}>
             친구 추가
           </button>
