@@ -72,6 +72,7 @@ import { topic, toward } from '../lib/josa'
 import { Benches, Building, Fence, Ground, Lamps, Trees } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
+import { NightFill, StringLights } from './StreetLights'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
@@ -398,6 +399,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.ground === 'lawn' ? <Trees trees={PLAZA.trees} /> : <LushTrees trees={PLAZA.trees} />}
         {PLAZA.ground === 'lawn' ? <Benches benches={PLAZA.benches} /> : <GardenBenches benches={PLAZA.benches} />}
         <Lamps lamps={PLAZA.lamps} />
+        {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
+        {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
+        {PLAZA.ground !== 'lawn' && <NightFill />}
         {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
         {PLAZA.board && <RankingBoard board={PLAZA.board} ranking={todayRanking} photos={boardPhotos} />}
         {PLACED.map((b) => (
