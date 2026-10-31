@@ -19,7 +19,7 @@ const GOLD = CHALK.gold
 const FACE_PX = { 1: 88, 2: 48, 3: 48 } as const // 시상대 얼굴 지름
 const ROW_FACE_PX = 30 // 4위부터 줄의 얼굴 지름
 // 분필 번짐 (글씨 그림자)
-const CHALK_SHADOW = '0 0 2px rgba(255,255,255,.55), 1px 1px 0 rgba(255,255,255,.12)'
+const CHALK_SHADOW = '0 0 1px rgba(255,255,255,.35)'
 
 type Props = {
   myId: string | null
@@ -119,7 +119,7 @@ function Face({ photo, name, size, gold = false }: { photo?: string; name: strin
   const ring: CSSProperties = {
     width: size, height: size, borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', overflow: 'hidden',
     border: `${size > 40 ? 3 : 2}px dashed ${gold ? GOLD : 'rgba(255,255,255,.8)'}`, background: 'rgba(255,255,255,.08)',
-    display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: size * 0.42, textShadow: CHALK_SHADOW,
+    display: 'grid', placeItems: 'center', fontWeight: 400, fontSize: size * 0.42, textShadow: CHALK_SHADOW,
   }
   return <span style={ring}>{photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initialOf(name)}</span>
 }
@@ -169,11 +169,11 @@ const styles: Record<string, CSSProperties> = {
   emptyCell: {},
   crown: { color: GOLD, fontSize: 26, lineHeight: 1, marginBottom: -2 },
   cellRank: { fontWeight: 700, fontSize: 18, lineHeight: 1 },
-  cellName: { fontWeight: 700, marginTop: 6, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cellName: { fontWeight: 400, marginTop: 6, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cellTime: { fontSize: 13, opacity: 0.85 },
   rowMine: { background: 'rgba(255,233,168,.12)' },
   rank: { fontWeight: 700, color: GOLD },
-  name: { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  name: { fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   time: { opacity: 0.85 },
   me: { marginTop: 12, padding: 12, borderRadius: 10, border: `1px dashed ${CHALK.yellow}`, background: 'rgba(255,233,168,.1)', display: 'grid', gap: 4, textShadow: CHALK_SHADOW },
   meLabel: { fontWeight: 700, color: CHALK.yellow },
