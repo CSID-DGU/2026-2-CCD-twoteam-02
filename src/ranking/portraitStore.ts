@@ -51,3 +51,37 @@ export function failPortrait(key: string) {
   failed.add(key)
   done(key)
 }
+
+// ── 찍는 순서 (PortraitStudio 가 장면마다 부름) ──────────────────────────
+// 준비(스킨·얼굴 판·머리카락이 다 붙음) → SETTLE_MS 기다림 → 카메라 겨누기 → 다음 장면에서 찍기.
+// 시간 초과는 "아직 준비 안 됨"일 때만, 벽시계가 아니라 그린 장면 수로 셉니다.
+// (다른 탭에 다녀오면 그동안 장면이 멈추므로, 돌아와서 바로 실패로 굳지 않게)
+export const SETTLE_MS = 600 // 다 붙은 뒤 한 번 더 기다리는 시간
+export const TIMEOUT_FRAMES = 600 // 이만큼 그려도 준비가 안 되면 못 찍은 것으로 (60fps 에서 약 10초)
+
+export type CaptureStep = { frames: number; readyAt: number | null; aimed: boolean; done: boolean }
+export type CaptureAction = 'wait' | 'aim' | 'shoot' | 'fail'
+
+export const newCaptureStep = (): CaptureStep => ({ frames: 0, readyAt: null, aimed: false, done: false })
+
+export function captureAction(s: CaptureStep, now: number, ready: boolean): CaptureAction {
+  if (s.done) return 'wait'
+  if (s.readyAt === null) {
+    if (ready) {
+      s.readyAt = now
+      return 'wait'
+    }
+    if (++s.frames > TIMEOUT_FRAMES) {
+      s.done = true
+      return 'fail'
+    }
+    return 'wait'
+  }
+  if (now - s.readyAt < SETTLE_MS) return 'wait'
+  if (!s.aimed) {
+    s.aimed = true
+    return 'aim'
+  }
+  s.done = true
+  return 'shoot'
+}

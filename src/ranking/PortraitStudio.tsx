@@ -4,7 +4,7 @@
 // 스킨·얼굴 판·머리카락이 붙으면 머리 쪽으로 카메라를 맞춰 한 장 찍어 그림(dataURL)으로 저장합니다.
 // 사람마다 3D 화면을 만들지 않고 이 화면 하나로 차례대로 찍습니다(브라우저가 여는 3D 화면 수 제한, #137).
 // 찍을 것이 없으면 캔버스를 아예 만들지 않습니다.
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
@@ -13,15 +13,16 @@ import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
 import { useFace } from '../tracking/useFace'
 import { useHair } from '../tracking/useHair'
-import { failPortrait, nextPortrait, savePortrait, subscribePortraits } from './portraitStore'
+import { findPart, parseAvatarKey } from '../avatar/avatarLogic'
+import { captureAction, failPortrait, newCaptureStep, nextPortrait, savePortrait, subscribePortraits } from './portraitStore'
+import type { CaptureStep } from './portraitStore'
 
 const SIZE = 160 // 찍는 사진 한 변(px)
 const FOV = 30
 const SCALE = 0.6 // 지점과 같은 캐릭터 크기
-const SETTLE_MS = 600 // 스킨·얼굴이 보인 뒤 머리카락이 붙을 때까지 기다리는 시간
-const TIMEOUT_MS = 8000 // 이 안에 준비가 안 되면 못 찍은 것으로 (이니셜로 보임)
 const MARGIN = 1.25 // 머리 둘레보다 이만큼 넓게 찍음
 const HEAD_NODE = 'head'
+const HAIR_NODE = 'hair' // useHair 가 머리에 붙이는 머리카락 이름
 
 export function PortraitStudio() {
   const key = useSyncExternalStore(subscribePortraits, nextPortrait)
@@ -36,13 +37,13 @@ export function PortraitStudio() {
         <ambientLight intensity={1.5} />
         <directionalLight position={[2, 4, 4]} intensity={1.2} />
         {/* key: 차림마다 새로 세워 이전 차림의 상태가 남지 않게 */}
-        <Sitter key={key} model={key} />
+        <Suspense fallback={null}>
+          <Sitter key={key} model={key} />
+        </Suspense>
       </Canvas>
     </div>
   )
 }
-
-type Step = { start: number; readyAt: number | null; aimed: boolean; done: boolean }
 
 function Sitter({ model }: { model: string }) {
   const group = useRef<THREE.Group>(null!)
@@ -58,30 +59,21 @@ function Sitter({ model }: { model: string }) {
   }, [actions])
 
   const { gl, camera } = useThree()
-  const step = useRef<Step | null>(null)
+  const step = useRef<CaptureStep>(newCaptureStep())
+  // 머리카락이 있는 차림이면 머리카락까지 붙어야 준비된 것 (안 그러면 대머리로 찍혀 계속 남음)
+  const needsHair = useMemo(() => !!findPart('hair', parseAvatarKey(model).hair)?.model, [model])
 
   useFrame(() => {
-    const now = performance.now()
-    const s = (step.current ??= { start: now, readyAt: null, aimed: false, done: false })
-    if (s.done) return
-    if (s.readyAt === null && copy.visible && face.mesh.visible) s.readyAt = now
-    if (s.readyAt === null || now - s.readyAt < SETTLE_MS) {
-      if (now - s.start > TIMEOUT_MS) {
-        s.done = true
+    const ready = copy.visible && face.mesh.visible && (!needsHair || !!copy.getObjectByName(HAIR_NODE))
+    const action = captureAction(step.current, performance.now(), ready)
+    if (action === 'fail') failPortrait(model)
+    else if (action === 'aim') aimAtHead(copy, camera as THREE.PerspectiveCamera) // 맞춘 카메라로 한 번 그린 뒤 다음 장면에서 찍음
+    else if (action === 'shoot') {
+      try {
+        savePortrait(model, gl.domElement.toDataURL('image/png'))
+      } catch {
         failPortrait(model)
       }
-      return
-    }
-    if (!s.aimed) {
-      aimAtHead(copy, camera as THREE.PerspectiveCamera)
-      s.aimed = true
-      return // 맞춘 카메라로 한 번 그린 뒤 다음 장면에서 찍음
-    }
-    s.done = true
-    try {
-      savePortrait(model, gl.domElement.toDataURL('image/png'))
-    } catch {
-      failPortrait(model)
     }
   })
 
