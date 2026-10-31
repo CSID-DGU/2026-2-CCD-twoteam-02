@@ -13,12 +13,12 @@ type Props = {
   myId: string
   onOpen: (view: PanelView) => void
   onLobby?: () => void // 지점에서만: 바깥(광장·캠퍼스)으로 나가기
-  lobbyLabel?: string // 나가기 버튼 글자 (없으면 "광장으로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
+  lobbyLabel?: string // 나가기 버튼 글자 (없으면 "캠리단길로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
   onTracking?: () => void // 지점에서만: 트래킹 검증 화면으로 가는 버튼
   onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 시간 조절판 열기·닫기
 }
 
-export function SceneMenu({ myId, onOpen, onLobby, onTracking, onSkyTime, lobbyLabel = '광장으로' }: Props) {
+export function SceneMenu({ myId, onOpen, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로' }: Props) {
   const keys = useKeymap()
   const team = useIsTeam(myId)
   return (

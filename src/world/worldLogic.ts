@@ -50,7 +50,7 @@ export type PlazaLayout = {
   size: { w: number; d: number } // 월드 전체 (가운데 0, 0)
   plaza: { w: number; d: number } // 가운데 바닥 (광장 돌바닥, 캠퍼스 쿼드)
   ground?: 'stone' | 'lawn' // 가운데 바닥 모양. 없으면 돌바닥(광장), lawn 이면 잔디 쿼드(캠퍼스)
-  title?: string // 이 월드의 이름 (안내·지도). 없으면 "광장"
+  title?: string // 이 월드의 이름 (안내·지도). 없으면 "광장" (지금 광장은 "캠리단길")
   spawn: { x: number; z: number; heading: number } // 주소로 바로 들어오면 서는 자리
   fountain?: { x: number; z: number; r: number } // 가운데 분수 (캠퍼스에는 없음)
   gates?: GateSpec[]

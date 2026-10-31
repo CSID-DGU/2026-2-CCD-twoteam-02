@@ -16,7 +16,7 @@ export const ELSEWHERE = 'elsewhere'
 
 // 있는 곳을 사람이 읽는 이름으로
 export function placeLabel(place: string): string {
-  if (place === LOBBY_PLACE) return '광장' // 첫 화면이 로비 방에서 광장으로 바뀜 (#315). 내부 이름은 lobby 그대로
+  if (place === LOBBY_PLACE) return '캠리단길' // 첫 화면(광장 월드). 이름만 캠리단길, 내부 이름은 lobby 그대로 (#315)
   if (place === CAMPUS_PLACE) return '캠빛 대학교'
   if (place.startsWith(MEETING_PLACE_PREFIX)) {
     const name = BRANCH_LAYOUTS[place.slice(MEETING_PLACE_PREFIX.length)]?.name

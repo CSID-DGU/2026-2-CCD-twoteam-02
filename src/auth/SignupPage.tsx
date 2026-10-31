@@ -106,7 +106,7 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
         <label style={styles.label}>
           생일 (선택)
           <BirthdayInput value={birthday} onChange={setBirthday} />
-          <span style={{ fontSize: 12, opacity: 0.7 }}>광장 밤하늘에서 내 별자리를 찾아 줘요. 태어난 해는 받지 않고, 나만 볼 수 있어요.</span>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>캠리단길 밤하늘에서 내 별자리를 찾아 줘요. 태어난 해는 받지 않고, 나만 볼 수 있어요.</span>
         </label>
 
         <label style={styles.label}>
