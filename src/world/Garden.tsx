@@ -18,11 +18,11 @@ import { benchIronShape, benchWoodShape } from './benchShapes'
 
 // 종류별 모양·색조 (색조: 초록만 있는 모양은 재질 색이 초록, 꽃이 있는 모양은 흰색)
 const KINDS: Record<PlantKind | 'tuft', { shape: () => THREE.BufferGeometry; tint: string; sway: boolean; jitter: number }> = {
-  tuft: { shape: tuftShape, tint: '#6fa64f', sway: true, jitter: 0.18 },
-  bush: { shape: bushShape, tint: '#4c8a45', sway: false, jitter: 0.15 },
+  tuft: { shape: tuftShape, tint: '#a4dc5e', sway: true, jitter: 0.18 },
+  bush: { shape: bushShape, tint: '#86c656', sway: false, jitter: 0.15 },
   rose: { shape: roseShape, tint: '#ffffff', sway: false, jitter: 0.08 },
   lavender: { shape: lavenderShape, tint: '#ffffff', sway: true, jitter: 0.08 },
-  fern: { shape: fernShape, tint: '#5f9e4a', sway: true, jitter: 0.15 },
+  fern: { shape: fernShape, tint: '#98d25c', sway: true, jitter: 0.15 },
   daisy: { shape: daisyShape, tint: '#ffffff', sway: true, jitter: 0.06 },
 }
 

@@ -13,7 +13,7 @@ export const COLOR = {
   path: '#cfc2aa',
   brick: '#cf9474', // 캠리단길 벽돌 길 (무늬 그림의 색조)
   gravel: '#cfc6b6', // 캠리단길 자갈 띠
-  meadow: '#86b86a', // 캠리단길 잔디 (무늬 그림의 색조)
+  meadow: '#a9d878', // 캠리단길 잔디 (무늬 그림의 색조)
   stone: '#b9b2a6',
   water: '#5fb3d9',
   waterLight: '#8ccfeb',
