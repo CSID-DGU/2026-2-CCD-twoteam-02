@@ -16,6 +16,10 @@ const TABLE: [RegExp, string][] = [
   [/token has expired or is invalid|otp_expired/i, '링크가 만료되었거나 이미 사용되었습니다. 재설정 메일을 다시 받아 주세요.'],
   [/auth session missing|session_not_found/i, '로그인 정보가 없습니다. 메일의 링크를 다시 눌러 주세요.'],
   [/same as the existing|email address is the same/i, '지금 쓰는 이메일과 같습니다.'],
+  // 게스트 입장 (#375)
+  [/anonymous sign-ins are disabled|anonymous_provider_disabled/i, '게스트 입장이 아직 꺼져 있어요. 가입하거나 잠시 뒤 다시 해 주세요.'],
+  [/database error saving new user/i, '계정을 만들지 못했어요. 닉네임을 바꿔 다시 해 주세요.'],
+  [/쓸 수 없는 낱말/, '쓸 수 없는 낱말이 들어 있어요. 다른 닉네임을 정해 주세요.'],
 ]
 
 export function toKoreanMessage(message: string): string {
