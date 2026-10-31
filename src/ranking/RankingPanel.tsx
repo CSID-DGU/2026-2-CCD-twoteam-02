@@ -130,8 +130,8 @@ function PodiumCell({ slot, photo, mine, onOpen }: { slot: PodiumSlot; photo?: s
   return (
     <button type="button" style={{ ...styles.cell, ...(mine ? styles.rowMine : null) }} onClick={() => onOpen(slot.row.id)} title="프로필 보기">
       {first && <span style={styles.crown}>♛</span>}
-      <Face photo={photo} name={slot.name} size={FACE_PX[slot.place]} gold={first} />
       <span style={{ ...styles.cellRank, ...(first ? { color: GOLD, fontSize: 24 } : null) }}>{slot.row.rank}</span>
+      <Face photo={photo} name={slot.name} size={FACE_PX[slot.place]} gold={first} />
       <span style={{ ...styles.cellName, fontSize: first ? 19 : 15 }}>{slot.name}</span>
       <span style={styles.cellTime}>{minutesText(slot.row.minutes)}</span>
     </button>
@@ -163,12 +163,12 @@ const styles: Record<string, CSSProperties> = {
   },
   podium: { display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', alignItems: 'end', gap: 6, margin: '4px 0 12px' },
   cell: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 2px', borderRadius: 8, border: 'none',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 2px', borderRadius: 8, border: 'none',
     background: 'transparent', color: CHALK.white, font: 'inherit', cursor: 'pointer', textShadow: CHALK_SHADOW, minWidth: 0,
   },
   emptyCell: {},
-  crown: { color: GOLD, fontSize: 30, lineHeight: 1 },
-  cellRank: { fontWeight: 700, fontSize: 17, marginTop: 2 },
+  crown: { color: GOLD, fontSize: 26, lineHeight: 1, marginBottom: -2 },
+  cellRank: { fontWeight: 700, fontSize: 18, lineHeight: 1 },
   cellName: { fontWeight: 700, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cellTime: { fontSize: 13, opacity: 0.85 },
   rowMine: { background: 'rgba(255,233,168,.12)' },

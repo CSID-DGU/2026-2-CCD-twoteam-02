@@ -27,7 +27,9 @@ const TITLE_Y = 0.12 // 제목 띠 가운데 (판 높이 비율)
 const RULE_Y = 0.22 // 제목 아래 점선
 const SLOT_X = [0.25, 0.5, 0.75] // 시상대 칸 가운데 (2등, 1등, 3등)
 const FACE_R = { 1: 132, 2: 76, 3: 76 } as const // 얼굴 동그라미 반지름(px)
-const BOTTOM = { min: 728, name: 676, rank: 622 } // 아래에서부터 시간·이름·등수 줄 높이(px)
+// 칸 안 줄 배치: 위에서부터 [왕관] 등수 → 얼굴 → 이름 → 시간. 아래 끝을 맞춰 1등 칸이 더 높이 솟음
+const BOTTOM = { min: 736, name: 682 } // 시간·이름 줄 높이(px)
+const GAP = { name: 40, rank: 44, crown: 46 } // 얼굴 아래 끝→이름, 얼굴 위 끝→등수, 등수→왕관 간격(px)
 
 // 칸 하나: [자리, 등수, 이름, 분, 사진 주소]
 type Slot = [1 | 2 | 3, number, string, number, string] | null
@@ -88,7 +90,8 @@ function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, 
     const [place, rank, name, minutes, url] = slot
     const x = w * SLOT_X[i]
     const r = FACE_R[place]
-    const cy = BOTTOM.rank - 44 - r
+    const cy = BOTTOM.name - GAP.name - r
+    const rankY = cy - r - GAP.rank
     // 얼굴: 동그라미 안에 캐릭터 사진, 없으면 이니셜
     ctx.save()
     ctx.beginPath()
@@ -103,9 +106,9 @@ function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, 
     ctx.restore()
     if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9, bold: true })
     chalkCircle(ctx, x, cy, r, place === 1 ? CHALK.gold : CHALK.white, place === 1 ? 6 : 5)
-    if (place === 1) crown(ctx, x, cy - r - 12, 42)
     const first = place === 1
-    chalkText(ctx, `${rank}`, x, BOTTOM.rank, { size: first ? 66 : 46, bold: true, color: first ? CHALK.gold : CHALK.white })
+    chalkText(ctx, `${rank}`, x, rankY, { size: first ? 66 : 50, bold: true, color: first ? CHALK.gold : CHALK.white })
+    if (first) crown(ctx, x, rankY - GAP.crown, 34)
     chalkText(ctx, name, x, BOTTOM.name, { size: first ? 54 : 40, bold: true, maxWidth: w * 0.22 })
     chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 34, maxWidth: w * 0.22 })
   })
