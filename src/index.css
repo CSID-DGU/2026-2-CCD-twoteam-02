@@ -26,6 +26,14 @@
   font-weight: 400;
   font-display: swap;
 }
+/* 가방 속 스터디 플래너·메모에 직접 쓰는 글씨: 그리운X국한박 오춘기 김작가 © 그리운 × 국립한글박물관
+   무료(웹 임베딩 허용, 파일 수정·판매 금지). 그리운 공식 페이지가 주는 웹폰트 주소 그대로 씁니다. */
+@font-face {
+  font-family: 'OchungiKim';
+  src: url('https://d26ciffk7xlrlz.cloudfront.net/free-fonts/hangeulochungikim/GriunXHangeulOCHUNGIKIM-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
 
 :root {
   --text: #6b6375;
