@@ -78,6 +78,9 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
+import { useFollowArrival } from '../friends/useFollow'
+import type { Teleport } from '../friends/useFollow'
+import { useChat } from '../chat/chatContext'
 import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
 import type { AimTarget } from '../space/aimLogic'
@@ -188,6 +191,27 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const emote = useRef(newEmoteState())
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const others = useParticipants(world.channel, me)
+
+  // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
+  const teleport = useRef<Teleport | null>(null)
+  const chat = useChat()
+  const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
+  useFollowArrival({
+    place: world.place,
+    others,
+    spots: sitSpots,
+    obstacles: OBSTACLES,
+    bounds: PLAZA.size,
+    teleportRef: teleport,
+    onArrive: (friendId, reason, found, nickname) => {
+      if (!found) {
+        chat?.note('친구 위치를 찾지 못해 입구로 왔어요.')
+        return
+      }
+      chat?.note(`${nickname ?? '친구'} 님 옆으로 왔어요.`)
+      chat?.tellArrived(friendId, reason)
+    },
+  })
   // 캐릭터 숨김 모드(실험 B 조건)면 광장에서도 다른 참여자를 그리지 않습니다.
   const [condition] = useState(() => currentCondition(location.search))
   // 사이트 전체 접속 상태에 "광장에 있음"(내부 이름은 lobby 그대로)으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
@@ -429,6 +453,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             sitRef={cafe.sitRequest}
             aimRef={aim.current}
             onAim={openAim}
+            teleportRef={teleport}
             onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z

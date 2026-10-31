@@ -32,6 +32,9 @@ import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
 import { useWalkView } from "./useWalkView";
 import { useAim } from "./useAim";
+import { useFollowArrival } from "../friends/useFollow";
+import type { Teleport } from "../friends/useFollow";
+import { useChat } from "../chat/chatContext";
 import type { AimTarget } from "./aimLogic";
 import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
@@ -196,6 +199,25 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
+  // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
+  const teleport = useRef<Teleport | null>(null);
+  const chat = useChat();
+  useFollowArrival({
+    place: branch.id,
+    others,
+    spots,
+    obstacles,
+    bounds: branch.size,
+    teleportRef: teleport,
+    onArrive: (friendId, reason, found, nickname) => {
+      if (!found) {
+        chat?.note("친구 위치를 찾지 못해 입구로 왔어요.");
+        return;
+      }
+      chat?.note(`${nickname ?? "친구"} 님 옆으로 왔어요.`);
+      chat?.tellArrived(friendId, reason);
+    },
+  });
   // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
   // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
   const { search } = useLocation();
@@ -582,6 +604,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           aimRef={aim.current}
           onAim={(t) => setPanel({ kind: "profile", userId: t.id })}
           onMove={handleMove}
+          teleportRef={teleport}
           headingRef={view === "first" ? heading : undefined}
         />
       )}

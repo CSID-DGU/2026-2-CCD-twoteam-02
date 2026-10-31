@@ -2,7 +2,7 @@
 //
 // 지점에서 캐릭터를 눌러 프로필을 열었을 때, 닉네임#태그를 복사해 친구 화면에서 다시 찾지 않고
 // 그 자리에서 바로 요청을 보낼 수 있게 합니다. 관계에 따라 보이는 것이 다릅니다.
-//   관계 없음 → 친구 추가 / 내가 요청함 → 요청 보냄 + 취소 / 상대가 요청함 → 수락 / 친구 → 친구
+//   관계 없음 → 친구 추가 / 내가 요청함 → 요청 보냄 + 취소 / 상대가 요청함 → 수락 / 친구 → 친구 (귓속말·그룹 초대·따라가기·부르기)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useSession } from '../auth/useSession'
@@ -10,6 +10,7 @@ import { otherOf, relationOf } from './friendsLogic'
 import { useFriends } from './useFriends'
 import { WhisperButton } from '../chat/WhisperButton'
 import { GroupInviteButton } from '../chat/GroupInviteButton'
+import { FollowButtons } from './FollowButtons'
 
 export function FriendButton({ otherId }: { otherId: string }) {
   const { session } = useSession()
@@ -58,6 +59,7 @@ export function FriendButton({ otherId }: { otherId: string }) {
             <span style={styles.friend}>✓ 친구</span>
             <WhisperButton friendId={otherId} />
             <GroupInviteButton friendId={otherId} onMessage={setMessage} />
+            <FollowButtons friendId={otherId} onMessage={setMessage} />
           </>
         )}
       </div>

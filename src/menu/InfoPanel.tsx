@@ -16,6 +16,7 @@ import { WorldMap } from '../map/WorldMap'
 import type { MapHere } from '../map/WorldMap'
 import { ReportPanel } from '../report/ReportPanel'
 import { ReportsPanel } from '../report/ReportsPanel'
+import { useFollowKey } from '../friends/useFollow'
 
 const TITLE: Record<PanelView['kind'], string> = {
   records: '내 기록', friends: '친구', profile: '프로필', settings: '설정', map: '전체 지도', report: '신고하기', reports: '신고 목록',
@@ -36,6 +37,13 @@ export function InfoPanel({ initial, myId, onClose, invite, here }: Props) {
   useEffect(() => {
     if (openKey !== firstOpenKey) onClose()
   }, [openKey, firstOpenKey, onClose])
+
+  // 친구 [따라가기]·부름 [가기]를 누르면 친구 옆으로 가도록 이 창은 닫습니다.
+  const followKey = useFollowKey()
+  const [firstFollowKey] = useState(followKey)
+  useEffect(() => {
+    if (followKey !== firstFollowKey) onClose()
+  }, [followKey, firstFollowKey, onClose])
 
   // Esc 로도 닫습니다.
   useEffect(() => {

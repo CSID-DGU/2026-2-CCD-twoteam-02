@@ -7,8 +7,8 @@ import type { GroupInvite } from './useGroup'
 export type ChatLine = {
   id: number
   at: number // 받은·보낸 시각 (ms)
-  // 받은 말 / 보낸 말 / 안내 / 받은 회의 초대 (#45) / 받은 그룹 초대 (#298)
-  kind: 'in' | 'out' | 'system' | 'invite' | 'groupInvite'
+  // 받은 말 / 보낸 말 / 안내 / 받은 회의 초대 (#45) / 받은 그룹 초대 (#298) / 받은 부름 (친구 부르기)
+  kind: 'in' | 'out' | 'system' | 'invite' | 'groupInvite' | 'summon'
   peer?: Friend // 귓속말·초대는 상대, 받은 그룹·회의 채팅은 말한 사람 (보낸 그룹·회의 채팅은 없음)
   room?: { kind: 'group' | 'meeting'; key: string } // 그룹·회의 채팅 줄이면 그 방 (#298). key 로 색을 정함
   text: string
@@ -44,6 +44,9 @@ export type ChatValue = {
   setMeeting: (meeting: (MeetingRoom & { send: (text: string) => Promise<boolean> }) | null) => void
   receiveMeeting: (from: string, payload: unknown) => void
   sendInvite: (to: string, meetingId: number) => Promise<boolean> // 회의 초대 알림 (#45). 친구가 접속해 있지 않으면 false
+  // 친구 부르기·따라가기 (src/friends/followLogic). 부르기는 친구가 접속해 있지 않으면 false
+  sendSummon: (to: string) => Promise<boolean>
+  tellArrived: (to: string, how: 'follow' | 'summon') => void // 친구 옆에 도착했다고 알림 ("따라왔어요"·"왔어요")
   note: (text: string) => void // 로그에 안내 한 줄
   quiet: boolean // 방해금지인지 (공부를 시작하면 자동으로 켜짐, 언제든 직접 끄고 켬, #216)
   quietLocked: boolean // 지점 규칙으로 방해금지가 고정됨 (캠빛 대학교 도서관). 끌 수 없음

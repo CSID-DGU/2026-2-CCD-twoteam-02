@@ -16,6 +16,7 @@ import { holdStandingPose } from './standStill'
 import { getKeymap } from '../menu/keymap'
 import { inAir, jumpHeight } from './jumpLogic'
 import type { AimTarget } from './aimLogic'
+import type { Teleport } from '../friends/useFollow'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -68,9 +69,11 @@ type Props = {
   // 앉아 있을 때는 보지 않고 E 는 언제나 일어나기입니다. (#354)
   aimRef?: RefObject<AimTarget | null>
   onAim?: (target: AimTarget) => void
+  // 바깥에서 "여기로 옮겨라" 요청 (친구 따라가기·부르기, useFollowArrival). 앉아 있으면 먼저 일어납니다.
+  teleportRef?: RefObject<Teleport | null>
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -179,6 +182,24 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     jumpKey.current = false
     const jumped = (performance.now() - jumpStart.current) / 1000
     p.y = seated.current ? 0 : jumpHeight(jumped)
+
+    // 친구 옆으로 옮기기 (창이 떠 있어도). 앉아 있으면 일어나서 옮깁니다.
+    const tp = teleportRef?.current
+    if (tp && teleportRef) {
+      teleportRef.current = null
+      if (seated.current) {
+        seated.current = null
+        g.visible = true
+        onSeat(null)
+      }
+      stopEmote()
+      p.x = tp.x
+      p.z = tp.z
+      g.rotation.y = tp.heading
+      if (headingRef) headingRef.current = tp.heading // 1인칭이면 친구를 바라보며 섬
+      play('idle')
+      return
+    }
 
     // 다른 창이 떠 있는 동안에는 키 입력을 무시하고 제자리에 서 있습니다.
     if (frozen) {
