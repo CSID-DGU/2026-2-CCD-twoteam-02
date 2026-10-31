@@ -37,6 +37,7 @@ import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
 import { EmoteControls } from "./EmoteControls";
 import { newEmoteState } from "./emotes";
+import { AmbienceControl } from "./AmbienceControl";
 import { currentCondition } from "../study/condition";
 import { InfoPanel } from "../menu/InfoPanel";
 import { SceneMenu } from "../menu/SceneMenu";
@@ -639,6 +640,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     >
       이 지점 접속 인원 {others.length + 1}명
     </div>
+    {/* 배경 소리 (휴식방 물소리). 지점 JSON 의 ambience 가 있는 곳에서만, 나가면 꺼짐 */}
+    {branch.ambience && <AmbienceControl kind={branch.ambience} />}
     <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
     {/* 감정표현: 숫자키 1~8, X 바퀴 (#162). 창이 떠 있거나 앉아 있으면 쓰지 않습니다. */}
     <EmoteControls

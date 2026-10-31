@@ -2,6 +2,7 @@
 import { LOUNGER, decorBoxes, stoolBoxes } from './theme'
 import type { BranchTheme } from './theme'
 import type { BranchRules } from './rulesLogic'
+import type { AmbienceKind } from './ambience'
 
 export type Box = { x: number; z: number; w: number; d: number }
 
@@ -23,6 +24,7 @@ export type BranchLayout = {
   // 회의실 방 자체는 지점에 그리지 않습니다(위에서 보기에도 안 보임). 문도 부딪히는 상자입니다. (#45)
   meetingDoor?: Box
   rest?: boolean // 휴식방: 누워 쉬기만 하고 공부 시작 창·트래킹·타이머를 띄우지 않음 (숨 라운지)
+  ambience?: AmbienceKind // 들어가면 깔리는 배경 소리 (ambience.ts, 예: 숨 라운지 물소리). 없으면 조용함
   rules?: BranchRules // 건물별 공부 규칙 (고정 설정·방해금지 고정·감정표현, rulesLogic.ts). 없으면 지금처럼
   elevator?: Box // 엘리베이터 문 (서쪽·동쪽 벽). 여러 층 건물(world.json floors)의 지점에만. 앞에서 E 로 다른 층으로
   kiosk?: { x: number; z: number }

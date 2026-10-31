@@ -2,6 +2,7 @@
 // 새 지점을 만들면 JSON 을 추가하고 여기에 한 줄 넣습니다. (DB에도 지점·좌석을 넣어야 함)
 import type { BranchLayout } from '../layout'
 import type { BranchTheme } from '../theme'
+import type { AmbienceKind } from '../ambience'
 import byeol from './byeol.json'
 import sol from './sol.json'
 import olive from './olive.json'
@@ -30,7 +31,7 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   moss: { ...moss, seats: moss.seats as BranchLayout['seats'], theme: moss.theme as BranchTheme },
   stream: { ...stream, seats: stream.seats as BranchLayout['seats'], theme: stream.theme as BranchTheme },
   // 휴식방 숨 라운지 (올리브 테라스 건물 4층): 둥근 방·천창·라운지 소파 12개, 누워 쉬기만 함(rest)
-  breath: { ...breath, seats: breath.seats as BranchLayout['seats'], theme: breath.theme as BranchTheme },
+  breath: { ...breath, seats: breath.seats as BranchLayout['seats'], theme: breath.theme as BranchTheme, ambience: breath.ambience as AmbienceKind },
   // 캠빛 대학교 캠퍼스 건물 (src/world/campus.json): 도서관(칸막이·조용함 규칙)·강의동(계단식·칠판)·정보관(컴퓨터·다른 화면 허용)·
   // 학생회관 카페·학생 라운지(휴식). 건물별 공부 규칙은 rules(rulesLogic.ts), 휴식은 rest.
   'cambit-library': { ...cambitLibrary, seats: cambitLibrary.seats as BranchLayout['seats'], theme: cambitLibrary.theme as BranchTheme },
