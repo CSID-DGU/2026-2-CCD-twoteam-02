@@ -4,12 +4,15 @@
 // 밤에는 가로등 등과 창문이 빛납니다. 빛나는 정도는 WorldSky 가 매 프레임 setNightGlow 로 바꿉니다.
 // (.tsx 에서 컴포넌트가 아닌 것을 내보내면 개발 서버의 빠른 새로고침이 깨져서 따로 둔 파일입니다)
 import * as THREE from 'three'
+import { groundTextures } from './worldTextures'
 
 // 색
 export const COLOR = {
   grass: '#7cb36b',
   plaza: '#d9cdb8',
   path: '#cfc2aa',
+  brick: '#cf9474', // 캠리단길 벽돌 길 (무늬 그림의 색조)
+  gravel: '#cfc6b6', // 캠리단길 자갈 띠
   stone: '#b9b2a6',
   water: '#5fb3d9',
   waterLight: '#8ccfeb',
@@ -36,6 +39,8 @@ export const MAT = {
   grass: mat(COLOR.grass),
   plaza: mat(COLOR.plaza),
   path: mat(COLOR.path),
+  brick: mat(COLOR.brick),
+  gravel: mat(COLOR.gravel),
   stone: mat(COLOR.stone),
   water: mat(COLOR.water),
   trunk: mat(COLOR.trunk),
@@ -94,6 +99,8 @@ addSnowy(MAT.leavesTop, SNOW_PART.full)
 addSnowy(MAT.leaves, SNOW_PART.half)
 addSnowy(MAT.plaza, SNOW_PART.half)
 addSnowy(MAT.path, SNOW_PART.half)
+addSnowy(MAT.brick, SNOW_PART.half)
+addSnowy(MAT.gravel, SNOW_PART.full)
 
 // 지붕 전용 재질 (색별로 한 번만). 눈이 오면 다 덮임
 const roofMats = new Map<string, THREE.MeshStandardMaterial>()
@@ -123,4 +130,19 @@ export function setSnowCover(cover: number) {
   if (c === lastCover) return
   lastCover = c
   for (const s of snowy) s.mat.color.copy(s.base).lerp(SNOW_COLOR, c * s.part)
+}
+
+// 캠리단길 바닥 무늬(돌·벽돌·자갈)를 재질에 붙입니다. 처음 그릴 때 한 번만 (캔버스는 브라우저에서만 만들 수 있어 모듈을 읽을 때가 아니라 그때)
+const BUMP = 1.2 // 요철 세기
+let textured = false
+export function applyGroundTextures() {
+  if (textured) return
+  textured = true
+  const t = groundTextures()
+  for (const [m, pair] of [[MAT.plaza, t.cobble], [MAT.brick, t.brick], [MAT.gravel, t.gravel]] as const) {
+    m.map = pair.map
+    m.bumpMap = pair.bump
+    m.bumpScale = BUMP
+    m.needsUpdate = true
+  }
 }

@@ -16,11 +16,11 @@ export type WorldConfig = {
   channel: string // 실시간 방 (같은 월드에 있는 사람끼리 보임)
   place: string // 사이트 전체 접속 상태의 "있는 곳"
   path: string // 주소
-  title: string // 안내 글자 ("광장", "캠빛 대학교")
+  title: string // 안내 글자 ("캠리단길", "캠빛 대학교")
 }
 
 // JSON 은 facing·kind 가 string 으로 읽혀 타입만 맞춥니다. (값은 worldLogic 검사로 확인)
-export const PLAZA_WORLD: WorldConfig = { id: 'plaza', layout: world as PlazaLayout, channel: LOBBY_CHANNEL, place: LOBBY_PLACE, path: '/', title: '광장' }
+export const PLAZA_WORLD: WorldConfig = { id: 'plaza', layout: world as PlazaLayout, channel: LOBBY_CHANNEL, place: LOBBY_PLACE, path: '/', title: (world as PlazaLayout).title ?? '캠리단길' }
 export const CAMPUS_WORLD: WorldConfig = {
   id: 'campus',
   layout: campus as PlazaLayout,

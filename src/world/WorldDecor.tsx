@@ -1,17 +1,16 @@
-// 광장 월드를 그리는 부품 (#315): 땅·길, 건물 바깥, 분수, 나무, 벤치, 가로등, 울타리.
+// 광장 월드를 그리는 부품 (#315): 땅·길, 건물 바깥, 나무, 벤치, 가로등, 울타리. (분수는 Fountain.tsx)
 //
 // 모두 상자·원기둥·원뿔·구로 코드에서 그립니다(외부 모델 없음). 배치 값은 world.json 과 worldLogic.ts 에서 받습니다.
 // 성능: 그림자는 끄고, 같은 모양이 여럿인 나무·벤치·가로등은 drei 의 Instances 로 그립니다.
 //   Instances(인스턴싱): 같은 모양을 위치만 바꿔 한 번의 그리기 명령으로 여러 개 그리는 방법. 나무 40그루도 그리기 횟수는 몇 번뿐입니다.
 // 색·재질은 worldMaterials.ts 에서 한 번 만들어 같이 씁니다. (밤에 가로등·창문이 빛나는 것도 거기서, #316)
-import { useEffect, useMemo } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useMemo } from 'react'
 import { Instance, Instances } from '@react-three/drei'
-import * as THREE from 'three'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
-import { BENCH, facingAngle, fenceSegments, rotate } from './worldLogic'
+import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-import { COLOR, MAT, colorMat, lawnMat, roofMat } from './worldMaterials'
+import { MAT, applyGroundTextures, colorMat, lawnMat, roofMat } from './worldMaterials'
+import { TILE, tiledPlane } from './worldTextures'
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -21,21 +20,22 @@ const DOOR_H = 2.2 // 입구 문 높이 (지점 출입문과 같음)
 const SIGN = { width: 2.4, y: 2.85 } // 입구 위 간판
 const WINDOW = { w: 2, h: 1.2, y: 1.7 } // 창문 판
 const FENCE_H = 0.8
-const LAYER = { plaza: 0.01, path: 0.02 } // 땅 위로 띄우는 높이 (겹친 판이 깜빡이지 않게)
-const FOUNTAIN = { basinH: 0.6, rim: 0.3, pillarR: 0.3, pillarH: 1.6, bowlR: 0.8, bowlH: 0.2 }
+const LAYER = { plaza: 0.01, gravel: 0.014, path: 0.02 } // 땅 위로 띄우는 높이 (겹친 판이 깜빡이지 않게)
 const TREE = { trunkR: 0.18, trunkH: 1.6, lowR: 1.4, lowH: 2, topR: 1.0, topH: 1.6 }
 const BENCH_SHAPE = { seatY: 0.45, seatT: 0.08, backH: 0.5, backT: 0.08, legT: 0.08 }
 const LAMP = { postR: 0.07, postH: 3, headR: 0.22 }
-const WATER_WAVE_S = 2.5 // 분수 물빛이 한 번 오가는 시간(초)
 
 // ── 땅 ──────────────────────────────────────────────────────────────
 
-// 잔디(월드 전체) + 광장 돌바닥 + 길
-// 가운데 바닥: 광장은 돌바닥, 캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)
+// 잔디(월드 전체) + 가운데 바닥 + 길
+// 가운데 바닥: 캠리단길(광장)은 울퉁불퉁한 돌 포장, 길은 벽돌, 둘레와 골목 양옆은 자갈 띠 (무늬는 worldTextures)
+//             캠퍼스(ground 'lawn')는 잘 깎은 잔디 쿼드(밝고 어두운 줄무늬)와 예전 돌길 그대로
 const LAWN = { stripe: 2, light: '#8fca72', dark: '#7dbb63' } // 줄 폭(m), 두 잔디 색
-export function Ground({ plaza }: { plaza: PlazaLayout }) {
+export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: PlacedBuilding[] }) {
   const lawn = plaza.ground === 'lawn'
   const stripes = lawn ? Math.ceil(plaza.plaza.w / LAWN.stripe) : 0
+  useMemo(() => !lawn && applyGroundTextures(), [lawn]) // 처음 한 번 무늬를 재질에 붙임
+  const gravel = useMemo(() => gravelStrips(plaza, buildings.map((b) => b.rect)), [plaza, buildings])
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
@@ -51,15 +51,20 @@ export function Ground({ plaza }: { plaza: PlazaLayout }) {
           )
         })
       ) : (
-        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza}>
-          <planeGeometry args={[plaza.plaza.w, plaza.plaza.d]} />
-        </mesh>
+        <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza} geometry={tiledPlane(plaza.plaza.w, plaza.plaza.d, TILE.cobble)} />
       )}
-      {plaza.paths.map((p, i) => (
-        <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
-          <planeGeometry args={[p.w, p.d]} />
-        </mesh>
+      {gravel.map((g, i) => (
+        <mesh key={`g${i}`} rotation-x={-Math.PI / 2} position={[g.x, LAYER.gravel + (i % 2) * 0.001, g.z]} material={MAT.gravel} geometry={tiledPlane(g.w, g.d, TILE.gravel)} />
       ))}
+      {plaza.paths.map((p, i) =>
+        lawn ? (
+          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
+            <planeGeometry args={[p.w, p.d]} />
+          </mesh>
+        ) : (
+          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.brick} geometry={tiledPlane(p.w, p.d, TILE.brick)} />
+        ),
+      )}
     </group>
   )
 }
@@ -79,37 +84,7 @@ export function Fence({ plaza }: { plaza: PlazaLayout }) {
   )
 }
 
-// ── 분수 ────────────────────────────────────────────────────────────
-
-// 둥근 수반 + 물 + 가운데 기둥과 위 접시. 물빛만 천천히 밝아졌다 어두워집니다(입자 없음).
-export function Fountain({ fountain }: { fountain: NonNullable<PlazaLayout['fountain']> }) {
-  const { x, z, r } = fountain
-  const water = useMemo(() => MAT.water.clone(), []) // 물빛을 바꾸므로 공용 재질을 복사해 이 분수만 씀
-  useEffect(() => () => water.dispose(), [water]) // 광장을 떠나면 복사한 재질을 지움 (들어올 때마다 쌓이지 않게)
-  const dark = useMemo(() => new THREE.Color(COLOR.water), [])
-  const light = useMemo(() => new THREE.Color(COLOR.waterLight), [])
-  useFrame(({ clock }) => {
-    const t = (Math.sin((clock.elapsedTime * Math.PI * 2) / WATER_WAVE_S) + 1) / 2
-    water.color.lerpColors(dark, light, t * 0.5)
-  })
-  const f = FOUNTAIN
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position-y={f.basinH / 2} material={MAT.stone}>
-        <cylinderGeometry args={[r, r, f.basinH, 32]} />
-      </mesh>
-      <mesh position-y={f.basinH + 0.01} material={water}>
-        <cylinderGeometry args={[r - f.rim, r - f.rim, 0.02, 32]} />
-      </mesh>
-      <mesh position-y={f.basinH + f.pillarH / 2} material={MAT.stone}>
-        <cylinderGeometry args={[f.pillarR, f.pillarR * 1.2, f.pillarH, 16]} />
-      </mesh>
-      <mesh position-y={f.basinH + f.pillarH} material={MAT.stone}>
-        <cylinderGeometry args={[f.bowlR, f.bowlR * 0.6, f.bowlH, 24]} />
-      </mesh>
-    </group>
-  )
-}
+// ── 분수 ──  캠리단길 3단 분수는 Fountain.tsx
 
 // ── 건물 ────────────────────────────────────────────────────────────
 
