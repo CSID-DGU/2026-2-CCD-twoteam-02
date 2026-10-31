@@ -22,7 +22,6 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime } from './skyLogic'
-import type { Clock } from './skyLogic'
 import type { Point } from './worldLogic'
 import { OVERCAST_COLOR, applyWeather, weatherAt } from './weatherLogic'
 import type { WeatherFrame, WeatherSource } from './weatherLogic'
@@ -30,6 +29,7 @@ import { applyLightning, lightningAt, parseLightningFast } from './lightningLogi
 import { setNightGlow, setSnowCover } from './worldMaterials'
 import { Constellations } from './Constellations'
 import { GradientSky } from './GradientSky'
+import { getSkyClock, setSkyClock } from './skyClock'
 import { warmSky } from './skyColorLogic'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
@@ -108,7 +108,6 @@ type Props = {
 export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign = null, weatherRef, followRef }: Props) {
   const frame = useRef<WeatherFrame | null>(null) // 이번 프레임 하늘·날씨 값. 별자리·구름·비가 같이 씀
   const camera = useThree((s) => s.camera)
-  const clock = useRef<Clock | null>(null)
   const fastLightning = useRef<boolean | null>(null) // ?weather=storm:fast (처음 한 번 읽음)
   const overcastColor = useRef(OVERCAST_COLOR) // 흐림 덮개에 지금 칠해 둔 색 (바뀔 때만 바꿈)
   const overcast = useRef<THREE.Mesh>(null) // 흐림 덮개 (#317)
@@ -182,10 +181,14 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
 
   useFrame((state) => {
     const now = Date.now()
-    // 주소(?time, ?speed)는 처음 한 번 읽습니다.
-    if (!clock.current) clock.current = parseClock(window.location.search, now)
+    // 하늘 시계: 처음에는 주소로 정하고, 팀 조절판(SkyTimePanel)이 바꾸면 그 값 (skyClock)
+    let clock = getSkyClock()
+    if (!clock) {
+      clock = parseClock(window.location.search, now)
+      setSkyClock(clock)
+    }
     if (fastLightning.current === null) fastLightning.current = parseLightningFast(window.location.search)
-    const ms = worldTime(clock.current, now)
+    const ms = worldTime(clock, now)
     // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
     const src = weatherRef.current
     const base = src.override ?? weatherAt(src.hours, now)

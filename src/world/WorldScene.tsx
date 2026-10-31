@@ -76,6 +76,7 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
+import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
 import type { AimTarget } from '../space/aimLogic'
 import { RankingBoard } from './RankingBoard'
@@ -147,6 +148,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
+  const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 시간 조절판 (창이 아니라 캐릭터는 그대로 움직임)
   const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   // 조준점이 가리키는 사람·별자리 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim()
@@ -492,7 +494,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
       {/* 다른 자리(예: 별다방 7번)를 쓰는 중이면: 반납하고 이 벤치에 앉기 */}
       {cafe.conflict && <CafeConflictDialog message={cafe.conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
-      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} />}
+      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onSkyTime={() => setSkyTimeOpen((v) => !v)} />}
+      {skyTimeOpen && <SkyTimePanel onClose={() => setSkyTimeOpen(false)} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {rankingOpen && (
         <RankingPanel
