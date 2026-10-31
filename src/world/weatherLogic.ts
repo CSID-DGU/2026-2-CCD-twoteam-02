@@ -21,6 +21,7 @@
 import { SEOUL, mix } from './skyLogic'
 import type { SkyState } from './skyLogic'
 import type { Lightning } from './lightningLogic'
+import { skyPalette } from './skyColorLogic'
 
 export type Weather = { cloud: number; rain: number; snow: number; dim: number; storm: number; cover: number } // 모두 0~1 (storm: 뇌우 정도 #328, cover: 눈 쌓인 정도 #329)
 // 예보 한 칸. ms = 구간 끝 T (값은 T−1h ~ T), cloud 0~1, precip 시간당 강수량 mm (눈도 물로 바꾼 양), snowDepth 쌓인 눈 깊이 m
@@ -67,9 +68,7 @@ const CLOUD = {
   speed: 3, // 서쪽 → 동쪽(+x)
 }
 const PUFF = { dx: 12, dy: [-2, 3], dz: 6, width: [10, 16], height: 0.45, depth: 0.7 } // 덩어리 상대 자리·크기
-const TINT = { white: 0xffffff, sunset: 0xffb38a, night: 0x2a3350, grayDay: 0x8a9099, grayNight: 0x30353f }
-const SUNSET_PEAK_DEG = 4 // 해 고도가 이쯤일 때 구름이 가장 주황빛
-const SUNSET_SPAN_DEG = 6 //  여기서 ±6° 벗어나면 노을빛 없음 (−2° ~ 10°)
+const TINT = { grayDay: 0x8a9099, grayNight: 0x30353f } // 비·눈이 올 때 구름 회색 (맑을 때 색은 skyColorLogic 의 cloud)
 
 export function weatherUrl(): string {
   return (
@@ -289,11 +288,9 @@ export function cloudLayout(ms: number, cloud: number, out: Float32Array = new F
   return out
 }
 
-// 구름 색(0xrrggbb): 낮 흰색 → 노을 주황빛 → 밤 남회색, 비·눈이 올수록 회색
+// 구름 색(0xrrggbb): 낮 흰색 → 노을 주황·분홍 → 해 진 직후 보랏빛 → 밤 남회색(하늘색 표, skyColorLogic), 비·눈이 올수록 회색
 export function cloudTint(sky: SkyState, w: Weather): number {
-  const sunDeg = (sky.sun.altitude * 180) / Math.PI
-  const sunset = Math.max(0, 1 - Math.abs(sunDeg - SUNSET_PEAK_DEG) / SUNSET_SPAN_DEG)
-  const base = mix(mix(TINT.white, TINT.sunset, sunset), TINT.night, sky.night)
+  const base = skyPalette((sky.sun.altitude * 180) / Math.PI).cloud
   const gray = mix(TINT.grayDay, TINT.grayNight, sky.night)
   return mix(base, gray, Math.max(w.rain, w.snow))
 }
