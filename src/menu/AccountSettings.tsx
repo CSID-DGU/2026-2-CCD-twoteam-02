@@ -1,6 +1,9 @@
 // 설정 창의 "내 정보" 칸. 닉네임·생일(별자리)·이메일·비밀번호를 바꿉니다.
 // (예전에는 내 프로필의 "정보 변경" 탭이었고, 설정으로 옮겼습니다)
 //
+// 게스트(#375)면 이메일 칸이 "가입하기"가 됩니다. 이메일을 붙이면(익명 → 정식 전환) 확인 메일의 링크(/guest-linked)에서
+// 비밀번호를 정하고, 계정 번호가 그대로라 기록이 이어집니다. 이미 가입된 이메일이면 로그인하러 가야 하고 게스트 기록은 이어지지 않습니다.
+//
 // 셋을 바꾸는 방법이 각각 다릅니다.
 //
 //   닉네임     → profiles 테이블을 바로 고칩니다. 본인 행만 고칠 수 있게 RLS 가 막고 있습니다(0004)
@@ -18,7 +21,9 @@ import { useSession } from '../auth/useSession'
 import { useMyNickname } from '../auth/useMyNickname'
 import { toKoreanMessage } from '../auth/authErrors'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN } from '../auth/authLimits'
-import { emailChangedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
+import { emailChangedRedirectTo, guestLinkedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
+import { useNavigate } from 'react-router'
+import { checkNickname } from '../auth/nicknameRules'
 import { announceMyProfileChanged } from '../profile/characters'
 import { BirthdayInput } from '../profile/BirthdayInput'
 import { useMyBirthday } from '../profile/useMyBirthday'
@@ -33,6 +38,9 @@ export function AccountSettings() {
   const current = session?.user.email ?? ''
   // 이메일 변경을 신청해 두고 아직 링크를 안 누른 상태면 여기에 새 주소가 들어 있습니다.
   const pending = session?.user.new_email ?? ''
+  const guest = session?.user.is_anonymous === true // 게스트면 이메일 칸이 "가입하기" (#375)
+  const [taken, setTaken] = useState(false) // 게스트가 넣은 이메일이 이미 가입된 이메일
+  const navigate = useNavigate()
 
   const { nickname: savedNickname, reload: reloadNickname } = useMyNickname()
   // 아직 고치지 않았으면 null. 그동안에는 읽어 온 값을 그대로 보여 줍니다.
@@ -59,8 +67,9 @@ export function AccountSettings() {
     if (busy || !myId) return
 
     const name = nickname.trim()
-    if (name.length < NICKNAME_MIN || name.length > NICKNAME_MAX) {
-      setError(`닉네임은 ${NICKNAME_MIN}~${NICKNAME_MAX}자로 입력해 주세요.`)
+    const bad = checkNickname(name) // 길이·금칙어 (#375, DB 0045 와 같은 규칙)
+    if (bad) {
+      setError(bad)
       return
     }
     if (name === savedNickname) {
@@ -108,14 +117,25 @@ export function AccountSettings() {
     }
 
     start()
+    setTaken(false)
     const { error } = await supabase.auth.updateUser(
       { email: next },
-      { emailRedirectTo: emailChangedRedirectTo() }
+      { emailRedirectTo: guest ? guestLinkedRedirectTo() : emailChangedRedirectTo() }
     )
     setBusy(false)
 
     if (error) {
+      // 게스트가 이미 가입된 이메일을 넣음: 그 계정으로 로그인해야 하고, 게스트 기록은 합치지 않음
+      if (guest && /already been registered|email_exists|already registered/i.test(error.message)) {
+        setTaken(true)
+        return
+      }
       setError(toKoreanMessage(error.message))
+      return
+    }
+    if (guest) {
+      setNotice(`${next} 로 확인 메일을 보냈어요. 메일의 링크를 누르면 비밀번호를 정하는 화면이 떠요.`)
+      setEmail('')
       return
     }
     setNotice(
@@ -181,8 +201,12 @@ export function AccountSettings() {
       </form>
 
       <form style={styles.block} onSubmit={changeEmail}>
-        <h2 style={styles.heading}>이메일</h2>
-        <p style={styles.hint}>지금 이메일: {current}</p>
+        <h2 style={styles.heading}>{guest ? '가입하기' : '이메일'}</h2>
+        {guest ? (
+          <p style={styles.hint}>이메일을 붙이면 정식 계정이 되고, 지금까지의 공부 기록·캐릭터·닉네임이 그대로 이어져요.</p>
+        ) : (
+          <p style={styles.hint}>지금 이메일: {current}</p>
+        )}
         {pending && <p style={styles.notice}>{pending} 로 변경 신청됨. 메일의 링크를 눌러 주세요.</p>}
         <div style={styles.row}>
           <input
@@ -190,7 +214,7 @@ export function AccountSettings() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="새 이메일"
+            placeholder={guest ? '이메일' : '새 이메일'}
             autoComplete="email"
             maxLength={EMAIL_MAX}
             required
@@ -199,21 +223,41 @@ export function AccountSettings() {
             {busy ? '…' : '확인 메일'}
           </button>
         </div>
-        <p style={styles.hint}>
-          새 주소로 확인 메일이 갑니다. 보안 설정에 따라 기존 주소에도 함께 가며,
-          그때는 양쪽 링크를 모두 눌러야 바뀝니다.
-        </p>
+        {taken && (
+          <p style={styles.error}>
+            이미 가입된 이메일이에요. 그 계정으로 로그인하면 게스트 기록은 이어지지 않아요.{' '}
+            <button
+              type="button"
+              style={styles.link}
+              onClick={async () => {
+                await supabase.auth.signOut()
+                navigate('/login')
+              }}
+            >
+              로그인하러 가기
+            </button>
+          </p>
+        )}
+        {!guest && (
+          <p style={styles.hint}>
+            새 주소로 확인 메일이 갑니다. 보안 설정에 따라 기존 주소에도 함께 가며,
+            그때는 양쪽 링크를 모두 눌러야 바뀝니다.
+          </p>
+        )}
       </form>
 
-      <div style={styles.block}>
-        <h2 style={styles.heading}>비밀번호</h2>
-        <button style={styles.button} type="button" onClick={sendPasswordReset} disabled={busy}>
-          {busy ? '…' : '재설정 메일 보내기'}
-        </button>
-        <p style={styles.hint}>
-          지금 쓰는 이메일로 재설정 메일을 보냅니다. 메일의 링크에서 새 비밀번호를 정해 주세요.
-        </p>
-      </div>
+      {/* 비밀번호: 게스트는 아직 없음 (가입 확인 링크에서 정함) */}
+      {!guest && (
+        <div style={styles.block}>
+          <h2 style={styles.heading}>비밀번호</h2>
+          <button style={styles.button} type="button" onClick={sendPasswordReset} disabled={busy}>
+            {busy ? '…' : '재설정 메일 보내기'}
+          </button>
+          <p style={styles.hint}>
+            지금 쓰는 이메일로 재설정 메일을 보냅니다. 메일의 링크에서 새 비밀번호를 정해 주세요.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -245,4 +289,5 @@ const styles: Record<string, CSSProperties> = {
   hint: { color: '#9aa1ab', margin: 0, fontSize: 13 },
   error: { color: '#f87171', margin: 0, fontSize: 14 },
   notice: { color: '#4ade80', margin: 0, fontSize: 14 },
+  link: { padding: 0, border: 'none', background: 'none', color: '#9ec1ff', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' },
 }

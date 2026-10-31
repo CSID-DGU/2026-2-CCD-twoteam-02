@@ -13,6 +13,7 @@ import { usePortraits } from './usePortraits'
 import { PERIOD_LABEL, initialOf, labelNames, minutesText, myLine, podium } from './rankingLogic'
 import type { Period, PodiumSlot } from './rankingLogic'
 import { CHALK, CHALK_FONT } from './chalk'
+import { useIsGuest } from '../auth/useIsGuest'
 
 const PERIODS: Period[] = ['today', 'week']
 const GOLD = CHALK.gold
@@ -30,6 +31,7 @@ type Props = {
 export function RankingPanel({ myId, onClose, onOpenProfile }: Props) {
   const [period, setPeriod] = useState<Period>('today')
   const { ranking, error, loading } = useRanking(period)
+  const guest = useIsGuest() // 게스트는 순위에 오르지 않음 (#375, DB 0045)
   const names = ranking ? labelNames(ranking.top) : []
   const mine = ranking ? myLine(ranking.me) : null
   const photos = usePortraits(ranking?.top.map((r) => r.id) ?? [])
@@ -108,6 +110,7 @@ export function RankingPanel({ myId, onClose, onOpenProfile }: Props) {
             {mine.note && <div style={styles.meNote}>{mine.note}</div>}
           </div>
         )}
+        {guest && <p style={{ ...styles.foot, marginTop: 4 }}>게스트는 순위에 오르지 않아요. 가입하면 지금까지의 기록으로 올라요.</p>}
         <p style={styles.foot}>초록불(공부 중)인 시간만 셉니다. 공개 범위가 '모두'인 사람만 순위에 나와요.</p>
       </div>
     </div>

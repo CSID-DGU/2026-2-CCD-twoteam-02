@@ -10,6 +10,7 @@ import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN, PASSWORD_MAX } from './authLimits'
 import { signupRedirectTo } from './authRedirect'
+import { checkNickname } from './nicknameRules'
 import { BirthdayInput } from '../profile/BirthdayInput'
 import type { Birthday } from '../profile/useMyBirthday'
 
@@ -38,8 +39,9 @@ export default function SignupPage({ onSuccess, onGoLogin }: Props) {
 
     // 서버에 보내기 전에 바로 알 수 있는 것은 먼저 걸러낸다.
     const name = nickname.trim()
-    if (name.length < NICKNAME_MIN || name.length > NICKNAME_MAX) {
-      setError(`닉네임은 ${NICKNAME_MIN}~${NICKNAME_MAX}자로 입력해 주세요.`)
+    const bad = checkNickname(name) // 길이·금칙어 (#375, DB 0045 와 같은 규칙)
+    if (bad) {
+      setError(bad)
       return
     }
     if (password !== passwordAgain) {
