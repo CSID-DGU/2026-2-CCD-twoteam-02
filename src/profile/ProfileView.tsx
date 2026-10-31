@@ -1,6 +1,6 @@
 // 프로필 본문: 이름, 공부 기록 요약(누적·이번 주·최근 7일·이번 주 과목별).
 // 프로필 페이지(/profile/:id)와 지점 안 프로필 창이 같이 씁니다.
-// 내 프로필이면 공개 범위를 바꾸는 칸과 "캐릭터"(#131)·"정보 변경" 탭이 붙습니다.
+// 내 프로필이면 공개 범위를 바꾸는 칸과 "캐릭터"(#131) 탭이 붙습니다. (닉네임·이메일 등 정보 변경은 설정 창으로 옮김)
 // 남의 프로필이면 이름 옆에 친구 버튼이 붙습니다(#153).
 // 이름 옆 칭호 리본(꽃 피는 칭호)은 공부 기록을 볼 수 있을 때만(공개 범위), 진행 막대는 내 프로필에서만 보입니다.
 //
@@ -14,7 +14,6 @@ import { ColumnChart, SubjectBars } from '../study/RecordCharts'
 import { useProfile, VISIBILITY_LABEL } from './useProfile'
 import type { Visibility } from './useProfile'
 import { dayLabel } from './profileLogic'
-import { AccountTab } from './AccountTab'
 import { FriendButton } from '../friends/FriendButton'
 import { CharacterTab } from './CharacterTab'
 import { TitleBadge, TitleProgress } from '../level/TitleBadge'
@@ -26,7 +25,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
   const live = useLiveSeconds(isMe ? userId : undefined) // 내 프로필: 저장 전 공부까지 합쳐 칭호를 보임
   const [message, setMessage] = useState('')
   // 내 프로필에서만 탭이 보입니다. 남의 프로필에는 공부 기록만 나옵니다.
-  const [tab, setTab] = useState<'records' | 'character' | 'account'>('records')
+  const [tab, setTab] = useState<'records' | 'character'>('records')
 
   if (loading) return <p style={styles.muted}>프로필을 불러오는 중…</p>
   if (error || !summary) return <p style={styles.error}>{error || '프로필을 찾지 못했어요.'}</p>
@@ -51,7 +50,7 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
 
       {isMe && (
         <nav style={styles.tabs} role="tablist">
-          {([['records', '공부 기록'], ['character', '캐릭터'], ['account', '정보 변경']] as const).map(([key, label]) => (
+          {([['records', '공부 기록'], ['character', '캐릭터']] as const).map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -67,7 +66,6 @@ export function ProfileView({ userId, isMe }: { userId: string; isMe: boolean })
       )}
 
       {isMe && tab === 'character' && <CharacterTab />}
-      {isMe && tab === 'account' && <AccountTab />}
 
       {tab === 'records' && isMe && (
         <div style={styles.row}>
