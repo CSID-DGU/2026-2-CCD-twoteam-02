@@ -17,6 +17,8 @@ import { getKeymap } from '../menu/keymap'
 import { inAir, jumpHeight } from './jumpLogic'
 import type { AimTarget } from './aimLogic'
 import type { Teleport } from '../friends/useFollow'
+import { getStick, takeInteract, takeJump } from './touchInput'
+import { combineMove } from './joystickLogic'
 const R = 0.3 // 충돌 반경
 const SCALE = 0.6 // 모델 키(약 2.7)를 공간 크기에 맞춥니다.
 const TURN = 12 // 방향 전환 빠르기
@@ -30,6 +32,7 @@ const EXIT_RANGE = 0.8
 const MEETING_RANGE = 0.8 // 회의실 문 앞 자리(meetingDoorFront)에서 이 거리 안이면 들어갈 수 있습니다. (#45)
 const ELEVATOR_RANGE = 0.8 // 엘리베이터 문 앞 자리(elevatorFront)에서 이 거리 안이면 층을 고를 수 있습니다. (회의실 문과 같음)
 const KEY_TURN_SPEED = 2.2 // 1인칭에서 방향키 ←→ 로 도는 빠르기(초당 라디안)
+const MIN_PACE = 0.5 // 조이스틱으로 천천히 걸을 때 걷기 동작의 가장 느린 재생 빠르기
 
 type Props = {
   model: string // 내 캐릭터 차림(아바타 키, 내 프로필에서 고름 #131·#56)
@@ -129,8 +132,12 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   useFrame((_, delta) => {
     const k = keys.current, g = ref.current, p = g.position
     const dt = Math.min(delta, MAX_DT)
-    // Shift 를 누르고 있으면 달립니다. (#118)
-    const running = RUN_KEYS.some((key) => k.has(key))
+    // 폰 화면 조작(#377): [E]·[점프] 버튼은 키를 누른 것과 같이, 조이스틱은 아래 이동에서 키보드와 합칩니다.
+    if (takeInteract()) toggle.current = true
+    if (takeJump()) jumpKey.current = true
+    const stick = getStick()
+    // Shift 를 누르고 있거나(#118) 조이스틱을 끝까지 밀면 달립니다.
+    const running = RUN_KEYS.some((key) => k.has(key)) || stick.run
     const speed = running ? RUN_SPEED : WALK_SPEED
 
     // 앉아 있든 멈춰 있든 위치와 방향은 알려 줍니다. 다른 참여자 화면에 내가 그려지는 데 씁니다.
@@ -282,6 +289,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     }
 
     let dx = 0, dz = 0
+    let moveScale: number // 조이스틱을 덜 밀면 1보다 작음 (걷기 동작도 그만큼 천천히)
     if (headingRef) {
       // 1인칭: 보는 방향 기준으로 움직입니다. 내 캐릭터는 카메라를 가리므로 숨깁니다.
       // 감정표현 중에는 카메라가 앞으로 빠져 나를 비추므로 보이게 합니다. (WalkCamera)
@@ -290,21 +298,33 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       headingRef.current -= turn * KEY_TURN_SPEED * dt // 오른쪽 방향키 = 오른쪽으로 돌기
       const h = headingRef.current
       g.rotation.y = h
-      const f = +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')) // 앞뒤
-      const r = +k.has('KeyD') - +k.has('KeyA') // 옆걸음
+      // 앞뒤·옆걸음: 키보드가 눌려 있으면 키보드, 아니면 조이스틱(덜 밀면 천천히)
+      const { f, r, scale } = combineMove(
+        +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')),
+        +k.has('KeyD') - +k.has('KeyA'),
+        stick,
+      )
+      moveScale = scale || 1
       if (f || r) {
-        const step = (speed * dt) / Math.hypot(f, r)
+        const step = (speed * scale * dt) / Math.hypot(f, r)
         // 앞 = (sin h, cos h), 오른쪽 = (-cos h, sin h)
         dx = (f * Math.sin(h) - r * Math.cos(h)) * step
         dz = (f * Math.cos(h) + r * Math.sin(h)) * step
       }
     } else {
       g.visible = true
-      const ix = +(k.has('KeyD') || k.has('ArrowRight')) - +(k.has('KeyA') || k.has('ArrowLeft'))
-      const iz = +(k.has('KeyS') || k.has('ArrowDown')) - +(k.has('KeyW') || k.has('ArrowUp'))
+      // 위에서 보기: 화면 위 = -Z. 조이스틱 위로 밀면 화면 위쪽으로
+      const { f, r, scale } = combineMove(
+        +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')),
+        +(k.has('KeyD') || k.has('ArrowRight')) - +(k.has('KeyA') || k.has('ArrowLeft')),
+        stick,
+      )
+      const ix = r
+      const iz = -f
+      moveScale = scale || 1
       if (ix || iz) {
         // 대각선도 같은 속도가 되도록 방향을 정규화합니다.
-        const step = (speed * dt) / Math.hypot(ix, iz)
+        const step = (speed * scale * dt) / Math.hypot(ix, iz)
         dx = ix * step
         dz = iz * step
         // 가는 방향을 바라보도록 가까운 쪽으로 부드럽게 돕니다. (모델 정면은 +Z)
@@ -340,7 +360,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     }
     if (!em?.playing) play(moving ? 'walk' : 'idle')
     // 달릴 때는 걷기 동작을 빠르기에 맞춰 빨리 재생합니다. (다리가 미끄러져 보이지 않게)
-    actions.walk?.setEffectiveTimeScale(speed / WALK_SPEED)
+    actions.walk?.setEffectiveTimeScale(Math.max(MIN_PACE, (speed * moveScale) / WALK_SPEED))
     if (moving) {
       // 축별로 따로 판정해서 벽에 비스듬히 닿으면 미끄러지듯 움직입니다. 일어난 자리에서 겹친 상자는 빠져나갈 수 있습니다.
       const next = stepWithObstacles(p, dx, dz, obstacles, R)

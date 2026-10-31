@@ -72,6 +72,11 @@ import { useClassPhase } from "../study/useClassPhase";
 import { boardText } from "../study/timetableLogic";
 import { ClassBellNotice } from "../study/ClassBellNotice";
 import { toward } from "../lib/josa";
+import { STUDY_ON_PC, useIsTouch } from "./useIsTouch";
+import { TouchControls } from "./TouchControls";
+
+const TOUCH_DPR = 1.5; // 폰 3D 화면 해상도 상한 (#377. 폰은 기기 해상도가 3배라 그대로 그리면 무거움)
+const TOUCH_NOTE_MS = 4000; // 폰 안내를 보여 주는 시간
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -155,6 +160,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [elevatorOpen, setElevatorOpen] = useState(false); // 층 고르는 창이 떠 있는지
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
+  const touch = useIsTouch(); // 폰 화면 조작 (#377)
+  // 폰에서 공부 자리·키오스크·회의실을 누르면 잠깐 띄우는 안내 (#377 1단계: 공부는 PC에서). 쉬는 방(소파)은 그대로
+  const [touchNote, setTouchNote] = useState("");
+  useEffect(() => {
+    if (!touchNote) return;
+    const t = setTimeout(() => setTouchNote(""), TOUCH_NOTE_MS);
+    return () => clearTimeout(t);
+  }, [touchNote]);
   // 문을 지나 왔으면 그때 보던 방향 그대로 섭니다(#150). 주소로 바로 들어오면 입구에서 안쪽(-Z)을 봅니다.
   // 회의에서 나왔으면 출입문 대신 회의실 문 앞에 섭니다(#45).
   const location = useLocation();
@@ -330,13 +343,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) };
-  const viewHint =
-    view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
+  const viewHint = touch
+    ? view === "top" ? "👁 1인칭으로" : "오른쪽을 끌어 둘러보기 · 👁 위에서 보기"
+    : view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
+  const wasd = touch ? "" : "WASD·"; // 앉아 있을 때 안내: 폰은 화면 끌기만
   const walkHint =
     seat !== null
       ? isRest
-        ? `${seat}번 소파 · 누워서 쉬는 중 · WASD·끌어서 둘러보기 · ${K.interact} 일어나기`
-        : `${seat}번 좌석 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+        ? `${seat}번 소파 · 누워서 쉬는 중 · ${wasd}끌어서 둘러보기 · ${K.interact} 일어나기`
+        : `${seat}번 좌석 · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
       : nearMeeting // 회의실 문 앞 (#45)
         ? `회의실 · ${K.interact} 들어가기`
       : nearElevator // 엘리베이터 문 앞 (여러 층 건물)
@@ -362,11 +377,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
-    <Canvas>
+    {/* 폰은 화면 해상도를 낮춰 가볍게, 화면 끌기가 확대·스크롤로 새지 않게 (#377) */}
+    <Canvas dpr={touch ? [1, TOUCH_DPR] : undefined} style={{ touchAction: "none" }}>
       {seatSpot ? (
         <SeatCamera
           key={seatSpot.no}
@@ -601,13 +617,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onExit={goLobby}
           meeting={meetingFront}
           onNearMeeting={setNearMeeting}
-          onMeeting={() => setMeetingOpen(true)}
+          onMeeting={() => (touch ? setTouchNote(STUDY_ON_PC) : setMeetingOpen(true))}
           elevator={elevatorSpot}
           onNearElevator={setNearElevator}
           onElevator={() => setElevatorOpen(true)}
-          onKiosk={() => setKioskOpen(true)}
-          canSit={(no) => no === mySeat}
-          onSitBlocked={isCafe ? (no) => void cafe.claim(no) : undefined}
+          onKiosk={() => (touch ? setTouchNote(STUDY_ON_PC) : setKioskOpen(true))}
+          canSit={(no) => !(touch && !isRest) && no === mySeat}
+          onSitBlocked={touch && !isRest ? () => setTouchNote(STUDY_ON_PC) : isCafe ? (no) => void cafe.claim(no) : undefined}
           sitRef={cafe.sitRequest}
           aimRef={aim.current}
           onAim={(t) => setPanel({ kind: "profile", userId: t.id })}
@@ -637,8 +653,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {entry && !bell && <EntryNotice text={entry} onDone={() => setEntry(null)} />}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
     {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
-    <PerfReadout perf={perf} />
-    {locked && seat === null && (
+    {!touch && <PerfReadout perf={perf} />}
+    {(locked || (touch && view === "first")) && seat === null && (
       // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람을 가리키고 E 를 누르면 프로필
       <div
         style={{
@@ -709,12 +725,23 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         onAssigned={setMySeat}
       />
     )}
+    {/* 폰 조작: 조이스틱·끌어서 둘러보기·[E]·점프·시점 (#377). 창이 떠 있으면 숨김 */}
+    {touch && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen) && (
+      <TouchControls
+        look={view === "first" && seat === null}
+        move={seat === null}
+        interactLabel={K.interact}
+        onToggleView={() => setView((v) => (v === "top" ? "first" : "top"))}
+      />
+    )}
     {hint && (
       <div
         style={{
           position: "fixed",
           left: "50%",
-          bottom: 24,
+          bottom: touch ? "calc(env(safe-area-inset-bottom) + 156px)" : 24, // 폰: 조이스틱·버튼 위로
+          maxWidth: "calc(100vw - 32px)",
+          textAlign: "center",
           transform: "translateX(-50%)",
           padding: "8px 16px",
           borderRadius: 8,

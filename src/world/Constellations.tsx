@@ -19,6 +19,7 @@ import { SKY_LAYER, moonOverlapFade, toDirection } from './skyLogic'
 import type { SkyState } from './skyLogic'
 import { SIGNS, pickRingSign, ringLayout } from './starLogic'
 import { AIM_HZ } from '../space/aimLogic'
+import { isTouchMode } from '../space/useIsTouch'
 import type { AimTarget } from '../space/aimLogic'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 
@@ -100,7 +101,8 @@ export function Constellations({ stateRef, mySign, aimOn = false, onAim }: Props
     if (!aimOn || !onAim) return
     if (clock.elapsedTime < nextProbe.current) return
     nextProbe.current = clock.elapsedTime + 1 / AIM_HZ
-    if (document.pointerLockElement !== gl.domElement || (stateRef.current?.stars ?? 0) <= AIM_STARS) return onAim(null)
+    const aiming = document.pointerLockElement === gl.domElement || isTouchMode() // 폰은 마우스 잠금 없이 화면 가운데가 조준점 (#377)
+    if (!aiming || (stateRef.current?.stars ?? 0) <= AIM_STARS) return onAim(null)
     camera.getWorldDirection(probe.dir)
     const id = pickRingSign({ x: probe.dir.x, y: probe.dir.y, z: probe.dir.z }, RING)
     const sign = id ? RING.find((r) => r.id === id) : undefined

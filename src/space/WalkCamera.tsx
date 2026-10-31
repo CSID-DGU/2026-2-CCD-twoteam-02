@@ -19,10 +19,12 @@ import type { EmoteState } from './emotes'
 import { isShortcut } from '../menu/shortcuts'
 import { getMouseSensitivity } from '../menu/lookSettings'
 import { jumpHeight } from './jumpLogic'
+import { takeLook } from './touchInput'
 
 const EYE_HEIGHT = 1.45 // 서 있을 때 눈높이 (캐릭터 키 약 1.6)
 const WALK_FOV = 70 // 걸을 때는 앉았을 때보다 조금 넓게 봅니다.
 const MOUSE_SPEED = 0.0025 // 마우스를 1픽셀 움직일 때 도는 각도(라디안). 설정 창의 마우스 감도(배율)를 곱합니다(#222).
+const TOUCH_SPEED = 0.006 // 폰에서 화면을 1픽셀 끌 때 도는 각도(라디안, #377). 감도 배율을 같이 곱함
 const PITCH_LIMIT = Math.PI / 3 // 위아래 각 60도까지
 const EMOTE_DISTANCE = 2.6 // 감정표현 때 카메라가 내 캐릭터 앞으로 빠지는 거리
 const EMOTE_LIFT = 0.15 // 그때 눈높이에서 조금 올림
@@ -91,6 +93,13 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
   }, [canvas, headingRef, onLockChange, suspendLookRef])
 
   useFrame((_, delta) => {
+    // 폰에서 오른쪽 화면을 끈 만큼 돌기 (#377, TouchControls). 손가락을 오른쪽으로 → 오른쪽으로 돌기
+    const look = takeLook()
+    if ((look.dx || look.dy) && !suspendLookRef?.current) {
+      const speed = TOUCH_SPEED * getMouseSensitivity()
+      headingRef.current -= look.dx * speed
+      pitch.current = MathUtils.clamp(pitch.current - look.dy * speed, -PITCH_LIMIT, PITCH_LIMIT)
+    }
     const { x, z } = posRef.current
     const h = headingRef.current
     // 감정표현 중이면 앞으로 빠져 돌아서고(swing → 1), 끝나면 돌아옵니다(→ 0).

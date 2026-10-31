@@ -95,6 +95,8 @@ import { BOARD_TOP, REFRESH_MS } from '../ranking/rankingLogic'
 import { usePortraits } from '../ranking/usePortraits'
 import { useMyTitle } from '../level/useMyTitle'
 import { sharedLevel } from '../level/levelLogic'
+import { STUDY_ON_PC, useIsTouch } from '../space/useIsTouch'
+import { TouchControls } from '../space/TouchControls'
 
 const NO_KIOSK = { x: 1000, z: 1000 } // 광장에는 키오스크가 없다. 아래 Player 주석 참고
 const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
@@ -138,6 +140,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   }, [])
   // 처음엔 1인칭. V 로 바꾸면 지점에 다녀와도 유지합니다. (useWalkView)
   const [view, setView] = useWalkView()
+  const touch = useIsTouch() // 폰 화면 조작 (#377)
   // 지점에서 나왔으면 그 건물 입구 앞에 건물을 등지고 섭니다(#150). 주소로 바로 들어오면 분수 남쪽 시작 위치.
   const location = useLocation()
   const [arrival] = useState(() => {
@@ -323,7 +326,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
   const blockedEnter = (no: number) => {
     if (spotKindOf(no) === 'bench') {
-      if (plazaId === null) setMessage(`${world.study.label} 자리를 아직 쓸 수 없어요. 잠시 뒤 다시 해 주세요.`) // 광장(0038)·캠퍼스(0043) 지점을 못 읽음
+      if (touch) setMessage(STUDY_ON_PC) // 폰은 구경만 (#377). 벤치는 공부 자리
+      else if (plazaId === null) setMessage(`${world.study.label} 자리를 아직 쓸 수 없어요. 잠시 뒤 다시 해 주세요.`) // 광장(0038)·캠퍼스(0043) 지점을 못 읽음
       else void cafe.claim(benchSeatNumber(no), no)
       return
     }
@@ -340,7 +344,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) }
-  const viewHint = view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
+  const viewHint = touch
+    ? view === 'top' ? '👁 1인칭으로' : '오른쪽을 끌어 둘러보기 · 👁 위에서 보기'
+    : view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
+  const wasd = touch ? '' : 'WASD·' // 앉아 있을 때 안내: 폰은 화면 끌기만
   const hint = panel || cafe.conflict
     ? ''
     : studyPaused
@@ -352,7 +359,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ? `${aim.target.name} · ${K.interact} 프로필 보기`
         : `${aim.target.name} · ${K.interact} 오늘의 운세`
     : benchSeated
-      ? `${world.study.label} · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      ? `${world.study.label} · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
     : near !== null && spotKindOf(near) === 'bench'
       ? `${world.study.label} · ${K.interact} 앉아서 공부하기`
     : near === BOARD_NO
@@ -369,11 +376,14 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       ? nearBuilding.floors.length > 1
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
-      : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+      : touch
+        ? `조이스틱으로 움직여 건물 입구로 가세요 · 끝까지 밀면 달리기 · ${viewHint}`
+        : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
-      <Canvas>
+      {/* 폰은 화면 해상도를 낮춰 가볍게, 화면 끌기가 확대·스크롤로 새지 않게 (#377) */}
+      <Canvas dpr={touch ? [1, TOUCH_DPR] : undefined} style={{ touchAction: 'none' }}>
         {seatSpot ? (
           // 돗자리·빈백·벤치에 앉았으면 그 자리 시점 (빈백은 기대 누워 조금 위를 봄, spot 의 y·lie). 벤치는 지점 좌석과 같은 좌우 60도씩
           <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={() => {}} paused={panel !== null || overlay} />
@@ -497,14 +507,23 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         )}
       </Canvas>
 
-      {(message || hint) && <div style={hintBox}>{message || hint}</div>}
+      {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
-      <PerfReadout perf={perf} />
+      {!touch && <PerfReadout perf={perf} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람·별자리를 가리키고 E 를 누르면 프로필·운세 (#166, #321) */}
-      {locked && seat === null && <div style={crosshair} />}
+      {(locked || (touch && view === 'first')) && seat === null && <div style={crosshair} />}
+      {/* 폰 조작: 조이스틱·끌어서 둘러보기·[E]·점프·시점 (#377). 창이 떠 있으면 숨김 */}
+      {touch && panel === null && !overlay && (
+        <TouchControls
+          look={view === 'first' && seat === null}
+          move={seat === null}
+          interactLabel={K.interact}
+          onToggleView={() => setView((v) => (v === 'top' ? 'first' : 'top'))}
+        />
+      )}
       {/* 벤치에 앉아 있는 동안: 지점 카페와 같은 남은 시간 영수증, 자리를 잃으면(다른 기기에서 반납·5분 넘게 신호 없음 등) 안내 (#341).
           잃으면 내 자리를 비워 공부 타이머가 끝난 이용 기록에 더 저장하지 않습니다(지점과 같음). */}
       {benchSeated && session && (
@@ -560,6 +579,10 @@ const crosshair: React.CSSProperties = {
   position: 'fixed', left: '50%', top: '50%', width: 6, height: 6, marginLeft: -3, marginTop: -3,
   borderRadius: '50%', background: '#fff', boxShadow: '0 0 0 1.5px rgba(0,0,0,.6)', pointerEvents: 'none',
 }
+
+// 폰: 조이스틱·버튼 위로 (#377)
+const hintAboveControls: React.CSSProperties = { bottom: 'calc(env(safe-area-inset-bottom) + 156px)', maxWidth: 'calc(100vw - 32px)', textAlign: 'center' }
+const TOUCH_DPR = 1.5 // 폰 3D 화면 해상도 상한 (폰은 기기 해상도가 3배라 그대로 그리면 무거움)
 
 const hintBox: React.CSSProperties = {
   position: 'fixed',
