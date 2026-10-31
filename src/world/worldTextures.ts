@@ -182,3 +182,31 @@ export function tiledPlane(w: number, d: number, tile: number) {
   }
   return g
 }
+
+// 흘러내리는 물 무늬 (분수 물줄기). 세로 줄이 반쯤 비치게 그려, 판을 아래로 흘리면(offset) 물이 흐르는 것처럼 보임
+let streaks: THREE.CanvasTexture | null = null
+export function waterStreaks() {
+  if (streaks) return streaks
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 256
+  const ctx = c.getContext('2d')!
+  const r = random(51)
+  ctx.clearRect(0, 0, 128, 256)
+  for (let i = 0; i < 70; i++) {
+    const x = r() * 128
+    const y = r() * 256
+    const len = 40 + r() * 140
+    const g = ctx.createLinearGradient(0, y, 0, y + len)
+    const a = 0.25 + r() * 0.55
+    g.addColorStop(0, 'rgba(255,255,255,0)')
+    g.addColorStop(0.5, `rgba(235,248,255,${a})`)
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = g
+    for (const dy of [-256, 0, 256]) ctx.fillRect(x, y + dy, 1 + r() * 2.5, len)
+  }
+  streaks = new THREE.CanvasTexture(c)
+  streaks.wrapS = streaks.wrapT = THREE.RepeatWrapping
+  streaks.colorSpace = THREE.SRGBColorSpace
+  return streaks
+}
