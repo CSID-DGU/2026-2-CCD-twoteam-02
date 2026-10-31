@@ -10,12 +10,13 @@
 import * as THREE from 'three'
 import type { FacadeStyle } from './worldLogic'
 import { MAT, colorMat, pictureMat, plantMat, shopWindowMat } from './worldMaterials'
-import { awningTexture, interiorTexture, signTexture } from './facadeTextures'
+import { awningTexture, interiorTexture, letterSignTexture } from './facadeTextures'
+import type { SignLine } from './facadeTextures'
 import { groundTextures } from './worldTextures'
 import { bushShape, vineShape } from './plantShapes'
 
 type V3 = [number, number, number]
-type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; open: boolean; near: boolean }
+type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; floorSlugs: string[]; open: boolean; near: boolean }
 
 // 여러 곳이 같이 쓰는 모양·재질 (처음 쓸 때 한 번)
 const shared = new Map<string, unknown>()
@@ -56,11 +57,41 @@ function Pane({ style, x, y, z, w, h, frame, t = 0.08, bars = 0 }: { style: Faca
   )
 }
 
-// 글자 간판 판
-function Sign({ text, bg, color, x, y, z, w, spacing = 0 }: { text: string; bg: string; color: string; x: number; y: number; z: number; w: number; spacing?: number }) {
+// 가게 이름 (영문 입체 글자, 판 없이 벽에 붙임). 지점 이름(한글)은 DB·안내에 그대로 쓰고 간판만 영어로
+// 순바탕(serif)·교보손글씨(hand)·흘림체(script) 를 지점 분위기에 맞게 나눔. size 는 판 높이(w/2) 대비 글자 크기
+const SIGN_TEXT: Record<FacadeStyle, SignLine[]> = {
+  classic: [
+    { text: 'STAR DABANG', font: 'serif', size: 0.2, spacing: 6 },
+    { text: 'COFFEE · STUDY', font: 'serif', size: 0.07, spacing: 14, gap: 0.6 },
+  ],
+  diner: [
+    { text: 'Retro', font: 'script', size: 0.46 },
+    { text: 'CAFE', font: 'serif', size: 0.2, spacing: 14, gap: 0.1 },
+  ],
+  garden: [
+    { text: 'Olive', font: 'hand', size: 0.36 },
+    { text: 'TERRACE', font: 'serif', size: 0.13, spacing: 22, gap: 0.2 },
+  ],
+  modern: [
+    { text: 'OBSIDIAN', font: 'serif', size: 0.2, spacing: 26 },
+    { text: 'lounge', font: 'script', size: 0.15, gap: 0.15 },
+  ],
+  woodbar: [
+    { text: 'Walnut', font: 'script', size: 0.3 },
+    { text: 'BAR', font: 'serif', size: 0.13, spacing: 24, gap: 0.1 },
+  ],
+}
+// 여러 층 건물(올리브 테라스 건물)은 상가 "캠리 스퀘어": 옥상 간판, 입구 옆 층별 안내 기둥, 위층마다 영문 가게 이름
+const SQUARE_NAME: SignLine[] = [{ text: 'CAMRI SQUARE', font: 'serif', size: 0.2, spacing: 30 }]
+const FLOOR_EN: Record<string, string> = { olive: 'OLIVE TERRACE', moss: 'MOSS GARDEN', stream: 'STREAM LOUNGE', breath: 'BREATH LOUNGE' }
+const floorName = (slug: string) => FLOOR_EN[slug] ?? slug.toUpperCase()
+// 글자 그림자가 반투명이라 alphaTest 로 자르지 않고 섞어 그림. 밤에도 읽히게 글자 앞면이 살짝 빛남
+const letterMat = (t: THREE.Texture) =>
+  once(`letters|${t.uuid}`, () => new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.3 }))
+function Letters({ lines, face, side, x, y, z, w }: { lines: SignLine[]; face: string; side: string; x: number; y: number; z: number; w: number }) {
   return (
-    <mesh position={[x, y, z]} material={pictureMat(signTexture(text, bg, color, spacing))}>
-      <planeGeometry args={[w, w / 4]} />
+    <mesh position={[x, y, z]} material={letterMat(letterSignTexture(lines, face, side))}>
+      <planeGeometry args={[w, w / 2]} />
     </mesh>
   )
 }
@@ -159,14 +190,14 @@ export function Facade(props: Props) {
 
 // ── 지점별 (앞면 z = 0 기준) ──────────────────────────────────────────
 
-function Classic({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
+function Classic({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
   const green = '#1f4d36'
   const black = colorMat('#1d1d1d')
   const winW = (w - doorW - 2.2) / 2
   return (
     <>
       <B p={[0, floorH - 0.15, 0.12]} s={[w + 0.2, 0.3, 0.3]} m={colorMat(green)} />
-      <Sign text={`★ ${name}`} bg={green} color="#f3ead8" x={doorX} y={floorH - 0.65} z={0.03} w={2.8} />
+      <Letters lines={SIGN_TEXT.classic} face="#f3ead8" side="#b08a3e" x={doorX} y={2.95} z={0.04} w={4} />
       <Awning x={0} top={2.55} z={0} w={w - 0.5} depth={1.0} a={green} b="#f3ead8" stripes={14} scallop={false} />
       {[-1, 1].map((side) => (
         <Pane key={side} style="classic" x={doorX + side * (doorW / 2 + 0.6 + winW / 2)} y={1.3} z={0} w={winW} h={1.6} frame={black} bars={2} />
@@ -187,7 +218,7 @@ function Classic({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
   )
 }
 
-function Diner({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
+function Diner({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
   const red = '#e33b3b'
   const chrome = colorMat('#d0d4dc')
   const winW = (w - doorW - 2) / 2
@@ -203,7 +234,7 @@ function Diner({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
         <mesh position-z={0.07} material={colorMat('#ff2d55')}>
           <torusGeometry args={[0.72, 0.06, 8, 32]} />
         </mesh>
-        <Sign text={name} bg="transparent" color={red} x={0} y={0} z={0.07} w={1.3} />
+        <Letters lines={SIGN_TEXT.diner} face={red} side="#8f1d26" x={0} y={0} z={0.08} w={1.4} />
       </group>
       <Awning x={0} top={2.5} z={0} w={w - 0.3} depth={0.9} a={red} b="#ffffff" stripes={16} scallop />
       {[-1, 1].map((side) => {
@@ -228,7 +259,7 @@ function Diner({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
   )
 }
 
-function GardenFront({ w, floorH, floors, doorX, doorW, doorH, name, open, near }: Props) {
+function GardenFront({ w, floorH, floors, floorSlugs, doorX, doorW, doorH, open, near }: Props) {
   const brick = brickMat('#c97a52')
   const terra = '#c46a3f'
   const winW = (w - doorW - 2.4) / 2
@@ -239,7 +270,7 @@ function GardenFront({ w, floorH, floors, doorX, doorW, doorH, name, open, near 
       <mesh position={[0, floorH * 0.42, 0.02]} material={brick}>
         <planeGeometry args={[w, floorH * 0.84]} />
       </mesh>
-      <Sign text={floors > 1 ? `1F ${name}` : name} bg="#6b8e3a" color="#f6f1e4" x={doorX} y={floorH * 0.9} z={0.04} w={2.6} />
+      <Letters lines={SIGN_TEXT.garden} face="#f7f3ea" side="#a9a196" x={doorX} y={3.0} z={0.05} w={3.4} />
       <Awning x={0} top={2.45} z={0} w={w - 0.6} depth={0.8} a={terra} b="#e8c3a0" stripes={12} scallop={false} />
       {[-1, 1].map((side) => (
         <Pane key={side} style="garden" x={doorX + side * (doorW / 2 + 0.7 + winW / 2)} y={1.25} z={0.03} w={winW} h={1.4} frame={colorMat('#5e4330')} bars={1} />
@@ -262,18 +293,52 @@ function GardenFront({ w, floorH, floors, doorX, doorW, doorH, name, open, near 
       <Vine p={[w / 2 - 0.15, 1.6, 0.12]} len={height - 1.8} />
       <Planter p={[doorX - doorW / 2 - 0.5, 0, 0.5]} box={terra} />
       <Planter p={[doorX + doorW / 2 + 0.5, 0, 0.5]} box={terra} />
+      {floors > 1 && <SquareSigns w={w} floorH={floorH} floorSlugs={floorSlugs} />}
     </>
   )
 }
 
-function Modern({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
+// 상가 간판들 (앞면 z = 0 기준)
+const ROOF_TOP = 0.3 // 건물 지붕 판 두께 (WorldDecor ROOF.t)
+const PYLON = { w: 1.4, h: 2.6, d: 0.18, x: 0.2 } // 층별 안내판 (건물 앞 모서리 바로 바깥에 선 판)
+function SquareSigns({ w, floorH, floorSlugs }: { w: number; floorH: number; floorSlugs: string[] }) {
+  const top = floorH * floorSlugs.length + ROOF_TOP
+  const iron = MAT.iron
+  const signW = 7
+  // 안내판 글자: 상가 이름 아래 위층부터 "4F BREATH LOUNGE" …
+  const directory: SignLine[] = [
+    { text: 'CAMRI SQUARE', font: 'serif', size: 0.16, spacing: 10 },
+    ...floorSlugs.map((slug, i) => ({ text: `${i + 1}F ${floorName(slug)}`, font: 'serif' as const, size: 0.13, gap: 0.35 })).reverse(),
+  ]
+  return (
+    <>
+      {/* 옥상 간판: 철제 틀 위에 입체 글자 */}
+      {[-signW * 0.38, signW * 0.38].map((x) => (
+        <B key={x} p={[x, top + 0.55, -0.4]} s={[0.08, 1.1, 0.08]} m={iron} />
+      ))}
+      <B p={[0, top + 0.35, -0.4]} s={[signW * 0.85, 0.06, 0.06]} m={iron} />
+      <Letters lines={SQUARE_NAME} face="#f7f3ea" side="#8f8a80" x={0} y={top + 0.75} z={-0.33} w={signW} />
+      {/* 위층 가게 이름: 화분 난간 위 벽에 작은 흰 글자 */}
+      {floorSlugs.slice(1).map((slug, i) => (
+        <Letters key={slug} lines={[{ text: floorName(slug), font: 'serif', size: 0.1, spacing: 12 }]} face="#f7f3ea" side="#8f8a80" x={0} y={(i + 1) * floorH + 2.15} z={0.04} w={4.4} />
+      ))}
+      {/* 층별 안내판: 건물 앞 왼쪽 모서리 바깥 */}
+      <group position={[-w / 2 - PYLON.x - PYLON.w / 2, 0, 1.0]}>
+        <B p={[0, PYLON.h / 2, 0]} s={[PYLON.w, PYLON.h, PYLON.d]} m={colorMat('#2a2d31')} />
+        <Letters lines={directory} face="#f7f3ea" side="#55595f" x={0} y={PYLON.h - 0.55} z={PYLON.d / 2 + 0.01} w={PYLON.w - 0.1} />
+      </group>
+    </>
+  )
+}
+
+function Modern({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
   const black = colorMat('#0f0f10')
   const copper = '#b07a5a'
   const glassW = w - 1.2
   return (
     <>
       <B p={[0, floorH - 0.35, 0.08]} s={[w + 0.1, 0.7, 0.16]} m={colorMat('#1a1a1d')} />
-      <Sign text={name} bg="transparent" color="#d9b48a" x={0} y={floorH - 0.35} z={0.17} w={3.2} spacing={6} />
+      <Letters lines={SIGN_TEXT.modern} face="#e2c193" side="#7d5f3d" x={0} y={floorH - 0.35} z={0.17} w={3.6} />
       {/* 통유리 + 위 간접조명 띠 */}
       <Pane style="modern" x={0} y={1.42} z={0} w={glassW} h={2.4} frame={black} t={0.14} bars={3} />
       <B p={[0, 2.66, 0.12]} s={[glassW, 0.05, 0.08]} m={MAT.lampGlow} />
@@ -283,7 +348,7 @@ function Modern({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
   )
 }
 
-function WoodBar({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
+function WoodBar({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
   const gold = colorMat('#c9a24a')
   const plank = colorMat('#5a3620')
   const brick = brickMat('#a8583f')
@@ -299,7 +364,7 @@ function WoodBar({ w, floorH, doorX, doorW, doorH, name, open, near }: Props) {
       </mesh>
       <group position={[doorX, floorH - 0.45, 0.1]}>
         <B p={[0, 0, 0]} s={[2.9, 0.75, 0.12]} m={colorMat('#3b2416')} />
-        <Sign text={name} bg="transparent" color="#c9a24a" x={0} y={0} z={0.07} w={2.6} />
+        <Letters lines={SIGN_TEXT.woodbar} face="#e8c672" side="#7a5a22" x={0} y={0} z={0.07} w={2.6} />
       </group>
       {[-1, 1].map((side) => {
         const x = doorX + side * (doorW / 2 + 0.75 + winW / 2)

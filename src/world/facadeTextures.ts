@@ -3,7 +3,7 @@
 //   interiorTexture  창 너머로 보이는 실내 (지점마다 다른 분위기: 책상과 스탠드, 다이너 카운터, 화분, 원반 조명, 술병 선반)
 //                    밤에는 이 그림을 빛나게 해(emissiveMap) 실내 불빛이 새어 나오는 것처럼 보입니다
 //   awningTexture    줄무늬 차양 (scallop: 아래 끝을 물결 모양으로 오려 냄)
-//   signTexture      글자 간판 (배경색·글자색·글꼴 굵기)
+//   letterSignTexture 가게 이름 입체 글자 (판 없이 글자만, 순바탕·교보손글씨)
 import * as THREE from 'three'
 import type { FacadeStyle } from './worldLogic'
 
@@ -177,15 +177,66 @@ export function awningTexture(a: string, b: string, stripes: number, scallop: bo
   })
 }
 
-// 글자 간판. weight: 글꼴 굵기, spacing: 글자 사이 (영문 간판)
-export function signTexture(text: string, bg: string, color: string, spacing = 0) {
-  return cached(`sg|${text}|${bg}|${color}|${spacing}`, 512, 128, (ctx, w, h) => {
-    if (bg !== 'transparent') rect(ctx, bg, 0, 0, w, h)
-    ctx.fillStyle = color
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.font = `700 64px "KerisKedyuche", system-ui, sans-serif`
-    if (spacing) ctx.letterSpacing = `${spacing}px`
-    ctx.fillText(text, w / 2, h / 2 + 4, w - 30)
+// ── 입체 글자 간판 (채널 사인) ─────────────────────────────────────────
+// 판 없이 글자만 벽에 붙은 간판. 글자 옆면(side)을 몇 번 겹쳐 그려 두께를 흉내 내고, 벽에 지는 그림자를 깔아 떠 보이게 합니다.
+// 글꼴은 index.css 의 @font-face. 받기 전에 그리면 대신 글꼴로 그려지므로, 받은 뒤 같은 캔버스를 다시 그립니다.
+export const SIGN_FONT = {
+  serif: "'SunBatang', 'Times New Roman', serif", // 순바탕 Bold: 큰 이름
+  hand: "'KyoboHandwriting2020A', cursive", // 교보손글씨 2020 박도연: 부드러운 손글씨
+  script: "'Continuous', 'KyoboHandwriting2020A', cursive", // 흘림체 자리 (Continuous 가 없으면 손글씨로)
+}
+export type SignFont = keyof typeof SIGN_FONT
+const FONT_WEIGHT: Record<SignFont, number> = { serif: 700, hand: 400, script: 400 }
+// size: 캔버스 높이 대비 글자 크기, spacing: 글자 사이(px), gap: 윗줄과 사이(글자 크기 비율)
+export type SignLine = { text: string; font: SignFont; size: number; spacing?: number; gap?: number }
+export const LETTER_PX = { w: 1024, h: 512 } // 판 비율 2:1
+const DEPTH = 7 // 옆면 두께(px)
+
+let fontsReady: Promise<unknown> | null = null
+function loadSignFonts() {
+  fontsReady ??= Promise.all((Object.keys(SIGN_FONT) as SignFont[]).map((f) => document.fonts.load(`${FONT_WEIGHT[f]} 40px ${SIGN_FONT[f]}`))).catch(() => {})
+  return fontsReady
+}
+
+function drawLetters(ctx: CanvasRenderingContext2D, lines: SignLine[], face: string, side: string) {
+  const { w, h } = LETTER_PX
+  ctx.clearRect(0, 0, w, h)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const heights = lines.map((l, i) => l.size * h * (1 + (i > 0 ? (l.gap ?? 0.15) : 0)))
+  let y = (h - heights.reduce((a, b) => a + b, 0)) / 2
+  lines.forEach((l, i) => {
+    const px = l.size * h
+    y += heights[i] - px / 2
+    ctx.font = `${FONT_WEIGHT[l.font]} ${px}px ${SIGN_FONT[l.font]}`
+    ctx.letterSpacing = `${l.spacing ?? 0}px`
+    const maxW = w - 40
+    // 벽 그림자 → 옆면 → 앞면
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetX = DEPTH + 4
+    ctx.shadowOffsetY = DEPTH + 6
+    ctx.fillStyle = side
+    ctx.fillText(l.text, w / 2, y, maxW)
+    ctx.restore()
+    ctx.fillStyle = side
+    for (let d = DEPTH; d > 0; d--) ctx.fillText(l.text, w / 2 + d * 0.6, y + d, maxW)
+    ctx.fillStyle = face
+    ctx.fillText(l.text, w / 2, y, maxW)
+    y += px / 2
   })
+}
+
+export function letterSignTexture(lines: SignLine[], face: string, side: string) {
+  const key = `ls|${face}|${side}|${JSON.stringify(lines)}`
+  const t = cached(key, LETTER_PX.w, LETTER_PX.h, (ctx) => drawLetters(ctx, lines, face, side))
+  if (!t.userData.fontsDone) {
+    t.userData.fontsDone = true
+    loadSignFonts().then(() => {
+      drawLetters((t.image as HTMLCanvasElement).getContext('2d')!, lines, face, side)
+      t.needsUpdate = true
+    })
+  }
+  return t
 }

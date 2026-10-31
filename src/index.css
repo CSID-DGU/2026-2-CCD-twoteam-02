@@ -12,6 +12,20 @@
   font-weight: 700;
   font-display: swap;
 }
+/* 캠리단길 가게 간판 글꼴 (눈누가 npm 에 올려 둔 파일, jsDelivr 로 받음)
+   순바탕 Bold © 한국출판문화산업진흥원 / 교보손글씨 2020 박도연 © 교보문고 — 둘 다 무료, 웹폰트 사용 허용 */
+@font-face {
+  font-family: 'SunBatang';
+  src: url('https://cdn.jsdelivr.net/npm/@noonnu/sunbatang-bold@0.0.1/SunBatang-Bold.woff') format('woff');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'KyoboHandwriting2020A';
+  src: url('https://cdn.jsdelivr.net/npm/@noonnu/kyobohandwriting2020a@0.0.1/KyoboHandwriting2020A.woff') format('woff');
+  font-weight: 400;
+  font-display: swap;
+}
 
 :root {
   --text: #6b6375;

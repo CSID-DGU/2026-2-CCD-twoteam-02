@@ -9,7 +9,7 @@ import { Instance, Instances } from '@react-three/drei'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-import { MAT, applyGroundTextures, colorMat, lawnMat, roofMat } from './worldMaterials'
+import { MAT, applyGroundTextures, colorMat, lawnMat, litWindowMat, roofMat } from './worldMaterials'
 import { TILE, tiledPlane } from './worldTextures'
 import { Facade } from './Facades'
 
@@ -140,25 +140,27 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
               key={`${level}-${i}`}
               position={[x + Math.sin(rot) * OUT, WINDOW.y + level * BUILDING_H, z + Math.cos(rot) * OUT]}
               rotation-y={rot}
-              material={f.window ? colorMat(f.window) : MAT.window}
+              material={f.window ? (facade ? litWindowMat(f.window) : colorMat(f.window)) : MAT.window}
             >
               <planeGeometry args={[WINDOW.w, WINDOW.h]} />
             </mesh>
           )),
         )}
         {facade && (
-          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} open={open} near={near} />
+          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} floorSlugs={b.floors.map((f) => f.slug)} open={open} near={near} />
         )}
-        {/* 층 사이 띠와 위층 간판 */}
+        {/* 층 사이 띠와 위층 간판 (파사드가 있으면 위층 간판도 파사드가 그림) */}
         {b.floors.slice(1).map((f, i) => (
           <group key={f.slug} position-y={(i + 1) * BUILDING_H}>
             <mesh material={roof}>
               <boxGeometry args={[w + FLOOR_BAND.out * 2, FLOOR_BAND.t, d + FLOOR_BAND.out * 2]} />
             </mesh>
-            <mesh position={[doorX, WINDOW.y, d / 2 + OUT]}>
-              <planeGeometry args={[SIGN.width, (SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-              <meshBasicMaterial map={floorSigns[i]} transparent />
-            </mesh>
+            {!facade && (
+              <mesh position={[doorX, WINDOW.y, d / 2 + OUT]}>
+                <planeGeometry args={[SIGN.width, (SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+                <meshBasicMaterial map={floorSigns[i]} transparent />
+              </mesh>
+            )}
           </group>
         ))}
         {/* 입구 문·간판: 벽 밖으로 조금 나오게 (파사드가 있으면 파사드가 그림) */}
