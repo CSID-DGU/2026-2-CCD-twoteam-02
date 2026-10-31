@@ -26,6 +26,7 @@
 //   문 앞 입장 자리에서 E 를 누르면 넘어갑니다. 넘어가면 그쪽 월드에서 "이쪽으로 오는 정문" 앞에 문을 등지고 섭니다.
 //   쉬는 자리(rests)는 캠퍼스 쿼드의 돗자리·빈백. 앉아도 기록 없이 쉬기만 합니다.
 //   Player 의 "앉는 자리" 번호가 건물 입구(1~)·정문(GATE_NO_BASE~)·쉬는 자리(REST_NO_BASE~)로 나뉩니다(spotKindOf).
+//   캠퍼스 가운데 등불 나무 광장의 빈백은 광장 벤치처럼 공부 자리입니다(courtyardSeats).
 import type { Box, BranchLayout, Spot } from '../space/layout'
 
 export type Facing = 'south' | 'north' | 'east' | 'west'
@@ -48,6 +49,9 @@ export type WorldId = 'plaza' | 'campus'
 export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: Facing; label: string; fence?: number }
 // 쉬는 자리(돗자리·빈백). rot: 앉은 사람이 보는 방향
 export type RestSpec = { x: number; z: number; rot: number; kind: 'mat' | 'beanbag' }
+// 등불 나무 광장 (캠퍼스 가운데): 둥근 원목 화단 속 큰 나무에 등불이 달리고, 둘레에 빈백이 불규칙하게 흩어져 놓임.
+// r: 화단(아래 앉는 단) 반지름, bags: 빈백 자리(rot 은 앉은 사람이 보는 쪽, 대개 나무 쪽). 빈백 하나가 공부 자리 하나
+export type CourtyardSpec = { x: number; z: number; r: number; bags: { x: number; z: number; rot: number }[] }
 
 export type PlazaLayout = {
   size: { w: number; d: number } // 월드 전체 (가운데 0, 0)
@@ -58,6 +62,7 @@ export type PlazaLayout = {
   fountain?: { x: number; z: number; r: number } // 가운데 분수 (캠퍼스에는 없음)
   gates?: GateSpec[]
   rests?: RestSpec[]
+  courtyard?: CourtyardSpec // 등불 나무 광장 (캠퍼스)
   buildings: BuildingSpec[]
   paths: Box[] // 광장 → 건물 입구 돌길
   trees: Point[]
@@ -268,6 +273,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ),
     ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences]),
     ...(plaza.board ? [boardBox(plaza.board)] : []),
+    ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
   ]
 }
 
@@ -434,3 +440,27 @@ export function benchSeats(plaza: PlazaLayout): Spot[] {
 
 export const isBenchSpot = (no: number) => no > BENCH_SEAT_BASE
 export const benchSeatNumber = (no: number) => no - BENCH_SEAT_BASE
+
+// ── 등불 나무 광장 (캠퍼스 가운데) ───────────────────────────────────
+// 빈백은 campus.json 에 손으로 고른 자리에 불규칙하게 놓습니다. 남·북·동·서 길 방향은 비워 그 사이로 걸어 들어갑니다.
+// 빈백 자리는 벤치 자리와 같은 번호 규칙(BENCH_SEAT_BASE + DB 좌석 번호, JSON 순서대로)이고, 캠퍼스는 DB 에서 카페 종류 지점
+// 'campus' 라 그 좌석입니다(0043). 벤치처럼 빈자리에 앉으면 내 자리, 일어나면 놓음. 빈백은 쉬는 빈백처럼 부딪히지 않습니다.
+// 크기·앉는 높이·기대는 각도는 쉬는 빈백(BEANBAG)과 같습니다.
+export const COURTYARD_PLANTER_BOX = 0.88 // 둥근 화단을 막는 네모 상자 크기 (반지름 × 2 × 이 비율, 모서리가 조금 안으로)
+
+export function courtyardSeats(plaza: PlazaLayout): Spot[] {
+  return (plaza.courtyard?.bags ?? []).map((b, i) => ({
+    no: BENCH_SEAT_BASE + i + 1,
+    x: b.x,
+    z: b.z,
+    rot: b.rot,
+    y: BEANBAG.y,
+    lie: BEANBAG.lie,
+  }))
+}
+
+// 부딪힘: 화단(가운데 나무)만
+function courtyardBoxes(c: CourtyardSpec): Box[] {
+  const side = c.r * 2 * COURTYARD_PLANTER_BOX
+  return [{ x: c.x, z: c.z, w: side, d: side }]
+}

@@ -20,9 +20,10 @@
 // 같은 화면으로 두 바깥 공간(월드)을 그립니다: 광장(/)과 캠빛 대학교 캠퍼스(/campus). 무엇을 그릴지는 world(worldConfig.ts)가 정합니다.
 // 월드 사이는 정문(gates)으로 오갑니다. 정문 앞에서 E 를 누르면 다른 월드로 넘어가 그쪽 정문 앞에 문을 등지고 섭니다.
 //
-// 벤치에서 공부하기 (광장만): 광장은 DB 에서 카페 종류 지점 'plaza' 이고(0038) 벤치마다 두 자리가 그 좌석이다.
-// 빈 벤치 자리에서 E 를 누르면 카페처럼 DB 에 자리를 잡고(useCafeSeat) 앉아, 지점과 똑같이 좌석 공부(SeatCamera·SeatedStudy)를 한다.
-// 일어나거나 광장을 떠나면 자리를 놓는다. 다른 사람에게는 벤치에 앉은 모습과 공부 상태 표시등이 보인다.
+// 벤치에서 공부하기: 광장은 DB 에서 카페 종류 지점 'plaza' 이고(0038) 벤치마다 두 자리가 그 좌석이다.
+// 캠퍼스는 가운데 등불 나무 광장의 빈백이 공부 자리이고 DB 지점 'campus'(0043)의 좌석이다(벤치와 같은 방식, world.study).
+// 빈 자리에서 E 를 누르면 카페처럼 DB 에 자리를 잡고(useCafeSeat) 앉아, 지점과 똑같이 좌석 공부(SeatCamera·SeatedStudy)를 한다.
+// 일어나거나 광장을 떠나면 자리를 놓는다. 다른 사람에게는 앉은 모습과 공부 상태 표시등이 보인다.
 // 캠퍼스의 벤치는 DB 자리가 없어 앉지 않는다(보기만).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
@@ -65,7 +66,7 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, benchSeats, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
+import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
@@ -74,6 +75,7 @@ import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
 import { NightFill, StringLights } from './StreetLights'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
+import { LanternCourtyard } from './LanternTree'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
@@ -99,9 +101,6 @@ const TOP_VIEW_SPAN = 30 // 위에서 보기: 내 둘레 이 거리(m)
 const MINIMAP_SPAN = 40 // 미니맵: 내 둘레 이 거리(m)
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null }
-// 벤치에서 공부하기 (광장만, 0038): 벤치 자리와 DB 의 광장 지점
-const PLAZA_BENCH_SPOTS = benchSeats(PLAZA_WORLD.layout)
-const PLAZA_SLUG = 'plaza' // DB 에서 광장 지점 (카페 종류, 벤치 자리가 좌석)
 
 type Branch = { id: number; slug: string; name: string }
 
@@ -116,20 +115,19 @@ type Props = {
 export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 월드의 배치와 미리 계산한 값 (월드마다 한 번만 계산해 둠, worldConfig.computedOf)
   const PLAZA = world.layout
-  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
+  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, studySpots: BENCH_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
   const navigate = useNavigate()
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [message, setMessage] = useState('')
   // 앉아 있는 쉬는 자리 번호 (캠퍼스 쿼드의 돗자리·빈백). 기록 없이 쉬기만 합니다. 서 있으면 null
   const [seat, setSeat] = useState<number | null>(null)
-  // 벤치에서 공부하기 (광장만): 벤치 자리 번호는 BENCH_SEAT_BASE 초과(spotKindOf 'bench')
-  const BENCH_SPOTS = world.id === 'plaza' ? PLAZA_BENCH_SPOTS : []
+  // 공부 자리 (광장 벤치·캠퍼스 등불나무 테이블): 자리 번호는 BENCH_SEAT_BASE 초과(spotKindOf 'bench')
   const benchSeated = seat !== null && spotKindOf(seat) === 'bench'
-  const { info: plazaInfo } = useBranchInfo(PLAZA_SLUG) // 0038 실행 전이면 null (벤치에 앉을 수 없음)
-  const plazaId = world.id === 'plaza' && plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
+  const { info: plazaInfo } = useBranchInfo(world.study.slug) // 0038(광장)·0043(캠퍼스) 실행 전이면 null (앉을 수 없음)
+  const plazaId = plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
   const { mySeat, sessionId, setMySeat } = useMySeat(plazaId ?? -1)
-  const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch') // 광장 벤치 자리만 정리 (다른 기기의 카페 자리는 그대로)
+  const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch') // 이 월드의 공부 자리만 정리 (다른 기기의 카페 자리는 그대로)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>('idle') // 벤치에 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false) // 공부 시작 창이 떠 있는지 (중지 중 포함)
   const [studyPaused, setStudyPaused] = useState(false) // 공부 중지 중 (#236)
@@ -325,7 +323,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
   const blockedEnter = (no: number) => {
     if (spotKindOf(no) === 'bench') {
-      if (plazaId === null) setMessage('벤치 자리를 아직 쓸 수 없어요. 잠시 뒤 다시 해 주세요.') // 광장 지점(0038)을 못 읽음
+      if (plazaId === null) setMessage(`${world.study.label} 자리를 아직 쓸 수 없어요. 잠시 뒤 다시 해 주세요.`) // 광장(0038)·캠퍼스(0043) 지점을 못 읽음
       else void cafe.claim(benchSeatNumber(no), no)
       return
     }
@@ -354,9 +352,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ? `${aim.target.name} · ${K.interact} 프로필 보기`
         : `${aim.target.name} · ${K.interact} 오늘의 운세`
     : benchSeated
-      ? `벤치 · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      ? `${world.study.label} · WASD·끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
     : near !== null && spotKindOf(near) === 'bench'
-      ? `벤치 · ${K.interact} 앉아서 공부하기`
+      ? `${world.study.label} · ${K.interact} 앉아서 공부하기`
     : near === BOARD_NO
       ? `순위 게시판 · ${K.interact} 보기`
     : seat !== null
@@ -418,6 +416,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           </group>
         ))}
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
+        {/* 캠퍼스 가운데 등불 나무 광장: 둥근 원목 화단 속 큰 나무 + 등불, 둘레 빈백에서 공부 */}
+        {PLAZA.courtyard && <LanternCourtyard courtyard={PLAZA.courtyard} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
 
         {/* 광장의 다른 참여자. 프로필 창 (#166): 1인칭은 조준점 + E, 위에서 보면 클릭. 앉아 있으면 열지 않음. 쉬는 자리·벤치에 앉은 사람은 앉은 모습으로.
@@ -508,7 +508,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {/* 벤치에 앉아 있는 동안: 지점 카페와 같은 남은 시간 영수증, 자리를 잃으면(다른 기기에서 반납·5분 넘게 신호 없음 등) 안내 (#341).
           잃으면 내 자리를 비워 공부 타이머가 끝난 이용 기록에 더 저장하지 않습니다(지점과 같음). */}
       {benchSeated && session && (
-        <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} lostText="벤치 자리가 반납되었습니다. 일어났다가 다시 앉아 주세요." />
+        <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} lostText={`${world.study.label} 자리가 반납되었습니다. 일어났다가 다시 앉아 주세요.`} />
       )}
       {/* 벤치에서 공부: 지점 좌석과 같은 웹캠 트래킹·공부 시작 창·집중 타이머 */}
       {benchSeated && session && (
