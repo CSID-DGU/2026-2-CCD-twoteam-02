@@ -21,6 +21,8 @@ import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
 import { rememberCondition } from './study/condition'
 import { cornerButton } from './menu/cornerStyle' // 우측 상단 버튼 공통 모양
+import { BagLayer } from './planner/BagLayer' // 가방: 스터디 플래너·메모장
+import { useSession } from './auth/useSession'
 
 
 // 로그인한 사람만 통과시키고, 아니면 /login 으로 보냅니다.
@@ -152,6 +154,12 @@ function AppRoutes() {
   )
 }
 
+// 가방은 로그인했을 때만 (로그인·회원가입 화면에는 없음). 계정이 바뀌면 새로 읽음
+function SignedInBag() {
+  const { session } = useSession()
+  return session ? <BagLayer key={session.user.id} /> : null
+}
+
 function App() {
   // BrowserRouter: 주소창의 경로(/space 등)를 읽어 맞는 화면을 고르고, 새로고침 없이 화면을 바꿉니다.
   return (
@@ -163,6 +171,7 @@ function App() {
           {/* 같은 계정은 한 번에 한 탭만 광장·지점에 (#347). 다른 탭에 양보했으면 화면 대신 "여기서 계속하기" */}
           <TabGate>
             <AppRoutes />
+            <SignedInBag />
           </TabGate>
         </ChatProvider>
       </OnlineProvider>
