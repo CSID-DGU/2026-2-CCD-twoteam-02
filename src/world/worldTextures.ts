@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 
 const PX = 512 // 그림 한 변
-export const TILE = { cobble: 4, brick: 2, gravel: 1.2, grass: 3 } // 그림 한 장이 덮는 땅 크기(m)
+export const TILE = { cobble: 8, brick: 4, gravel: 1.2, grass: 3 } // 그림 한 장이 덮는 땅 크기(m)
 
 // 정해진 난수
 function random(seed: number) {
