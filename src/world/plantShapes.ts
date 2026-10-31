@@ -160,3 +160,16 @@ export function trunkShape(h: number) {
   ]
   return paintByHeight(merge(parts), [0.75, 0.75, 0.75], [1, 1, 1])
 }
+
+// 덩굴: 위에서 아래로 늘어진 잎 덩어리 줄 (len m). 높이 0 = 아래 끝
+export function vineShape(len: number) {
+  const blobs: THREE.BufferGeometry[] = []
+  const n = Math.round(len / 0.22)
+  for (let i = 0; i < n; i++) {
+    const y = len - i * 0.22
+    const x = Math.sin(i * 1.3) * 0.12
+    const r = 0.13 + ((i * 7) % 5) * 0.015
+    blobs.push(new THREE.IcosahedronGeometry(r, 0).translate(x, y, ((i * 3) % 4) * 0.03))
+  }
+  return paintByHeight(merge(blobs), [0.55, 0.6, 0.5], [1, 1, 1])
+}

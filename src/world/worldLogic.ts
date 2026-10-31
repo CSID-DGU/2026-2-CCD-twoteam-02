@@ -35,7 +35,9 @@ export type Point = { x: number; z: number }
 // w·d 는 겉모습 폭(입구 면)·깊이 (실내 크기와 따로)
 // floors: 2층부터 위로 쌓는 지점. window 는 그 층 창 색(지점 분위기). 1층은 slug 의 지점입니다.
 export type FloorSpec = { slug: string; window?: string }
-export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[] }
+// 앞면 모양 (캠리단길 파사드, Facades.tsx). 없으면 예전 모양(창 둘 + 초록 간판 + 색 문)
+export type FacadeStyle = 'classic' | 'diner' | 'garden' | 'modern' | 'woodbar'
+export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle }
 
 // world.json 모양
 // 바깥 공간(월드) 이름. 광장(첫 화면)과 캠빛 대학교 캠퍼스

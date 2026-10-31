@@ -65,6 +65,32 @@ export function setNightGlow(glow: number) {
   lastGlow = glow
   MAT.lampGlow.emissiveIntensity = GLOW.lampDay + (GLOW.lampNight - GLOW.lampDay) * glow
   MAT.window.emissiveIntensity = GLOW.window * glow
+  for (const m of shopWindows.values()) m.emissiveIntensity = SHOP_GLOW.day + (SHOP_GLOW.night - SHOP_GLOW.day) * glow
+}
+
+// 캠리단길 가게 창: 실내 그림(facadeTextures.interiorTexture)을 붙이고, 같은 그림으로 빛나게 함
+// 낮에는 살짝(유리 너머가 보이게), 밤에는 실내 불빛처럼 밝게. 그림마다 한 번만 만듭니다
+const SHOP_GLOW = { day: 0.25, night: 1.1 }
+const shopWindows = new Map<THREE.Texture, THREE.MeshStandardMaterial>()
+export function shopWindowMat(interior: THREE.Texture) {
+  let m = shopWindows.get(interior)
+  if (!m) {
+    m = mat('#ffffff', { map: interior, emissive: '#ffffff', emissiveMap: interior, roughness: 0.25, metalness: 0.1 })
+    m.emissiveIntensity = SHOP_GLOW.day + (SHOP_GLOW.night - SHOP_GLOW.day) * Math.max(0, lastGlow)
+    shopWindows.set(interior, m)
+  }
+  return m
+}
+
+// 차양·간판처럼 그림을 붙인 판 (그림마다 한 번). 투명 부분이 있으면 잘라 냄
+const pictureMats = new Map<THREE.Texture, THREE.MeshStandardMaterial>()
+export function pictureMat(t: THREE.Texture) {
+  let m = pictureMats.get(t)
+  if (!m) {
+    m = mat('#ffffff', { map: t, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide })
+    pictureMats.set(t, m)
+  }
+  return m
 }
 
 // 건물마다 다른 벽·지붕 색은 색별로 한 번만 만듭니다.

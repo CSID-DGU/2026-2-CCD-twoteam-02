@@ -11,6 +11,7 @@ import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './world
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
 import { MAT, applyGroundTextures, colorMat, lawnMat, roofMat } from './worldMaterials'
 import { TILE, tiledPlane } from './worldTextures'
+import { Facade } from './Facades'
 
 // 크기·높이 (m)
 const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -105,6 +106,7 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
   const wall = colorMat(b.spec.wall)
   const roof = roofMat(b.spec.roof) // 지붕 전용 재질 (눈이 쌓이면 하얗게, #329)
   const multi = b.floors.length > 1
+  const facade = b.spec.facade // 캠리단길 파사드 (없으면 예전 앞면)
   const height = BUILDING_H * b.floors.length
   const signBg = open ? '#14532d' : '#374151'
   const sign = useMemo(() => labelTexture(multi ? `1F ${b.name}` : b.name, signBg), [b.name, multi, signBg])
@@ -132,7 +134,8 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
           <boxGeometry args={[w + ROOF.overhang * 2, ROOF.t, d + ROOF.overhang * 2]} />
         </mesh>
         {b.floors.map((f, level) =>
-          windows.map(([x, z, rot], i) => (
+          windows.map(([x, z, rot], i) =>
+            facade && level === 0 && i < 2 ? null : ( // 파사드가 있으면 1층 앞 창은 파사드가 그림
             <mesh
               key={`${level}-${i}`}
               position={[x + Math.sin(rot) * OUT, WINDOW.y + level * BUILDING_H, z + Math.cos(rot) * OUT]}
@@ -142,6 +145,9 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
               <planeGeometry args={[WINDOW.w, WINDOW.h]} />
             </mesh>
           )),
+        )}
+        {facade && (
+          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} open={open} near={near} />
         )}
         {/* 층 사이 띠와 위층 간판 */}
         {b.floors.slice(1).map((f, i) => (
@@ -155,14 +161,18 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
             </mesh>
           </group>
         ))}
-        {/* 입구 문: 벽 밖으로 조금 나오게 */}
-        <mesh position={[doorX, DOOR_H / 2, d / 2 + 0.08]} material={doorMat}>
-          <boxGeometry args={[doorW, DOOR_H, 0.16]} />
-        </mesh>
-        <mesh position={[doorX, SIGN.y, d / 2 + OUT]}>
-          <planeGeometry args={[SIGN.width, (SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
-          <meshBasicMaterial map={sign} transparent />
-        </mesh>
+        {/* 입구 문·간판: 벽 밖으로 조금 나오게 (파사드가 있으면 파사드가 그림) */}
+        {!facade && (
+          <>
+            <mesh position={[doorX, DOOR_H / 2, d / 2 + 0.08]} material={doorMat}>
+              <boxGeometry args={[doorW, DOOR_H, 0.16]} />
+            </mesh>
+            <mesh position={[doorX, SIGN.y, d / 2 + OUT]}>
+              <planeGeometry args={[SIGN.width, (SIGN.width * LABEL_PX.h) / LABEL_PX.w]} />
+              <meshBasicMaterial map={sign} transparent />
+            </mesh>
+          </>
+        )}
       </group>
     </group>
   )
