@@ -252,6 +252,25 @@ export function sunEvents(dayMs: number): { rise: number | null; set: number | n
   return { rise, set }
 }
 
+// 지금 하늘 시각이 어느 때인지 (팀 조절판이 그 버튼을 초록으로 칠함). 낮(그 밖)이면 null
+//   동틀 녘  일출 PERIOD.dawn[0] 분 전 ~ PERIOD.dawn[1] 분 뒤
+//   해 질 녘 일몰 PERIOD.dusk[0] 분 전 ~ PERIOD.dusk[1] 분 뒤
+//   정오     PERIOD.noon 시 ~ 시
+//   밤       동틀 녘 전이거나 해 질 녘 뒤
+export const PERIOD = { dawn: [60, 30], dusk: [30, 60], noon: [11, 13] } as const
+export type DayPeriod = 'dawn' | 'noon' | 'dusk' | 'night'
+export function dayPeriod(ms: number, ev = sunEvents(ms)): DayPeriod | null {
+  const MIN = 60_000
+  if (ev.rise === null || ev.set === null) return null
+  const dawn = [ev.rise - PERIOD.dawn[0] * MIN, ev.rise + PERIOD.dawn[1] * MIN]
+  const dusk = [ev.set - PERIOD.dusk[0] * MIN, ev.set + PERIOD.dusk[1] * MIN]
+  if (ms >= dawn[0] && ms < dawn[1]) return 'dawn'
+  if (ms >= dusk[0] && ms < dusk[1]) return 'dusk'
+  if (ms < dawn[0] || ms >= dusk[1]) return 'night'
+  if (ms >= seoulTimeOn(ms, PERIOD.noon[0], 0) && ms < seoulTimeOn(ms, PERIOD.noon[1], 0)) return 'noon'
+  return null
+}
+
 // ── 달과 별자리 겹침 (#344) ─────────────────────────────────────────
 // 구름은 달을 가리고 별자리는 구름에 가리지 않게 그리는 순서를 정해서(#317), 달이 별자리를 가리게 할 수는 없습니다(순서가 돌고 돔).
 // 대신 달이 지나가는 별자리를 흐리게 합니다. 별자리 반지름 6°(starLogic 의 RING.size / 2), 달 반지름 약 1.6°.
