@@ -2,6 +2,7 @@
   "id": "breath",
   "name": "숨 라운지",
   "rest": true,
+  "ambience": "stream",
   "size": {
     "w": 16,
     "d": 16
