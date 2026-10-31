@@ -81,6 +81,7 @@ import { useAim } from '../space/useAim'
 import type { AimTarget } from '../space/aimLogic'
 import { RankingBoard } from './RankingBoard'
 import { RankingPanel } from '../ranking/RankingPanel'
+import { PortraitStudio } from '../ranking/PortraitStudio'
 import { useRanking } from '../ranking/useRanking'
 import { REFRESH_MS, boardLines } from '../ranking/rankingLogic'
 import { useMyTitle } from '../level/useMyTitle'
@@ -497,6 +498,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onSkyTime={() => setSkyTimeOpen((v) => !v)} />}
       {skyTimeOpen && <SkyTimePanel onClose={() => setSkyTimeOpen(false)} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
+      {/* 순위 게시판·순위 창에 쓰는 캐릭터 얼굴 사진을 찍는 화면 (찍을 것이 있을 때만 만들어짐) */}
+      <PortraitStudio />
       {rankingOpen && (
         <RankingPanel
           myId={session?.user.id ?? null}
