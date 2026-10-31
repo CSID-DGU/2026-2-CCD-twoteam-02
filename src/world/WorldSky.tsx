@@ -3,8 +3,8 @@
 // 계산은 skyLogic.ts(순수 함수)가 하고, 여기서는 매 프레임(useFrame) 그 값을 three.js 물체에 직접 넣습니다.
 // React 다시 그리기가 없어 가볍고, ?speed 로 빨리 돌려도 해가 끊기지 않고 움직입니다.
 //
-//   낮 하늘   drei Sky: 해 위치에 따라 하늘색·노을을 그리는 셰이더. 해 방향만 매 프레임 바꿈
-//   밤 덮개   Sky 는 해가 지면 거의 새까매져서, 위에 남색 그라데이션 반구를 씌우고 투명도 = 밤 정도
+//   하늘     GradientSky: 해 고도로 정한 머리 위·중간·지평선 그라데이션, 해 쪽 노을빛, 해(skyColorLogic). 밤에는 남색
+//            해 질 녘엔 주변광도 노을빛 쪽으로(warmSky)
 //   별        drei Stars 는 바깥에서 투명도를 못 받아 직접 만든 점 2,500개 (고정 씨앗값이라 늘 같은 자리)
 //   달        늘 카메라를 보는 판(Billboard). 위상에 맞춰 캔버스에 그린 그림, 위상이 1% 바뀔 때만 다시 그림.
 //             밝은 쪽이 화면에서 해가 있는 쪽을 보도록 판을 돌림
@@ -17,32 +17,34 @@
 // 하늘 부품은 레이어 2(SKY_LAYER)에 둡니다. 화면 카메라만 레이어 2 를 켜고 미니맵 카메라는 켜지 않아서,
 // 미니맵의 월드 바깥은 지금처럼 어두운 색으로 남습니다.
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { ComponentRef, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Billboard, Sky } from '@react-three/drei'
+import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { SKY_LAYER, moonLitAngle, parseClock, skyState, toDirection, worldTime } from './skyLogic'
-import type { Clock } from './skyLogic'
 import type { Point } from './worldLogic'
 import { OVERCAST_COLOR, applyWeather, weatherAt } from './weatherLogic'
 import type { WeatherFrame, WeatherSource } from './weatherLogic'
 import { applyLightning, lightningAt, parseLightningFast } from './lightningLogic'
 import { setNightGlow, setSnowCover } from './worldMaterials'
 import { Constellations } from './Constellations'
+import { GradientSky } from './GradientSky'
+import { getSkyClock, setSkyClock } from './skyClock'
+import { warmSky } from './skyColorLogic'
 import { Clouds } from './Clouds'
 import { Precipitation } from './Precipitation'
 import { LightningBolt } from './LightningBolt'
 import type { AimTarget } from '../space/aimLogic'
 
 // 거리·크기 (스펙 5절). 카메라가 볼 수 있는 거리(기본 1000) 안쪽
-const SKY_DISTANCE = 450
-const DOME = { r: 400, top: '#0b1630', horizon: '#24365f' }
+const DOME = { r: 400 } // 흐림 덮개 반지름
 const STARS = { r: 350, count: 2500, seed: 316, size: 1.6 }
 const MOON = { distance: 330, size: 18, px: 128, lit: '#f4f1e6', shade: '#283152' }
 // 그리는 순서: 하늘 부품은 다른 투명한 것(이름표 등, 순서 0)보다 먼저 그려야 그 위를 덮지 않습니다. 그래서 음수.
 // 구름(−3, Clouds)은 해·달을 가리고 별자리(−2·−1, Constellations)는 가리지 않도록 그 사이에 둡니다. (#317)
 // 번개 줄기(−3.5, LightningBolt)는 흐림 덮개 위, 구름 아래입니다. (#328)
-const ORDER = { dome: -8, stars: -7, moonShade: -6, moonLit: -5, overcast: -4 }
+// 하늘 바탕(GradientSky)은 −9 로 가장 먼저입니다.
+const ORDER = { stars: -7, moonShade: -6, moonLit: -5, overcast: -4 }
 const LIGHT_DISTANCE = 50 // 방향광을 놓는 거리 (방향만 의미 있음)
 // 가로등 점광원. height 는 가로등 머리 높이(WorldDecor 의 기둥 높이), power × 밤 빛남 = 세기
 const LAMP_LIGHT = { color: '#ffd28a', range: 12, power: 12, height: 3 }
@@ -72,25 +74,8 @@ function starPositions(): Float32Array {
   return out
 }
 
-// 덮개 반구 (머리 위부터 지평선 조금 아래까지)
+// 흐림 덮개 반구 (머리 위부터 지평선 조금 아래까지)
 const hemisphere = () => new THREE.SphereGeometry(DOME.r, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6)
-
-// 밤 덮개: 반구 안쪽 면에 지평선 → 머리 위 남색 그라데이션 (정점 색)
-function domeGeometry(): THREE.SphereGeometry {
-  const g = hemisphere()
-  const pos = g.getAttribute('position')
-  const top = new THREE.Color(DOME.top)
-  const horizon = new THREE.Color(DOME.horizon)
-  const colors = new Float32Array(pos.count * 3)
-  const c = new THREE.Color()
-  for (let i = 0; i < pos.count; i++) {
-    const t = Math.sqrt(Math.min(1, Math.max(0, pos.getY(i) / DOME.r)))
-    c.copy(horizon).lerp(top, t)
-    colors.set([c.r, c.g, c.b], i * 3)
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-  return g
-}
 
 // 달 그림: 밝은 부분만. 위상에 맞춘 그림자 경계(타원). 밝은 쪽은 늘 오른쪽으로 그리고,
 // 판을 돌려(moonLitAngle) 해 쪽을 보게 합니다. 그래서 차는 달·기우는 달은 밝은 넓이(0~0.5 위상)로만 구분합니다.
@@ -123,11 +108,8 @@ type Props = {
 export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign = null, weatherRef, followRef }: Props) {
   const frame = useRef<WeatherFrame | null>(null) // 이번 프레임 하늘·날씨 값. 별자리·구름·비가 같이 씀
   const camera = useThree((s) => s.camera)
-  const clock = useRef<Clock | null>(null)
   const fastLightning = useRef<boolean | null>(null) // ?weather=storm:fast (처음 한 번 읽음)
   const overcastColor = useRef(OVERCAST_COLOR) // 흐림 덮개에 지금 칠해 둔 색 (바뀔 때만 바꿈)
-  const sky = useRef<ComponentRef<typeof Sky>>(null)
-  const dome = useRef<THREE.Mesh>(null)
   const overcast = useRef<THREE.Mesh>(null) // 흐림 덮개 (#317)
   const stars = useRef<THREE.Points>(null)
   const moon = useRef<THREE.Group>(null)
@@ -141,11 +123,6 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
   // 매 프레임 쓰는 방향 벡터들. 새로 만들지 않고 이것들에 담습니다.
   const tmp = useRef({ sun: new THREE.Vector3(), moon: new THREE.Vector3(), sunView: new THREE.Vector3(), moonView: new THREE.Vector3() })
 
-  const domeGeo = useMemo(() => domeGeometry(), [])
-  const domeMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }),
-    [],
-  )
   const overcastGeo = useMemo(() => hemisphere(), [])
   const overcastMat = useMemo(
     () => new THREE.MeshBasicMaterial({ color: OVERCAST_COLOR, side: THREE.BackSide, transparent: true, depthWrite: false, toneMapped: false }),
@@ -189,14 +166,14 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
   // 화면을 떠나면 직접 만든 것들을 지웁니다.
   useEffect(
     () => () => {
-      for (const o of [domeGeo, domeMat, overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat]) o.dispose()
+      for (const o of [overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat]) o.dispose()
     },
-    [domeGeo, domeMat, overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat],
+    [overcastGeo, overcastMat, starGeo, starMat, moonMat, shadeMat],
   )
 
   // 하늘 부품은 레이어 2. 화면 카메라(1인칭·위에서 보기가 바뀔 때마다)만 레이어 2 를 봅니다.
   useLayoutEffect(() => {
-    for (const o of [sky.current, dome.current, overcast.current, stars.current, moonMesh.current, moonShade.current]) o?.layers.set(SKY_LAYER)
+    for (const o of [overcast.current, stars.current, moonMesh.current, moonShade.current]) o?.layers.set(SKY_LAYER)
   }, [])
   useEffect(() => {
     camera.layers.enable(SKY_LAYER)
@@ -204,29 +181,27 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
 
   useFrame((state) => {
     const now = Date.now()
-    // 주소(?time, ?speed)는 처음 한 번 읽습니다.
-    if (!clock.current) clock.current = parseClock(window.location.search, now)
+    // 하늘 시계: 처음에는 주소로 정하고, 팀 조절판(SkyTimePanel)이 바꾸면 그 값 (skyClock)
+    let clock = getSkyClock()
+    if (!clock) {
+      clock = parseClock(window.location.search, now)
+      setSkyClock(clock)
+    }
     if (fastLightning.current === null) fastLightning.current = parseLightningFast(window.location.search)
-    const ms = worldTime(clock.current, now)
+    const ms = worldTime(clock, now)
     // 날씨는 실제 시각으로 고릅니다(예보가 지금 앞뒤 하루치뿐). 확인용 주소가 있으면 그 날씨
     const src = weatherRef.current
     const base = src.override ?? weatherAt(src.hours, now)
     const weather = src.cover === null ? base : { ...base, cover: src.cover } // ?snowcover= 로 쌓인 정도만 바꿈 (#329)
     // 번개도 실제 시각으로 정해 모두 같은 때 번쩍입니다. 뇌우가 아니면 lightning.flash = 0 이라 하늘 값이 그대로
     const lightning = lightningAt(now, weather.storm, fastLightning.current)
-    const s = applyLightning(applyWeather(skyState(ms), weather), lightning.flash)
+    const s = applyLightning(applyWeather(warmSky(skyState(ms)), weather), lightning.flash) // 노을빛 주변광 → 날씨 → 번개
     frame.current = { ...s, ms, now, weather, lightning }
     const v = tmp.current
 
     const sunDir = toDirection(s.sun, v.sun)
-    const skyMat = sky.current?.material as THREE.ShaderMaterial | undefined
-    skyMat?.uniforms.sunPosition.value.copy(sunDir).multiplyScalar(SKY_DISTANCE)
 
     // 만든 재질·그림은 물체(ref)를 거쳐 바꿉니다. (렌더 중에 만든 값을 직접 바꾸면 React 규칙 위반)
-    if (dome.current) {
-      ;(dome.current.material as THREE.MeshBasicMaterial).opacity = s.night
-      dome.current.visible = s.night > 0
-    }
     if (overcast.current) {
       const mat = overcast.current.material as THREE.MeshBasicMaterial
       mat.opacity = s.overcast
@@ -289,12 +264,11 @@ export function WorldSky({ lamps: lampSpots, aimSign = false, onAimSign, mySign 
 
   return (
     <>
-      <Sky ref={sky} distance={SKY_DISTANCE} />
+      <GradientSky stateRef={frame} />
       <Constellations stateRef={frame} mySign={mySign} aimOn={aimSign} onAim={onAimSign} />
       <Clouds stateRef={frame} />
       <LightningBolt stateRef={frame} />
       <Precipitation stateRef={frame} followRef={followRef} />
-      <mesh ref={dome} geometry={domeGeo} material={domeMat} renderOrder={ORDER.dome} />
       <mesh ref={overcast} geometry={overcastGeo} material={overcastMat} renderOrder={ORDER.overcast} />
       <points ref={stars} geometry={starGeo} material={starMat} renderOrder={ORDER.stars} />
       <group ref={moon}>

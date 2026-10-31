@@ -214,6 +214,44 @@ export function parseClock(search: string, nowMs: number): Clock {
 
 export const worldTime = (clock: Clock, nowMs: number) => clock.start + (nowMs - clock.base) * clock.speed
 
+// ── 하늘 시간 조절 (팀 전용 조절판, SkyTimePanel) ───────────────────
+// 빠르기만 바꿉니다. 지금 보이는 하늘 시각에서 끊기지 않고 이어집니다.
+export function retime(clock: Clock, nowMs: number, speed: number): Clock {
+  return { start: worldTime(clock, nowMs), base: nowMs, speed }
+}
+
+// 하늘 시각 dayMs 가 속한 서울 날짜의 h시 m분 (절대 시각 ms)
+export function seoulTimeOn(dayMs: number, h: number, m: number): number {
+  const k = new Date(dayMs + KST_MS)
+  return Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), h, m) - KST_MS
+}
+
+// 서울 시각 글자 "17:05"
+export function seoulClockText(ms: number): string {
+  const k = new Date(ms + KST_MS)
+  return `${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`
+}
+
+// 하늘 시각 dayMs 가 속한 서울 날짜의 일출·일몰 (해 고도가 0° 를 지나는 때, 1분 단위). 서울에서는 늘 둘 다 있음
+export function sunEvents(dayMs: number): { rise: number | null; set: number | null } {
+  const start = seoulTimeOn(dayMs, 0, 0)
+  let rise: number | null = null
+  let set: number | null = null
+  const altitudeAt = (t: number) => {
+    const sol = solar(t)
+    return altAz(sol.hourAngle, sol.decl).altitude
+  }
+  let prev = altitudeAt(start)
+  for (let m = 1; m <= 24 * 60; m++) {
+    const t = start + m * 60_000
+    const alt = altitudeAt(t)
+    if (prev < 0 && alt >= 0 && rise === null) rise = t
+    if (prev >= 0 && alt < 0 && set === null) set = t
+    prev = alt
+  }
+  return { rise, set }
+}
+
 // ── 달과 별자리 겹침 (#344) ─────────────────────────────────────────
 // 구름은 달을 가리고 별자리는 구름에 가리지 않게 그리는 순서를 정해서(#317), 달이 별자리를 가리게 할 수는 없습니다(순서가 돌고 돔).
 // 대신 달이 지나가는 별자리를 흐리게 합니다. 별자리 반지름 6°(starLogic 의 RING.size / 2), 달 반지름 약 1.6°.
