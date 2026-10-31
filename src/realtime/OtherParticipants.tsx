@@ -19,6 +19,7 @@ import { WalkingCharacter } from './WalkingCharacter'
 import { NameTag } from './NameTag'
 import type { Participant } from './participants'
 import { AIM_HZ, BODY, pickAimPerson } from '../space/aimLogic'
+import { isTouchMode } from '../space/useIsTouch'
 import type { AimPerson, AimTarget } from '../space/aimLogic'
 
 // 누른 뒤 이만큼(px) 넘게 움직였으면 클릭이 아니라 화면 끌기(둘러보기)로 봅니다.
@@ -61,7 +62,8 @@ export function OtherParticipants({
     if (!aimOn || !onAim) return
     if (clock.elapsedTime < nextProbe.current) return
     nextProbe.current = clock.elapsedTime + 1 / AIM_HZ
-    if (document.pointerLockElement !== gl.domElement) return onAim(null)
+    // 마우스가 잠겼거나 폰(마우스 잠금이 없고 화면 가운데가 조준점, #377)일 때만
+    if (document.pointerLockElement !== gl.domElement && !isTouchMode()) return onAim(null)
     camera.getWorldPosition(probe.origin)
     camera.getWorldDirection(probe.dir)
     // 그려지는 위치: 앉은 사람은 자리, 걷는 사람은 보간된 캐릭터 위치(묶음의 첫 자식)
