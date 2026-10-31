@@ -13,8 +13,10 @@ import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useIsTouch } from './useIsTouch'
 
 const SIZE_PX = 300 // 긴 변 (처음 200px 에서 1.5배로 키움)
+const MAX_SHARE = 0.34 // 작은 화면(폰, #377)에서는 화면 짧은 변의 이만큼까지만
 const MARGIN_PX = 16 // 화면 가장자리에서 띄우는 거리
 const BORDER_PX = 2
 const HIDE_AFTER_S = 1 // 멈춘 뒤 이만큼 지나면 사라짐 (걷다 멈출 때마다 깜빡이지 않게)
@@ -112,13 +114,16 @@ function disposeParts(parts: Parts) {
 export function Minimap({ area, posRef, headingRef, follow }: Props) {
   const scene = useThree((s) => s.scene)
   const dpr = useThree((s) => s.viewport.dpr)
+  const screen = useThree((s) => s.size)
+  const touch = useIsTouch() // 폰: 오른쪽 아래는 조작 버튼 자리라 왼쪽 위에 그림 (#377)
+  const longPx = Math.min(SIZE_PX, Math.round(Math.min(screen.width, screen.height) * MAX_SHARE))
 
-  // 미니맵 크기(px): 긴 변을 SIZE_PX 로, 공간 비율 그대로. 위에서 보기처럼 가장자리를 0.5m씩 남깁니다.
+  // 미니맵 크기(px): 긴 변을 SIZE_PX(작은 화면이면 longPx) 로, 공간 비율 그대로. 위에서 보기처럼 가장자리를 0.5m씩 남깁니다.
   // 따라다닐 때는 정사각형 둘레만 그립니다.
   const W = (follow ?? area.w) + 1
   const D = (follow ?? area.d) + 1
-  const mapW = W >= D ? SIZE_PX : Math.round((SIZE_PX * W) / D)
-  const mapH = D >= W ? SIZE_PX : Math.round((SIZE_PX * D) / W)
+  const mapW = W >= D ? longPx : Math.round((longPx * W) / D)
+  const mapH = D >= W ? longPx : Math.round((longPx * D) / W)
 
   const parts = useRef<Parts | null>(null)
   useEffect(() => {
@@ -172,12 +177,12 @@ export function Minimap({ area, posRef, headingRef, follow }: Props) {
     gl.setRenderTarget(null)
     scene.background = background
 
-    // 오른쪽 아래에 덧그리기 (화면 픽셀 좌표, 아래가 0)
+    // 오른쪽 아래(폰은 왼쪽 위)에 덧그리기 (화면 픽셀 좌표, 아래가 0)
     overlay.camera.right = size.width
     overlay.camera.top = size.height
     overlay.camera.updateProjectionMatrix()
-    const cx = size.width - MARGIN_PX - BORDER_PX - mapW / 2
-    const cy = MARGIN_PX + BORDER_PX + mapH / 2
+    const cx = touch ? MARGIN_PX + BORDER_PX + mapW / 2 : size.width - MARGIN_PX - BORDER_PX - mapW / 2
+    const cy = touch ? size.height - MARGIN_PX - BORDER_PX - mapH / 2 : MARGIN_PX + BORDER_PX + mapH / 2
     overlay.border.position.set(cx, cy, 0)
     overlay.map.position.set(cx, cy, 0)
     overlay.border.material.opacity = opacity.current * 0.9

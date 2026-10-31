@@ -8,6 +8,8 @@ import type { PanelView } from './panelTypes'
 import { PANEL_KEYS } from './shortcuts'
 import { keyLabel, useKeymap } from './keymap'
 import { useIsTeam } from '../report/useIsTeam'
+import { useIsTouch } from '../space/useIsTouch'
+import { useState } from 'react'
 
 type Props = {
   myId: string
@@ -18,11 +20,32 @@ type Props = {
   onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 조절판(시간·날씨) 열기·닫기
 }
 
-export function SceneMenu({ myId, onOpen, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로' }: Props) {
+export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로' }: Props) {
   const keys = useKeymap()
   const team = useIsTeam(myId)
+  // 폰(#377): 작은 화면을 가리지 않게 [☰] 하나로 접어 두고, 누르면 펼침. 고르면 다시 접힘
+  const touch = useIsTouch()
+  const [unfolded, setUnfolded] = useState(false)
+  const onOpen = (view: PanelView) => {
+    setUnfolded(false)
+    openPanel(view)
+  }
+  if (touch && !unfolded) {
+    return (
+      <div style={menuStack}>
+        <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setUnfolded(true)} aria-label="메뉴 펼치기">
+          ☰ 메뉴
+        </button>
+      </div>
+    )
+  }
   return (
     <div style={menuStack}>
+      {touch && (
+        <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setUnfolded(false)} aria-label="메뉴 접기">
+          ✕ 접기
+        </button>
+      )}
       <nav style={menuBox}>
         {PANEL_KEYS.filter((it) => it.action !== 'settings').map((it) => (
           <button

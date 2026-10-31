@@ -1,4 +1,5 @@
 // 오버워치식 귓속말·그룹 채팅 로그창 (#49, #298). 로비·지점 왼쪽 아래에 겹쳐 띄웁니다.
+// 폰(#377)에는 Enter 키가 없어 [💬 채팅] 버튼으로 열고, 조이스틱과 겹치지 않게 그 위로 올립니다.
 //
 // Enter: 채팅으로 가기 (마우스 잠금이 풀려 커서가 돌아옴) → 할 말 → Enter 로 보내기
 //        창이 열려 있는데 화면을 눌러 입력칸에서 커서가 빠졌어도 Enter 한 번이면 입력칸으로 돌아와 이어서 씁니다.
@@ -21,6 +22,7 @@ import { BRANCH_LAYOUTS } from '../space/branches'
 import { useChat } from './chatContext'
 import type { ChatLine, MeetingInvite } from './chatContext'
 import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget, timeAgo } from './chatLogic'
+import { useIsTouch } from '../space/useIsTouch'
 import { summonAlive } from '../friends/followLogic'
 import { useGoToFriend } from '../friends/useFollow'
 
@@ -41,6 +43,7 @@ export function ChatOverlay() {
   const [activity, setActivity] = useState(0) // 무언가 할 때마다 올라감 (사라지기 시간 다시 세기)
   const [draft, setDraft] = useState('')
   const [typing, setTyping] = useState(false) // 입력칸에 커서가 있는지 (화면을 누르면 빠짐)
+  const touchMode = useIsTouch() // 폰 (#377)
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
   const input = useRef<HTMLInputElement>(null)
@@ -159,6 +162,15 @@ export function ChatOverlay() {
     setFading(false)
   }
 
+  // 폰의 [💬 채팅] 버튼: Enter 로 열 때와 같이 받는 사람을 미리 고르고 엽니다.
+  const openByButton = () => {
+    const pick = defaultTarget(chat.target, chat.lastFrom, chat.recipients)
+    if (pick !== chat.target) chat.setTarget(pick)
+    chat.refreshFriends()
+    setOpen(true)
+    touch()
+  }
+
   const submit = async () => {
     const checked = checkMessage(draft, chat.target, chat.recipients)
     if (!checked.ok) {
@@ -211,7 +223,7 @@ export function ChatOverlay() {
     : chat.lines.filter((l) => now - l.at < SHOW_MS + FADE_MS).slice(-CLOSED_LINES)
 
   return (
-    <div style={{ ...styles.wrap, opacity: fading ? 0 : 1 }}>
+    <div style={{ ...styles.wrap, ...(touchMode ? styles.wrapTouch : null), opacity: fading ? 0 : 1 }}>
       {open ? (
         shown.length > 0 && (
           <div ref={logBox} style={styles.logOpen} onScroll={onScroll}>
@@ -288,8 +300,14 @@ export function ChatOverlay() {
           </div>
         </>
       ) : (
-        <div style={styles.bar}>
-          <span style={styles.hint}>💬 Enter 채팅</span>
+        <div style={touchMode ? { ...styles.bar, pointerEvents: 'auto' } : styles.bar}>
+          {touchMode ? (
+            <button type="button" style={styles.barButton} onClick={openByButton}>
+              💬 채팅
+            </button>
+          ) : (
+            <span style={styles.hint}>💬 Enter 채팅</span>
+          )}
           {chat.unread > 0 && <span style={styles.badge}>{chat.unread}</span>}
           {chat.quiet && <span style={styles.hint}>🔕 방해금지{chat.studying ? ' (공부 중)' : ''}</span>}
         </div>
@@ -540,6 +558,8 @@ const styles: Record<string, CSSProperties> = {
   input: { flex: 1, minWidth: 0, padding: '4px 6px', border: 'none', outline: 'none', background: 'transparent', color: '#fff', font: 'inherit', textAlign: 'left' },
   bar: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderRadius: 8, background: HUD_BG, pointerEvents: 'none' },
   hint: { color: '#fff', fontSize: 13 },
+  barButton: { padding: 0, border: 'none', background: 'none', color: '#fff', font: 'inherit', fontSize: 14, cursor: 'pointer' },
+  wrapTouch: { bottom: 'calc(env(safe-area-inset-bottom) + 210px)' }, // 폰: 조이스틱·안내 문구 위로 (#377)
   badge: { minWidth: 18, padding: '0 6px', borderRadius: 9, background: '#a855f7', color: '#fff', fontSize: 11, fontWeight: 700, textAlign: 'center' },
   controls: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: 4, borderRadius: 8, background: HUD_BG },
   toggle: {
