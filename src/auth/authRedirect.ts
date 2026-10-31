@@ -12,6 +12,7 @@
 export const RESET_PATH = '/reset-password'
 export const EMAIL_CHANGED_PATH = '/email-changed'
 export const LOGIN_PATH = '/login'
+export const GUEST_LINKED_PATH = '/guest-linked'
 
 export function resetRedirectTo() {
   return `${window.location.origin}${RESET_PATH}`
@@ -28,4 +29,9 @@ export function signupRedirectTo() {
 // 이걸 지정하지 않으면 Site URL(첫 화면)로만 돌아가서, 사용자가 바뀐 건지 알 수 없습니다.
 export function emailChangedRedirectTo() {
   return `${window.location.origin}${EMAIL_CHANGED_PATH}`
+}
+
+// 게스트가 이메일을 붙여 가입할 때(#375) 확인 메일의 링크를 눌렀을 때 돌아올 주소. 거기서 비밀번호를 정합니다.
+export function guestLinkedRedirectTo() {
+  return `${window.location.origin}${GUEST_LINKED_PATH}`
 }

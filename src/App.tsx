@@ -14,6 +14,7 @@ import { useHeartbeat } from './auth/useHeartbeat'
 import ForgotPasswordPage from './auth/ForgotPasswordPage'
 import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
+import GuestLinkedPage from './auth/GuestLinkedPage'
 import WorldScene from './world/WorldScene'
 import { CAMPUS_WORLD, PLAZA_WORLD } from './world/worldConfig'
 import RecordsPage from './study/RecordsPage'
@@ -77,6 +78,8 @@ function AppRoutes() {
       />
       {/* 이메일 변경 확인 메일의 링크가 돌아오는 곳. 로그인 상태가 애매할 수 있어 울타리 밖에 둡니다. */}
       <Route path="/email-changed" element={<EmailChangedPage onGoLogin={() => navigate('/login')} />} />
+      {/* 게스트 가입 확인 메일의 링크 (#375): 이메일이 붙은 뒤 비밀번호를 정함 */}
+      <Route path="/guest-linked" element={<GuestLinkedPage onDone={() => navigate('/')} />} />
       {/* 첫 화면은 광장입니다(#315). 지점 건물 입구로 들어가면 그 지점 공간으로 갑니다. */}
       <Route
         path="/"
