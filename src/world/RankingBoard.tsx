@@ -26,7 +26,7 @@ const CANVAS = { w: 1320, h: 780 }
 const TITLE_Y = 0.12 // 제목 띠 가운데 (판 높이 비율)
 const RULE_Y = 0.22 // 제목 아래 점선
 const SLOT_X = [0.25, 0.5, 0.75] // 시상대 칸 가운데 (2등, 1등, 3등)
-const FACE_R = { 1: 100, 2: 76, 3: 76 } as const // 얼굴 동그라미 반지름(px)
+const FACE_R = { 1: 132, 2: 76, 3: 76 } as const // 얼굴 동그라미 반지름(px)
 const BOTTOM = { min: 728, name: 676, rank: 622 } // 아래에서부터 시간·이름·등수 줄 높이(px)
 
 // 칸 하나: [자리, 등수, 이름, 분, 사진 주소]
@@ -103,10 +103,10 @@ function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, 
     ctx.restore()
     if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9, bold: true })
     chalkCircle(ctx, x, cy, r, place === 1 ? CHALK.gold : CHALK.white, place === 1 ? 6 : 5)
-    if (place === 1) crown(ctx, x, cy - r - 12, 34)
+    if (place === 1) crown(ctx, x, cy - r - 12, 42)
     const first = place === 1
-    chalkText(ctx, `${rank}`, x, BOTTOM.rank, { size: first ? 56 : 46, bold: true, color: first ? CHALK.gold : CHALK.white })
-    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 46 : 40, bold: true, maxWidth: w * 0.22 })
+    chalkText(ctx, `${rank}`, x, BOTTOM.rank, { size: first ? 66 : 46, bold: true, color: first ? CHALK.gold : CHALK.white })
+    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 54 : 40, bold: true, maxWidth: w * 0.22 })
     chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 34, maxWidth: w * 0.22 })
   })
 }

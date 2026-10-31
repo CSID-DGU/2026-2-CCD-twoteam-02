@@ -16,7 +16,7 @@ import { CHALK, CHALK_FONT } from './chalk'
 
 const PERIODS: Period[] = ['today', 'week']
 const GOLD = CHALK.gold
-const FACE_PX = { 1: 64, 2: 48, 3: 48 } as const // 시상대 얼굴 지름
+const FACE_PX = { 1: 88, 2: 48, 3: 48 } as const // 시상대 얼굴 지름
 const ROW_FACE_PX = 30 // 4위부터 줄의 얼굴 지름
 // 분필 번짐 (글씨 그림자)
 const CHALK_SHADOW = '0 0 2px rgba(255,255,255,.55), 1px 1px 0 rgba(255,255,255,.12)'
@@ -131,8 +131,8 @@ function PodiumCell({ slot, photo, mine, onOpen }: { slot: PodiumSlot; photo?: s
     <button type="button" style={{ ...styles.cell, ...(mine ? styles.rowMine : null) }} onClick={() => onOpen(slot.row.id)} title="프로필 보기">
       {first && <span style={styles.crown}>♛</span>}
       <Face photo={photo} name={slot.name} size={FACE_PX[slot.place]} gold={first} />
-      <span style={{ ...styles.cellRank, ...(first ? { color: GOLD, fontSize: 20 } : null) }}>{slot.row.rank}</span>
-      <span style={{ ...styles.cellName, fontSize: first ? 16 : 15 }}>{slot.name}</span>
+      <span style={{ ...styles.cellRank, ...(first ? { color: GOLD, fontSize: 24 } : null) }}>{slot.row.rank}</span>
+      <span style={{ ...styles.cellName, fontSize: first ? 19 : 15 }}>{slot.name}</span>
       <span style={styles.cellTime}>{minutesText(slot.row.minutes)}</span>
     </button>
   )
@@ -167,7 +167,7 @@ const styles: Record<string, CSSProperties> = {
     background: 'transparent', color: CHALK.white, font: 'inherit', cursor: 'pointer', textShadow: CHALK_SHADOW, minWidth: 0,
   },
   emptyCell: {},
-  crown: { color: GOLD, fontSize: 22, lineHeight: 1 },
+  crown: { color: GOLD, fontSize: 30, lineHeight: 1 },
   cellRank: { fontWeight: 700, fontSize: 17, marginTop: 2 },
   cellName: { fontWeight: 700, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cellTime: { fontSize: 13, opacity: 0.85 },
