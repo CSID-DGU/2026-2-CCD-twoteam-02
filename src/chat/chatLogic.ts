@@ -20,6 +20,9 @@ export const GROUP_CHANGED_EVENT = 'group-changed' // 그룹 방: 누가 들어�
 export const GROUP_INVITE_EVENT = 'group-invite' // 귓속말 방: 그룹 초대를 보냈다는 알림 (초대 자체는 DB 에 있음)
 export const GROUP_JOINED_EVENT = 'group-joined' // 귓속말 방: 내 초대를 수락해 그룹에 들어왔다는 알림
 export const GROUP_MAX_MEMBERS = 10
+// 친구 따라가기·부르기 (src/friends/followLogic). 같은 친구 방(귓속말 방)으로 보내고 저장하지 않습니다.
+export const SUMMON_EVENT = 'summon' // 내가 있는 곳으로 와 달라는 부름. 받은 쪽 로그에 [부름] 줄 (갈 곳은 받은 쪽이 접속 상태로 정함)
+export const ARRIVED_EVENT = 'arrived' // 따라왔다·부름을 받고 왔다는 알림 { how: 'follow' | 'summon' }
 export const GROUP_INVITE_MS = 5 * 60 * 1000 // 초대가 사라지기까지
 
 export type Friend = { id: string; nickname: string }

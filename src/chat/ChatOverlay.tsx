@@ -12,6 +12,7 @@
 // 회의 초대(#45)는 [초대] 줄로 보이고, [참가]를 누르면 그 회의로 갑니다. 공부 중이면 한 번 더 묻습니다.
 // 그룹 초대(#298)는 [그룹 초대] 줄로 보이고 [수락] [거절]을 누릅니다. 이미 그룹이 있으면 옮겨 갈지 한 번 더 묻습니다.
 // 그룹·회의 채팅(#298)은 [그룹] [회의] 태그와 말한 사람으로 보입니다.
+// 친구 부르기는 [부름] 줄로 보이고 [가기]를 누르면 부른 친구 옆으로 갑니다(1분 안). 공부 중이면 한 번 더 묻습니다.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useNavigate } from 'react-router'
@@ -20,6 +21,8 @@ import { BRANCH_LAYOUTS } from '../space/branches'
 import { useChat } from './chatContext'
 import type { ChatLine, MeetingInvite } from './chatContext'
 import { MAX_LENGTH, checkMessage, defaultTarget, nextTarget, timeAgo } from './chatLogic'
+import { summonAlive } from '../friends/followLogic'
+import { useGoToFriend } from '../friends/useFollow'
 
 const SHOW_MS = 10000 // 닫혀 있을 때 새 줄이 보이는 시간
 const IDLE_MS = 10000 // 열어 두고 이만큼 아무것도 안 하면 닫힘
@@ -213,7 +216,7 @@ export function ChatOverlay() {
         shown.length > 0 && (
           <div ref={logBox} style={styles.logOpen} onScroll={onScroll}>
             {shown.map((l) => (
-              <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={false} ago={timeAgo(l.at, now)} />
+              <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={false} ago={timeAgo(l.at, now)} now={now} />
             ))}
           </div>
         )
@@ -221,7 +224,7 @@ export function ChatOverlay() {
         <div style={styles.log}>
           {/* 닫혀 있을 때는 줄마다 배경을 깔아, 줄이 사라질 때 배경도 같이 사라지게 합니다. */}
           {shown.map((l) => (
-            <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={now - l.at >= SHOW_MS} pill />
+            <Line key={l.id} line={l} color={lineColor(l, chat.colors)} gone={now - l.at >= SHOW_MS} pill now={now} />
           ))}
         </div>
       )}
@@ -304,7 +307,8 @@ function lineColor(line: ChatLine, colors: Record<string, string>) {
 // 받은 줄은 [받음], 보낸 줄은 [보냄] 태그로 방향을 보여 줍니다(오버워치식). 그 친구와의 줄은 모두 같은 색입니다.
 // 그룹·회의 채팅은 [그룹] [회의] 태그와 말한 사람으로 보여 주고, 그 방의 줄은 모두 같은 색입니다 (#298).
 // ago: 몇 분 전인지 (열었을 때만. 닫혀 있을 때는 새 줄만 10초 보이므로 붙이지 않음)
-function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean; ago?: string }) {
+// now: 화면이 들고 있는 지금 시각 (부름이 1분 지났는지)
+function Line({ line, color, gone, pill = false, ago, now }: { line: ChatLine; color?: string; gone: boolean; pill?: boolean; ago?: string; now: number }) {
   const style = { ...styles.line, ...(pill ? styles.pill : null), opacity: gone ? 0 : line.quiet ? 0.7 : 1 }
   if (line.kind === 'system') return <div style={{ ...style, ...styles.system }}>{line.text}</div>
   if (line.room) {
@@ -323,6 +327,16 @@ function Line({ line, color, gone, pill = false, ago }: { line: ChatLine; color?
       <div style={{ ...style, color: color ?? WHISPER }}>
         <span style={styles.tag}>[그룹 초대]</span> <span style={styles.who}>{name}:</span> 그룹에 초대했어요{' '}
         <GroupInviteActions inviterId={line.peer.id} nickname={name} hidden={gone} />
+        {line.quiet && <span style={styles.quietMark}> 🔕</span>}
+        {ago && <span style={styles.ago}> · {ago}</span>}
+      </div>
+    )
+  }
+  if (line.kind === 'summon' && line.peer) {
+    return (
+      <div style={{ ...style, color: color ?? WHISPER }}>
+        <span style={styles.tag}>[부름]</span> <span style={styles.who}>{name}:</span> 내가 있는 곳으로 와 달라고 불렀어요{' '}
+        <SummonActions friendId={line.peer.id} at={line.at} alive={summonAlive(line.at, now)} hidden={gone} />
         {line.quiet && <span style={styles.quietMark}> 🔕</span>}
         {ago && <span style={styles.ago}> · {ago}</span>}
       </div>
@@ -401,6 +415,54 @@ function GroupInviteActions({ inviterId, nickname, hidden }: { inviterId: string
         수락
       </button>{' '}
       <button type="button" style={ghost} disabled={state === 'busy'} onMouseDown={keepFocus} onClick={() => void decline()}>
+        거절
+      </button>
+    </>
+  )
+}
+
+// 부름 줄의 [가기] [거절]. 공부 중이면 자리에서 일어나 공부가 끝나므로 한 번 더 묻습니다.
+// 갈 곳은 지금 그 친구가 있는 장소(접속 상태)이고, 회의 중이거나 공간 밖이면 로그에 안내만 남깁니다.
+// alive 는 화면 시계(열어 둔 동안 30초마다)로 본 값이라, 누르는 순간에도 at 으로 한 번 더 확인합니다.
+function SummonActions({ friendId, at, alive, hidden }: { friendId: string; at: number; alive: boolean; hidden: boolean }) {
+  const chat = useChat()
+  const go = useGoToFriend()
+  const [state, setState] = useState<'ready' | 'confirm' | 'gone' | 'declined' | 'expired'>('ready')
+  if (state === 'gone') return <span style={styles.ago}>감</span>
+  if (state === 'declined') return <span style={styles.ago}>거절함</span>
+  if (!alive || state === 'expired') return <span style={styles.ago}>지난 부름</span>
+  const leave = () => {
+    if (!summonAlive(at, Date.now())) {
+      setState('expired')
+      return
+    }
+    const error = go(friendId, 'summon')
+    if (error) {
+      chat?.note(error)
+      setState('ready')
+      return
+    }
+    setState('gone')
+  }
+  // 닫힌 로그창은 클릭을 통과시키므로(pointerEvents: none) 버튼만 누를 수 있게 합니다. 사라진 줄의 버튼은 못 누름.
+  const style = { ...styles.join, pointerEvents: hidden ? 'none' : 'auto' } as const
+  const ghost = { ...style, ...styles.joinGhost }
+  const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault() // 입력칸 커서를 뺏지 않게
+  if (state === 'confirm') {
+    return (
+      <>
+        <span>공부를 끝내고 갈까요?</span>{' '}
+        <button type="button" style={style} onMouseDown={keepFocus} onClick={leave}>이동</button>{' '}
+        <button type="button" style={ghost} onMouseDown={keepFocus} onClick={() => setState('ready')}>취소</button>
+      </>
+    )
+  }
+  return (
+    <>
+      <button type="button" style={style} onMouseDown={keepFocus} onClick={() => (chat?.studying ? setState('confirm') : leave())}>
+        가기
+      </button>{' '}
+      <button type="button" style={ghost} onMouseDown={keepFocus} onClick={() => setState('declined')}>
         거절
       </button>
     </>

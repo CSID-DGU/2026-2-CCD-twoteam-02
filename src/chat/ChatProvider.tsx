@@ -31,7 +31,7 @@ import { useMyStudying, useOnline, useQuietFlag } from '../realtime/onlineContex
 import { ChatContext } from './chatContext'
 import type { ChatLine, MeetingInvite } from './chatContext'
 import {
-  GROUP_CHANGED_EVENT, GROUP_EVENT, GROUP_INVITE_EVENT, GROUP_INVITE_MS, GROUP_JOINED_EVENT, INVITE_EVENT, MAX_LENGTH,
+  ARRIVED_EVENT, GROUP_CHANGED_EVENT, GROUP_EVENT, GROUP_INVITE_EVENT, GROUP_INVITE_MS, GROUP_JOINED_EVENT, INVITE_EVENT, MAX_LENGTH, SUMMON_EVENT,
   SEND_GAP_MS, WHISPER_EVENT, groupTopic, isQuiet, meetingKey, pairTopic, pickColor, recipientsOf,
 } from './chatLogic'
 import type { Friend, MeetingRoom } from './chatLogic'
@@ -209,6 +209,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     receiveInviteRef.current = receiveInvite
   }, [receiveInvite])
 
+  // ── 친구 부르기·따라가기 (src/friends/followLogic) ─────────────
+  // 친구 방(귓속말 방)은 두 친구만 들어올 수 있어(0019) 보낸 사람이 그 친구입니다. 갈 곳은 [가기]를 누를 때 접속 상태로 정합니다.
+  const receiveSummon = useCallback(
+    (peerId: string) => {
+      const peer = latest.current.friends.find((f) => f.id === peerId) ?? { id: peerId, nickname: '친구' }
+      pushIncoming({ kind: 'summon', peer, text: '' }, peerId)
+    },
+    [pushIncoming],
+  )
+  const receiveSummonRef = useRef(receiveSummon)
+  useEffect(() => {
+    receiveSummonRef.current = receiveSummon
+  }, [receiveSummon])
+  const receiveArrived = useCallback(
+    (peerId: string, payload: unknown) => {
+      const how = (payload as { how?: unknown } | null)?.how
+      const name = latest.current.friends.find((f) => f.id === peerId)?.nickname ?? '친구'
+      addLine({ kind: 'system', text: how === 'summon' ? `${name} 님이 부름을 받고 왔어요.` : `${name} 님이 따라왔어요.` })
+    },
+    [addLine],
+  )
+  const receiveArrivedRef = useRef(receiveArrived)
+  useEffect(() => {
+    receiveArrivedRef.current = receiveArrived
+  }, [receiveArrived])
+
   // ── 그룹 (#298) ──────────────────────────────────────────────
 
   // 그룹 채팅을 받습니다. 보낸 사람이 내 그룹 멤버일 때만 받습니다.
@@ -310,6 +336,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .on('broadcast', { event: INVITE_EVENT }, ({ payload }) => void receiveInviteRef.current(id, payload))
         .on('broadcast', { event: GROUP_INVITE_EVENT }, () => void receiveGroupInviteRef.current(id))
         .on('broadcast', { event: GROUP_JOINED_EVENT }, () => receiveGroupJoinedRef.current(id))
+        .on('broadcast', { event: SUMMON_EVENT }, () => receiveSummonRef.current(id))
+        .on('broadcast', { event: ARRIVED_EVENT }, ({ payload }) => receiveArrivedRef.current(id, payload))
         .subscribe((status, err) => {
           // 권한 규칙(0019)을 실행하지 않았거나 친구가 아니면 여기로 옵니다.
           if (status === 'CHANNEL_ERROR') console.warn('귓속말 방에 들어가지 못했습니다:', err?.message ?? '')
@@ -513,6 +541,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [addLine],
   )
 
+  // 친구 부르기: 내가 있는 곳으로 와 달라는 [부름]을 보냅니다. 접속한 친구에게만 갑니다.
+  const sendSummon = useCallback(
+    async (to: string) => {
+      const ch = channels.current.get(to)
+      const peer = latest.current.friends.find((f) => f.id === to)
+      if (!ch || !peer) return false
+      const result = await ch.send({ type: 'broadcast', event: SUMMON_EVENT, payload: {} })
+      if (result !== 'ok') return false
+      addLine({ kind: 'system', text: `${peer.nickname} 님을 불렀어요. 친구가 [가기]를 누르면 내 옆으로 와요.` })
+      return true
+    },
+    [addLine],
+  )
+  // 친구 옆에 도착했다고 알립니다 (따라감·부름을 받고 감)
+  const tellArrived = useCallback((to: string, how: 'follow' | 'summon') => {
+    void channels.current.get(to)?.send({ type: 'broadcast', event: ARRIVED_EVENT, payload: { how } })
+  }, [])
+
   const setMuted = useCallback((on: boolean) => {
     setMutedState(on)
     try {
@@ -549,6 +595,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMeeting,
     receiveMeeting,
     sendInvite,
+    sendSummon,
+    tellArrived,
     note: (text: string) => addLine({ kind: 'system', text }),
     quiet,
     studying,
