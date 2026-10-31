@@ -13,6 +13,7 @@ export const COLOR = {
   path: '#cfc2aa',
   brick: '#cf9474', // 캠리단길 벽돌 길 (무늬 그림의 색조)
   gravel: '#cfc6b6', // 캠리단길 자갈 띠
+  meadow: '#86b86a', // 캠리단길 잔디 (무늬 그림의 색조)
   stone: '#b9b2a6',
   water: '#5fb3d9',
   waterLight: '#8ccfeb',
@@ -41,6 +42,7 @@ export const MAT = {
   path: mat(COLOR.path),
   brick: mat(COLOR.brick),
   gravel: mat(COLOR.gravel),
+  meadow: mat(COLOR.meadow),
   stone: mat(COLOR.stone),
   water: mat(COLOR.water),
   trunk: mat(COLOR.trunk),
@@ -101,6 +103,7 @@ addSnowy(MAT.plaza, SNOW_PART.half)
 addSnowy(MAT.path, SNOW_PART.half)
 addSnowy(MAT.brick, SNOW_PART.half)
 addSnowy(MAT.gravel, SNOW_PART.full)
+addSnowy(MAT.meadow, SNOW_PART.full)
 
 // 지붕 전용 재질 (색별로 한 번만). 눈이 오면 다 덮임
 const roofMats = new Map<string, THREE.MeshStandardMaterial>()
@@ -139,10 +142,50 @@ export function applyGroundTextures() {
   if (textured) return
   textured = true
   const t = groundTextures()
-  for (const [m, pair] of [[MAT.plaza, t.cobble], [MAT.brick, t.brick], [MAT.gravel, t.gravel]] as const) {
+  for (const [m, pair] of [[MAT.plaza, t.cobble], [MAT.brick, t.brick], [MAT.gravel, t.gravel], [MAT.meadow, t.grass]] as const) {
     m.map = pair.map
     m.bumpMap = pair.bump
     m.bumpScale = BUMP
     m.needsUpdate = true
+  }
+}
+
+// 캠리단길 풀·꽃 재질 (색별로 한 번만). 눈이 오면 하얘짐. 바람에 흔들리게 셰이더에 한 줄을 끼움(swayMaterial)
+const plantMats = new Map<string, THREE.MeshStandardMaterial>()
+export function plantMat(color: string, sway = true) {
+  const key = `${color}|${sway}`
+  let m = plantMats.get(key)
+  if (!m) {
+    m = addSnowy(mat(color, { side: THREE.DoubleSide, vertexColors: true }), SNOW_PART.half)
+    if (sway) swayMaterial(m)
+    plantMats.set(key, m)
+  }
+  return m
+}
+
+// 바람: 모든 풀·꽃이 같은 시간 값을 씀. WorldScene 의 Garden 이 매 장면 tickWind 로 늘림
+const WIND = { value: 0 }
+const SWAY = { amp: 0.09, speed: 1.6 } // 끝이 흔들리는 폭(m, 높이 1m 기준), 빠르기
+export function tickWind(time: number) {
+  WIND.value = time
+}
+// 모델 높이(y)가 클수록 많이, 자리(인스턴스 위치)마다 박자를 달리 흔듭니다. 뿌리(y=0)는 그대로
+function swayMaterial(m: THREE.MeshStandardMaterial) {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = WIND
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+          vec2 swayAt = instanceMatrix[3].xz;
+        #else
+          vec2 swayAt = vec2(0.0);
+        #endif
+        float swayK = max(position.y, 0.0);
+        transformed.x += sin(uWind * ${SWAY.speed.toFixed(2)} + swayAt.x * 0.55 + swayAt.y * 0.35) * ${SWAY.amp.toFixed(3)} * swayK;
+        transformed.z += cos(uWind * ${(SWAY.speed * 0.8).toFixed(2)} + swayAt.x * 0.3 + swayAt.y * 0.6) * ${(SWAY.amp * 0.6).toFixed(3)} * swayK;`,
+      )
   }
 }

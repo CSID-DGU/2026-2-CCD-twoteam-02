@@ -71,6 +71,7 @@ import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
 import { Benches, Building, Fence, Ground, Lamps, Trees } from './WorldDecor'
 import { Fountain } from './Fountain'
+import { Garden } from './Garden'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { WorldSky } from './WorldSky'
 import { FortunePanel } from './FortunePanel'
@@ -367,6 +368,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
 
         <Ground plaza={PLAZA} buildings={PLACED} />
+        <Garden plaza={PLAZA} buildings={PLACED} />
         <Fence plaza={PLAZA} />
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
         <Trees trees={PLAZA.trees} />

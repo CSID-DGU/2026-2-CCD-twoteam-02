@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 
 const PX = 512 // 그림 한 변
-export const TILE = { cobble: 4, brick: 2, gravel: 1.2 } // 그림 한 장이 덮는 땅 크기(m)
+export const TILE = { cobble: 4, brick: 2, gravel: 1.2, grass: 3 } // 그림 한 장이 덮는 땅 크기(m)
 
 // 정해진 난수
 function random(seed: number) {
@@ -151,6 +151,56 @@ function makeGravel(): Pair {
   return { map: texture(mc, true), bump: texture(bc, false) }
 }
 
+// 잔디 (짧은 풀잎 획 수천 개 + 군데군데 흙·마른 풀). 색조는 재질 색(초록)이 입히고, 그림은 밝기·누런 기·푸른 기만
+function makeGrass(): Pair {
+  const [mc, m] = canvas()
+  const [bc, b] = canvas()
+  const r = random(61)
+  m.fillStyle = '#b9c2a8'
+  m.fillRect(0, 0, PX, PX)
+  b.fillStyle = '#555'
+  b.fillRect(0, 0, PX, PX)
+  // 흙이 드러난 얼룩, 진한 풀 얼룩
+  for (let i = 0; i < 26; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const rad = 18 + r() * 50
+    const dirt = r() < 0.35
+    wrapped((dx, dy) => {
+      const g = m.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad)
+      g.addColorStop(0, dirt ? 'rgba(190,165,120,0.45)' : 'rgba(120,140,100,0.35)')
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      m.fillStyle = g
+      m.fillRect(x + dx - rad, y + dy - rad, rad * 2, rad * 2)
+    })
+  }
+  // 풀잎 획
+  for (let i = 0; i < 9000; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const len = 4 + r() * 9
+    const lean = (r() - 0.5) * 5
+    const light = 150 + Math.floor(r() * 105)
+    const tone = r()
+    const color = tone < 0.15 ? `rgb(${light},${light - 8},${light - 60})` : tone < 0.3 ? `rgb(${light - 25},${light},${light - 20})` : `rgb(${light - 10},${light},${light - 40})`
+    wrapped((dx, dy) => {
+      m.strokeStyle = color
+      m.lineWidth = 1 + r() * 1.2
+      m.beginPath()
+      m.moveTo(x + dx, y + dy)
+      m.lineTo(x + dx + lean, y + dy - len)
+      m.stroke()
+      b.strokeStyle = `rgb(${light},${light},${light})`
+      b.lineWidth = 1.5
+      b.beginPath()
+      b.moveTo(x + dx, y + dy)
+      b.lineTo(x + dx + lean, y + dy - len)
+      b.stroke()
+    })
+  }
+  return { map: texture(mc, true), bump: texture(bc, false) }
+}
+
 // 흙먼지 점 (돌 표면이 매끈해 보이지 않게)
 function speckle(ctx: CanvasRenderingContext2D, r: () => number, alpha: number) {
   ctx.save()
@@ -163,9 +213,9 @@ function speckle(ctx: CanvasRenderingContext2D, r: () => number, alpha: number) 
 }
 
 // 처음 쓸 때 한 번만 그립니다.
-let made: { cobble: Pair; brick: Pair; gravel: Pair } | null = null
+let made: { cobble: Pair; brick: Pair; gravel: Pair; grass: Pair } | null = null
 export function groundTextures() {
-  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel() }
+  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel(), grass: makeGrass() }
   return made
 }
 
