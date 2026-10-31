@@ -409,6 +409,21 @@
       "id": "side-swept-textured",
       "name": "옆으로 넘긴 머리 (텍스처)",
       "model": "/models/Parts/hair/side-swept-textured.gltf"
+    },
+    {
+      "id": "low-bun-textured",
+      "name": "낮게 묶은 똥머리 (텍스처)",
+      "model": "/models/Parts/hair/low-bun-textured.gltf"
+    },
+    {
+      "id": "slicked-back-textured",
+      "name": "뒤로 넘긴 머리 (텍스처)",
+      "model": "/models/Parts/hair/slicked-back-textured.gltf"
+    },
+    {
+      "id": "undercut-textured",
+      "name": "언더컷 (텍스처)",
+      "model": "/models/Parts/hair/undercut-textured.gltf"
     }
   ],
   "top": [
