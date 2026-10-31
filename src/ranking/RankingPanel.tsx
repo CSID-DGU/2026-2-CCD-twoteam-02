@@ -169,7 +169,7 @@ const styles: Record<string, CSSProperties> = {
   emptyCell: {},
   crown: { color: GOLD, fontSize: 26, lineHeight: 1, marginBottom: -2 },
   cellRank: { fontWeight: 700, fontSize: 18, lineHeight: 1 },
-  cellName: { fontWeight: 700, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cellName: { fontWeight: 700, marginTop: 6, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cellTime: { fontSize: 13, opacity: 0.85 },
   rowMine: { background: 'rgba(255,233,168,.12)' },
   rank: { fontWeight: 700, color: GOLD },

@@ -9,14 +9,14 @@
 // 판 아래쪽 E 로 여는 자세한 순위 창은 ranking/RankingPanel 입니다.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { facingAngle } from './worldLogic'
+import { BOARD_SCALE, facingAngle } from './worldLogic'
 import type { Facing, Point } from './worldLogic'
 import { MAT, colorMat } from './worldMaterials'
 import { EMPTY_BOARD, initialOf, minutesText, podium } from '../ranking/rankingLogic'
 import type { Ranking } from '../ranking/rankingLogic'
 import { CHALK, chalkCircle, chalkStar, chalkText, doodles, drawBoard, loadChalkFont } from '../ranking/chalk'
 
-// 크기 (m). 판 폭은 worldLogic 의 BOARD.w 와 같게
+// 크기 (m, BOARD_SCALE 곱하기 전). 판 폭 × BOARD_SCALE 이 worldLogic 의 BOARD.w 와 같게
 const POST = { size: 0.12, h: 2.3, x: 1.1 }
 const PANEL = { w: 2.4, h: 1.5, t: 0.08, y: 1.35 } // y: 판 가운데 높이 (아래 끝 0.6m)
 const ROOF = { w: 2.7, h: 0.12, d: 0.4, color: '#7a4a2a' }
@@ -26,10 +26,10 @@ const CANVAS = { w: 1320, h: 780 }
 const TITLE_Y = 0.12 // 제목 띠 가운데 (판 높이 비율)
 const RULE_Y = 0.22 // 제목 아래 점선
 const SLOT_X = [0.25, 0.5, 0.75] // 시상대 칸 가운데 (2등, 1등, 3등)
-const FACE_R = { 1: 132, 2: 76, 3: 76 } as const // 얼굴 동그라미 반지름(px)
+const FACE_R = { 1: 150, 2: 94, 3: 94 } as const // 얼굴 동그라미 반지름(px)
 // 칸 안 줄 배치: 위에서부터 [왕관] 등수 → 얼굴 → 이름 → 시간. 아래 끝을 맞춰 1등 칸이 더 높이 솟음
-const BOTTOM = { min: 736, name: 682 } // 시간·이름 줄 높이(px)
-const GAP = { name: 40, rank: 44, crown: 46 } // 얼굴 아래 끝→이름, 얼굴 위 끝→등수, 등수→왕관 간격(px)
+const BOTTOM = { min: 744, name: 686 } // 시간·이름 줄 높이(px)
+const GAP = { name: 66, rank: 46, crown: 46 } // 얼굴 아래 끝→이름, 얼굴 위 끝→등수, 등수→왕관 간격(px)
 
 // 칸 하나: [자리, 등수, 이름, 분, 사진 주소]
 type Slot = [1 | 2 | 3, number, string, number, string] | null
@@ -107,10 +107,10 @@ function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, 
     if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9, bold: true })
     chalkCircle(ctx, x, cy, r, place === 1 ? CHALK.gold : CHALK.white, place === 1 ? 6 : 5)
     const first = place === 1
-    chalkText(ctx, `${rank}`, x, rankY, { size: first ? 66 : 50, bold: true, color: first ? CHALK.gold : CHALK.white })
+    chalkText(ctx, `${rank}`, x, rankY, { size: first ? 72 : 54, bold: true, color: first ? CHALK.gold : CHALK.white })
     if (first) crown(ctx, x, rankY - GAP.crown, 34)
-    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 54 : 40, bold: true, maxWidth: w * 0.22 })
-    chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 34, maxWidth: w * 0.22 })
+    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 62 : 50, bold: true, maxWidth: w * 0.24 })
+    chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 40, maxWidth: w * 0.24 })
   })
 }
 
@@ -177,7 +177,7 @@ export function RankingBoard({ board, ranking, photos }: { board: Point & { faci
   }, [text, imageCount, fontReady])
 
   return (
-    <group position={[board.x, 0, board.z]} rotation={[0, facingAngle(board.facing), 0]}>
+    <group position={[board.x, 0, board.z]} rotation={[0, facingAngle(board.facing), 0]} scale={BOARD_SCALE}>
       {[-POST.x, POST.x].map((x) => (
         <mesh key={x} position={[x, POST.h / 2, -PANEL.t]} material={MAT.wood}>
           <boxGeometry args={[POST.size, POST.h, POST.size]} />

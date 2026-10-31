@@ -96,7 +96,8 @@ export const GATE_NO_BASE = 50 // 정문 입장 자리 번호 시작 (건물 입
 export const REST_NO_BASE = 100 // 쉬는 자리 번호 시작
 export const MAT_SIT = { y: -0.38 } // 돗자리: 바닥에 앉음 (앉은 자세를 의자 높이만큼 내림)
 export const BEANBAG = { y: -0.12, lie: 0.45 } // 빈백: 조금 낮게, 뒤로 기대 누움(라디안)
-export const BOARD = { w: 2.4, d: 0.3 } // 순위 게시판 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
+export const BOARD_SCALE = 1.4 // 순위 게시판 전체 크기 배율 (RankingBoard 의 판·기둥을 이만큼 키움, 멀리서도 보이게)
+export const BOARD = { w: 2.4 * BOARD_SCALE, d: 0.3 * BOARD_SCALE } // 순위 게시판 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
 export const BOARD_NO = 1000 // 게시판 앞 자리의 "앉는 자리" 번호. 건물 번호(1부터)와 겹치지 않게 큰 수
 // 벤치 자리 (벤치에서 공부하기). 광장은 DB 에서 카페 종류 지점 'plaza' 이고 벤치 자리가 그 지점의 좌석이다(0038).
 export const BENCH_SEATS_PER_BENCH = 2
