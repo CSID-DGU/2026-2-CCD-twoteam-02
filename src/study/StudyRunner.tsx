@@ -8,7 +8,7 @@ import { HOLD_LABEL, holdReason, shownStudyMs } from '../focus/focusLogic'
 import type { FocusInput, FocusStatus } from '../focus/focusLogic'
 import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
-import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
+import { SAVE_INTERVAL_MS, canCutChunk, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
 import { breakSegments, endSegments, pauseSegments, resumeSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
 import type { Segment, SegmentState } from './segmentLogic'
@@ -130,6 +130,16 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   // 빨강이 빈칸이 되고 띠가 끊겼습니다(2026-10-26). focus 는 판정마다 새 객체라 매번 불립니다.
   // 중지 중과 다시 시작한 직후(stale)에는 모으지 않습니다. 그 사이는 pauseSegments·resumeSegments 가 맡습니다.
   const segments = useRef<SegmentState | null>(null)
+
+  // 5분 저장 때 보류 중(노란불)이면 자르기를 미룹니다(canCutChunk). 보류가 끝나거나 멈추면 그때 자릅니다.
+  const pendingNow = useRef(0)
+  const haltedNow = useRef(halted)
+  const cutIfDue = useRef<(() => void) | null>(null) // 아래 저장 effect 가 채움
+  useEffect(() => {
+    pendingNow.current = focus.pendingMs
+    haltedNow.current = halted
+    cutIfDue.current?.()
+  }, [focus.pendingMs, halted])
   useEffect(() => {
     if (!segments.current || !judging) return
     segments.current = stepSegments(segments.current, {
@@ -178,7 +188,9 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
       if (error) console.error('상태 구간을 저장하지 못했습니다:', error.message)
     }
     // 지금까지의 구간을 잘라 저장합니다.
+    let due = false // 5분이 되어 자를 차례인데 보류가 끝나기를 기다리는 중
     const flush = () => {
+      due = false
       const now = Date.now()
       const { row, next } = takeChunk(chunk, studyMs.current, now)
       chunk = next
@@ -200,11 +212,19 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
 
     segments.current = startSegments(Date.now(), studyMs.current)
 
-    const timer = setInterval(flush, SAVE_INTERVAL_MS)
+    const cut = () => {
+      if (due && canCutChunk(pendingNow.current, haltedNow.current)) flush()
+    }
+    cutIfDue.current = cut
+    const timer = setInterval(() => {
+      due = true
+      cut()
+    }, SAVE_INTERVAL_MS)
     // 탭을 닫을 때도 남은 조각을 보내 봅니다. 브라우저가 요청을 끊으면 이 조각(최대 5분)만 잃습니다.
     window.addEventListener('pagehide', finish)
     return () => {
       clearInterval(timer)
+      cutIfDue.current = null
       window.removeEventListener('pagehide', finish)
       finish() // 일어나기, 과목 바꾸기, 지점 나가기
       segments.current = null
