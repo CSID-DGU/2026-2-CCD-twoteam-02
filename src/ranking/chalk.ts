@@ -72,12 +72,12 @@ export function chalkText(ctx: CanvasRenderingContext2D, text: string, x: number
   ctx.textBaseline = 'middle'
   ctx.fillStyle = o.color ?? CHALK.white
   // 번짐: 조금씩 어긋난 흐린 글씨를 먼저 깔고 본 글씨를 올림
-  ctx.globalAlpha = 0.25
+  ctx.globalAlpha = 0.15
   ctx.shadowColor = ctx.fillStyle
-  ctx.shadowBlur = o.size * 0.15
-  for (const [dx, dy] of [[1.5, 1], [-1, 0.5], [0.5, -1.2]]) ctx.fillText(text, x + dx, y + dy, o.maxWidth)
+  ctx.shadowBlur = o.size * 0.08
+  for (const [dx, dy] of [[0.8, 0.6], [-0.6, 0.3]]) ctx.fillText(text, x + dx, y + dy, o.maxWidth)
   ctx.globalAlpha = 0.95
-  ctx.shadowBlur = o.size * 0.06
+  ctx.shadowBlur = o.size * 0.03
   ctx.fillText(text, x, y, o.maxWidth)
   ctx.restore()
 }

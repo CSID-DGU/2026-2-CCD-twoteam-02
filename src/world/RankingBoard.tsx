@@ -104,12 +104,12 @@ function draw(ctx: CanvasRenderingContext2D, slots: Slot[], photos: Map<string, 
       ctx.drawImage(img, x - r, cy - r, r * 2, r * 2)
     }
     ctx.restore()
-    if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9, bold: true })
+    if (!img) chalkText(ctx, initialOf(name), x, cy + 4, { size: r * 0.9 })
     chalkCircle(ctx, x, cy, r, place === 1 ? CHALK.gold : CHALK.white, place === 1 ? 6 : 5)
     const first = place === 1
     chalkText(ctx, `${rank}`, x, rankY, { size: first ? 72 : 54, bold: true, color: first ? CHALK.gold : CHALK.white })
     if (first) crown(ctx, x, rankY - GAP.crown, 34)
-    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 62 : 50, bold: true, maxWidth: w * 0.24 })
+    chalkText(ctx, name, x, BOTTOM.name, { size: first ? 62 : 50, maxWidth: w * 0.24 })
     chalkText(ctx, minutesText(minutes), x, BOTTOM.min, { size: 40, maxWidth: w * 0.24 })
   })
 }
