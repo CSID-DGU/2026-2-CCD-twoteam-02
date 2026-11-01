@@ -291,5 +291,5 @@ export function thumbRects(slot: Slot): Rect[] {
 // 얼굴 부품은 기본 자리에 놓은 얼굴에서 그 둘레만 잘라 크게 보여 줌 (얼굴 좌표)
 export function faceThumbRect(slot: Slot): Rect {
   if (slot === 'mouth' || slot === 'mouthOpen') return { x: 256, y: 692, w: 512, h: 280 }
-  return { x: 120, y: 300, w: 784, h: 420 } // 눈썹~눈 줄
+  return { x: 120, y: 220, w: 784, h: 420 } // 눈썹~눈 줄 (새 그리기 틀로 눈·눈썹이 80 올라가 같이 올림)
 }
