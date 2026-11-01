@@ -16,6 +16,7 @@ import { channelName } from '../realtime/participants'
 import type { PresenceState } from '../realtime/participants'
 import { watchSupabase } from '../lib/supabase'
 import { FLOOR_H } from './cafeWindowLogic'
+import { storiesOf } from './worldLogic'
 import type { PlacedBuilding } from './worldLogic'
 import type { WorldConfig } from './worldConfig'
 import { placeShop, renderShops, shopView } from './shopGlass'
@@ -28,7 +29,7 @@ export function ShopInteriors({ world, placed, showPeople }: { world: WorldConfi
   useEffect(() => {
     for (const b of shops) {
       const r = b.rect
-      const top = FLOOR_H * b.floors.length
+      const top = FLOOR_H * storiesOf(b).length // 지붕 위 루프탑은 유리창이 없어 빼고
       placeShop(b.slug, new THREE.Box3(new THREE.Vector3(r.x - r.w / 2, 0, r.z - r.d / 2), new THREE.Vector3(r.x + r.w / 2, top, r.z + r.d / 2)), new THREE.Vector3(b.door.x, 1.5, b.door.z))
     }
   }, [shops])
@@ -41,7 +42,7 @@ export function ShopInteriors({ world, placed, showPeople }: { world: WorldConfi
 function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldConfig; showPeople: boolean }) {
   return (
     <>
-      {b.floors.map((f) => {
+      {storiesOf(b).map((f) => {
         const layout = BRANCH_LAYOUTS[f.slug]
         // 출입문이 없는 위층(Cam Study Cafe 2층, 계단으로만 오감)은 같은 건물 1층 출입문 자리에 맞춰 놓음
         const door = layout?.door ?? BRANCH_LAYOUTS[b.floors[0].slug]?.door

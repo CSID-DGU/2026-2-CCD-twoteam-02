@@ -36,7 +36,8 @@ export type Point = { x: number; z: number }
 // world.json 의 건물 한 채. slug 는 지점 JSON 이름(BRANCH_LAYOUTS 키), x·z 는 건물 가운데,
 // w·d 는 겉모습 폭(입구 면)·깊이 (실내 크기와 따로)
 // floors: 2층부터 위로 쌓는 지점. window 는 그 층 창 색(지점 분위기). 1층은 slug 의 지점입니다.
-export type FloorSpec = { slug: string; window?: string }
+// roof: 지붕 위 루프탑(이끼 루프탑). 벽을 한 층 더 쌓지 않고 지붕 위에 난간·소품을 그립니다(맨 위 층에만)
+export type FloorSpec = { slug: string; window?: string; roof?: boolean }
 // 앞면 모양 (캠리단길 파사드, Facades.tsx). 없으면 예전 모양(창 둘 + 초록 간판 + 색 문)
 export type FacadeStyle = 'classic' | 'diner' | 'garden' | 'modern' | 'woodbar' | 'moss'
 export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle; sideWindow?: 'west' | 'east'; wallTexture?: 'brick' }
@@ -83,7 +84,7 @@ export type BranchShape = Pick<BranchLayout, 'name' | 'size' | 'door'>
 
 // 광장에 놓인 건물
 // 건물의 한 층. level 1 이 1층(건물 slug 의 지점)
-export type PlacedFloor = { level: number; slug: string; name: string; window?: string }
+export type PlacedFloor = { level: number; slug: string; name: string; window?: string; roof?: boolean } // roof: 지붕 위 루프탑 (FloorSpec.roof)
 
 export type PlacedBuilding = {
   no: number // 1부터. Player 의 "앉는 자리" 번호로 씁니다 (입구 앞에서 E)
@@ -174,7 +175,7 @@ export function placeBuildings(plaza: PlazaLayout, layouts: Record<string, Branc
         warn?.(`광장 건물 ${spec.slug}의 층 ${f.slug}: 지점 배치(src/space/branches)에 없어 넣지 않습니다.`)
         continue
       }
-      floors.push({ level: floors.length + 1, slug: f.slug, name: upper.name, window: f.window })
+      floors.push({ level: floors.length + 1, slug: f.slug, name: upper.name, window: f.window, ...(f.roof ? { roof: true } : {}) })
     }
     const angle = facingAngle(spec.facing)
     const front = spec.d / 2 // 입구 면 (건물 기준 +Z)
@@ -477,3 +478,12 @@ function courtyardBoxes(c: CourtyardSpec): Box[] {
   const side = c.r * 2 * COURTYARD_PLANTER_BOX
   return [{ x: c.x, z: c.z, w: side, d: side }]
 }
+
+export const STORY_H = 3.6 // 건물 한 층 높이 (WorldDecor 가 이만큼씩 쌓음, cafeWindowLogic 의 FLOOR_H 와 같음)
+export const ROOF_T = 0.3 // 지붕 판 두께
+// 지붕 판 윗면 높이 = 지붕 위 루프탑 바닥 (벽을 쌓은 층 수만큼)
+export const roofTopOf = (b: Pick<PlacedBuilding, 'floors'>) => STORY_H * storiesOf(b).length + ROOF_T
+// 벽을 쌓은 층 (지붕 위 루프탑은 빼고). 건물 높이·층 창·층 사이 띠는 이 층들만 그립니다
+export const storiesOf = (b: Pick<PlacedBuilding, 'floors'>) => b.floors.filter((f) => !f.roof)
+// 지붕 위 루프탑 층 (없으면 undefined)
+export const roofFloorOf = (b: Pick<PlacedBuilding, 'floors'>) => b.floors.find((f) => f.roof)
