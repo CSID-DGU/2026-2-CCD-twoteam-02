@@ -396,5 +396,45 @@
       "signBg": "#56663a",
       "knob": "#c9ccd2"
     }
+  },
+  "barista": {
+    "x": 4.9,
+    "z": 6.6,
+    "w": 3,
+    "facing": "north",
+    "counter": true,
+    "look": {
+      "hair": "ponytail-textured",
+      "hairColor": "#2b211b",
+      "top": "tshirt",
+      "topColor": "#46553a",
+      "bottomColor": "#2a2a2a",
+      "apron": "#2f3a26",
+      "hat": "bandana",
+      "hatColor": "#86b85a"
+    },
+    "menu": [
+      {
+        "name": "말차 라떼",
+        "icon": "🍵"
+      },
+      {
+        "name": "콜드브루",
+        "icon": "🧊"
+      },
+      {
+        "name": "쑥 라떼",
+        "icon": "🌱"
+      },
+      {
+        "name": "아메리카노",
+        "icon": "☕"
+      },
+      {
+        "name": "스콘",
+        "icon": "🥮",
+        "food": "scone"
+      }
+    ]
   }
 }

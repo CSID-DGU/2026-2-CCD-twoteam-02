@@ -369,5 +369,45 @@
       "chrome": "#5e4330",
       "signBg": "#c46a3f"
     }
+  },
+  "barista": {
+    "x": 0,
+    "z": -6.6,
+    "w": 4,
+    "facing": "south",
+    "counter": true,
+    "look": {
+      "hair": "low-bun-textured",
+      "hairColor": "#3b2a20",
+      "top": "longsleeve",
+      "topColor": "#6b8e3a",
+      "bottomColor": "#3b2a20",
+      "apron": "#5a4632",
+      "hat": "beret",
+      "hatColor": "#6b8e3a"
+    },
+    "menu": [
+      {
+        "name": "올리브 라떼",
+        "icon": "🫒"
+      },
+      {
+        "name": "아메리카노",
+        "icon": "☕"
+      },
+      {
+        "name": "레몬 에이드",
+        "icon": "🍋"
+      },
+      {
+        "name": "허브티",
+        "icon": "🌿"
+      },
+      {
+        "name": "치아바타",
+        "icon": "🥖",
+        "food": "ciabatta"
+      }
+    ]
   }
 }

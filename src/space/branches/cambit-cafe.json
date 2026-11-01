@@ -255,5 +255,45 @@
       "signBg": "#1f3b2d",
       "knob": "#c9a24a"
     }
+  },
+  "barista": {
+    "x": 0,
+    "z": -6.8,
+    "w": 6,
+    "facing": "south",
+    "counter": false,
+    "look": {
+      "hair": "space-buns-textured",
+      "hairColor": "#3d2a1e",
+      "top": "tshirt",
+      "topColor": "#a8473a",
+      "bottomColor": "#374151",
+      "apron": "#3b2a1e",
+      "hat": "cap",
+      "hatColor": "#a8473a"
+    },
+    "menu": [
+      {
+        "name": "아메리카노",
+        "icon": "☕"
+      },
+      {
+        "name": "카페 라떼",
+        "icon": "🥛"
+      },
+      {
+        "name": "아이스티",
+        "icon": "🧋"
+      },
+      {
+        "name": "핫초코",
+        "icon": "🍫"
+      },
+      {
+        "name": "샌드위치",
+        "icon": "🥪",
+        "food": "sandwich"
+      }
+    ]
   }
 }

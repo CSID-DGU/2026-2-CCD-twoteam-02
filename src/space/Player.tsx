@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
+import * as THREE from 'three'
 import type { Group } from 'three'
+import { makeHeld } from './drinkCup'
+import type { MenuItem } from './baristaLogic'
 import { stepWithObstacles } from './layout'
 import type { Box, Spot } from './layout'
 import { BASE_MODEL_URL } from '../profile/characters'
@@ -74,9 +77,10 @@ type Props = {
   onAim?: (target: AimTarget) => void
   // 바깥에서 "여기로 옮겨라" 요청 (친구 따라가기·부르기, useFollowArrival). 앉아 있으면 먼저 일어납니다.
   teleportRef?: RefObject<Teleport | null>
+  holding?: MenuItem | null // 카페에서 받은 음료·빵을 오른손에 듦 (내 화면에만)
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef, holding = null }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -98,6 +102,23 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   useSkin(model, character) // 고른 차림의 스킨을 입힘 (#56)
   useFace(model, character) // 눈썹·눈·입 (#293)
   useHair(model, character) // 입체 머리카락 (#296)
+  // 카페 음료 컵·빵 접시: 오른팔 끝(손)에 붙임. 팔 모양 상자로 손끝 자리를 잼
+  useEffect(() => {
+    const arm = model.getObjectByName('arm-right')
+    if (!holding || !arm) return
+    model.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(arm)
+    const hand = arm.worldToLocal(new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2 + 0.08))
+    const cup = makeHeld(holding)
+    cup.position.copy(hand)
+    // 바닥이 0 이라: 컵은 손끝이 컵 위쪽을 쥔 모양으로 내리고, 접시는 손바닥 위에 얹음
+    if (holding.food) cup.position.z += 0.1
+    else cup.position.y -= 0.24
+    arm.add(cup)
+    return () => {
+      arm.remove(cup)
+    }
+  }, [model, holding])
   // 캐릭터에 들어 있는 동작 + 직접 만든 감정표현 동작 (#162)
   const clips = useMemo(() => [...animations, ...EMOTE_CLIPS], [animations])
   const { actions } = useAnimations(clips, animRoot)
@@ -395,3 +416,4 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
 }
 
 useGLTF.preload(BASE_MODEL_URL)
+

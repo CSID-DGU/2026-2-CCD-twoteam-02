@@ -213,6 +213,84 @@ function speckle(ctx: CanvasRenderingContext2D, r: () => number, alpha: number) 
 }
 
 // 콘크리트 (캠퍼스 산책로): 잔 알갱이 + 군데군데 얼룩 + 판 사이 줄눈(한 장에 2×2 판 = TILE.concrete 3m 에 1.5m 판)
+// 회벽 (건물 벽): 고운 잡티 + 흙손으로 바른 듯한 옅은 얼룩
+function makeStucco(): Pair {
+  const [mc, m] = canvas()
+  const [bc, b] = canvas()
+  const r = random(97)
+  m.fillStyle = '#e4e0d8'
+  m.fillRect(0, 0, PX, PX)
+  b.fillStyle = '#808080'
+  b.fillRect(0, 0, PX, PX)
+  for (let i = 0; i < 60; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const rx = 20 + r() * 50
+    const ry = rx * (0.3 + r() * 0.4)
+    const rot = r() * Math.PI
+    const l = r() < 0.5 ? 'rgba(255,255,255,0.14)' : 'rgba(120,110,95,0.1)'
+    wrapped((dx, dy) => {
+      m.fillStyle = l
+      m.beginPath()
+      m.ellipse(x + dx, y + dy, rx, ry, rot, 0, Math.PI * 2)
+      m.fill()
+      b.fillStyle = l.includes('255') ? 'rgba(200,200,200,0.3)' : 'rgba(60,60,60,0.3)'
+      b.beginPath()
+      b.ellipse(x + dx, y + dy, rx, ry, rot, 0, Math.PI * 2)
+      b.fill()
+    })
+  }
+  for (let i = 0; i < 20000; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const l = 175 + Math.floor(r() * 70)
+    m.fillStyle = `rgb(${l},${l - 2},${l - 6})`
+    m.fillRect(x, y, 1.2, 1.2)
+    b.fillStyle = `rgb(${l - 40},${l - 40},${l - 40})`
+    b.fillRect(x, y, 1.2, 1.2)
+  }
+  return { map: texture(mc, true), bump: texture(bc, false) }
+}
+
+// 세로 나무 판자 (건물 벽·가게): 판자마다 밝기를 달리하고 나뭇결·판자 사이 홈
+function makePlanks(): Pair {
+  const [mc, m] = canvas()
+  const [bc, b] = canvas()
+  const r = random(71)
+  const n = 8 // 한 장에 판자 수
+  const pw = PX / n
+  for (let i = 0; i < n; i++) {
+    const l = 175 + Math.floor(r() * 50)
+    m.fillStyle = `rgb(${l},${l - 6},${l - 18})`
+    m.fillRect(i * pw, 0, pw, PX)
+    b.fillStyle = '#9a9a9a'
+    b.fillRect(i * pw, 0, pw, PX)
+    for (let g = 0; g < 14; g++) {
+      const gx = i * pw + 3 + r() * (pw - 6)
+      m.strokeStyle = `rgba(90,60,30,${0.12 + r() * 0.15})`
+      m.lineWidth = 1 + r()
+      m.beginPath()
+      m.moveTo(gx, 0)
+      for (let y = 0; y <= PX; y += 32) m.lineTo(gx + Math.sin(y * 0.02 + g) * 2.5, y)
+      m.stroke()
+    }
+    if (r() < 0.5) {
+      // 옹이
+      const kx = i * pw + pw / 2
+      const ky = r() * PX
+      m.fillStyle = 'rgba(90,55,25,0.35)'
+      m.beginPath()
+      m.ellipse(kx, ky, 5, 9, 0, 0, Math.PI * 2)
+      m.fill()
+    }
+    m.fillStyle = 'rgba(60,40,20,0.55)'
+    m.fillRect(i * pw, 0, 2, PX)
+    b.fillStyle = '#2a2a2a'
+    b.fillRect(i * pw, 0, 3, PX)
+  }
+  return { map: texture(mc, true), bump: texture(bc, false) }
+}
+
 function makeConcrete(): Pair {
   const [mc, m] = canvas()
   const [bc, b] = canvas()
@@ -256,9 +334,9 @@ function makeConcrete(): Pair {
 }
 
 // 처음 쓸 때 한 번만 그립니다.
-let made: { cobble: Pair; brick: Pair; gravel: Pair; grass: Pair; concrete: Pair } | null = null
+let made: { cobble: Pair; brick: Pair; gravel: Pair; grass: Pair; concrete: Pair; stucco: Pair; planks: Pair } | null = null
 export function groundTextures() {
-  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel(), grass: makeGrass(), concrete: makeConcrete() }
+  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel(), grass: makeGrass(), concrete: makeConcrete(), stucco: makeStucco(), planks: makePlanks() }
   return made
 }
 
