@@ -53,11 +53,15 @@ const saveOpen = (v: boolean) => {
 const MAP_EDGE = 'calc(20px + min(300px, 34vmin))' // 미니맵 위·왼쪽 끝 (가장자리에서)
 const GAP = 12 // 미니맵·내 모습 화면과 띄우는 거리
 
+// 가방 색: 민트 누빔 파우치 (스톱워치와 같은 민트, 사용자 B안). 글자는 스톱워치 숫자 색
+const BAG = { mint: '#bfe6d4', deep: '#8fcab2', ink: '#2f5d4c', text: '#4a4f63' }
+const GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.35 0 0 0 0.12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`
+
 // 왼쪽 아래는 채팅 입력창과 겹쳐서 오른쪽 아래로: 미니맵·내 모습 화면 바로 위 (화면이 작으면 미니맵도 작아져 같이 내려옴)
 const bagButton: CSSProperties = {
   position: 'fixed', right: 16, bottom: `max(${216 + GAP}px, calc(${MAP_EDGE} + ${GAP}px))`, zIndex: 41, pointerEvents: 'auto',
-  background: '#7a5534', color: '#fff', border: '2px solid #5a3a22', borderRadius: 12, padding: '6px 12px',
-  fontSize: 14, cursor: 'pointer', boxShadow: '0 3px 8px rgba(0,0,0,0.3)', fontFamily: PRINT,
+  background: BAG.mint, color: BAG.ink, border: `2px solid ${BAG.deep}`, borderRadius: 12, padding: '6px 12px',
+  fontSize: 14, cursor: 'pointer', boxShadow: '0 3px 8px rgba(0,0,0,0.3), inset 0 -3px 0 rgba(0,0,0,0.08)', fontFamily: PRINT, fontWeight: 700,
 }
 // 가방 창은 미니맵 왼쪽에 아래부터 열림 (버튼 위로 열면 낮은 화면에서 높이가 모자람).
 // 창 폭(270 + 안쪽 여백·테두리 34 = 304)이 들어갈 자리가 없는 좁은 화면이면 미니맵 위에 겹쳐 열림
@@ -65,11 +69,17 @@ const bagPanel: CSSProperties = {
   position: 'fixed', right: `max(16px, min(max(${216 + GAP}px, calc(${MAP_EDGE} + ${GAP}px)), calc(100vw - 320px)))`, bottom: 16,
   zIndex: 41, pointerEvents: 'auto', width: 270, padding: 14,
   maxHeight: 'calc(100vh - 66px)', overflowY: 'auto', // 66 = 위아래 여백 32 + 안쪽 여백·테두리 34
-  background: '#8a6240', backgroundImage: 'repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0 2px, transparent 2px 6px)',
-  border: '3px solid #5a3a22', borderRadius: 14, color: '#fff', fontFamily: PRINT, boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+  paddingTop: 22, // 위 지퍼 자리
+  // 민트 누빔: 대각선 두 방향 흰 선 + 잡티 질감 (스톱워치와 한 세트)
+  backgroundColor: BAG.mint,
+  backgroundImage: `${GRAIN}, repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 1px, transparent 1px 16px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.3) 0 1px, transparent 1px 16px)`,
+  border: 'none', borderRadius: 24, color: BAG.text, fontFamily: PRINT,
+  boxShadow: '0 10px 24px rgba(0,0,0,0.45), inset 0 -6px 12px rgba(0,0,0,0.08), inset 0 2px 0 rgba(255,255,255,0.5)',
 }
-const item: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 8, background: 'rgba(255,255,255,0.1)', marginTop: 8 }
-const small: CSSProperties = { background: 'rgba(255,255,255,0.18)', color: '#fff', border: 'none', borderRadius: 6, padding: '3px 9px', cursor: 'pointer', fontSize: 12 }
+// 위쪽 분홍·크림 지퍼
+const zipper: CSSProperties = { position: 'absolute', left: 18, right: 18, top: 9, height: 6, borderRadius: 3, background: 'repeating-linear-gradient(90deg, #fffaf0 0 3px, #e9a9b9 3px 6px)', boxShadow: '0 1px 1px rgba(0,0,0,0.12)' }
+const item: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.08)', marginTop: 8 }
+const small: CSSProperties = { background: '#fff', color: BAG.text, border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer', fontSize: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.15)', whiteSpace: 'nowrap' }
 
 export function BagLayer() {
   const [bagOpen, setBagOpen] = useState(false)
@@ -119,8 +129,9 @@ export function BagLayer() {
       </button>
       {bagOpen && (
         <div style={bagPanel}>
+          <div style={zipper} aria-hidden />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <b>🎒 내 가방</b>
+            <b style={{ fontSize: 15 }}>🎒 내 가방</b>
             <button style={small} onClick={() => setBagOpen(false)}>닫기</button>
           </div>
 
@@ -159,7 +170,7 @@ export function BagLayer() {
             </div>
           </div>
 
-          {notice && <div style={{ marginTop: 8, fontSize: 12, background: 'rgba(0,0,0,0.25)', padding: '6px 8px', borderRadius: 6 }}>{notice}</div>}
+          {notice && <div style={{ marginTop: 8, fontSize: 12, background: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: 8 }}>{notice}</div>}
 
           {tucked.length > 0 && (
             <div style={{ marginTop: 10 }}>
