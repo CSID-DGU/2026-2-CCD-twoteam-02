@@ -18,6 +18,7 @@ import type { EmoteState } from './emotes'
 import { holdStandingPose } from './standStill'
 import { getKeymap } from '../menu/keymap'
 import { inAir, jumpHeight } from './jumpLogic'
+import { aimWins } from './aimLogic'
 import type { AimTarget } from './aimLogic'
 import type { Teleport } from '../friends/useFollow'
 import { getStick, takeInteract, takeJump } from './touchInput'
@@ -59,6 +60,7 @@ type Props = {
   onNearElevator?: (near: boolean) => void // 엘리베이터 문 앞에 들어오거나 벗어날 때
   onElevator?: () => void // 엘리베이터 문 앞에서 E를 눌렀을 때
   canSit?: (no: number) => boolean // 앉아도 되는 자리인지. 없으면 모든 자리에 앉을 수 있습니다.
+  acts?: (no: number) => boolean // 이 자리 앞에서 E 가 할 일이 있는지(앉기·자리 잡기·게시판 열기·입장 등). 있으면 조준한 사람보다 먼저(#408). 없으면 canSit
   // 매 프레임 현재 위치와 몸이 바라보는 방향(라디안). 받는 쪽은 ref 에 담아 두고 필요할 때 읽습니다.
   onMove?: (x: number, z: number, heading: number) => void
   // 1인칭으로 걸을 때 바라보는 방향(라디안). 넘기면 W 가 보는 쪽 앞, A·D 가 옆걸음, ←→ 가 회전이 됩니다.
@@ -80,7 +82,7 @@ type Props = {
   holding?: MenuItem | null // 카페에서 받은 음료·빵을 오른손에 듦 (내 화면에만)
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef, holding = null }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, acts, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef, holding = null }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -261,8 +263,10 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     const requested = sitRef?.current ?? null
     const forced = requested !== null && near.current?.no === requested
     if (forced && sitRef) sitRef.current = null
-    // 조준점이 사람·별자리를 가리키면 E 는 그것을 엽니다(가까운 의자·문보다 먼저)
-    const aimed = wantToggle && !forced ? (aimRef?.current ?? null) : null
+    // 조준점이 사람·별자리를 가리키면 E 는 그것을 엽니다. 단, 지금 자리에서 할 수 있는 일(빈자리·문·계단·키오스크·회의실)이 있으면 그것이 먼저 (#408)
+    const spotActs = near.current !== null && (acts ?? canSit ?? (() => true))(near.current.no)
+    const placeReady = spotActs || nearKiosk.current || nearMeeting.current || nearElevator.current || nearExit.current
+    const aimed = wantToggle && !forced && aimWins(placeReady, Boolean(aimRef?.current)) ? (aimRef?.current ?? null) : null
     if (aimed) {
       onAim?.(aimed)
       return

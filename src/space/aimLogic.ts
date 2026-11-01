@@ -13,6 +13,11 @@ export const AIM_RANGE = 8 // 이 거리(m) 안의 사람만 조준됨
 export const BODY = { radius: 0.35, standing: 1.65, seated: 1.25 } // 캐릭터를 대신하는 원기둥 (모델 키 약 1.6m)
 export const AIM_HZ = 10 // 조준 대상을 초당 이만큼 다시 확인
 
+// E 를 눌렀을 때 조준한 사람·별자리를 열지 (#408). 지금 서 있는 자리에서 할 수 있는 일(문·계단·키오스크·빈자리 등)이 있으면
+// 그 일이 먼저이고, 없을 때만 조준한 것을 엽니다. 조준이 먼저였을 때는 문 앞에 누가 서 있으면 문 대신 그 사람 프로필이 열려
+// 남이 길을 막을 수 있었습니다. 화면 아래 안내도 같은 순서로 보여 줍니다(누르면 일어날 일 = 안내 문구).
+export const aimWins = (placeReady: boolean, aimed: boolean) => aimed && !placeReady
+
 // 조준점이 가리키는 것. 화면 아래 안내와 E 키가 씁니다.
 export type AimTarget = { kind: 'person'; id: string; name: string } | { kind: 'sign'; id: string; name: string }
 
