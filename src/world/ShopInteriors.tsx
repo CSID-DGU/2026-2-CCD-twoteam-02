@@ -43,10 +43,12 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
     <>
       {b.floors.map((f) => {
         const layout = BRANCH_LAYOUTS[f.slug]
-        if (!layout?.door) return null
+        // 출입문이 없는 위층(Cam Study Cafe 2층, 계단으로만 오감)은 같은 건물 1층 출입문 자리에 맞춰 놓음
+        const door = layout?.door ?? BRANCH_LAYOUTS[b.floors[0].slug]?.door
+        if (!layout || !door) return null
         return (
           <group key={f.slug} position={[b.door.x, (f.level - 1) * FLOOR_H, b.door.z]} rotation-y={b.angle}>
-            <group position={[-layout.door.x, 0, -layout.door.z]}>
+            <group position={[-door.x, 0, -door.z]}>
               <BranchInterior
                 branch={layout}
                 exitLabel={world.title}
