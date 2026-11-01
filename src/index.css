@@ -162,3 +162,41 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* 캐릭터 꾸미기 눈·눈썹·입 막대 (#380). 바탕(채운 곳·못 가는 곳)은 CharacterPicker 의 trackOf 가 칠함.
+   손잡이 지름 18px 은 trackOf 의 KNOB 과 같아야 칠한 경계가 손잡이 자리와 맞음 */
+.face-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  margin: 8px 0;
+}
+.face-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.face-slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.face-slider::-moz-range-track {
+  background: transparent;
+}
+.face-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
+}

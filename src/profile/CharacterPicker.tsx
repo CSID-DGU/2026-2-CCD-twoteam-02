@@ -14,7 +14,7 @@ import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
 import { useHair } from '../tracking/useHair'
-import { LAYOUT, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, pickableParts, randomAvatar } from '../avatar/avatarLogic'
+import { LAYOUT, SKIN_PRESETS, avatarKey, findPart, fitLayout, layoutRange, moveLayout, pickableParts, randomAvatar } from '../avatar/avatarLogic'
 import type { Avatar, LayoutField, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
 
@@ -118,13 +118,14 @@ export function CharacterPicker({ value, onChange }: Props) {
                 <span style={styles.sliderEnd}>{low}</span>
                 <input
                   type="range"
+                  className="face-slider"
                   min={LAYOUT[field].min}
                   max={LAYOUT[field].max}
                   step={1}
                   value={value[field]}
-                  // 눈과 입이 겹치거나 얼굴 밖으로 나가는 곳에서는 더 가지 않고 멈춥니다(moveLayout)
+                  // 겹치면 이웃 부품을 밀어 자리를 만들고(눈을 키우면 눈썹은 위로·입은 아래로), 얼굴 끝에 닿으면 멈춥니다(moveLayout, #380)
                   onChange={(e) => onChange(moveLayout(value, field, Number(e.target.value)))}
-                  style={styles.slider}
+                  style={{ ...styles.slider, background: trackOf(field, value[field], layoutRange(value, field)) }}
                 />
                 <span style={styles.sliderEnd}>{high}</span>
               </label>
@@ -136,6 +137,7 @@ export function CharacterPicker({ value, onChange }: Props) {
             >
               기본 자리로
             </button>
+            <span style={styles.layoutHint}>눈을 키우거나 올리면 눈썹·입이 같이 비켜 줘요. 막대의 어두운 곳은 얼굴 끝이나 다른 쪽 눈에 닿아 갈 수 없어요.</span>
           </div>
         )}
 
@@ -240,6 +242,21 @@ function Preview({ model, talking, eyesClosed }: { model: string; talking: boole
   )
 }
 
+// 막대 바탕 (#380): 채운 곳(파랑)·남은 곳(회색)·못 가는 곳(어두운색)을 한 장으로 칠합니다. 못 가는 곳은 이웃 부품을 밀어도
+// 얼굴 끝·다른 쪽 눈에 닿아 갈 수 없는 곳(layoutRange 바깥). 막대는 직접 그려서(index.css 의 .face-slider) 손잡이 지름이 KNOB 으로
+// 정해져 있고, 손잡이 가운데는 양 끝에서 KNOB/2 안쪽에서 움직이므로 칠하는 경계도 같은 자리로 맞춥니다(브라우저마다 같게).
+const KNOB = 18 // .face-slider 손잡이 지름(px). index.css 와 같은 값
+const TRACK = { fill: SELECTED, rest: '#5b6372', blocked: '#2a2e36' } // 못 가는 곳은 남은 곳보다 어둡게 (바탕색보다는 밝게 해서 막대가 끊겨 보이지 않게)
+function trackOf(field: LayoutField, value: number, range: { min: number; max: number }): string {
+  const { min, max } = LAYOUT[field]
+  const at = (v: number) => `calc(${KNOB / 2}px + (100% - ${KNOB}px) * ${(v - min) / (max - min)})`
+  const lo = range.min > min ? at(range.min) : '0%'
+  const hi = range.max < max ? at(range.max) : '100%'
+  const cur = at(value)
+  const { fill, rest, blocked } = TRACK
+  return `linear-gradient(to right, ${blocked} 0 ${lo}, ${fill} ${lo} ${cur}, ${rest} ${cur} ${hi}, ${blocked} ${hi} 100%)`
+}
+
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', gap: 12, flexWrap: 'wrap' },
   preview: { width: 220, height: 300, borderRadius: 10, overflow: 'hidden', background: '#16181d', flexShrink: 0 },
@@ -262,7 +279,8 @@ const styles: Record<string, CSSProperties> = {
   sliderRow: { display: 'flex', alignItems: 'center', gap: 6 },
   sliderLabel: { color: '#cbd5e1', fontSize: 13, width: 32, flexShrink: 0 },
   sliderEnd: { color: '#9aa1ab', fontSize: 12, width: 26, textAlign: 'center', flexShrink: 0 },
-  slider: { flex: 1, minWidth: 0, accentColor: SELECTED },
+  slider: { flex: 1, minWidth: 0 }, // 모양은 index.css 의 .face-slider, 바탕은 trackOf
+  layoutHint: { color: '#9aa1ab', fontSize: 12 },
   colorRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   colorInput: { width: 44, height: 32, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
   swatch: { width: 26, height: 26, borderRadius: 6, border: '2px solid transparent', cursor: 'pointer', padding: 0 },

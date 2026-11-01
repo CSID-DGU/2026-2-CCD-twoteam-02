@@ -224,8 +224,12 @@ function boxAt(slot: Slot, id: string, at: Spot): Box | null {
   const k = at.scale * (part.scale ?? 1)
   return { x0: at.x + l * k, y0: at.y + t * k, x1: at.x + r * k, y1: at.y + b * k }
 }
-// 이 위치·크기로 얼굴에 들어가는지: 얼굴 밖으로 나가거나, 두 눈(눈썹)이 겹치거나, 눈과 눈썹·입이 겹치면 false
-export function layoutFits(a: Avatar): boolean {
+// 이 위치·크기에서 겹치는 곳 (#380). 밀어내기(moveLayout)가 무엇을 옮길지 고르는 데 씁니다.
+//   edge      얼굴 밖으로 나가거나 두 눈(눈썹)이 서로 겹침 → 다른 부품을 밀어도 풀리지 않음
+//   eyeBrow   눈썹이 눈과 겹침 (눈썹은 눈보다 GAP 만큼 위)
+//   eyeMouth  눈이 입과 겹침 (눈 아래 끝이 입 위 끝보다 GAP 만큼 위)
+export type Conflicts = { edge: boolean; eyeBrow: boolean; eyeMouth: boolean }
+export function layoutConflicts(a: Avatar): Conflicts {
   const L = faceLayout(a)
   const mid = FACE_PX / 2
   // 뜬 눈과 감은 눈 중 더 큰 범위 (깜빡여도 겹치지 않게)
@@ -233,25 +237,51 @@ export function layoutFits(a: Avatar): boolean {
   const brow = boxAt('brows', a.brows, L.brow)
   const closed = boxAt('mouth', a.mouth, L.mouth), open = boxAt('mouthOpen', a.mouthOpen, L.mouth)
   const mouths = [closed, open].filter((m): m is Box => m !== null)
+  const out: Conflicts = { edge: false, eyeBrow: false, eyeMouth: false }
   for (const b of [eye, brow]) {
-    if (!b) continue
-    if (b.x0 < mid + GAP / 2 || b.x1 > FACE_PX - EDGE || b.y0 < EDGE) return false
+    if (b && (b.x0 < mid + GAP / 2 || b.x1 > FACE_PX - EDGE || b.y0 < EDGE)) out.edge = true
   }
   // 눈썹은 눈보다 위에 (가로로 겹치는 자리면 눈썹 아래 끝이 눈 위 끝보다 GAP 만큼 위)
-  if (eye && brow && brow.x0 < eye.x1 && brow.x1 > eye.x0 && brow.y1 + GAP > eye.y0) return false
+  if (eye && brow && brow.x0 < eye.x1 && brow.x1 > eye.x0 && brow.y1 + GAP > eye.y0) out.eyeBrow = true
   for (const m of mouths) {
-    if (m.x0 < EDGE || m.x1 > FACE_PX - EDGE || m.y1 > FACE_PX - EDGE) return false
+    if (m.x0 < EDGE || m.x1 > FACE_PX - EDGE || m.y1 > FACE_PX - EDGE) out.edge = true
     // 눈이 입과 가로로 겹치는 자리에 있으면, 눈 아래 끝이 입 위 끝보다 GAP 만큼 위여야 함
-    if (eye && eye.x0 < m.x1 && eye.x1 > m.x0 && eye.y1 + GAP > m.y0) return false
+    if (eye && eye.x0 < m.x1 && eye.x1 > m.x0 && eye.y1 + GAP > m.y0) out.eyeMouth = true
   }
-  return true
+  return out
+}
+// 이 위치·크기로 얼굴에 들어가는지: 얼굴 밖으로 나가거나, 두 눈(눈썹)이 겹치거나, 눈과 눈썹·입이 겹치면 false
+export function layoutFits(a: Avatar): boolean {
+  const c = layoutConflicts(a)
+  return !c.edge && !c.eyeBrow && !c.eyeMouth
 }
 function unionBox(a: Box | null, b: Box | null): Box | null {
   if (!a || !b) return a ?? b
   return { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }
 }
 const clampLayout = (field: LayoutField, v: number) => Math.max(LAYOUT[field].min, Math.min(LAYOUT[field].max, Math.round(v)))
-// field 를 target 쪽으로 한 단계씩 옮기다가 얼굴에 안 들어가게 되기 직전에 멈춥니다(슬라이더를 끌 때)
+const PUSH_LIMIT = 40 // 한 단계 옮길 때 이웃을 미는 최대 횟수 (끝없이 돌지 않게)
+const BROW_SIDE: LayoutField[] = ['browY', 'browSize']
+const MOUTH_SIDE: LayoutField[] = ['mouthY', 'mouthSize']
+// 겹친 곳을 풀도록 이웃 부품을 한 단계씩 밉니다 (#380). 고른 칸(field)은 건드리지 않습니다.
+//   눈썹과 겹침: 눈썹 칸을 움직이는 중이면 눈을 아래로, 아니면 눈썹을 위로
+//   입과 겹침:   입 칸을 움직이는 중이면 눈을 위로, 아니면 입을 아래로
+// 얼굴 밖에 닿거나 밀 칸이 끝에 닿으면 null (더 갈 수 없음)
+function pushNeighbors(a: Avatar, field: LayoutField): Avatar | null {
+  let cur = a
+  for (let i = 0; i < PUSH_LIMIT; i++) {
+    const c = layoutConflicts(cur)
+    if (c.edge) return null
+    if (!c.eyeBrow && !c.eyeMouth) return cur
+    const [f, dir]: [LayoutField, number] = c.eyeBrow ? (BROW_SIDE.includes(field) ? ['eyeY', -1] : ['browY', 1]) : MOUTH_SIDE.includes(field) ? ['eyeY', 1] : ['mouthY', -1]
+    const v = cur[f] + dir
+    if (f === field || v < LAYOUT[f].min || v > LAYOUT[f].max) return null
+    cur = { ...cur, [f]: v }
+  }
+  return null
+}
+// field 를 target 쪽으로 한 단계씩 옮깁니다(슬라이더를 끌 때). 겹치면 이웃 부품을 밀어 자리를 만들고(눈을 키우면 눈썹은 위로·입은 아래로),
+// 그래도 안 되는 곳(얼굴 끝에 닿음)에서 멈춥니다. 막대의 못 가는 구간은 layoutRange 로 회색 표시 (#380)
 export function moveLayout(a: Avatar, field: LayoutField, target: number): Avatar {
   const goal = clampLayout(field, target)
   if (!layoutFits(a)) return fitLayout({ ...a, [field]: goal })
@@ -259,10 +289,15 @@ export function moveLayout(a: Avatar, field: LayoutField, target: number): Avata
   const dir = Math.sign(goal - a[field])
   for (let v = a[field] + dir; dir !== 0 && (dir > 0 ? v <= goal : v >= goal); v += dir) {
     const next = { ...cur, [field]: v }
-    if (!layoutFits(next)) break
-    cur = next
+    const fixed = layoutFits(next) ? next : pushNeighbors(next, field)
+    if (!fixed) break
+    cur = fixed
   }
   return cur
+}
+// 지금 차림에서 field 막대가 실제로 갈 수 있는 범위 (이웃을 밀어도 못 가는 바깥은 막대에 회색으로)
+export function layoutRange(a: Avatar, field: LayoutField): { min: number; max: number } {
+  return { min: moveLayout(a, field, LAYOUT[field].min)[field], max: moveLayout(a, field, LAYOUT[field].max)[field] }
 }
 // 부품을 바꿔서 겹치게 됐으면 겹치지 않을 때까지: 눈썹을 올리고 → 눈을 올리고 → 입을 내리고 → 눈·입·눈썹을 줄이고 → 그래도 안 되면 기본 자리
 export function fitLayout(a: Avatar): Avatar {
