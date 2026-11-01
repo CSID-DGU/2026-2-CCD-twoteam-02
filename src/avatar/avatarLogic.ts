@@ -78,7 +78,7 @@ export const SHADE: Record<Face['dir'], number> = { top: 255, front: 245, left: 
 export const DEFAULT_AVATAR: Avatar = {
   skin: '#f6d1a5',
   eyes: 'sparkle', // 초롱초롱 눈 (김현 그림, 10/27)
-  closedEyes: 'line', // 일자 감은 눈
+  closedEyes: 'new-1', // 새 감은 눈 1 (11/01 김현 그림. 예전 감은 눈은 지움)
   eyeColor: '#5b3a1e',
   brows: 'straight',
   mouth: 'soft-smile', // 살짝 웃는 입 (김현 그림, 10/27)
@@ -173,10 +173,10 @@ export function randomAvatar(random: () => number = Math.random): Avatar {
 // ── 얼굴 배치 (#293) ─────────────────────────────────────────────
 // 얼굴 좌표: 머리 앞면 한 변 = FACE_PX(얼굴 8×8 칸 중 1칸 = 128), 왼쪽 위가 (0, 0). 스티커 그림도 이 크기로 그린다.
 export const FACE_PX = 1024
-export const EYE_HOME = { x: 736, y: 560 } // 오른쪽(화면 오른쪽) 눈의 기본 가운데. 왼쪽 눈은 얼굴 가운데를 기준으로 좌우 대칭
+export const EYE_HOME = { x: 736, y: 480 } // 오른쪽(화면 오른쪽) 눈의 기본 가운데. 왼쪽 눈은 얼굴 가운데를 기준으로 좌우 대칭 (새 그리기 틀: 2048 기준 높이 960)
 export const MOUTH_HOME = { x: 512, y: 832 } // 입의 기본 가운데
-export const EYE_SCALE = 1.3 // 눈 그림을 그린 크기보다 이만큼 크게 놓음(10/27 김현: 눈이 대체로 작다). 크기 막대는 이 크기를 기준으로
-export const BROW_HOME_Y = 371 // 눈썹 가운데의 기본 높이 (눈 기본 자리보다 189 위). 눈썹 가로 자리는 눈을 따라감
+export const EYE_SCALE = 1 // 눈 그림을 그린 크기 그대로 놓음 (새 그리기 틀은 눈 틀을 512 로 키움). 크기 막대는 이 크기를 기준으로
+export const BROW_HOME_Y = 280 // 눈썹 가운데의 기본 높이 (새 그리기 틀: 2048 기준 560). 눈썹 가로 자리는 눈을 따라감
 export const LAYOUT_STEP = 16 // 위치 한 단계(얼굴 좌표 px). 2048 얼굴 지도로는 32px
 export const SIZE_STEP = 0.05 // 크기 한 단계 (5%)
 // 단계 범위. 김현이 정한 얼굴 지도(2048): 눈 위 320·아래 192·좌우 192, 입 위 192·아래 128 (단계 수는 나중에 다시 정함)

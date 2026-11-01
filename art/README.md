@@ -7,7 +7,7 @@
 |---|---|
 | `face-guide/그리기-틀-2048.png` | 프로크리에이트 밑그림. 그리는 틀·가운데 십자·얼굴 칸만 있다 |
 | `face-guide/얼굴-지도-2048.png` | 설명 그림. 그리는 틀, 사용자가 옮길 수 있는 범위와 거리(px) |
-| `face-drawings/` | 김현이 그린 원본(새 눈 1~17, 새 입 1~14). 앱에 들어간 부품은 여기서 만든다 |
+| `face-drawings/칸/id.png` | 김현이 그린 원본. 칸(`eyes`·`closedEyes`·`mouth`·`mouthOpen`)마다 폴더를 나누고 파일 이름은 부품 id 와 같다. 앱에 들어간 부품은 여기서 만든다 |
 | `hair/머리-시작.bbmodel` | 입체 머리카락을 Blockbench 로 만들 때 여는 시작 파일 |
 | `hair/사용법.md` | Blockbench 로 머리카락 만드는 법 (그림 포함) |
 | `hair/id.bbmodel` | 김현이 만든 머리카락 원본(예: `bob-textured` 텍스처 단발). 내보낸 `.gltf` 는 `public/models/Parts/hair/` 에만 둔다 |
@@ -39,11 +39,13 @@
    | **사용자가 고른 눈 색으로 바뀌는 곳** | 파랑·하늘색. 진할수록 고른 색도 진하게 입혀진다. 이 색이 없는 눈은 눈 색을 고를 수 없다 |
    | 혀 | 붉은색 |
    | 벌린 입 안 | 까만색 |
-3. 내보낼 때 **밑그림 레이어와 배경을 끄고**, 레이어 하나씩 **2048×2048 그대로** 투명 PNG 로 내보내 `face-drawings/` 에 넣는다.
+3. 내보낼 때 **밑그림 레이어와 배경을 끄고**, 레이어 하나씩 **2048×2048 그대로** 투명 PNG 로 내보내 `face-drawings/칸/` 에 `id.png` 로 넣는다(예: `face-drawings/eyes/sparkle.png`).
 
 ## 앱에 넣는 법
 
-`scripts/import-face-drawings.mjs` 위쪽의 `DRAWINGS` 표에 [파일, 칸, id, 이름, 칸 채우기 색] 을 적고 돌린다.
+`scripts/import-face-drawings.mjs` 위쪽의 `DRAWINGS` 표에 [칸, id, 이름, 칸 채우기 색] 을 적고 돌린다. 그림은 `face-drawings/칸/id.png` 에서 찾는다.
+예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈은 `oldFrame: true` 를 붙인다.
+지우지 않고 꾸미기 창에서만 내리려면 `src/avatar/parts.json` 의 그 부품에 `"hidden": true` 를 적는다. 이미 고른 사람의 캐릭터에는 그대로 보이고, 스크립트를 다시 돌려도 이 표시는 남는다.
 칸은 `eyes`(뜬 눈)·`closedEyes`(감은 눈)·`mouth`(다문 입)·`mouthOpen`(벌린 입).
 
 ```

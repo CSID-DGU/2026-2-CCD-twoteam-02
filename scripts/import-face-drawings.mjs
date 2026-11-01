@@ -26,46 +26,59 @@ const LIST = path.join(ROOT, 'src/avatar/parts.json')
 const W = 2048 // 그린 얼굴 캔버스 한 변
 const SIZE = W // writePng 기본 크기
 // 기본 자리(2048 기준, 얼굴 1칸 = 256px). avatarLogic.EYE_HOME·MOUTH_HOME 의 두 배
-const HOME = { eyes: { x: 1472, y: 1120 }, closedEyes: { x: 1472, y: 1120 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
+const HOME = { eyes: { x: 1472, y: 960 }, closedEyes: { x: 1472, y: 960 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
+// 예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈(oldFrame). 새 틀보다 160 아래에 있어서 그만큼 아래를 잘라 새 자리에 맞춘다
+const OLD_EYE_HOME = { x: 1472, y: 1120 }
 // 스티커 그림 크기(얼굴 1024 기준). 2048 그림에서는 이 두 배를 잘라 반으로 줄인다. make-avatar-parts 와 같음
 const STICKER = { eyes: [320, 320], closedEyes: [320, 320], mouth: [512, 256], mouthOpen: [512, 256] }
 const LINE = [31, 31, 36] // 선 색
 // 칸 채우기 색 (김현 10/27: 혀는 붉은색, 입 안은 까만색)
 const FILL = { teeth: [255, 255, 255], inside: [35, 25, 30], tongue: [214, 52, 64], white: [255, 255, 255] }
 
-// 넣을 그림. 칸: eyes(뜬 눈)·closedEyes(감은 눈)·mouth(다문 입)·mouthOpen(벌린 입). fill: 칸 번호 순서대로 채울 색(선만 그린 그림)
+// 넣을 그림. 그림 파일은 그림폴더/칸/id.png. 칸: eyes(뜬 눈)·closedEyes(감은 눈)·mouth(다문 입)·mouthOpen(벌린 입)
+// fill: 칸 번호 순서대로 채울 색(선만 그린 그림). oldFrame: 예전 그리기 틀에 그린 눈
 const DRAWINGS = [
-  { file: '새 눈3.png', slot: 'eyes', id: 'tall', name: '길쭉한 눈' },
-  { file: '새 눈4.png', slot: 'eyes', id: 'side-glance', name: '곁눈질 눈' },
-  { file: '새 눈5.png', slot: 'eyes', id: 'blank', name: '멍한 눈' },
-  { file: '새 눈6.png', slot: 'eyes', id: 'sparkle', name: '초롱초롱 눈' },
-  { file: '새 눈7.png', slot: 'eyes', id: 'lidded', name: '나른한 눈' },
-  { file: '새 눈8.png', slot: 'eyes', id: 'sleepy', name: '졸린 눈' },
-  { file: '새 눈9.png', slot: 'eyes', id: 'almond', name: '아몬드 눈' },
-  { file: '새 눈11.png', slot: 'eyes', id: 'crying', name: '우는 눈' },
-  { file: '새 눈12.png', slot: 'eyes', id: 'half', name: '심드렁한 눈' },
-  { file: '새 눈13.png', slot: 'eyes', id: 'tiny-ring', name: '작은 동그라미 눈' },
-  { file: '새 눈14.png', slot: 'eyes', id: 'dot', name: '점 눈' },
-  { file: '새 눈1.png', slot: 'closedEyes', id: 'lash-arch', name: '속눈썹 감은 눈' },
-  { file: '새 눈2.png', slot: 'closedEyes', id: 'lash-flat', name: '속눈썹 일자 눈' },
-  { file: '새 눈10.png', slot: 'closedEyes', id: 'smile', name: '웃는 감은 눈' },
-  { file: '새 눈15.png', slot: 'closedEyes', id: 'squint', name: '꼭 감은 눈' },
-  { file: '새 눈16.png', slot: 'closedEyes', id: 'line', name: '일자 감은 눈' },
-  { file: '새 눈17.png', slot: 'closedEyes', id: 'thick-line', name: '굵은 일자 감은 눈' },
-  { file: '새 입1.png', slot: 'mouthOpen', id: 'round-o', name: '동그랗게 벌린 입', fill: ['teeth', 'inside', 'tongue'] },
-  { file: '새 입2.png', slot: 'mouthOpen', id: 'big-smile', name: '활짝 벌린 입', fill: ['teeth', 'inside', 'inside', 'tongue'] },
-  { file: '새 입3.png', slot: 'mouth', id: 'soft-smile', name: '살짝 웃는 입' },
-  { file: '새 입4.png', slot: 'mouth', id: 'tongue-out', name: '메롱 입', fill: ['tongue'] },
-  { file: '새 입5.png', slot: 'mouthOpen', id: 'wide-open', name: '크게 벌린 입', fill: ['teeth'] },
-  { file: '새 입6.png', slot: 'mouthOpen', id: 'tongue-open', name: '혀 내민 입', fill: ['teeth', 'teeth', 'tongue'] },
-  { file: '새 입7.png', slot: 'mouth', id: 'beam', name: '환하게 웃는 입' },
-  { file: '새 입8.png', slot: 'mouth', id: 'wavy', name: '물결 입' },
-  { file: '새 입9.png', slot: 'mouthOpen', id: 'drool', name: '침 흘리는 입' },
-  { file: '새 입10.png', slot: 'mouthOpen', id: 'teeth-grin', name: '이 보이게 웃는 입', fill: ['teeth', 'teeth'] },
-  { file: '새 입11.png', slot: 'mouthOpen', id: 'clench', name: '이 악문 입', fill: ['teeth'] },
-  { file: '새 입12.png', slot: 'mouth', id: 'frown', name: '시무룩한 입' },
-  { file: '새 입13.png', slot: 'mouthOpen', id: 'laugh', name: '깔깔 웃는 입', fill: ['teeth', 'tongue'] },
-  { file: '새 입14.png', slot: 'mouthOpen', id: 'bucktooth', name: '앞니 입', fill: ['teeth', 'teeth', 'tongue'] },
+  { slot: 'eyes', id: 'tall', name: '길쭉한 눈', oldFrame: true },
+  { slot: 'eyes', id: 'side-glance', name: '곁눈질 눈', oldFrame: true },
+  { slot: 'eyes', id: 'blank', name: '멍한 눈', oldFrame: true },
+  { slot: 'eyes', id: 'sparkle', name: '초롱초롱 눈', oldFrame: true },
+  { slot: 'eyes', id: 'lidded', name: '나른한 눈', oldFrame: true },
+  { slot: 'eyes', id: 'sleepy', name: '졸린 눈', oldFrame: true },
+  { slot: 'eyes', id: 'almond', name: '아몬드 눈', oldFrame: true },
+  { slot: 'eyes', id: 'crying', name: '우는 눈', oldFrame: true },
+  { slot: 'eyes', id: 'half', name: '심드렁한 눈', oldFrame: true },
+  { slot: 'eyes', id: 'tiny-ring', name: '작은 동그라미 눈', oldFrame: true },
+  { slot: 'eyes', id: 'dot', name: '점 눈', oldFrame: true },
+  { slot: 'mouthOpen', id: 'round-o', name: '동그랗게 벌린 입', fill: ['teeth', 'inside', 'tongue'] },
+  { slot: 'mouthOpen', id: 'big-smile', name: '활짝 벌린 입', fill: ['teeth', 'inside', 'inside', 'tongue'] },
+  { slot: 'mouth', id: 'soft-smile', name: '살짝 웃는 입' },
+  { slot: 'mouth', id: 'tongue-out', name: '메롱 입', fill: ['tongue'] },
+  { slot: 'mouthOpen', id: 'wide-open', name: '크게 벌린 입', fill: ['teeth'] },
+  { slot: 'mouthOpen', id: 'tongue-open', name: '혀 내민 입', fill: ['teeth', 'teeth', 'tongue'] },
+  { slot: 'mouth', id: 'beam', name: '환하게 웃는 입' },
+  { slot: 'mouth', id: 'wavy', name: '물결 입' },
+  { slot: 'mouthOpen', id: 'drool', name: '침 흘리는 입' },
+  { slot: 'mouthOpen', id: 'teeth-grin', name: '이 보이게 웃는 입', fill: ['teeth', 'teeth'] },
+  { slot: 'mouthOpen', id: 'clench', name: '이 악문 입', fill: ['teeth'] },
+  { slot: 'mouth', id: 'frown', name: '시무룩한 입' },
+  { slot: 'mouthOpen', id: 'laugh', name: '깔깔 웃는 입', fill: ['teeth', 'tongue'] },
+  { slot: 'mouthOpen', id: 'bucktooth', name: '앞니 입', fill: ['teeth', 'teeth', 'tongue'] },
+  { slot: 'eyes', id: 'new-1', name: '새 눈 1 (시험)' },
+  { slot: 'eyes', id: 'new-2', name: '새 눈 2 (시험)' },
+  { slot: 'eyes', id: 'new-3', name: '새 눈 3 (시험)' },
+  { slot: 'eyes', id: 'new-4', name: '새 눈 4 (시험)' },
+  { slot: 'eyes', id: 'new-5', name: '새 눈 5 (시험)' },
+  { slot: 'eyes', id: 'new-6', name: '새 눈 6 (시험)' },
+  { slot: 'eyes', id: 'new-7', name: '새 눈 7 (시험)' },
+  { slot: 'eyes', id: 'new-8', name: '새 눈 8 (시험)' },
+  { slot: 'eyes', id: 'new-9', name: '새 눈 9 (시험)' },
+  { slot: 'eyes', id: 'new-10', name: '새 눈 10 (시험)' },
+  { slot: 'eyes', id: 'new-11', name: '새 눈 11 (시험)' },
+  { slot: 'closedEyes', id: 'new-1', name: '새 감은 눈 1 (시험)' },
+  { slot: 'closedEyes', id: 'new-2', name: '새 감은 눈 2 (시험)' },
+  { slot: 'closedEyes', id: 'new-3', name: '새 감은 눈 3 (시험)' },
+  { slot: 'closedEyes', id: 'new-4', name: '새 감은 눈 4 (시험)' },
+  { slot: 'closedEyes', id: 'new-5', name: '새 감은 눈 5 (시험)' },
 ]
 
 // ── PNG 읽기·쓰기 (8비트 RGBA·RGB, 인터레이스 없음) ─────────────────────
@@ -142,7 +155,7 @@ function writePng(file, rgba, w = SIZE, h = SIZE) {
 
 // ── 그림 한 장 → 스티커 ─────────────────────────────────────────────
 // 돌려주는 것: { fixed, tint } (스티커 크기 RGBA, tint 는 파랑이 없으면 null)
-function convert(file, slot, fill = []) {
+function convert(file, slot, fill = [], home = HOME[slot]) {
   const { w, h, rgba } = readPng(file)
   if (w !== W || h !== W) throw new Error(`${file}: ${W}×${W} 그림이어야 합니다 (지금 ${w}×${h})`)
   const N = W * W
@@ -214,7 +227,7 @@ function convert(file, slot, fill = []) {
     fixed[i * 4 + 3] = alpha
   }
   // 기본 자리를 가운데로 (스티커의 두 배 크기) 잘라 반으로 줄인다(2×2 평균)
-  const [sw, sh] = STICKER[slot], home = HOME[slot]
+  const [sw, sh] = STICKER[slot]
   const shrink = (src) => {
     const out = Buffer.alloc(sw * sh * 4)
     for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
@@ -258,18 +271,17 @@ function boxOf(bufs, w, h) {
 const [dirArg, outArg] = process.argv.slice(2)
 const dir = dirArg ?? path.join(ROOT, 'art/face-drawings')
 const OUT = outArg ? path.resolve(outArg) : path.join(ROOT, 'public/models/Parts')
-// macOS 파일 이름은 한글이 풀어 쓴 형태(NFD)라 NFC 로 맞춰 찾는다
-const files = new Map(fs.readdirSync(dir).map((f) => [f.normalize('NFC'), path.join(dir, f)]))
 const find = (name) => {
-  const f = files.get(name.normalize('NFC'))
-  if (!f) throw new Error(`${dir} 에 ${name} 가 없음`)
+  const f = path.join(dir, name)
+  if (!fs.existsSync(f)) throw new Error(`${dir} 에 ${name} 가 없음`)
   return f
 }
 const list = JSON.parse(fs.readFileSync(LIST, 'utf8'))
 for (const d of DRAWINGS) {
   const [w, h] = STICKER[d.slot]
   const item = { id: d.id, name: d.name }
-  const open = convert(find(d.file), d.slot, d.fill)
+  const file = `${d.slot}/${d.id}.png`
+  const open = convert(find(file), d.slot, d.fill, d.oldFrame ? OLD_EYE_HOME : HOME[d.slot])
   const bufs = [open.fixed]
   writePng(path.join(OUT, d.slot, `${d.id}.png`), open.fixed, w, h)
   item.file = `/models/Parts/${d.slot}/${d.id}.png`
@@ -279,9 +291,13 @@ for (const d of DRAWINGS) {
     bufs.push(open.tint)
   }
   item.box = boxOf(bufs, w, h)
-  console.log(`${d.file} → ${d.slot}/${d.id} (${d.name})`)
+  console.log(`${file} (${d.name})`)
   if (outArg) continue
-  list[d.slot] = [...(list[d.slot] ?? []).filter((p) => p.id !== d.id), item]
+  // 이미 있는 부품은 그 자리에서 바꾸고, 화면에서 내린 표시(hidden)는 그대로 둔다
+  const items = (list[d.slot] ??= [])
+  const at = items.findIndex((p) => p.id === d.id)
+  if (at < 0) items.push(item)
+  else items[at] = items[at].hidden ? { ...item, hidden: true } : item
 }
 if (!outArg) {
   fs.writeFileSync(LIST, JSON.stringify(list, null, 2) + '\n')

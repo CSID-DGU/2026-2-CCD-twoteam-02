@@ -10,7 +10,8 @@
         -105,
         76,
         98
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "side-glance",
@@ -21,7 +22,8 @@
         -62,
         112,
         63
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "blank",
@@ -32,7 +34,8 @@
         -76,
         91,
         91
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "sparkle",
@@ -44,7 +47,8 @@
         -82,
         86,
         83
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "lidded",
@@ -55,7 +59,8 @@
         -56,
         100,
         70
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "sleepy",
@@ -66,7 +71,8 @@
         -100,
         95,
         102
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "almond",
@@ -78,7 +84,8 @@
         -49,
         89,
         46
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "crying",
@@ -90,7 +97,8 @@
         -49,
         110,
         92
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "half",
@@ -101,7 +109,8 @@
         -83,
         88,
         84
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "tiny-ring",
@@ -112,7 +121,8 @@
         -21,
         21,
         21
-      ]
+      ],
+      "hidden": true
     },
     {
       "id": "dot",
@@ -123,74 +133,195 @@
         -21,
         21,
         21
+      ],
+      "hidden": true
+    },
+    {
+      "id": "new-1",
+      "name": "새 눈 1 (시험)",
+      "file": "/models/Parts/eyes/new-1.png",
+      "tint": "/models/Parts/eyes/new-1-tint.png",
+      "box": [
+        -129,
+        -72,
+        126,
+        73
+      ]
+    },
+    {
+      "id": "new-2",
+      "name": "새 눈 2 (시험)",
+      "file": "/models/Parts/eyes/new-2.png",
+      "tint": "/models/Parts/eyes/new-2-tint.png",
+      "box": [
+        -126,
+        -119,
+        123,
+        119
+      ]
+    },
+    {
+      "id": "new-3",
+      "name": "새 눈 3 (시험)",
+      "file": "/models/Parts/eyes/new-3.png",
+      "tint": "/models/Parts/eyes/new-3-tint.png",
+      "box": [
+        -127,
+        -77,
+        128,
+        69
+      ]
+    },
+    {
+      "id": "new-4",
+      "name": "새 눈 4 (시험)",
+      "file": "/models/Parts/eyes/new-4.png",
+      "tint": "/models/Parts/eyes/new-4-tint.png",
+      "box": [
+        -128,
+        -68,
+        126,
+        63
+      ]
+    },
+    {
+      "id": "new-5",
+      "name": "새 눈 5 (시험)",
+      "file": "/models/Parts/eyes/new-5.png",
+      "tint": "/models/Parts/eyes/new-5-tint.png",
+      "box": [
+        -128,
+        -69,
+        127,
+        82
+      ]
+    },
+    {
+      "id": "new-6",
+      "name": "새 눈 6 (시험)",
+      "file": "/models/Parts/eyes/new-6.png",
+      "tint": "/models/Parts/eyes/new-6-tint.png",
+      "box": [
+        -125,
+        -76,
+        127,
+        108
+      ]
+    },
+    {
+      "id": "new-7",
+      "name": "새 눈 7 (시험)",
+      "file": "/models/Parts/eyes/new-7.png",
+      "tint": "/models/Parts/eyes/new-7-tint.png",
+      "box": [
+        -123,
+        -86,
+        120,
+        72
+      ]
+    },
+    {
+      "id": "new-8",
+      "name": "새 눈 8 (시험)",
+      "file": "/models/Parts/eyes/new-8.png",
+      "tint": "/models/Parts/eyes/new-8-tint.png",
+      "box": [
+        -123,
+        -117,
+        125,
+        101
+      ]
+    },
+    {
+      "id": "new-9",
+      "name": "새 눈 9 (시험)",
+      "file": "/models/Parts/eyes/new-9.png",
+      "tint": "/models/Parts/eyes/new-9-tint.png",
+      "box": [
+        -122,
+        -83,
+        125,
+        111
+      ]
+    },
+    {
+      "id": "new-10",
+      "name": "새 눈 10 (시험)",
+      "file": "/models/Parts/eyes/new-10.png",
+      "box": [
+        -114,
+        -78,
+        125,
+        57
+      ]
+    },
+    {
+      "id": "new-11",
+      "name": "새 눈 11 (시험)",
+      "file": "/models/Parts/eyes/new-11.png",
+      "tint": "/models/Parts/eyes/new-11-tint.png",
+      "box": [
+        -121,
+        -103,
+        127,
+        111
       ]
     }
   ],
   "closedEyes": [
     {
-      "id": "lash-arch",
-      "name": "속눈썹 감은 눈",
-      "file": "/models/Parts/closedEyes/lash-arch.png",
+      "id": "new-1",
+      "name": "새 감은 눈 1 (시험)",
+      "file": "/models/Parts/closedEyes/new-1.png",
       "box": [
-        -106,
-        -23,
-        105,
-        38
+        -98,
+        -12,
+        91,
+        31
       ]
     },
     {
-      "id": "lash-flat",
-      "name": "속눈썹 일자 눈",
-      "file": "/models/Parts/closedEyes/lash-flat.png",
+      "id": "new-2",
+      "name": "새 감은 눈 2 (시험)",
+      "file": "/models/Parts/closedEyes/new-2.png",
       "box": [
-        -105,
-        -39,
+        -110,
+        -80,
         102,
-        20
+        75
       ]
     },
     {
-      "id": "smile",
-      "name": "웃는 감은 눈",
-      "file": "/models/Parts/closedEyes/smile.png",
+      "id": "new-3",
+      "name": "새 감은 눈 3 (시험)",
+      "file": "/models/Parts/closedEyes/new-3.png",
       "box": [
-        -87,
-        -45,
-        85,
-        40
+        -103,
+        -67,
+        102,
+        52
       ]
     },
     {
-      "id": "squint",
-      "name": "꼭 감은 눈",
-      "file": "/models/Parts/closedEyes/squint.png",
+      "id": "new-4",
+      "name": "새 감은 눈 4 (시험)",
+      "file": "/models/Parts/closedEyes/new-4.png",
       "box": [
-        -86,
-        -66,
-        80,
-        46
+        -127,
+        -57,
+        124,
+        31
       ]
     },
     {
-      "id": "line",
-      "name": "일자 감은 눈",
-      "file": "/models/Parts/closedEyes/line.png",
+      "id": "new-5",
+      "name": "새 감은 눈 5 (시험)",
+      "file": "/models/Parts/closedEyes/new-5.png",
       "box": [
-        -85,
-        -17,
-        74,
-        0
-      ]
-    },
-    {
-      "id": "thick-line",
-      "name": "굵은 일자 감은 눈",
-      "file": "/models/Parts/closedEyes/thick-line.png",
-      "box": [
-        -79,
-        -25,
-        79,
-        11
+        -125,
+        -30,
+        125,
+        42
       ]
     }
   ],
