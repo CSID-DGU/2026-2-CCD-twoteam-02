@@ -63,6 +63,7 @@ import { EntryNotice } from "./EntryNotice";
 import { setQuietLock } from "../chat/quietLock";
 import { worldOfBranch } from "../world/worldConfig";
 import { CafeWindows } from "../world/CafeWindows";
+import { RooftopWorld } from "../world/RooftopWorld";
 import { BranchInterior } from "./BranchInterior";
 import { BoardPanel } from "../board/BoardPanel";
 import { useBoardNotes } from "../board/useBoardNotes";
@@ -418,7 +419,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
 
       {/* 캠리단길 지점: 출입문 벽 문 양옆 통창으로 실제 거리가 보임 (캠빛 대학교 건물은 없음) */}
-      <CafeWindows layout={branch} showPeople={condition === "visible"} />
+      {/* 루프탑(이끼 루프탑)은 천장이 없어 거리·하늘을 같은 장면에 루프탑 높이로 그림 (RooftopWorld) */}
+      {branch.theme?.rooftop ? <RooftopWorld slug={branch.id} showPeople={condition === "visible"} /> : <CafeWindows layout={branch} showPeople={condition === "visible"} />}
 
       {/* 앉아 있을 때는 내 자리 표시가 시야를 가리므로 숨깁니다. 카페는 앉아 있는 동안만 내 자리라 표시하지 않습니다. */}
       {!isCafe && mySeat !== null && seat === null && (() => {

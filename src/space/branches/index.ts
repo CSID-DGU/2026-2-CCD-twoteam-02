@@ -10,6 +10,7 @@ import olive from './olive.json'
 import obsidian from './obsidian.json'
 import walnut from './walnut.json'
 import moss from './moss.json'
+import mossRooftop from './moss-rooftop.json'
 import stream from './stream.json'
 import breath from './breath.json'
 import cambitLibrary from './cambit-library.json'
@@ -31,7 +32,9 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   obsidian: { ...obsidian, seats: obsidian.seats as BranchLayout['seats'], theme: obsidian.theme as BranchTheme },
   // 광장 새 지점들 (#57): 월넛 바(북동 골목, 곡선 바·초록 벨벳 부스), 올리브 테라스 건물 2층 이끼 정원(초록 곡선 소파·화분)·3층 물결 라운지(물길·회색 소파)
   walnut: { ...walnut, seats: walnut.seats as BranchLayout['seats'], theme: walnut.theme as BranchTheme },
-  moss: { ...moss, seats: moss.seats as BranchLayout['seats'], theme: moss.theme as BranchTheme },
+  // 이끼 정원 (캠리단길 단독 건물) 지붕 위 이끼 루프탑: 안의 계단(stairs)으로 오갑니다. 루프탑은 천장 없이 바깥 하늘이 보임(theme.rooftop)
+  moss: { ...moss, seats: moss.seats as BranchLayout['seats'], theme: moss.theme as BranchTheme, stairs: 'up' },
+  'moss-rooftop': { ...mossRooftop, seats: mossRooftop.seats as BranchLayout['seats'], theme: mossRooftop.theme as BranchTheme, stairs: 'down' },
   stream: { ...stream, seats: stream.seats as BranchLayout['seats'], theme: stream.theme as BranchTheme },
   // 휴식방 숨 라운지 (올리브 테라스 건물 4층): 둥근 방·천창·라운지 소파 12개, 누워 쉬기만 함(rest)
   breath: { ...breath, seats: breath.seats as BranchLayout['seats'], theme: breath.theme as BranchTheme, ambience: breath.ambience as AmbienceKind },

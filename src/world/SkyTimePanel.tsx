@@ -6,6 +6,7 @@
 //   날씨       실제(서울 날씨) · 맑음 · 흐림 · 비 · 눈(쌓인 모습까지) · 뇌우. 확인용 주소 ?weather= 와 같은 날씨
 //   세기       비·눈을 고르면 약하게(0.3) · 보통(0.6) · 강하게(1)
 //   눈 쌓임    날씨대로 · 없음 · 조금 · 가득 (날씨와 따로. 맑은 날 쌓인 눈도 볼 수 있음, 주소 ?snowcover= 와 같음)
+//   먼 도시    보임 · 숨김 (밤에 지평선에 보이는 빌딩 숲, CitySkyline). 지울지 정하기 전 비교용
 //   지금 때    시각 버튼 중 지금 하늘 시각이 들어 있는 때(skyLogic 의 dayPeriod)를 초록으로 칠함. 시간이 흐르면 옮겨 감
 //   처음으로   실제 시각·1배속·실제 날씨·날씨대로 쌓임
 // 내 화면의 하늘만 바뀝니다(skyClock). 구름 자리·번개 때는 그대로 실제 시각을 따릅니다.
@@ -13,7 +14,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { dayPeriod, retime, seoulClockText, seoulTimeOn, sunEvents, worldTime } from './skyLogic'
 import type { DayPeriod } from './skyLogic'
-import { COVERS, STRENGTHS, getSkyClock, hasStrength, setSkyClock, setSkyCover, setSkyStrength, setSkyWeather, useSkyClock, useSkyCover, useSkyStrength, useSkyWeatherPick } from './skyClock'
+import { COVERS, STRENGTHS, getSkyClock, hasStrength, setSkyClock, setSkyCover, setSkyStrength, setSkyWeather, setSkyline, useSkyClock, useSkyCover, useSkyStrength, useSkyWeatherPick, useSkyline } from './skyClock'
 import type { WeatherPick } from './skyClock'
 
 const SPEEDS = [0, 1, 60, 300, 1800] // 0 은 멈춤. 300× 면 1분에 5시간
@@ -76,6 +77,7 @@ export function SkyTimePanel({ onClose }: { onClose: () => void }) {
   const weather = useSkyWeatherPick()
   const strength = useSkyStrength()
   const cover = useSkyCover()
+  const skyline = useSkyline()
   const [shown, setShown] = useState('') // 지금 하늘 시각 글자
   const [period, setPeriod] = useState<DayPeriod | null>(null) // 지금 하늘 시각이 들어 있는 때 (그 시각 버튼을 칠함)
 
@@ -163,6 +165,18 @@ export function SkyTimePanel({ onClose }: { onClose: () => void }) {
           </button>
         ))}
       </div>
+      <div style={styles.row}>
+        <span style={styles.label}>먼 도시</span>
+        {[
+          { on: true, label: '보임' },
+          { on: false, label: '숨김' },
+        ].map((o) => (
+          <button key={o.label} type="button" style={{ ...styles.button, ...(skyline === o.on ? styles.on : null) }} onClick={() => setSkyline(o.on)}>
+            {o.label}
+          </button>
+        ))}
+        <span style={styles.hint}>밤에만 보여요</span>
+      </div>
       <button type="button" style={{ ...styles.button, width: '100%' }} onClick={reset}>
         지금 시각·실제 날씨로
       </button>
@@ -181,6 +195,7 @@ const styles: Record<string, CSSProperties> = {
   close: { border: 'none', background: 'transparent', color: '#fff', cursor: 'pointer', font: 'inherit' },
   row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   label: { opacity: 0.8, marginRight: 2 },
+  hint: { opacity: 0.6, fontSize: 12 },
   button: {
     padding: '4px 8px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent',
     color: '#fff', cursor: 'pointer', font: 'inherit',

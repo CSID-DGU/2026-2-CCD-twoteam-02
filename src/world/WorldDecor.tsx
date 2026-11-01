@@ -8,16 +8,17 @@ import { useMemo } from 'react'
 import type * as THREE from 'three'
 import { Instance, Instances } from '@react-three/drei'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
-import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
+import { BENCH, ROOF_T, STORY_H, facingAngle, fenceSegments, gravelStrips, roofFloorOf, rotate, storiesOf } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
 import { MAT, applyGroundTextures, applyLawnTextures, brickWallMat, colorMat, lawnMat, litWindowMat, roofMat } from './worldMaterials'
 import { TILE, tiledPlane } from './worldTextures'
 import { Facade } from './Facades'
+import { RoofDeck } from './RoofDeck'
 
 // 크기·높이 (m)
-const BUILDING_H = 3.6 // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
+const BUILDING_H = STORY_H // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
 const FLOOR_BAND = { t: 0.18, out: 0.08 } // 층 사이 띠 (지붕 색): 두께, 벽 밖으로 나온 길이
-const ROOF = { t: 0.3, overhang: 0.3 } // 지붕 판 두께, 벽 밖으로 나온 길이
+const ROOF = { t: ROOF_T, overhang: 0.3 } // 지붕 판 두께, 벽 밖으로 나온 길이
 const DOOR_H = 2.2 // 입구 문 높이 (지점 출입문과 같음)
 const SIGN = { width: 2.4, y: 2.85 } // 입구 위 간판
 const WINDOW = { w: 2, h: 1.2, y: 1.7 } // 창문 판
@@ -93,21 +94,25 @@ export function Fence({ plaza }: { plaza: PlazaLayout }) {
 // open: 열린 지점인지(아니면 회색 문), near: 입구 앞에 서 있는지(주황 문)
 // 여러 층 건물(b.floors)은 층마다 벽 높이만큼 쌓고, 위층은 창 색을 그 지점 분위기로, 앞면 가운데에 "2F 이름" 간판을 답니다.
 // glass: 광장에서 가게 유리창·위층 앞 창에 비출 실제 실내 (ShopInteriors). 없으면 예전처럼 그림·색 창
-export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material }) {
+// 지붕 위 루프탑 층(roof, 이끼 루프탑)은 벽을 쌓지 않고 지붕 위에 루프탑을 그대로 올립니다(RoofDeck). deck 이 false 면 안 그림
+// (루프탑 안에서 바깥을 그릴 때: 루프탑 자체는 지점 화면이 그리므로 겹치지 않게)
+export function Building({ b, open, near, glass, deck = true }: { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material; deck?: boolean }) {
   const sideways = b.spec.facing === 'east' || b.spec.facing === 'west'
   const w = sideways ? b.rect.d : b.rect.w // 실내 기준 가로·세로
   const d = sideways ? b.rect.w : b.rect.d
   const doorX = rotate(b.door.x - b.spec.x, b.door.z - b.spec.z, -b.angle).x // 실내 기준 입구 x
   const doorW = sideways ? b.door.d : b.door.w
-  const height0 = BUILDING_H * b.floors.length
+  const stories = useMemo(() => storiesOf(b), [b]) // 벽을 쌓은 층 (루프탑 빼고)
+  const roofFloor = roofFloorOf(b)
+  const height0 = BUILDING_H * stories.length
   const wall = b.spec.wallTexture === 'brick' ? brickWallMat(b.spec.wall, Math.max(w, d), height0) : colorMat(b.spec.wall)
   const roof = roofMat(b.spec.roof) // 지붕 전용 재질 (눈이 쌓이면 하얗게, #329)
-  const multi = b.floors.length > 1
+  const multi = stories.length > 1
   const facade = b.spec.facade // 캠리단길 파사드 (없으면 예전 앞면)
-  const height = BUILDING_H * b.floors.length
+  const height = BUILDING_H * stories.length
   const signBg = open ? '#14532d' : '#374151'
   const sign = useMemo(() => labelTexture(multi ? `1F ${b.name}` : b.name, signBg), [b.name, multi, signBg])
-  const floorSigns = useMemo(() => b.floors.slice(1).map((f) => labelTexture(`${f.level}F ${f.name}`, signBg)), [b.floors, signBg])
+  const floorSigns = useMemo(() => stories.slice(1).map((f) => labelTexture(`${f.level}F ${f.name}`, signBg)), [stories, signBg])
   const doorMat = near ? MAT.near : open ? MAT.doorOpen : MAT.doorSoon
   // 창문 자리: [x, z, 돌림] (실내 기준). 앞면은 입구 양옆, 옆면·뒷면은 둘씩
   const windows: [number, number, number][] = [
@@ -130,7 +135,7 @@ export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: bo
         <mesh position-y={height + ROOF.t / 2} material={roof}>
           <boxGeometry args={[w + ROOF.overhang * 2, ROOF.t, d + ROOF.overhang * 2]} />
         </mesh>
-        {b.floors.map((f, level) =>
+        {stories.map((f, level) =>
           windows.map(([x, z, rot], i) =>
             facade && i < 2 && (level === 0 || facade === 'classic' || facade === 'garden') ? null : ( // 파사드가 있으면 1층 앞 창은 파사드가 그림 (별다방은 2층 띠 창도, 캠리 스퀘어는 층마다 앞면)
             <mesh
@@ -144,10 +149,10 @@ export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: bo
           )),
         )}
         {facade && (
-          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} floorSlugs={b.floors.map((f) => f.slug)} open={open} near={near} glass={glass} />
+          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={stories.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} floorSlugs={stories.map((f) => f.slug)} open={open} near={near} glass={glass} />
         )}
         {/* 층 사이 띠와 위층 간판 (파사드가 있으면 위층 간판도 파사드가 그림) */}
-        {b.floors.slice(1).map((f, i) => (
+        {stories.slice(1).map((f, i) => (
           <group key={f.slug} position-y={(i + 1) * BUILDING_H}>
             <mesh material={roof}>
               <boxGeometry args={[w + FLOOR_BAND.out * 2, FLOOR_BAND.t, d + FLOOR_BAND.out * 2]} />
@@ -160,6 +165,12 @@ export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: bo
             )}
           </group>
         ))}
+        {/* 지붕 위 루프탑: 지붕 판 위에 루프탑 지점을 그대로 (지점 좌표 = 지붕 좌표) */}
+        {deck && roofFloor && (
+          <group position-y={height + ROOF.t}>
+            <RoofDeck slug={roofFloor.slug} />
+          </group>
+        )}
         {/* 입구 문·간판: 벽 밖으로 조금 나오게 (파사드가 있으면 파사드가 그림) */}
         {!facade && (
           <>
