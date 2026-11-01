@@ -13,6 +13,7 @@ import type { Box, BranchLayout } from '../space/layout'
 import { LOBBY_PLACE } from '../realtime/online'
 import { MEETING_PLACE_PREFIX } from '../meeting/meetingLogic'
 import { normalizeAngle, placeBuildings, placeGates, rotate } from '../world/worldLogic'
+import { quarterOdd, turnPoint, turnRect } from './atlasLogic'
 import type { PlazaLayout, WorldId } from '../world/worldLogic'
 
 export type Rect = { x: number; z: number; w: number; d: number } // 가운데 좌표와 크기
@@ -21,10 +22,10 @@ export type Point = { x: number; z: number }
 // 지도에 놓인 공간 하나. rect 는 지도 좌표, rot 은 공간 안 좌표를 지도로 옮길 때 돌리는 각도(90도 단위 라디안),
 // scale 은 공간 안 좌표를 줄이는 배율 (광장 1, 지점은 건물 겉모습에 맞춘 값, 회의실 0 = 건물 가운데)
 export type MapPlace = { place: string; name: string; rect: Rect; rot: number; scale: number }
-// 위층 지점 하나 (level 2부터). 자리·배율은 건물과 같고, 회의실은 건물 가운데
-export type MapFloor = MapPlace & { level: number; meeting: MapPlace | null }
-// roof: 지붕 색 (3D 광장의 건물 지붕과 같은 world.json 값), floors: 위층 지점 (없으면 빈 배열)
-export type MapBranch = MapPlace & { slug: string; layout: BranchLayout; index: number; roof: string; meeting: MapPlace | null; floors: MapFloor[] }
+// 위층 지점 하나 (level 2부터). 자리·배율은 건물과 같고, 회의실은 건물 가운데. roof: 지붕 위 루프탑(이끼 루프탑)
+export type MapFloor = MapPlace & { level: number; meeting: MapPlace | null; roof: boolean }
+// roof·wall: 지붕·벽 색 (3D 광장의 건물과 같은 world.json 값), floors: 위층 지점 (없으면 빈 배열)
+export type MapBranch = MapPlace & { slug: string; layout: BranchLayout; index: number; roof: string; wall: string; meeting: MapPlace | null; floors: MapFloor[] }
 
 export type WorldLayout = {
   lobby: MapPlace // 광장 (접속 장소 이름은 lobby 그대로)
@@ -49,6 +50,7 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
     layout: layouts[b.slug],
     index,
     roof: b.spec.roof,
+    wall: b.spec.wall,
     rect: b.rect,
     rot: b.angle,
     scale: b.scale,
@@ -61,6 +63,7 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
       rot: b.angle,
       scale: b.scale,
       meeting: meetingOf(layouts[f.slug], f.slug, b.rect, b.angle),
+      roof: f.roof === true,
     })),
   }))
   return {
@@ -74,15 +77,26 @@ export function buildWorld(plaza: PlazaLayout, layouts: Record<string, BranchLay
   }
 }
 
+// 지도에서 월드를 돌려 놓을 때(전체 지도의 캠퍼스, 왼쪽으로 90도): 공간·나무·길·정문 자리를 모두 turn 만큼 돌린 배치.
+// 공간의 rot 에도 turn 을 더해서, toMap·boxToMap 이 안 좌표(자리·내 위치·방향)까지 같이 돌려 줍니다.
+export function turnWorld(w: WorldLayout, turn: number): WorldLayout {
+  if (turn === 0) return w
+  const place = <T extends MapPlace>(p: T): T => ({ ...p, rect: turnRect(p.rect, turn), rot: normalizeAngle(p.rot + turn) })
+  return {
+    lobby: place(w.lobby),
+    branches: w.branches.map((b) => ({ ...place(b), meeting: b.meeting && place(b.meeting), floors: b.floors.map((f) => ({ ...place(f), meeting: f.meeting && place(f.meeting) })) })),
+    paths: w.paths.map((p) => turnRect(p, turn)),
+    fountain: w.fountain && { ...w.fountain, ...turnPoint(w.fountain, turn) },
+    gates: w.gates.map((g) => ({ ...g, ...turnPoint(g, turn), sideways: quarterOdd(turn) ? !g.sideways : g.sideways })),
+    trees: w.trees.map((t) => turnPoint(t, turn)),
+    bounds: turnRect(w.bounds, turn),
+  }
+}
+
 // 공간 안 좌표(그 장면의 x, z, 바라보는 방향)를 지도 좌표로. 광장은 rot 0, scale 1, 가운데 (0, 0) 이라 그대로입니다.
 export function toMap(p: MapPlace, x: number, z: number, heading: number): { x: number; z: number; heading: number } {
   const r = rotate(x * p.scale, z * p.scale, p.rot)
   return { x: p.rect.x + r.x, z: p.rect.z + r.z, heading: normalizeAngle(heading + p.rot) }
-}
-
-// 지금 있는 곳으로 어느 월드 지도를 보일지: 캠퍼스나 캠퍼스 건물(회의실·위층 포함)이면 캠퍼스, 아니면 광장
-export function mapWorldFor(worlds: { plaza: WorldLayout; campus: WorldLayout }, place: string): WorldLayout {
-  return findPlace(worlds.campus, place) ? worlds.campus : worlds.plaza
 }
 
 // 접속 상태의 "있는 곳"으로 지도의 공간을 찾습니다. 지도에 없는 곳(기록 페이지 등)이면 null
