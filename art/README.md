@@ -44,7 +44,7 @@
 ## 앱에 넣는 법
 
 `scripts/import-face-drawings.mjs` 위쪽의 `DRAWINGS` 표에 [칸, id, 이름, 칸 채우기 색] 을 적고 돌린다. 그림은 `face-drawings/칸/id.png` 에서 찾는다.
-예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈은 `oldFrame: true` 를 붙인다.
+예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈은 `oldFrame: true` 를 붙인다. 예전 자리로 자르고, 예전 모습과 같게 1.3배(`scale`)로 놓는다.
 지우지 않고 꾸미기 창에서만 내리려면 `src/avatar/parts.json` 의 그 부품에 `"hidden": true` 를 적는다. 이미 고른 사람의 캐릭터에는 그대로 보이고, 스크립트를 다시 돌려도 이 표시는 남는다.
 칸은 `eyes`(뜬 눈)·`closedEyes`(감은 눈)·`mouth`(다문 입)·`mouthOpen`(벌린 입).
 

@@ -121,22 +121,23 @@ async function composeSkin(key: string): Promise<THREE.Texture> {
 export const avatarSkin = (key: string) => cached(skins, MAX_SKINS, key, () => composeSkin(key))
 
 // ── 얼굴 (#293) ───────────────────────────────────────────────────
-type Sticker = { tint: HTMLImageElement | null; file: HTMLImageElement | null; color: string | null }
+type Sticker = { tint: HTMLImageElement | null; file: HTMLImageElement | null; color: string | null; scale: number }
 async function loadSticker(slot: Slot, avatar: Avatar): Promise<Sticker> {
   const part = findPart(slot, avatar[slot as keyof Avatar] as string)!
   const color = FACE_SLOTS.find((f) => f.slot === slot)!.color
   const [tint, file] = await Promise.all([loadOrNull(part.tint), loadOrNull(part.file)])
-  return { tint, file, color: color ? avatar[color] : null }
+  return { tint, file, color: color ? avatar[color] : null, scale: part.scale ?? 1 }
 }
 
-// 스티커 하나를 얼굴 좌표 at 에 놓습니다(그림 가운데 = at). mirror 면 좌우를 뒤집어(왼쪽 눈·눈썹)
+// 스티커 하나를 얼굴 좌표 at 에 놓습니다(그림 가운데 = at, 부품 배율 scale 을 곱함). mirror 면 좌우를 뒤집어(왼쪽 눈·눈썹)
 function drawSticker(ctx: CanvasRenderingContext2D, s: Sticker, at: Spot, mirror: boolean) {
   const imgs: CanvasImageSource[] = []
   if (s.tint && s.color) imgs.push(tinted(s.tint, s.color))
   if (s.file) imgs.push(s.file)
   ctx.save()
   ctx.translate(at.x, at.y)
-  ctx.scale(mirror ? -at.scale : at.scale, at.scale)
+  const k = at.scale * s.scale
+  ctx.scale(mirror ? -k : k, k)
   for (const img of imgs) {
     const { width, height } = img as HTMLCanvasElement
     ctx.drawImage(img, -width / 2, -height / 2)
