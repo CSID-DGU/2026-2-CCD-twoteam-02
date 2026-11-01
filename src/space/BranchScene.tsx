@@ -14,7 +14,6 @@ import SeatTimeCorner from "../kiosk/SeatTimeCorner"; // 남은 시간·연장 (
 import type { Perf } from "./PerfReadout";
 import { Player } from "./Player";
 import { WalkCamera } from "./WalkCamera";
-import { Minimap } from "./Minimap";
 import { SeatedStudy } from "../study/SeatedStudy";
 import { MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
@@ -441,7 +440,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             suspendLookRef={suspendLook}
           />
           {holding && <DrinkInView item={holding} emoteRef={emote} />} {/* 1인칭에선 내 몸이 숨겨지므로 받은 음료를 화면에 띄움 */}
-          <Minimap area={branch.size} posRef={pos} headingRef={heading} /> {/* 걸을 때만 뜨는 미니맵 (#290) */}
         </>
       ) : (
         <TopDownCamera area={branch.size} />

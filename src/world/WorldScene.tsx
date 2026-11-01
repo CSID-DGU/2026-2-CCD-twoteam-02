@@ -45,6 +45,7 @@ import type { Direction } from '../tracking/armLogic'
 import { LevelUpCard } from '../level/LevelUpCard'
 import { TopDownCamera } from '../space/TopDownCamera'
 import { Minimap } from '../space/Minimap'
+import { useShowMinimap } from '../menu/minimapSetting'
 import { FpsProbe, PerfReadout } from '../space/PerfReadout'
 import type { Perf } from '../space/PerfReadout'
 import { useSession } from '../auth/useSession'
@@ -159,6 +160,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [locked, setLocked] = useState(false) // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중, #73)
   // 광장 위에 띄운 창(내 기록·친구·프로필). 페이지를 옮기지 않아 닫으면 서 있던 위치가 그대로입니다. (#70)
   const [panel, setPanel] = useState<PanelView | null>(null)
+  const showMinimap = useShowMinimap() // 설정 → 화면·마우스 (기본 꺼짐)
   // 오늘의 별자리 운세 창 (#321): 밤하늘에서 조준점으로 고르고 E 를 누른 별자리 id
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
@@ -397,8 +399,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ) : view === 'first' ? (
           <>
             <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || overlay} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
-            {/* 걸을 때만 뜨는 미니맵 (#290). 광장은 넓어서 내 둘레만 */}
-            <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />
+            {/* 걸을 때만 뜨는 미니맵 (#290). 설정에서 켠 사람만(기본 꺼짐). 광장은 넓어서 내 둘레만 */}
+            {showMinimap && <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />}
           </>
         ) : (
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
