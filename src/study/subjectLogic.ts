@@ -4,7 +4,7 @@
 //   삭제        과목 행을 지움. 공부 기록은 남고 과목 번호만 비워짐(null) → "(지운 과목)"으로 묶어 보여 줌
 
 export const SUBJECT_MAX = 20 // subjects.name 의 check 제약(0001)과 같은 값
-export const DELETED_SUBJECT = '(지운 과목)' // 0047 의 profile_summary 와 같은 글자
+export const DELETED_SUBJECT = '(지운 과목)' // 0050 의 profile_summary 와 같은 글자
 export const LOADING_SUBJECT = '…' // 과목 목록을 아직 못 읽었을 때 (#115: 이때 이름을 지어내지 않음)
 
 export type Subject = { id: number; name: string; archivedAt: string | null }

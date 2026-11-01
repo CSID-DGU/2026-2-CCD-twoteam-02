@@ -150,7 +150,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
     // 공부하는 중에 설정에서 이 과목을 지우면 과목 번호가 없어져 저장이 외래 키 오류(23503)로 실패합니다.
-    // 그때부터는 과목을 비워(null) 저장합니다. 공부 시간은 남고 내 기록에서 "(지운 과목)"으로 보입니다. (#369, 0047)
+    // 그때부터는 과목을 비워(null) 저장합니다. 공부 시간은 남고 내 기록에서 "(지운 과목)"으로 보입니다. (#369, 0050)
     let subjectId: number | null = choice.subject.id
     const FK_MISSING = '23503'
     const base = () => ({
