@@ -2,7 +2,7 @@
 // 탭으로 나눠 스크롤 없이 봅니다. 처음 열면 [내 정보]입니다.
 //   내 정보  닉네임·생일·이메일·비밀번호 (예전 프로필의 "정보 변경" 탭)
 //   과목     과목 이름 바꾸기·정리·지우기 (#369, 공부 시작 창의 "과목 관리"와 같은 화면)
-//   마우스   1인칭 마우스 감도
+//   화면·마우스  1인칭 마우스 감도, 걸을 때 미니맵 보기(기본 꺼짐, 광장·캠퍼스)
 //   단축키   단축키 바꾸기 (#250)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -10,11 +10,12 @@ import { SENSITIVITY, getMouseSensitivity, sensitivityLabel, setMouseSensitivity
 import { KeymapSettings } from './KeymapSettings'
 import { AccountSettings } from './AccountSettings'
 import { SubjectSettings } from '../study/SubjectManager'
+import { setShowMinimap, useShowMinimap } from './minimapSetting'
 
 const TABS = [
   ['account', '내 정보'],
   ['subjects', '과목'],
-  ['mouse', '마우스'],
+  ['mouse', '화면·마우스'],
   ['keys', '단축키'],
 ] as const
 type Tab = (typeof TABS)[number][0]
@@ -23,6 +24,7 @@ export function SettingsView() {
   const [tab, setTab] = useState<Tab>('account')
   const [sensitivity, setSensitivity] = useState(getMouseSensitivity)
   const change = (value: number) => setSensitivity(setMouseSensitivity(value))
+  const minimap = useShowMinimap()
 
   return (
     <div style={styles.stack}>
@@ -80,6 +82,11 @@ export function SettingsView() {
               기본값
             </button>
           </div>
+          <label style={{ ...styles.row, cursor: 'pointer', marginTop: 6 }}>
+            <span style={styles.label}>걸을 때 미니맵 보기</span>
+            <input type="checkbox" checked={minimap} onChange={(e) => setShowMinimap(e.target.checked)} style={styles.check} />
+          </label>
+          <span style={styles.help}>광장·캠퍼스에서 1인칭으로 걸을 때 오른쪽 아래에 작은 지도를 띄워요. 켜면 컴퓨터가 조금 더 일해요. 전체 지도는 언제든 G 로 볼 수 있어요.</span>
         </div>
       )}
       {tab === 'keys' && <KeymapSettings />}
@@ -98,6 +105,7 @@ const styles: Record<string, CSSProperties> = {
   value: { fontVariantNumeric: 'tabular-nums', color: '#d1d5db' },
   slider: { width: '100%', accentColor: '#a78bfa' },
   help: { color: '#aab0bb', fontSize: 13 },
+  check: { width: 18, height: 18, accentColor: '#a78bfa', cursor: 'pointer' },
   reset: {
     flexShrink: 0, padding: '4px 10px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent',
     color: '#fff', cursor: 'pointer', font: 'inherit', fontSize: 13,
