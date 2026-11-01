@@ -31,6 +31,8 @@ import { useFollowArrival } from "../friends/useFollow";
 import type { Teleport } from "../friends/useFollow";
 import { useChat } from "../chat/chatContext";
 import { aimWins } from "./aimLogic";
+import { useFlick, useFlickShake } from "../friends/useFlick";
+import { getFlickReceiving } from "../menu/flickSetting";
 import type { AimTarget } from "./aimLogic";
 import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
@@ -45,7 +47,7 @@ import { panelKey } from "../menu/panelTypes";
 import { useMenuShortcuts } from "../menu/useMenuShortcuts";
 import { getKeymap, keyLabel, useKeymap } from "../menu/keymap";
 import { channelName } from "../realtime/participants";
-import type { PresenceState } from "../realtime/participants";
+import type { FlickPort, PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
 import { characterArms } from "../tracking/armLogic";
 import type { Direction } from "../tracking/armLogic";
@@ -84,6 +86,11 @@ const TOUCH_DPR = 1.5; // 폰 3D 화면 해상도 상한 (#377. 폰은 기기 �
 const TOUCH_NOTE_MS = 4000; // 폰 안내를 보여 주는 시간
 
 const initialPerf: Perf = { fps: null, minFps: null, transitionMs: null };
+// 딱밤을 맞았을 때 화면 위쪽 가운데에 잠깐 뜨는 문구 (#304)
+const flickToast = {
+  position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)", zIndex: 15, padding: "8px 16px", borderRadius: 999,
+  background: "rgba(245,158,11,.95)", color: "#1b1e24", font: "600 15px system-ui, sans-serif", pointerEvents: "none",
+} as const;
 const NO_KIOSK = { x: 1000, z: 1000 }; // 키오스크가 없는 지점(카페). 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 합니다.
 
 // 여러 층 건물의 층 목록을 찾으려고 광장 배치를 한 번 계산합니다. (엘리베이터: 같은 건물의 다른 층으로)
@@ -243,7 +250,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 감정표현 (#162): 고른 것·하는 중인 것. Player 가 동작하고, 1인칭 카메라는 그동안 앞으로 빠져 나를 비춥니다.
   const emote = useRef(newEmoteState());
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
-  const others = useParticipants(channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }); // 딱밤 신호 통로 (#304)
+  const others = useParticipants(channelName(BRANCH_ID), me, false, undefined, undefined, undefined, flickPort); // 같은 지점의 다른 참여자 (실시간)
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null);
@@ -316,6 +324,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ...(emote.current.playing ? { emote: emote.current.playing, emoteSeq: emote.current.seq } : {}),
       ...(emote.current.jump ? { jump: emote.current.jump } : {}), // 점프 번호 (바뀌면 보는 사람 화면에서도 뜀)
       ...(sharedLevel(myTitle.visibility, myLevel) ? { lv: sharedLevel(myTitle.visibility, myLevel) } : {}), // 칭호
+      ...(getFlickReceiving() ? {} : { nf: true as const }), // 딱밤 받기를 껐음 (#304)
     };
   };
 
@@ -374,6 +383,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { set: setAim } = aim;
   const aimOn = view === "first" && seat === null && !(kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen);
   const aimPerson = useCallback((t: AimTarget | null) => setAim("person", t), [setAim]);
+  // 딱밤 (#304): 빨간불인 채 앉아 있는 친구 바로 옆에서 조준하고 Q. 조준이 켜져 있을 때만(서 있고 1인칭, 창 없음)
+  const flick = useFlick({ myId: session?.user.id, others, spots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn });
+  const shakeBox = useFlickShake(flick.hit?.at ?? null);
   // E 로 앉을 수 있는 자리: 내 자리(폰은 휴식방만), 게시판 앞은 앉지 않고 게시판을 엶
   const canSitHere = (no: number) => no !== NOTE_BOARD_NO && !(touch && !isRest) && no === mySeat;
   // 이 자리 앞에서 E 가 할 일이 있는지: 앉기, 게시판 열기, 카페는 빈자리 잡기(PC). 남이 앉은 자리는 애초에 목록(freeSpots)에 없음
@@ -382,7 +394,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const placeReady = (near !== null && acts(near)) || nearKiosk || nearMeeting || nearElevator || nearExit;
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
-  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) };
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter), flick: keyLabel(keymap.flick) };
   const viewHint = touch
     ? view === "top" ? "👁 1인칭으로" : "오른쪽을 끌어 둘러보기 · 👁 위에서 보기"
     : view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
@@ -423,10 +435,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
+    {/* 딱밤을 맞으면 3D 화면을 잠깐 흔듦 (#304) */}
+    <div ref={shakeBox} style={{ width: "100%", height: "100%" }}>
     {/* 폰은 화면 해상도를 낮춰 가볍게, 화면 끌기가 확대·스크롤로 새지 않게 (#377) */}
     <Canvas dpr={touch ? [1, TOUCH_DPR] : undefined} style={{ touchAction: "none" }}>
       {seatSpot ? (
@@ -489,6 +503,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onSelect={view === "top" && seat === null ? (userId) => setPanel({ kind: "profile", userId }) : undefined}
           aimOn={aimOn}
           onAim={aimPerson}
+          pops={flick.pops}
         />
       )}
 
@@ -538,6 +553,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         />
       )}
     </Canvas>
+    </div>
+    {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
     {seat !== null && session && !isRest && ( // 휴식방에서는 공부 시작 창·트래킹을 띄우지 않음
       <SeatedStudy
         userId={session.user.id}

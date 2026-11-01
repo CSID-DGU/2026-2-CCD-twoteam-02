@@ -18,9 +18,10 @@ import type { Spot } from '../space/layout'
 import { WalkingCharacter } from './WalkingCharacter'
 import { NameTag } from './NameTag'
 import type { Participant } from './participants'
-import { AIM_HZ, BODY, pickAimPerson } from '../space/aimLogic'
+import { AIM_HZ, BODY, CLOSE_RANGE, pickAimPerson } from '../space/aimLogic'
 import { isTouchMode } from '../space/useIsTouch'
 import type { AimPerson, AimTarget } from '../space/aimLogic'
+import { FlickPop } from '../friends/FlickPop'
 
 // 누른 뒤 이만큼(px) 넘게 움직였으면 클릭이 아니라 화면 끌기(둘러보기)로 봅니다.
 const CLICK_TOLERANCE = 5
@@ -40,6 +41,7 @@ export function OtherParticipants({
   showStatus = true,
   aimOn = false,
   onAim,
+  pops,
 }: {
   others: Participant[]
   spots: Spot[]
@@ -47,6 +49,7 @@ export function OtherParticipants({
   onSelect?: (userId: string) => void // 커서로 캐릭터를 눌렀을 때 (위에서 보는 시점)
   aimOn?: boolean // 조준점으로 사람 고르기를 켤지 (1인칭으로 서 있고 창이 없을 때)
   onAim?: (target: AimTarget | null) => void // 조준점이 가리키는 사람이 바뀔 때. 바뀌지 않는 함수를 넘깁니다.
+  pops?: ReadonlySet<string> // 딱밤을 맞아 머리 위에 "딱!"을 띄울 사람 (#304)
 }) {
   // 커서 클릭(onSelect): 위에서 보는 시점처럼 커서가 보일 때만 화면에서 넘겨 줍니다. 마우스를 올리면 손가락 커서로 알립니다.
   // 1인칭에서 마우스가 잠겨 있으면 클릭으로는 열지 않고, 조준점이 가리키는 사람을 onAim 으로 알립니다(E 로 프로필).
@@ -82,7 +85,7 @@ export function OtherParticipants({
     probe.caster.far = Math.max(0, hit.dist - SURFACE_GAP)
     const solid = scene.children.filter((o) => o.visible && !o.userData.userId)
     const blocked = probe.caster.intersectObjects(solid, true).some((h) => h.distance > NEAR_IGNORE && shown(h.object))
-    onAim(blocked ? null : { kind: 'person', id: hit.person.id, name: hit.person.name })
+    onAim(blocked ? null : { kind: 'person', id: hit.person.id, name: hit.person.name, close: hit.dist <= CLOSE_RANGE })
   })
 
   // 참여자 목록이 0.1초마다 바뀌며 다시 그려져도 원래 커서를 잃지 않게 ref 에 둡니다.
@@ -126,12 +129,14 @@ export function OtherParticipants({
                 <SeatedCharacter spot={spot} model={p.model} head={p.head} eyes={p.eyes} arms={p.arms} mouth={p.mouth} />
                 <NameTag x={x} z={z} name={p.nickname} level={p.lv} />
                 {showStatus && <StatusMarker x={x} z={z} status={p.status} />}
+                {pops?.has(p.userId) && <FlickPop x={x} z={z} />}
               </>
             ) : (
               // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
               <WalkingCharacter x={p.x} z={p.z} h={p.h} model={p.model} emote={p.emote} emoteSeq={p.emoteSeq} jump={p.jump}>
                 <NameTag x={0} z={0} name={p.nickname} level={p.lv} />
                 {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
+                {pops?.has(p.userId) && <FlickPop x={0} z={0} />}
               </WalkingCharacter>
             )}
           </group>

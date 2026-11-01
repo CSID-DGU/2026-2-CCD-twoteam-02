@@ -62,7 +62,9 @@ import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
-import type { PresenceState } from '../realtime/participants'
+import type { FlickPort, PresenceState } from '../realtime/participants'
+import { useFlick, useFlickShake } from '../friends/useFlick'
+import { getFlickReceiving } from '../menu/flickSetting'
 import { currentCondition } from '../study/condition'
 import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
@@ -202,12 +204,16 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 감정표현 (#162): Player 가 동작하고, 1인칭 카메라는 그동안 앞으로 빠져 나를 비춥니다.
   const emote = useRef(newEmoteState())
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
-  const others = useParticipants(world.channel, me)
+  const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
+  const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
+  const others = useParticipants(world.channel, me, false, undefined, undefined, undefined, flickPort)
+  // 딱밤 (#304): 벤치에서 빨간불인 친구 바로 옆에서 조준하고 Q. 조준이 켜져 있을 때만(서 있고 1인칭, 창 없음)
+  const flick = useFlick({ myId: session?.user.id, others, spots: sitSpots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn })
+  const shakeBox = useFlickShake(flick.hit?.at ?? null)
 
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null)
   const chat = useChat()
-  const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   useFollowArrival({
     place: world.place,
     others,
@@ -354,7 +360,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const nearGate = GATES.find((g) => g.no === near)
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
-  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) }
+  const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter), flick: keyLabel(keymap.flick) }
   const viewHint = touch
     ? view === 'top' ? '👁 1인칭으로' : '오른쪽을 끌어 둘러보기 · 👁 위에서 보기'
     : view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
@@ -370,7 +376,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       ? cafe.message
     : aimOn && aim.target && aimWins(placeReady, true)
       ? aim.target.kind === 'person'
-        ? `${aim.target.name} · ${K.interact} 프로필 보기`
+        ? flick.target
+          ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기`
+          : `${aim.target.name} · ${K.interact} 프로필 보기`
         : `${aim.target.name} · ${K.interact} 오늘의 운세`
     : benchSeated
       ? `${world.study.label} · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
@@ -396,6 +404,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
 
   return (
     <>
+      {/* 딱밤을 맞으면 3D 화면을 잠깐 흔듦 (#304) */}
+      <div ref={shakeBox} style={{ width: '100%', height: '100%' }}>
       {/* 폰은 화면 해상도를 낮춰 가볍게, 화면 끌기가 확대·스크롤로 새지 않게 (#377) */}
       <Canvas dpr={touch ? [1, TOUCH_DPR] : undefined} style={{ touchAction: 'none' }}>
         {seatSpot ? (
@@ -458,10 +468,11 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {condition === 'visible' && (
           <OtherParticipants
             others={others}
-            spots={[...REST_SPOTS, ...BENCH_SPOTS]}
+            spots={sitSpots}
             onSelect={view === 'top' && seat === null ? (userId) => setPanel({ kind: 'profile', userId }) : undefined}
             aimOn={aimOn}
             onAim={aimPerson}
+            pops={flick.pops}
           />
         )}
 
@@ -524,12 +535,15 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
                 ...(e.playing ? { emote: e.playing, emoteSeq: e.seq } : {}),
                 ...(e.jump ? { jump: e.jump } : {}), // 점프 번호 (바뀌면 보는 사람 화면에서도 뜀)
                 ...(myLv ? { lv: myLv } : {}),
+                ...(getFlickReceiving() ? {} : { nf: true as const }), // 딱밤 받기를 껐음 (#304)
               }
             }}
             headingRef={view === 'first' ? heading : undefined}
           />
         )}
       </Canvas>
+      </div>
+      {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
 
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
@@ -607,6 +621,12 @@ const crosshair: React.CSSProperties = {
 }
 
 // 폰: 조이스틱·버튼 위로 (#377)
+// 딱밤을 맞았을 때 화면 위쪽 가운데에 잠깐 뜨는 문구 (#304)
+const flickToast: React.CSSProperties = {
+  position: 'fixed', top: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 15, padding: '8px 16px', borderRadius: 999,
+  background: 'rgba(245,158,11,.95)', color: '#1b1e24', font: '600 15px system-ui, sans-serif', pointerEvents: 'none',
+}
+
 const hintAboveControls: React.CSSProperties = { bottom: 'calc(env(safe-area-inset-bottom) + 156px)', maxWidth: 'calc(100vw - 32px)', textAlign: 'center' }
 const TOUCH_DPR = 1.5 // 폰 3D 화면 해상도 상한 (폰은 기기 해상도가 3배라 그대로 그리면 무거움)
 
