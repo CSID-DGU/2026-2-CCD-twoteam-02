@@ -17,6 +17,7 @@ export type Slot = 'eyes' | 'closedEyes' | 'brows' | 'mouth' | 'mouthOpen' | 'ha
 // box: 스티커에서 실제로 칠해진 범위(가운데 기준 [왼, 위, 오른, 아래], px). 눈과 입이 겹치지 않게 막을 때 씀
 // model: 머리에 붙이는 입체 부품(머리카락, #296)의 3D 모델 파일(.gltf·.glb). Blockbench 로 머리 뼈 좌표(가로 -4~4, 세로 0~8,
 //        얼굴 쪽 +z)에 맞춰 만들어 내보낸 것(1칸 = 1/16). modelScale: 붙일 때 키우는 배수(기본 16, 다른 단위로 만든 모델만 적음)
+// hidden: 꾸미기 창 목록과 무작위 고르기에서 뺀 부품. 이미 고른 사람의 캐릭터에는 그대로 보임
 export type Part = {
   id: string
   name: string
@@ -25,6 +26,7 @@ export type Part = {
   box?: [number, number, number, number]
   model?: string
   modelScale?: number
+  hidden?: boolean
 }
 // 눈·눈썹·입 위치와 크기(#293). 모두 정수 단계. 눈 간격은 +가 넓게, 높이는 +가 위로, 크기는 +가 크게. 눈썹 간격은 눈을 따라감
 export type LayoutField = 'eyeX' | 'eyeY' | 'eyeSize' | 'browY' | 'browSize' | 'mouthY' | 'mouthSize'
@@ -76,7 +78,7 @@ export const SHADE: Record<Face['dir'], number> = { top: 255, front: 245, left: 
 export const DEFAULT_AVATAR: Avatar = {
   skin: '#f6d1a5',
   eyes: 'sparkle', // 초롱초롱 눈 (김현 그림, 10/27)
-  closedEyes: 'line', // 일자 감은 눈
+  closedEyes: 'new-1', // 새 감은 눈 1 (11/01 김현 그림. 예전 감은 눈은 지움)
   eyeColor: '#5b3a1e',
   brows: 'straight',
   mouth: 'soft-smile', // 살짝 웃는 입 (김현 그림, 10/27)
@@ -110,6 +112,8 @@ const PART_FIELDS: Partial<Record<keyof Avatar, Slot>> = {
 const isLayoutField = (key: string): key is LayoutField => key in LAYOUT
 
 export const findPart = (slot: Slot, id: string) => PARTS[slot].find((p) => p.id === id)
+// 꾸미기 창에서 고를 수 있는 부품 (화면에서 내린 hidden 부품은 뺌)
+export const pickableParts = (slot: Slot) => PARTS[slot].filter((p) => !p.hidden)
 export const isColor = (v: unknown): v is string => typeof v === 'string' && COLOR.test(v)
 export const isId = (v: unknown): v is string => typeof v === 'string' && ID.test(v)
 
@@ -148,19 +152,19 @@ export function randomAvatar(random: () => number = Math.random): Avatar {
   const color = () => '#' + Array.from({ length: 3 }, () => Math.floor(random() * 256).toString(16).padStart(2, '0')).join('')
   return {
     skin: pick(SKIN_PRESETS),
-    eyes: pick(PARTS.eyes).id,
-    closedEyes: pick(PARTS.closedEyes).id,
+    eyes: pick(pickableParts('eyes')).id,
+    closedEyes: pick(pickableParts('closedEyes')).id,
     eyeColor: color(),
-    brows: pick(PARTS.brows).id,
-    mouth: pick(PARTS.mouth).id,
-    mouthOpen: pick(PARTS.mouthOpen).id,
-    hair: pick(PARTS.hair).id,
+    brows: pick(pickableParts('brows')).id,
+    mouth: pick(pickableParts('mouth')).id,
+    mouthOpen: pick(pickableParts('mouthOpen')).id,
+    hair: pick(pickableParts('hair')).id,
     hairColor: color(),
-    top: pick(PARTS.top).id,
+    top: pick(pickableParts('top')).id,
     topColor: color(),
-    bottom: pick(PARTS.bottom).id,
+    bottom: pick(pickableParts('bottom')).id,
     bottomColor: color(),
-    shoes: pick(PARTS.shoes).id,
+    shoes: pick(pickableParts('shoes')).id,
     shoesColor: color(),
     ...HOME_LAYOUT, // 위치·크기는 기본 자리 그대로
   }
@@ -169,10 +173,10 @@ export function randomAvatar(random: () => number = Math.random): Avatar {
 // ── 얼굴 배치 (#293) ─────────────────────────────────────────────
 // 얼굴 좌표: 머리 앞면 한 변 = FACE_PX(얼굴 8×8 칸 중 1칸 = 128), 왼쪽 위가 (0, 0). 스티커 그림도 이 크기로 그린다.
 export const FACE_PX = 1024
-export const EYE_HOME = { x: 736, y: 560 } // 오른쪽(화면 오른쪽) 눈의 기본 가운데. 왼쪽 눈은 얼굴 가운데를 기준으로 좌우 대칭
+export const EYE_HOME = { x: 736, y: 480 } // 오른쪽(화면 오른쪽) 눈의 기본 가운데. 왼쪽 눈은 얼굴 가운데를 기준으로 좌우 대칭 (새 그리기 틀: 2048 기준 높이 960)
 export const MOUTH_HOME = { x: 512, y: 832 } // 입의 기본 가운데
-export const EYE_SCALE = 1.3 // 눈 그림을 그린 크기보다 이만큼 크게 놓음(10/27 김현: 눈이 대체로 작다). 크기 막대는 이 크기를 기준으로
-export const BROW_HOME_Y = 371 // 눈썹 가운데의 기본 높이 (눈 기본 자리보다 189 위). 눈썹 가로 자리는 눈을 따라감
+export const EYE_SCALE = 1 // 눈 그림을 그린 크기 그대로 놓음 (새 그리기 틀은 눈 틀을 512 로 키움). 크기 막대는 이 크기를 기준으로
+export const BROW_HOME_Y = 280 // 눈썹 가운데의 기본 높이 (새 그리기 틀: 2048 기준 560). 눈썹 가로 자리는 눈을 따라감
 export const LAYOUT_STEP = 16 // 위치 한 단계(얼굴 좌표 px). 2048 얼굴 지도로는 32px
 export const SIZE_STEP = 0.05 // 크기 한 단계 (5%)
 // 단계 범위. 김현이 정한 얼굴 지도(2048): 눈 위 320·아래 192·좌우 192, 입 위 192·아래 128 (단계 수는 나중에 다시 정함)
