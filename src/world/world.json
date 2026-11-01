@@ -46,7 +46,13 @@
       "facing": "west",
       "wall": "#55663f",
       "facade": "moss",
-      "roof": "#2f3a26"
+      "roof": "#2f3a26",
+      "floors": [
+        {
+          "slug": "moss-rooftop",
+          "roof": true
+        }
+      ]
     },
     {
       "slug": "olive",
