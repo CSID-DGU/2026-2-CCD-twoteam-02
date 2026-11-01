@@ -93,6 +93,7 @@ import type { Teleport } from '../friends/useFollow'
 import { useChat } from '../chat/chatContext'
 import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
+import { aimWins } from '../space/aimLogic'
 import type { AimTarget } from '../space/aimLogic'
 import { RankingBoard } from './RankingBoard'
 import { RankingPanel } from '../ranking/RankingPanel'
@@ -333,6 +334,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 다른 참여자가 앉아 있는 벤치 자리에는 앉을 수 없습니다.
   const taken = new Set(others.map((p) => p.seat).filter((no): no is number => no !== null))
   const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
+  const acts = (no: number) => canEnter(no) || no === BOARD_NO || (spotKindOf(no) === 'bench' && !touch && plazaId !== null)
   const blockedEnter = (no: number) => {
     if (spotKindOf(no) === 'bench') {
       if (touch) setMessage(STUDY_ON_PC) // 폰은 구경만 (#377). 벤치는 공부 자리
@@ -357,13 +359,16 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     ? view === 'top' ? '👁 1인칭으로' : '오른쪽을 끌어 둘러보기 · 👁 위에서 보기'
     : view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
   const wasd = touch ? '' : 'WASD·' // 앉아 있을 때 안내: 폰은 화면 끌기만
+  // 이 자리 앞에서 E 가 할 일이 있는지: 입장·정문·쉬는 자리, 게시판 열기, 벤치 자리 잡기(PC). 문 닫은 건물은 안내만이라 아님
+  // 할 일이 있으면 조준한 사람·별자리보다 먼저 (#408, Player 와 같은 규칙)
+  const placeReady = near !== null && acts(near)
   const hint = panel || cafe.conflict
     ? ''
     : studyPaused
       ? '⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요'
     : cafe.message
       ? cafe.message
-    : aimOn && aim.target
+    : aimOn && aim.target && aimWins(placeReady, true)
       ? aim.target.kind === 'person'
         ? `${aim.target.name} · ${K.interact} 프로필 보기`
         : `${aim.target.name} · ${K.interact} 오늘의 운세`
@@ -481,6 +486,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             }}
             onSeat={handleSeat}
             canSit={canEnter}
+            acts={acts}
             onSitBlocked={blockedEnter}
             sitRef={cafe.sitRequest}
             aimRef={aim.current}

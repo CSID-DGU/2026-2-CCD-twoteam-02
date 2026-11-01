@@ -30,6 +30,7 @@ import { useAim } from "./useAim";
 import { useFollowArrival } from "../friends/useFollow";
 import type { Teleport } from "../friends/useFollow";
 import { useChat } from "../chat/chatContext";
+import { aimWins } from "./aimLogic";
 import type { AimTarget } from "./aimLogic";
 import { useOnlinePlace } from "../realtime/onlineContext";
 import { ChatOverlay } from "../chat/ChatOverlay";
@@ -373,6 +374,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const { set: setAim } = aim;
   const aimOn = view === "first" && seat === null && !(kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen);
   const aimPerson = useCallback((t: AimTarget | null) => setAim("person", t), [setAim]);
+  // E 로 앉을 수 있는 자리: 내 자리(폰은 휴식방만), 게시판 앞은 앉지 않고 게시판을 엶
+  const canSitHere = (no: number) => no !== NOTE_BOARD_NO && !(touch && !isRest) && no === mySeat;
+  // 이 자리 앞에서 E 가 할 일이 있는지: 앉기, 게시판 열기, 카페는 빈자리 잡기(PC). 남이 앉은 자리는 애초에 목록(freeSpots)에 없음
+  const acts = (no: number) => canSitHere(no) || no === NOTE_BOARD_NO || (isCafe && !touch);
+  // 지금 자리에서 E 로 할 수 있는 일이 있으면 조준한 사람보다 먼저 (#408, Player 와 같은 규칙)
+  const placeReady = (near !== null && acts(near)) || nearKiosk || nearMeeting || nearElevator || nearExit;
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter) };
@@ -416,7 +423,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -514,7 +521,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             else setElevatorOpen(true);
           }}
           onKiosk={() => (barista ? setOrderOpen(true) : touch ? setTouchNote(STUDY_ON_PC) : setKioskOpen(true))}
-          canSit={(no) => no !== NOTE_BOARD_NO && !(touch && !isRest) && no === mySeat}
+          canSit={canSitHere}
+          acts={acts}
           onSitBlocked={(no) => {
             if (no === NOTE_BOARD_NO) setBoardOpen(true); // 게시판은 폰에서도 읽고 쓸 수 있음
             else if (touch && !isRest) setTouchNote(STUDY_ON_PC);
