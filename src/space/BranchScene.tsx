@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from "./branches";
-import { elevatorFront, meetingDoorFront, obstaclesOf, spotsOf } from "./layout";
+import { NOTE_BOARD_NO, elevatorFront, meetingDoorFront, noteBoardSpot, obstaclesOf, spotsOf, stairsFront } from "./layout";
 import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
@@ -64,6 +64,8 @@ import { setQuietLock } from "../chat/quietLock";
 import { worldOfBranch } from "../world/worldConfig";
 import { CafeWindows } from "../world/CafeWindows";
 import { BranchInterior } from "./BranchInterior";
+import { BoardPanel } from "../board/BoardPanel";
+import { useBoardNotes } from "../board/useBoardNotes";
 import { useClassPhase } from "../study/useClassPhase";
 import { boardText } from "../study/timetableLogic";
 import { ClassBellNotice } from "../study/ClassBellNotice";
@@ -137,9 +139,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const meetingFront = useMemo(() => (branch.meetingDoor ? meetingDoorFront(branch.meetingDoor) : undefined), [branch]);
   // 엘리베이터: 지점 JSON 에 문이 있고, 광장에서 여러 층 건물에 든 지점일 때만. 앞에서 E 를 누르면 층 고르는 창
   const floors = useMemo(() => buildingOf(PLACED, branch.id)?.floors ?? [], [branch]);
-  const elevatorSpot = useMemo(() => (branch.elevator && floors.length > 1 ? elevatorFront(branch.elevator) : undefined), [branch, floors]);
+  // 계단이면 계단 끝 (긴 계단의 옆면 가운데는 다가가는 자리가 아니라서)
+  const elevatorSpot = useMemo(
+    () => (branch.elevator && floors.length > 1 ? (branch.stairs ? stairsFront(branch.elevator, branch.stairs) : elevatorFront(branch.elevator)) : undefined),
+    [branch, floors],
+  );
   const [nearElevator, setNearElevator] = useState(false); // 엘리베이터 문 앞인지
   const [elevatorOpen, setElevatorOpen] = useState(false); // 층 고르는 창이 떠 있는지
+  const [boardOpen, setBoardOpen] = useState(false); // 코르크 게시판 창이 떠 있는지
+  const board = useBoardNotes(branch.noteBoard ? branch.id : null); // 게시판 쪽지 (판에 그리려고 창을 닫아도 읽음)
   // 걸어 다닐 때의 시점. 처음에는 1인칭으로 걷고, V 로 위에서 보기와 바꿉니다. (#71)
   const [view, setView] = useWalkView(); // 로비에서 바꾼 시점을 그대로 이어서 씁니다.
   const touch = useIsTouch(); // 폰 화면 조작 (#377)
@@ -226,7 +234,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const taken = new Set(
     others.map((p) => p.seat).filter((no): no is number => no !== null),
   );
-  const freeSpots = spots.filter((c) => !taken.has(c.no));
+  // 코르크 게시판 앞 자리도 같이 넘겨 E 를 받습니다 (앉지 않고 게시판 창을 엶)
+  const boardSpot = useMemo(() => (branch.noteBoard ? noteBoardSpot(branch.noteBoard) : null), [branch]);
+  const freeSpots = [...spots.filter((c) => !taken.has(c.no)), ...(boardSpot ? [boardSpot] : [])];
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
@@ -292,13 +302,13 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().view || e.repeat || kioskOpen || panelOpen || meetingOpen || elevatorOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
+      if (e.code !== getKeymap().view || e.repeat || kioskOpen || panelOpen || meetingOpen || elevatorOpen || boardOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, panelOpen, meetingOpen, elevatorOpen, setView]);
+  }, [kioskOpen, panelOpen, meetingOpen, elevatorOpen, boardOpen, setView]);
 
   // 광장으로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 광장의 이 건물 입구 앞에 섭니다(#150, #315).
   // 이 지점이 있는 바깥 공간: 광장 지점이면 광장(/), 캠빛 대학교 건물이면 캠퍼스(/campus)로 돌아갑니다.
@@ -311,7 +321,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     myId: session?.user.id ?? null,
     panel,
     setPanel,
-    disabled: kioskOpen || conflict !== null || studyDialogOpen || meetingOpen || elevatorOpen,
+    disabled: kioskOpen || conflict !== null || studyDialogOpen || meetingOpen || elevatorOpen || boardOpen,
     onLobby: seat === null ? goLobby : undefined, // 앉아 있을 때는 L 로 나가지 않음 (공부 중 실수 방지)
     onTracking: seat === null ? goTracking : undefined, // T 도 같은 이유로 서 있을 때만
   });
@@ -320,7 +330,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 조준점이 가리키는 사람 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim();
   const { set: setAim } = aim;
-  const aimOn = view === "first" && seat === null && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen);
+  const aimOn = view === "first" && seat === null && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen);
   const aimPerson = useCallback((t: AimTarget | null) => setAim("person", t), [setAim]);
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap();
@@ -334,10 +344,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ? isRest
         ? `${seat}번 소파 · 누워서 쉬는 중 · ${wasd}끌어서 둘러보기 · ${K.interact} 일어나기`
         : `${seat}번 좌석 · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      : near === NOTE_BOARD_NO // 코르크 게시판 앞
+        ? `코르크 게시판 · ${K.interact} 쪽지 보기·붙이기`
       : nearMeeting // 회의실 문 앞 (#45)
         ? `회의실 · ${K.interact} 들어가기`
-      : nearElevator // 엘리베이터 문 앞 (여러 층 건물)
-        ? `엘리베이터 · ${K.interact} 층 고르기`
+      : nearElevator // 엘리베이터 문 앞 (여러 층 건물). 계단이면 두 층 사이를 바로 오감
+        ? branch.stairs
+          ? `계단 · ${K.interact} ${branch.stairs === "up" ? "위층으로 올라가기" : "아래층으로 내려가기"}`
+          : `엘리베이터 · ${K.interact} 층 고르기`
       : nearExit // 출입문 앞 (의자·키오스크가 더 가까우면 그쪽이 먼저라 여기 오지 않음, #150)
         ? `출입문 · ${K.interact} ${toward(outside.title)} 나가기`
       : isRest
@@ -359,7 +373,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target ? `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
 
   return (
     <>
@@ -377,7 +391,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           <WalkCamera
             posRef={pos}
             headingRef={heading}
-            paused={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen}
+            paused={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen}
             onLockChange={setLocked}
             emoteRef={emote}
             suspendLookRef={suspendLook}
@@ -400,6 +414,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         elevatorLabel={elevatorSpot ? `${floors.find((f) => f.slug === branch.id)?.level ?? 1}F` : null}
         exitLabel={outside.title}
         boardText={classNow ? boardText(classNow) : undefined}
+        boardNotes={board.notes}
       />
 
       {/* 캠리단길 지점: 출입문 벽 문 양옆 통창으로 실제 거리가 보임 (캠빛 대학교 건물은 없음) */}
@@ -432,7 +447,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           emoteRef={emote}
           spots={freeSpots}
           kiosk={branch.kiosk ?? NO_KIOSK}
-          frozen={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || (seat !== null && studyDialogOpen)}
+          frozen={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || (seat !== null && studyDialogOpen)}
           onNear={setNear}
           onSeat={handleSeat}
           onNearKiosk={setNearKiosk}
@@ -444,10 +459,19 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onMeeting={() => (touch ? setTouchNote(STUDY_ON_PC) : setMeetingOpen(true))}
           elevator={elevatorSpot}
           onNearElevator={setNearElevator}
-          onElevator={() => setElevatorOpen(true)}
+          onElevator={() => {
+            // 계단: 두 층뿐이라 층 고르는 창 없이 바로 다른 층으로. 그 층 계단 앞에 섭니다
+            const other = branch.stairs ? floors.find((f) => f.slug !== branch.id) : undefined;
+            if (other && floors.length === 2) navigate(`/space?branch=${other.slug}`, { state: { at: "elevator" } });
+            else setElevatorOpen(true);
+          }}
           onKiosk={() => (touch ? setTouchNote(STUDY_ON_PC) : setKioskOpen(true))}
-          canSit={(no) => !(touch && !isRest) && no === mySeat}
-          onSitBlocked={touch && !isRest ? () => setTouchNote(STUDY_ON_PC) : isCafe ? (no) => void cafe.claim(no) : undefined}
+          canSit={(no) => no !== NOTE_BOARD_NO && !(touch && !isRest) && no === mySeat}
+          onSitBlocked={(no) => {
+            if (no === NOTE_BOARD_NO) setBoardOpen(true); // 게시판은 폰에서도 읽고 쓸 수 있음
+            else if (touch && !isRest) setTouchNote(STUDY_ON_PC);
+            else if (isCafe) void cafe.claim(no);
+          }}
           sitRef={cafe.sitRequest}
           aimRef={aim.current}
           onAim={(t) => setPanel({ kind: "profile", userId: t.id })}
@@ -518,13 +542,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     <EmoteControls
       emoteRef={emote}
       suspendLookRef={suspendLook}
-      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || seat !== null || !emotesAllowed(branch.rules)}
+      disabled={kioskOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
     {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
     {conflict && <CafeConflictDialog message={conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
+    {boardOpen && (
+      <BoardPanel notes={board.notes} myId={session?.user.id ?? null} onPost={board.post} onRemove={(id) => void board.remove(id)} onClose={() => setBoardOpen(false)} />
+    )}
     {elevatorOpen && (
       // 층 고르는 창. 고르면 그 층 지점으로 옮겨 엘리베이터 문 앞에 섭니다(지점 화면은 새로 그려짐).
       <FloorPicker
@@ -550,7 +577,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       />
     )}
     {/* 폰 조작: 조이스틱·끌어서 둘러보기·[E]·점프·시점 (#377). 창이 떠 있으면 숨김 */}
-    {touch && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen) && (
+    {touch && !(kioskOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen) && (
       <TouchControls
         look={view === "first" && seat === null}
         move={seat === null}

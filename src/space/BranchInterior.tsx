@@ -1,6 +1,7 @@
 // 지점 실내 그리기: 조명, 바닥, 벽(캠리단길 지점은 통창 구멍), 천장·장식(Decor), 책상, 의자, 엘리베이터·회의실·출입문, 키오스크, 커피 바.
 // 지점 화면(BranchScene)과 광장에서 가게 창으로 들여다보는 실내(world/ShopInteriors)가 같이 씁니다.
 // 화면 상태(가까이 선 자리·내 자리·문 앞인지)는 props 로 받고, 광장에서 볼 때는 모두 기본 모습(강조 없음)입니다.
+import { useMemo } from "react";
 import { Billboard } from "@react-three/drei";
 import type { BranchLayout } from "./layout";
 import { CHAIR, KIOSK, SEAT, spotsOf } from "./layout";
@@ -9,6 +10,10 @@ import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, 
 import { BarTable, Carrel, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
+import { Cubicles, OfficeChair, ShellChair, Staircase } from "./StudyCafeDecor";
+import { plasterTexture } from "./studyCafeTextures";
+import { CorkBoard } from "../board/CorkBoard";
+import type { BoardNote } from "../board/boardLogic";
 
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
 const DOOR_SIGN = { width: 1.4, y: 1.75 }; // 출입문 위 "광장" 표지판
@@ -27,9 +32,10 @@ type Props = {
   exitLabel: string; // 출입문 위 바깥 이름 ("캠리단길")
   boardText?: string; // 강의실 칠판 글자
   lights?: boolean; // 지점 조명(주변광·비스듬한 빛)을 같이 둘지
+  boardNotes?: BoardNote[]; // 코르크 게시판에 꽂힌 쪽지 (광장에서 볼 때는 없음 = 빈 게시판)
 };
 
-export function BranchInterior({ branch, seat = null, near = null, mySeat = null, nearExit = false, nearMeeting = false, nearElevator = false, elevatorLabel = null, exitLabel, boardText, lights = true }: Props) {
+export function BranchInterior({ branch, seat = null, near = null, mySeat = null, nearExit = false, nearMeeting = false, nearElevator = false, elevatorLabel = null, exitLabel, boardText, lights = true, boardNotes = [] }: Props) {
   const spots = spotsOf(branch);
   const colors = colorsOf(branch.theme); // 지점 테마(#57). 없으면 기본색
   const floorPattern = branch.theme?.floor; // 체크 바닥이면 텍스처, 아니면 기본색
@@ -41,6 +47,7 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
     ...(branch.theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, inner: b.inner, outer: b.outer })), // 곡선 바 상판 위 자리
   ];
   const wallH = ceilingHeightOf(branch.theme); // 벽·천장 높이 (테마에 없으면 2.5)
+  const cubicleSeats = useMemo(() => branch.seats.filter((s) => s.desk === "cubicle"), [branch]); // Cam Study Cafe 칸막이 책상 (한 번에 그림)
   return (
     <>
       {/* 조명·바닥·벽·책상 색은 지점 테마(#57)에서 읽습니다. 테마가 없으면 전과 같은 기본색입니다. */}
@@ -55,7 +62,12 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
         (cafeWallPieces(branch, w, wallH) ?? [{ x: w.x, y: wallH / 2, z: w.z, w: w.w, h: wallH, d: w.d }]).map((p, j) => (
           <mesh key={`${i}-${j}`} position={[p.x, p.y, p.z]}>
             <boxGeometry args={[p.w, p.h, p.d]} />
-            <meshStandardMaterial color={colors.wall} />
+            {branch.theme?.wall?.texture === "plaster" ? (
+              // 회벽 질감 (Cam Study Cafe): 색은 텍스처에 들어 있음
+              <meshStandardMaterial map={plasterTexture(colors.wall, { x: 2, y: 1 })} roughness={0.95} />
+            ) : (
+              <meshStandardMaterial color={colors.wall} />
+            )}
           </mesh>
         )),
       )}
@@ -70,7 +82,12 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
       {furniture?.rings?.map((r, i) => (
         <RingTable key={i} ring={r} color={colors.desk} height={DINER_DESK.height} /> // 나무를 둘러싼 고리 테이블
       ))}
+      {branch.noteBoard && <CorkBoard board={branch.noteBoard} notes={boardNotes} />}
+
+      {/* Cam Study Cafe 칸막이 책상: 자리가 많아 한 번에 찍어 그림 (아래 자리별 책상에서는 건너뜀) */}
+      <Cubicles seats={cubicleSeats} />
       {branch.seats.map((s) => {
+        if (s.desk === "cubicle" || s.desk === "bar") return null; // 창가 바 상판은 테마 소품(studyCafe)이 그림
         // 계단식 단 위 자리(강의실, rise)는 책상째 그만큼 올립니다.
         const deskEl = s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
           insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "carrel" ? (
@@ -97,7 +114,11 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
       {spots.map((c) => {
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
-        const chairEl = c.chair === "lounger" ? (
+        const chairEl = c.chair === "office" ? (
+          <OfficeChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : "#3a3b3e"} /> // 메시 사무용 의자 (칸막이 책상)
+        ) : c.chair === "shell" ? (
+          <ShellChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : colors.chair} /> // 패브릭 셸 의자 (창가 바)
+        ) : c.chair === "lounger" ? (
           // 누워 쉬는 라운지 소파 (숨 라운지): 강조색은 쿠션 색으로
           <Lounger
             key={c.no}
@@ -139,7 +160,11 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
       })}
 
       {/* 엘리베이터 문 (여러 층 건물): 표시판에 지금 층 */}
-      {branch.elevator && elevatorLabel && (
+      {branch.elevator && elevatorLabel && branch.stairs && (
+        // 계단 (Cam Study Cafe): 엘리베이터 문 자리에 계단을 그림
+        <Staircase box={branch.elevator} height={wallH} dir={branch.stairs} near={nearElevator} nearColor={DOOR_COLOR.near} />
+      )}
+      {branch.elevator && elevatorLabel && !branch.stairs && (
         <ElevatorDoor
           box={branch.elevator}
           height={DOOR_HEIGHT}

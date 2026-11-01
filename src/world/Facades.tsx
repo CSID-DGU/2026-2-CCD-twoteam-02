@@ -1,6 +1,6 @@
 // 캠리단길 지점 파사드 (앞면). 지점마다 실내 분위기가 밖에서도 보이게 (참고: 카페 파사드 10종).
 //
-//   classic  별다방      크림 벽, 짙은 초록 줄무늬 차양, 검은 격자 큰 창, 둥근 간판, 칠판 입간판, 화분 / 초록 격자 유리문
+//   classic  Cam Study Cafe(slug byeol)  2층 스터디카페: 밝은 벽, 1층 통유리 + 2층 독서실 띠 창, 검은 간판 띠와 빛나는 글자, 24H 돌출 간판, 칠판 입간판 / 검은 유리문
 //   diner    레트로카페  민트 벽 + 빨강 띠, 물결 끝 빨강·흰 차양, 동그란 간판, 크롬 테 창, 창 아래 빨간 스툴 / 진홍 문 + 둥근 창
 //   garden   올리브 테라스 1층 테라코타 벽돌, 층마다 화분 난간, 양옆 덩굴, 테라코타 차양 / 아치형 나무 문
 //   modern   흑요 라운지 검은 상자, 통유리 + 따뜻한 간접조명 띠, 금빛 글자 간판, 왼쪽 덩굴 / 검은 유리문 + 구리 테
@@ -65,8 +65,8 @@ function Pane({ style, x, y, z, w, h, frame, t = 0.08, bars = 0 }: { style: Faca
 // 순바탕(serif)·교보손글씨(hand)·흘림체(script) 를 지점 분위기에 맞게 나눔. size 는 판 높이(w/2) 대비 글자 크기
 const SIGN_TEXT: Record<FacadeStyle, SignLine[]> = {
   classic: [
-    { text: 'STAR DABANG', font: 'serif', size: 0.2, spacing: 6 },
-    { text: 'COFFEE · STUDY', font: 'serif', size: 0.07, spacing: 14, gap: 0.6 },
+    { text: 'CAM STUDY CAFE', font: 'serif', size: 0.17, spacing: 6 },
+    { text: 'STUDY CAFE · 24H', font: 'serif', size: 0.08, spacing: 14, gap: 0.5 },
   ],
   diner: [
     { text: 'Retro', font: 'script', size: 0.46 },
@@ -203,19 +203,43 @@ export function Facade(props: Props) {
 
 // ── 지점별 (앞면 z = 0 기준) ──────────────────────────────────────────
 
-function Classic({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
+// Cam Study Cafe (예전 별다방, 2층 스터디카페): 1층은 통유리로 칸막이 책상과 스탠드 불빛이 보이고, 2층은 독서실 띠 창.
+// 층 사이 검은 간판 띠에 빛나는 글자, 오른쪽 모서리에 둥근 24H 돌출 간판
+function Classic({ w, floorH, floors, doorX, doorW, doorH, open, near }: Props) {
   const green = '#1f4d36'
-  const black = colorMat('#1d1d1d')
-  const winW = (w - doorW - 2.2) / 2
+  const black = colorMat('#1d1d1f')
+  const winW = (w - doorW - 1.0) / 2
+  const fascia = floorH - 0.45 // 간판 띠 가운데 높이
   return (
     <>
-      <B p={[0, floorH - 0.15, 0.12]} s={[w + 0.2, 0.3, 0.3]} m={colorMat(green)} />
-      <Letters lines={SIGN_TEXT.classic} face="#f3ead8" side="#b08a3e" x={doorX} y={2.95} z={0.04} w={4} />
-      <Awning x={0} top={2.55} z={0} w={w - 0.5} depth={1.0} a={green} b="#f3ead8" stripes={14} scallop={false} />
+      {/* 1층 통유리 (문 양옆) */}
       {[-1, 1].map((side) => (
-        <Pane key={side} style="classic" x={doorX + side * (doorW / 2 + 0.6 + winW / 2)} y={1.3} z={0} w={winW} h={1.6} frame={black} bars={2} />
+        <Pane key={side} style="classic" x={doorX + side * (doorW / 2 + 0.25 + winW / 2)} y={1.35} z={0} w={winW} h={2.3} frame={black} t={0.06} bars={2} />
       ))}
-      <GlassDoor x={doorX} z={0} w={doorW} h={doorH} color={green} open={open} near={near} style="classic" bars={1} />
+      <GlassDoor x={doorX} z={0} w={doorW} h={doorH} color="#1d1d1f" open={open} near={near} style="classic" bars={1} />
+      {/* 검은 간판 띠 + 빛나는 글자 + 아래 조명 줄 */}
+      <B p={[0, fascia, 0.1]} s={[w + 0.1, 0.8, 0.2]} m={black} />
+      <Letters lines={SIGN_TEXT.classic} face="#fff6dc" side="#b08a3e" x={doorX} y={fascia} z={0.21} w={3.4} />
+      <B p={[0, fascia - 0.42, 0.18]} s={[w - 0.4, 0.04, 0.06]} m={MAT.lampGlow} />
+      {/* 2층 독서실 띠 창 (여러 칸) + 작은 글자 */}
+      {floors > 1 && (
+        <>
+          <Pane style="classic" x={0} y={floorH + 1.55} z={0} w={w - 1.2} h={1.7} frame={black} t={0.06} bars={4} />
+          <Letters lines={[{ text: '2F READING ROOM', font: 'serif', size: 0.09, spacing: 16 }]} face="#2a2a2c" side="#9a9a9a" x={0} y={floorH + 2.75} z={0.03} w={4} />
+        </>
+      )}
+      {/* 24H 돌출 간판: 모서리 벽에서 앞으로 나온 둥근 판 (양면) */}
+      <group position={[w / 2 - 0.35, floorH + 0.6, 0.45]}>
+        <B p={[0, 0.5, -0.2]} s={[0.05, 0.05, 0.5]} m={MAT.iron} />
+        <mesh rotation-z={Math.PI / 2} rotation-y={Math.PI / 2} material={colorMat(green)}>
+          <cylinderGeometry args={[0.42, 0.42, 0.08, 28]} />
+        </mesh>
+        {[-1, 1].map((sd) => (
+          <group key={sd} position-x={sd * 0.045} rotation-y={(sd * Math.PI) / 2}>
+            <Letters lines={[{ text: '24H', font: 'serif', size: 0.34 }, { text: 'STUDY', font: 'serif', size: 0.12, spacing: 10, gap: 0.05 }]} face="#fff6dc" side="#0f2a1d" x={0} y={0} z={0} w={0.8} />
+          </group>
+        ))}
+      </group>
       {/* 칠판 입간판 */}
       <group position={[doorX + doorW / 2 + 1.2, 0, 0.9]} rotation-y={-0.4}>
         <mesh position-y={0.42} rotation-x={-0.18} material={colorMat('#2b2b2b')}>
@@ -225,8 +249,8 @@ function Classic({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
           <boxGeometry args={[0.55, 0.8, 0.04]} />
         </mesh>
       </group>
-      <Planter p={[doorX - doorW / 2 - 0.45, 0, 0.45]} box={green} />
-      <Planter p={[doorX + doorW / 2 + 0.45, 0, 0.45]} box={green} />
+      <Planter p={[doorX - doorW / 2 - 0.45, 0, 0.45]} box="#2a2a2c" />
+      <Planter p={[-w / 2 + 0.5, 0, 0.45]} box="#2a2a2c" />
     </>
   )
 }

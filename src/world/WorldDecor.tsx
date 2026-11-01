@@ -137,7 +137,7 @@ export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: bo
         </mesh>
         {b.floors.map((f, level) =>
           windows.map(([x, z, rot], i) =>
-            facade && level === 0 && i < 2 ? null : ( // 파사드가 있으면 1층 앞 창은 파사드가 그림
+            facade && i < 2 && (level === 0 || facade === 'classic') ? null : ( // 파사드가 있으면 1층 앞 창은 파사드가 그림 (별다방은 2층 띠 창도)
             <mesh
               key={`${level}-${i}`}
               position={[x + Math.sin(rot) * OUT, WINDOW.y + level * BUILDING_H, z + Math.cos(rot) * OUT]}

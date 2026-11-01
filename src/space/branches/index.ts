@@ -4,6 +4,7 @@ import type { BranchLayout } from '../layout'
 import type { BranchTheme } from '../theme'
 import type { AmbienceKind } from '../ambience'
 import byeol from './byeol.json'
+import byeol2f from './byeol-2f.json'
 import sol from './sol.json'
 import olive from './olive.json'
 import obsidian from './obsidian.json'
@@ -18,7 +19,9 @@ import cambitCafe from './cambit-cafe.json'
 import cambitLounge from './cambit-lounge.json'
 
 export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
-  byeol, // 별다방 (스터디카페, 키오스크)
+  // Cam Study Cafe (slug byeol, 예전 별다방. 스터디카페, 키오스크): 1층 창가 바 + 칸막이 책상, 2층 칸막이 독서실. 두 층은 엘리베이터 대신 계단(stairs)으로 오갑니다
+  byeol: { ...byeol, seats: byeol.seats as BranchLayout['seats'], theme: byeol.theme as BranchTheme, noteBoard: byeol.noteBoard as BranchLayout['noteBoard'], stairs: 'up' },
+  'byeol-2f': { ...byeol2f, seats: byeol2f.seats as BranchLayout['seats'], theme: byeol2f.theme as BranchTheme, stairs: 'down' },
   // 솔카페 (카페, 커피 바, 다이너 테마 #57). JSON 의 theme 는 colors 가 string[], face 가 string 으로 읽혀 타입이 안 맞아
   // theme 만 단언합니다. 배치(좌석·벽·spawn)는 그대로 검사받습니다.
   sol: { ...sol, theme: sol.theme as BranchTheme },
