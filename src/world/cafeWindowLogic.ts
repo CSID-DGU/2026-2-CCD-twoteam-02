@@ -3,6 +3,7 @@
 //   cafeWindows  지점 실내 통창 자리. 창으로 실제 캠리단길 거리가 보입니다(CafeWindows 가 거리를 같이 그림).
 //                - 출입문 벽(남쪽, front): 문 양옆으로 벽 끝까지 하나씩
 //                - 옆벽(world.json 건물의 sideWindow: west·east): 그 벽에 길게 하나
+//                - 지점 JSON theme.windows 로 직접 지정한 창 (벽·가운데·폭). 뒷벽(출입문 반대쪽, back)도 됨. 예: 이끼 정원 책장 사이 창
 //                벽에 걸린 액자·메뉴판, 회의실 문·엘리베이터 자리는 피하고 남은 가장 넓은 틈에 냄.
 //                창틀은 그 건물 파사드(facade)와 같은 모양. 파사드 없는 건물(캠빛 대학교)은 창 없음.
 //   windowHoles  한 벽에 난 창 → 그 벽에 낼 구멍 (벽을 따라가는 범위 a0~a1, 높이 y0~y1)
@@ -17,7 +18,7 @@ import type { FacadeStyle, PlacedBuilding } from './worldLogic'
 export const CAFE_WINDOW = { sill: 0.05, top: 2.2, edge: 0.4, doorGap: 0.4, decorPad: 0.15, minW: 1.2, pane: 1.6 }
 export const FLOOR_H = 3.6 // 건물 한 층 높이 (WorldDecor 의 BUILDING_H 와 같음). 위층에서는 거리를 이만큼씩 내려다봄
 
-export type WindowWall = 'front' | 'west' | 'east'
+export type WindowWall = 'front' | 'back' | 'west' | 'east'
 // x·z: 창 가운데 (벽 가운데 선 위), w: 벽을 따라가는 길이
 export type CafeWindow = { wall: WindowWall; x: number; z: number; w: number }
 export type CafeWindows = { style: FacadeStyle; level: number; spots: CafeWindow[] }
@@ -43,7 +44,7 @@ function widestGap(a: number, b: number, blocked: Span[]): Span | null {
 }
 
 // 벽에 걸린 액자의 face 는 액자가 보는 쪽: 출입문 벽(남)에 건 것은 n, 서쪽 벽은 e, 동쪽 벽은 w
-const FACE_OF: Record<WindowWall, Frame['face']> = { front: 'n', west: 'e', east: 'w' }
+const FACE_OF: Record<WindowWall, Frame['face']> = { front: 'n', back: 's', west: 'e', east: 'w' }
 
 // 그 벽을 따라 막힌 범위 (액자·메뉴판·회의실 문·엘리베이터)
 function blockedOn(layout: Layout, wall: WindowWall, line: number): Span[] {
@@ -86,6 +87,11 @@ export function cafeWindows(building: PlacedBuilding | undefined, layout: Layout
     const g = widestGap(-sd / 2 + W.edge, sd / 2 - W.edge, blockedOn(layout, side, x))
     if (g && g.a1 - g.a0 >= W.minW) spots.push({ wall: side, x, z: (g.a0 + g.a1) / 2, w: g.a1 - g.a0 })
   }
+  // 직접 지정한 창: at 은 벽을 따라가는 가운데 (앞·뒷벽은 x, 옆벽은 z)
+  for (const ex of layout.theme?.windows ?? []) {
+    const line = { front: door.z, back: -sd / 2, west: -sw / 2, east: sw / 2 }[ex.wall]
+    spots.push(ex.wall === 'front' || ex.wall === 'back' ? { wall: ex.wall, x: ex.at, z: line, w: ex.w } : { wall: ex.wall, x: line, z: ex.at, w: ex.w })
+  }
   return { style, level: floor.level, spots }
 }
 
@@ -93,7 +99,7 @@ export const windowHoles = (spots: CafeWindow[], wall: WindowWall): Hole[] =>
   spots
     .filter((s) => s.wall === wall)
     .map((s) => {
-      const at = wall === 'front' ? s.x : s.z
+      const at = wall === 'front' || wall === 'back' ? s.x : s.z
       return { a0: at - s.w / 2, a1: at + s.w / 2, y0: CAFE_WINDOW.sill, y1: CAFE_WINDOW.top }
     })
 

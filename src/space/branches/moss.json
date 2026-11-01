@@ -235,6 +235,22 @@
       "rot": 3.142,
       "desk": "bar",
       "chair": "shell"
+    },
+    {
+      "no": 25,
+      "x": 0.0,
+      "z": -7.4,
+      "rot": 3.142,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 26,
+      "x": 1.4,
+      "z": -7.4,
+      "rot": 3.142,
+      "desk": "bar",
+      "chair": "shell"
     }
   ],
   "theme": {
@@ -428,7 +444,29 @@
         "w": 2.4,
         "seed": 3
       }
-    ]
+    ],
+    "windows": [
+      {
+        "wall": "back",
+        "at": 0,
+        "w": 5.6
+      }
+    ],
+    "studyCafe": {
+      "windowBars": [
+        {
+          "x": 0,
+          "z": -7.625,
+          "len": 5.6,
+          "face": "s",
+          "lamps": [
+            -1.4,
+            0,
+            1.4
+          ]
+        }
+      ]
+    }
   },
   "barista": {
     "x": 4.9,
