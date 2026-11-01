@@ -14,7 +14,7 @@ import { holdStandingPose } from '../space/standStill'
 import { useSkin } from '../tracking/useSkin'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
 import { useHair } from '../tracking/useHair'
-import { LAYOUT, PARTS, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, randomAvatar } from '../avatar/avatarLogic'
+import { LAYOUT, SKIN_PRESETS, avatarKey, findPart, fitLayout, moveLayout, pickableParts, randomAvatar } from '../avatar/avatarLogic'
 import type { Avatar, LayoutField, Part, Slot } from '../avatar/avatarLogic'
 import { drawPartThumb } from '../avatar/composeSkin'
 
@@ -144,7 +144,7 @@ export function CharacterPicker({ value, onChange }: Props) {
             <div key={slot} style={styles.section}>
               {title && <span style={styles.label}>{title}</span>}
               <div style={styles.grid}>
-                {PARTS[slot].map((p) => (
+                {pickableParts(slot).map((p) => (
                   <button
                     key={p.id}
                     type="button"
