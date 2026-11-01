@@ -1,12 +1,12 @@
 // 스터디 플래너 한 장 (종이 플래너 칸 그대로: 날짜·TOTAL·D-day / WAKE UP·GOAL / SUB·TOPIC·CHECK / MOOD / MEMO / 10분 시간표)
 // 인쇄된 글자는 반듯한 글꼴(PRINT), 내가 쓴 글자는 손글씨(HAND). 시간표는 집중(초록) 기록으로 저절로 칠해지고,
-// 칸을 누르면 고른 형광펜으로 직접 칠할 수 있습니다(같은 색으로 다시 누르면 지움).
+// 칸을 누르면 고른 형광펜으로 직접 칠할 수 있습니다(같은 색으로 다시 누르면 지움). marker 가 null 이면(앞날) 칠하지 못함.
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { HOURS, MARKERS, ddayText, focusCells, formatHM, subjectColor, weekdayOf } from './plannerLogic'
 import type { PlannerData } from './plannerLogic'
 import type { SegmentKind } from '../study/segmentLogic'
-import { HAND, INK, LINE, PRINT, handInput, paperSurface, printLabel } from './paperStyle'
+import { HAND, INK, LINE, PRINT, handInput, handSize, paperSurface, printLabel } from './paperStyle'
 
 export const SHEET_W = 560 // 종이 크기 (화면에서는 배율로 줄이고 키움)
 export const SHEET_H = 800
@@ -16,7 +16,7 @@ const TABLE_H = 612 // 할 일·기분·메모와 10분 시간표 높이 (종이
 const corner: CSSProperties = { ...printLabel, position: 'absolute', left: 6, top: 3, fontSize: 12 }
 
 type Seg = { kind: SegmentKind; subjectId: number; startedAt: number; endedAt: number }
-type Props = { day: string; dayStart: number; data: PlannerData; segs: Seg[]; marker: number; update: (f: (d: PlannerData) => PlannerData) => void }
+type Props = { day: string; dayStart: number; data: PlannerData; segs: Seg[]; marker: number | null; update: (f: (d: PlannerData) => PlannerData) => void }
 
 // 기분 얼굴 (0 화남 … 5 아주 좋음)
 function Face({ kind, on, onPick }: { kind: number; on: boolean; onPick: () => void }) {
@@ -50,24 +50,24 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
       {/* 날짜 · TOTAL · D-day */}
       <div style={{ display: 'flex', gap: 8, height: 44 }}>
         <div style={{ flex: 1.3, borderBottom: B, display: 'flex', alignItems: 'flex-end', paddingBottom: 3, gap: 10 }}>
-          <span style={{ fontFamily: HAND, color: INK, fontSize: 26 }}>
+          <span style={{ fontFamily: HAND, color: INK, fontSize: handSize(26) }}>
             {y.slice(2)} / {m} / {dd}
           </span>
           <span style={{ ...printLabel, fontSize: 18 }}>(</span>
-          <span style={{ fontFamily: HAND, color: INK, fontSize: 24 }}>{weekdayOf(day)}</span>
+          <span style={{ fontFamily: HAND, color: INK, fontSize: handSize(24) }}>{weekdayOf(day)}</span>
           <span style={{ ...printLabel, fontSize: 18 }}>)</span>
         </div>
         <div style={{ ...box, flex: 1 }}>
           <span style={corner}>TOTAL</span>
-          <span style={{ position: 'absolute', right: 12, bottom: 2, fontFamily: HAND, color: INK, fontSize: 28 }}>{formatHM(total)}</span>
+          <span style={{ position: 'absolute', right: 12, bottom: 2, fontFamily: HAND, color: INK, fontSize: handSize(28) }}>{formatHM(total)}</span>
         </div>
         <div style={{ ...box, flex: 0.62, padding: '2px 6px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontFamily: HAND, color: INK, fontSize: 24, minWidth: 64 }}>{ddayText(data.dday.date, day) || <span style={{ ...printLabel, fontSize: 22, fontWeight: 400 }}>D-</span>}</span>
+            <span style={{ fontFamily: HAND, color: INK, fontSize: handSize(24), minWidth: 64 }}>{ddayText(data.dday.date, day) || <span style={{ ...printLabel, fontSize: 22, fontWeight: 400 }}>D-</span>}</span>
           </div>
           <div style={{ display: 'flex', gap: 2, position: 'absolute', left: 4, right: 4, bottom: 1 }}>
-            <input value={data.dday.label} maxLength={20} placeholder="시험" onChange={(e) => set({ dday: { ...data.dday, label: e.target.value } })} style={{ ...handInput, fontSize: 13, width: '45%' }} />
-            <input type="date" value={data.dday.date} onChange={(e) => set({ dday: { ...data.dday, date: e.target.value } })} style={{ ...handInput, fontSize: 9, width: '55%', color: LINE }} title="D-day 날짜" />
+            <input value={data.dday.label} maxLength={20} placeholder="시험" onChange={(e) => set({ dday: { ...data.dday, label: e.target.value } })} style={{ ...handInput, fontSize: handSize(13), width: '45%' }} />
+            <input type="date" value={data.dday.date} onChange={(e) => set({ dday: { ...data.dday, date: e.target.value } })} style={{ ...handInput, fontSize: handSize(9), width: '55%', color: LINE }} title="D-day 날짜" />
           </div>
         </div>
       </div>
@@ -76,11 +76,11 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
       <div style={{ display: 'flex', gap: 8, height: 44, marginTop: 10 }}>
         <div style={{ ...box, flex: 1.3 }}>
           <span style={corner}>WAKE UP</span>
-          <input value={data.wake} maxLength={5} placeholder="" onChange={(e) => set({ wake: e.target.value })} style={{ ...handInput, position: 'absolute', left: 90, bottom: 6, width: 120, fontSize: 26 }} />
+          <input value={data.wake} maxLength={5} placeholder="" onChange={(e) => set({ wake: e.target.value })} style={{ ...handInput, position: 'absolute', left: 90, bottom: 6, width: 120, fontSize: handSize(26) }} />
         </div>
         <div style={{ ...box, flex: 1.62 }}>
           <span style={corner}>GOAL</span>
-          <input value={data.goal} maxLength={200} onChange={(e) => set({ goal: e.target.value })} style={{ ...handInput, position: 'absolute', left: 54, right: 8, bottom: 6, width: 'auto', fontSize: 24 }} />
+          <input value={data.goal} maxLength={200} onChange={(e) => set({ goal: e.target.value })} style={{ ...handInput, position: 'absolute', left: 54, right: 8, bottom: 6, width: 'auto', fontSize: handSize(24) }} />
         </div>
       </div>
 
@@ -95,16 +95,16 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
             </div>
             {data.rows.map((r, i) => (
               <div key={i} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 52px', height: 34, borderBottom: i < data.rows.length - 1 ? B : 'none' }}>
-                <input value={r.sub} maxLength={20} onChange={(e) => update((d) => ({ ...d, rows: d.rows.map((x, j) => (j === i ? { ...x, sub: e.target.value } : x)) }))} style={{ ...handInput, padding: '0 4px', fontSize: 19 }} />
+                <input value={r.sub} maxLength={20} onChange={(e) => update((d) => ({ ...d, rows: d.rows.map((x, j) => (j === i ? { ...x, sub: e.target.value } : x)) }))} style={{ ...handInput, padding: '0 4px', fontSize: handSize(19) }} />
                 <input
                   value={r.topic}
                   maxLength={200}
                   onChange={(e) => update((d) => ({ ...d, rows: d.rows.map((x, j) => (j === i ? { ...x, topic: e.target.value } : x)) }))}
-                  style={{ ...handInput, padding: '0 6px', borderLeft: B, borderRight: B, fontSize: 19, textDecoration: r.done ? `line-through ${INK}` : 'none' }}
+                  style={{ ...handInput, padding: '0 6px', borderLeft: B, borderRight: B, fontSize: handSize(19), textDecoration: r.done ? `line-through ${INK}` : 'none' }}
                 />
                 <button
                   onClick={() => update((d) => ({ ...d, rows: d.rows.map((x, j) => (j === i ? { ...x, done: !x.done } : x)) }))}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: HAND, color: INK, fontSize: 26, lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: HAND, color: INK, fontSize: handSize(26), lineHeight: 1 }}
                   aria-label="다 했어요"
                 >
                   {r.done ? 'V' : ''}
@@ -128,7 +128,7 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
               value={data.memo}
               maxLength={1000}
               onChange={(e) => set({ memo: e.target.value })}
-              style={{ ...handInput, position: 'absolute', inset: '22px 8px 6px 8px', width: 'auto', resize: 'none', fontSize: 20, lineHeight: 1.35 }}
+              style={{ ...handInput, position: 'absolute', inset: '22px 8px 6px 8px', width: 'auto', resize: 'none', fontSize: handSize(20), lineHeight: 1.35 }}
             />
           </div>
         </div>
@@ -152,7 +152,9 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
               return (
                 <button
                   key={i}
+                  disabled={marker === null}
                   onClick={() =>
+                    marker !== null &&
                     update((d) => {
                       const marks = { ...d.marks }
                       if (marks[i] === marker) delete marks[i]
@@ -161,7 +163,7 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
                     })
                   }
                   title={f.ms > 0 ? `집중 ${Math.round(f.ms / 60000)}분` : undefined}
-                  style={{ position: 'relative', padding: 0, border: 'none', borderRight: c < 5 ? B : 'none', borderBottom: row < 23 ? B : 'none', background: 'transparent', cursor: 'pointer' }}
+                  style={{ position: 'relative', padding: 0, border: 'none', borderRight: c < 5 ? B : 'none', borderBottom: row < 23 ? B : 'none', background: 'transparent', cursor: marker === null ? 'default' : 'pointer' }}
                 >
                   {f.ms > 0 && f.subjectId !== null && (
                     <span style={{ position: 'absolute', left: 1, top: 2, bottom: 2, width: `calc(${Math.min(1, f.ms / 600000) * 100}% - 2px)`, background: subjectColor(f.subjectId), opacity: 0.85, borderRadius: 2 }} />
