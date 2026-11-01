@@ -2,7 +2,7 @@
 // 탭으로 나눠 스크롤 없이 봅니다. 처음 열면 [내 정보]입니다.
 //   내 정보  닉네임·생일·이메일·비밀번호 (예전 프로필의 "정보 변경" 탭)
 //   과목     과목 이름 바꾸기·정리·지우기 (#369, 공부 시작 창의 "과목 관리"와 같은 화면)
-//   화면·마우스  1인칭 마우스 감도, 걸을 때 미니맵 보기(기본 꺼짐, 광장·캠퍼스)
+//   화면·마우스  1인칭 마우스 감도, 걸을 때 미니맵 보기(기본 꺼짐, 광장·캠퍼스), 딱밤 받기(기본 켜짐, #304)
 //   단축키   단축키 바꾸기 (#250)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -11,6 +11,7 @@ import { KeymapSettings } from './KeymapSettings'
 import { AccountSettings } from './AccountSettings'
 import { SubjectSettings } from '../study/SubjectManager'
 import { setShowMinimap, useShowMinimap } from './minimapSetting'
+import { setFlickReceiving, useFlickReceiving } from './flickSetting'
 
 const TABS = [
   ['account', '내 정보'],
@@ -25,6 +26,7 @@ export function SettingsView() {
   const [sensitivity, setSensitivity] = useState(getMouseSensitivity)
   const change = (value: number) => setSensitivity(setMouseSensitivity(value))
   const minimap = useShowMinimap()
+  const flick = useFlickReceiving()
 
   return (
     <div style={styles.stack}>
@@ -87,6 +89,11 @@ export function SettingsView() {
             <input type="checkbox" checked={minimap} onChange={(e) => setShowMinimap(e.target.checked)} style={styles.check} />
           </label>
           <span style={styles.help}>광장·캠퍼스에서 1인칭으로 걸을 때 오른쪽 아래에 작은 지도를 띄워요. 켜면 컴퓨터가 조금 더 일해요. 전체 지도는 언제든 G 로 볼 수 있어요.</span>
+          <label style={{ ...styles.row, cursor: 'pointer', marginTop: 6 }}>
+            <span style={styles.label}>딱밤 받기</span>
+            <input type="checkbox" checked={flick} onChange={(e) => setFlickReceiving(e.target.checked)} style={styles.check} />
+          </label>
+          <span style={styles.help}>빨간불일 때 친구가 옆에 와서 딱밤으로 깨울 수 있어요(화면이 흔들리고 "딱!" 소리). 끄면 친구 화면에도 딱밤이 뜨지 않아요.</span>
         </div>
       )}
       {tab === 'keys' && <KeymapSettings />}
