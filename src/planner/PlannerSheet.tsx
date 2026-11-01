@@ -3,7 +3,7 @@
 // 칸을 누르면 고른 형광펜으로 직접 칠할 수 있습니다(같은 색으로 다시 누르면 지움). marker 가 null 이면(앞날) 칠하지 못함.
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import { HOURS, MARKERS, ddayText, focusCells, formatHM, subjectColor, weekdayOf } from './plannerLogic'
+import { HOURS, MARKERS, ddayText, focusCells, formatHM, weekdayOf } from './plannerLogic'
 import type { PlannerData } from './plannerLogic'
 import type { SegmentKind } from '../study/segmentLogic'
 import { HAND, INK, LINE, PRINT, handInput, handSize, paperSurface, printLabel } from './paperStyle'
@@ -16,7 +16,7 @@ const TABLE_H = 612 // 할 일·기분·메모와 10분 시간표 높이 (종이
 const corner: CSSProperties = { ...printLabel, position: 'absolute', left: 6, top: 3, fontSize: 12 }
 
 type Seg = { kind: SegmentKind; subjectId: number | null; startedAt: number; endedAt: number }
-type Props = { day: string; dayStart: number; data: PlannerData; segs: Seg[]; marker: number | null; update: (f: (d: PlannerData) => PlannerData) => void }
+type Props = { day: string; dayStart: number; data: PlannerData; segs: Seg[]; marker: number | null; colorOf: (id: number | null) => string; update: (f: (d: PlannerData) => PlannerData) => void }
 
 // 기분 얼굴 (0 화남 … 5 아주 좋음)
 function Face({ kind, on, onPick }: { kind: number; on: boolean; onPick: () => void }) {
@@ -37,7 +37,7 @@ function Face({ kind, on, onPick }: { kind: number; on: boolean; onPick: () => v
   )
 }
 
-export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Props) {
+export function PlannerSheet({ day, dayStart, data, segs, marker, colorOf, update }: Props) {
   const cells = useMemo(() => focusCells(segs, dayStart), [segs, dayStart])
   const total = cells.reduce((a, c) => a + c.ms, 0)
   const set = (patch: Partial<PlannerData>) => update((d) => ({ ...d, ...patch }))
@@ -166,7 +166,7 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
                   style={{ position: 'relative', padding: 0, border: 'none', borderRight: c < 5 ? B : 'none', borderBottom: row < 23 ? B : 'none', background: 'transparent', cursor: marker === null ? 'default' : 'pointer' }}
                 >
                   {f.ms > 0 && (
-                    <span style={{ position: 'absolute', left: 1, top: 2, bottom: 2, width: `calc(${Math.min(1, f.ms / 600000) * 100}% - 2px)`, background: subjectColor(f.subjectId), opacity: 0.85, borderRadius: 2 }} />
+                    <span style={{ position: 'absolute', left: 1, top: 2, bottom: 2, width: `calc(${Math.min(1, f.ms / 600000) * 100}% - 2px)`, background: colorOf(f.subjectId), opacity: 0.85, borderRadius: 2 }} />
                   )}
                   {mark !== undefined && <span style={{ position: 'absolute', inset: '3px 1px', background: MARKERS[mark], opacity: 0.6, transform: 'skewX(-8deg)', borderRadius: 3 }} />}
                 </button>

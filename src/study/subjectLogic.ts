@@ -13,6 +13,16 @@ export type Subject = { id: number; name: string; archivedAt: string | null }
 export const activeSubjects = (list: Subject[]) => list.filter((s) => s.archivedAt === null)
 export const archivedSubjects = (list: Subject[]) => list.filter((s) => s.archivedAt !== null)
 
+// 과목 색 (기록 도넛·플래너 시간표 공통). 내 과목 목록(만든 순서, 정리한 과목 포함 — 순서가 바뀌지 않음)에서
+// 몇 번째인지로 고릅니다. 예전엔 과목 번호(모두가 같이 쓰는 번호)로 골라 내 과목끼리 같은 색이 자주 났음.
+// 지운 과목(null)이나 목록을 아직 못 읽었을 때는 회색. 8개를 넘으면 색이 다시 돕니다.
+export const SUBJECT_PALETTE = ['#7fb3d5', '#f5b97a', '#9fd39b', '#e79ac0', '#b9a3e3', '#f2d16b', '#86d0c8', '#e88f86']
+export const DELETED_SUBJECT_COLOR = '#b8b8b8'
+export function subjectColorOf(list: Subject[], id: number | null): string {
+  const i = id === null ? -1 : list.findIndex((s) => s.id === id)
+  return i === -1 ? DELETED_SUBJECT_COLOR : SUBJECT_PALETTE[i % SUBJECT_PALETTE.length]
+}
+
 // 기록의 과목 번호 → 이름. 번호가 비었거나(지운 과목) 목록에 없으면 "(지운 과목)"
 export function subjectName(list: Subject[], id: number | null, loading = false): string {
   if (loading) return LOADING_SUBJECT

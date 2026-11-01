@@ -95,10 +95,7 @@ export function ddayText(target: string, day: string): string {
 export const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 export const weekdayOf = (day: string) => WEEKDAYS[(parseDay(day) ?? new Date()).getDay()]
 
-// 과목 색 (집중 기록 칠하기). 과목 번호마다 늘 같은 색, 지운 과목(null)은 회색
-const PALETTE = ['#7fb3d5', '#f5b97a', '#9fd39b', '#e79ac0', '#b9a3e3', '#f2d16b', '#86d0c8', '#e88f86']
-const DELETED_COLOR = '#b8b8b8'
-export const subjectColor = (id: number | null) => (id === null ? DELETED_COLOR : PALETTE[((id % PALETTE.length) + PALETTE.length) % PALETTE.length])
+// 과목 색은 study/subjectLogic.subjectColorOf (내 과목 순서로, 기록 도넛과 같은 색)
 // 손으로 칠하는 형광펜 색
 export const MARKERS = ['#f7d26b', '#f3a6b8', '#9fd6f0', '#a8dca0']
 
