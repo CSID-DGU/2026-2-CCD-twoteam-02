@@ -149,15 +149,19 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
 
   useEffect(() => {
     let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
-    const base = {
+    // 공부하는 중에 설정에서 이 과목을 지우면 과목 번호가 없어져 저장이 외래 키 오류(23503)로 실패합니다.
+    // 그때부터는 과목을 비워(null) 저장합니다. 공부 시간은 남고 내 기록에서 "(지운 과목)"으로 보입니다. (#369, 0047)
+    let subjectId: number | null = choice.subject.id
+    const FK_MISSING = '23503'
+    const base = () => ({
       user_id: userId,
       session_id: sessionId,
-      subject_id: choice.subject.id,
+      subject_id: subjectId,
       devices: devicesOf(choice),
-    }
+    })
     const save = async (row: ChunkRow) => {
       const values = {
-        ...base,
+        ...base(),
         started_at: new Date(row.startedAt).toISOString(),
         ended_at: new Date(row.endedAt).toISOString(),
         focused_seconds: row.focusedSeconds,
@@ -168,6 +172,10 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
         console.warn('study_logs.condition 칸이 없어 실험 조건 없이 저장합니다. 0011 마이그레이션을 실행해 주세요.')
         ;({ error } = await supabase.from('study_logs').insert(values))
       }
+      if (error?.code === FK_MISSING && subjectId !== null) {
+        subjectId = null
+        ;({ error } = await supabase.from('study_logs').insert({ ...values, subject_id: null, condition }))
+      }
       if (!error) return
       console.error('공부 기록을 저장하지 못했습니다:', error.message)
       setSaveError('기록 저장 실패')
@@ -175,16 +183,22 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     // 상태 구간은 여러 줄을 한 번에 보냅니다. 실패해도 공부 시간(study_logs)은 따로 저장됩니다.
     const saveSegments = async (rows: Segment[]) => {
       if (rows.length === 0) return
-      const { error } = await supabase.from('study_segments').insert(
-        rows.map((r) => ({
-          user_id: userId,
-          session_id: sessionId,
-          subject_id: choice.subject.id,
-          kind: r.kind,
-          started_at: new Date(r.startedAt).toISOString(),
-          ended_at: new Date(r.endedAt).toISOString(),
-        })),
-      )
+      const insert = () =>
+        supabase.from('study_segments').insert(
+          rows.map((r) => ({
+            user_id: userId,
+            session_id: sessionId,
+            subject_id: subjectId,
+            kind: r.kind,
+            started_at: new Date(r.startedAt).toISOString(),
+            ended_at: new Date(r.endedAt).toISOString(),
+          })),
+        )
+      let { error } = await insert()
+      if (error?.code === FK_MISSING && subjectId !== null) {
+        subjectId = null // 위 study_logs 와 같은 까닭
+        ;({ error } = await insert())
+      }
       if (error) console.error('상태 구간을 저장하지 못했습니다:', error.message)
     }
     // 지금까지의 구간을 잘라 저장합니다.

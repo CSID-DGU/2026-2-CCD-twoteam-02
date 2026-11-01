@@ -76,12 +76,42 @@ export type BackBar = { x: number; z: number; r: number }
 // 원목 살 기둥 조명: 세로 살 여러 개가 빛나는 기둥을 감쌈. 바닥부터 h 높이
 export type Pillar = { x: number; z: number; h: number; light?: boolean }
 
+// Cam Study Cafe (별다방 자리, 스터디카페 사진 느낌). face 는 그 물건이 보는 쪽(벽 안쪽)
+// 창가 바: 실제 통창(world.json sideWindow) 앞 벽에 붙은 긴 원목 바(가운데 x,z, 길이 len). lamps: 펜던트 등 자리(바 길이 방향, 가운데에서 m)
+export type WindowBar = { x: number; z: number; len: number; face: Frame['face']; lamps: number[] }
+// 붙박이 책장 벽: 원목 칸마다 따뜻한 간접등과 책. (x,z) 는 벽 좌표, w 폭
+export type BookWall = { x: number; z: number; w: number; face: Frame['face'] }
+// 화분: tree = 사람 키만 한 나무(큰 회색 화분), 없으면 바 위에 놓는 작은 풀
+export type Pot = { x: number; z: number; y?: number; tree?: boolean }
+// 천장 노출 덕트(흰 원통)·트랙 조명(검은 레일 + 스포트 등). rot 은 줄 방향(라디안, 0 = z 축 방향)
+export type CeilingRun = { x: number; z: number; len: number; rot: number }
+// 글자 간판: 검은 판에 세 줄 (Focus · Learn · Grow)
+export type Motto = { x: number; z: number; face: Frame['face']; lines: string[] }
+export type StudyCafeDecor = {
+  windowBars?: WindowBar[]
+  bookWalls?: BookWall[]
+  pots?: Pot[]
+  ducts?: CeilingRun[]
+  tracks?: CeilingRun[]
+  aircons?: { x: number; z: number }[] // 천장형 에어컨
+  mottos?: Motto[]
+}
+// 창가 바 상판 깊이·높이, 책장 깊이·높이, 큰 화분 반지름
+export const STUDY_CAFE = { barDepth: 0.55, barH: 0.74, shelfDepth: 0.38, shelfH: 2.6, potR: 0.34 }
+
+// 벽에 붙는 직사각형(바·책장)의 부딪힘 상자. face 가 e·w 면 길이가 z 쪽
+export function wallBoxOf(x: number, z: number, len: number, depth: number, face: Frame['face']) {
+  return face === 'e' || face === 'w' ? { x, z, w: depth, d: len } : { x, z, w: len, d: depth }
+}
+
 export type BranchTheme = {
   // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
   // concrete: 회색 콘크리트(colors = [바탕, 얼룩], cell 은 텍스처 한 장 크기)
-  floor?: { pattern: 'checker' | 'brick' | 'concrete'; colors: [string, string]; cell: number }
+  // stone: 큰 돌 타일(colors = [바탕, 얼룩], cell 은 타일 한 장 크기)
+  floor?: { pattern: 'checker' | 'brick' | 'concrete' | 'stone'; colors: [string, string]; cell: number }
   wall?: {
     color: string
+    texture?: 'plaster' // 회벽 질감 (없으면 한 색)
     neon?: string // 벽 위쪽 네온 띠 색 (없으면 안 그림)
     band?: { colors: [string, string, string]; y: number; h: number } // 벽 둘레 모자이크 타일 띠 (y 아래 끝, h 높이)
   }
@@ -93,7 +123,9 @@ export type BranchTheme = {
     globes?: Globe[] // 둥근 전구 조명
     grid?: { color: string; step: number; y: number } // 천장 아래 철제 격자 (step 간격, y 높이)
     coves?: { x: number; z: number; r: number }[] // 천장 둥근 간접조명 고리
+    texture?: 'plaster' // 천장 회벽 질감
   }
+  studyCafe?: StudyCafeDecor // Cam Study Cafe 소품 (창가 바·책장·화분·덕트·트랙 조명·간판)
   tree?: Tree
   shelves?: Shelf[]
   booths?: Booth[] // 원형 부스 (흑요 라운지)
@@ -209,7 +241,14 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
   const bars = (theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, w: b.inner * 2, d: b.inner * 2 }))
   const basin = theme?.basin ? [{ x: theme.basin.x, z: theme.basin.z, w: theme.basin.r * 2, d: theme.basin.r * 2 }] : []
   const risers = (theme?.risers ?? []).map((r) => ({ x: r.x, z: r.z, w: r.w, d: r.d }))
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers]
+  // Cam Study Cafe: 창가 바·책장은 벽에 붙은 상자, 큰 화분은 지름만큼 (바 자리 사이로 바 속에 들어가지 않게)
+  const sc = theme?.studyCafe
+  const cafe = [
+    ...(sc?.windowBars ?? []).map((b) => wallBoxOf(b.x, b.z, b.len, STUDY_CAFE.barDepth, b.face)),
+    ...(sc?.bookWalls ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (0.1 + STUDY_CAFE.shelfDepth) * 2, b.face)),
+    ...(sc?.pots ?? []).filter((p) => p.tree).map((p) => ({ x: p.x, z: p.z, w: STUDY_CAFE.potR * 2, d: STUDY_CAFE.potR * 2 })),
+  ]
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe]
 }
 
 // 둥근 방 곡선 벽을 부딪히게 하는 작은 상자들: 벽을 따라 ROUND_ROOM.boxStep 간격, 벽 바로 바깥에. 비운 쪽(gaps)은 뺍니다

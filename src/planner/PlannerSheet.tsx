@@ -15,7 +15,7 @@ const box: CSSProperties = { border: B, position: 'relative', boxSizing: 'border
 const TABLE_H = 612 // 할 일·기분·메모와 10분 시간표 높이 (종이 아래까지)
 const corner: CSSProperties = { ...printLabel, position: 'absolute', left: 6, top: 3, fontSize: 12 }
 
-type Seg = { kind: SegmentKind; subjectId: number; startedAt: number; endedAt: number }
+type Seg = { kind: SegmentKind; subjectId: number | null; startedAt: number; endedAt: number }
 type Props = { day: string; dayStart: number; data: PlannerData; segs: Seg[]; marker: number | null; update: (f: (d: PlannerData) => PlannerData) => void }
 
 // 기분 얼굴 (0 화남 … 5 아주 좋음)
@@ -165,7 +165,7 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, update }: Prop
                   title={f.ms > 0 ? `집중 ${Math.round(f.ms / 60000)}분` : undefined}
                   style={{ position: 'relative', padding: 0, border: 'none', borderRight: c < 5 ? B : 'none', borderBottom: row < 23 ? B : 'none', background: 'transparent', cursor: marker === null ? 'default' : 'pointer' }}
                 >
-                  {f.ms > 0 && f.subjectId !== null && (
+                  {f.ms > 0 && (
                     <span style={{ position: 'absolute', left: 1, top: 2, bottom: 2, width: `calc(${Math.min(1, f.ms / 600000) * 100}% - 2px)`, background: subjectColor(f.subjectId), opacity: 0.85, borderRadius: 2 }} />
                   )}
                   {mark !== undefined && <span style={{ position: 'absolute', inset: '3px 1px', background: MARKERS[mark], opacity: 0.6, transform: 'skewX(-8deg)', borderRadius: 3 }} />}

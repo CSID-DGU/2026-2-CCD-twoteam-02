@@ -22,6 +22,8 @@ import { StudyRunner } from './StudyRunner'
 import { CalibrationDialog } from './CalibrationDialog'
 import type { Baseline } from '../focus/calibration'
 import type { StudyCondition } from './condition'
+import { useCameraConsent } from '../tracking/useCameraConsent'
+import { CameraConsent, CameraLater, CameraTrouble } from '../tracking/CameraGate'
 
 // 다른 참여자에게 보낼 내 트래킹 결과. 지점 화면이 읽어 고개·눈·팔을 보냅니다.
 export type MyTracking = { face: RefObject<FaceState>; arms: RefObject<UserArms> }
@@ -55,17 +57,24 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   const [calibrated, setCalibrated] = useState(false) // 보정을 마쳤거나 건너뛰었는지
   // 쉬는 시간에도 웹캠을 끕니다(사용자 중지와 같음). 다만 막 앉아 공부 시작 창·자세 맞추기 중이면 켜 둡니다(cameraOffNow).
   // 창·캐릭터 얼림(onDialogChange)에는 쉬는 시간을 넣지 않습니다.
-  const cameraOff = cameraOffNow({ paused, onBreak: breakTime !== null, studying: choice !== null && calibrated && !calibrating })
-  const { face, pose, phone, status, message } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices, paused: cameraOff })
+  // 카메라를 켜기 전 안내(#376): 이 기기에서 처음이면 [카메라 켜기]를 누를 때까지 웹캠을 켜지 않음. [나중에]면 작은 막대만 남김
+  const consent = useCameraConsent()
+  const [later, setLater] = useState(false)
+  const consentOk = consent.state === 'ok'
+  const cameraOff = cameraOffNow({ paused, onBreak: breakTime !== null, studying: choice !== null && calibrated && !calibrating }) || !consentOk
+  const { face, pose, phone, status, message, errorName, retry } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices, paused: cameraOff })
+  const cameraFailed = consentOk && status === 'error' // 웹캠을 못 켬 → 원인별 안내와 [다시 시도]
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
-  const { subjects, loading, loadError, addSubject } = useSubjects(userId)
+  const { subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
   const [baseline, setBaseline] = useState<Baseline | null>(null) // 건너뛰면 null (눈 감음 판정 없음)
 
+  // 공부 시작 창은 카메라를 켤 수 있을 때만 띄움. 카메라 안내 창은 캐릭터를 얼리지 않아 E 로 일어날 수 있음
+  const dialogShown = dialogOpen && consentOk && !cameraFailed
   useEffect(() => {
-    onDialogChange(dialogOpen || calibrating || paused)
-  }, [dialogOpen, calibrating, paused, onDialogChange])
+    onDialogChange(dialogShown || calibrating || paused)
+  }, [dialogShown, calibrating, paused, onDialogChange])
   useEffect(() => {
     onPausedChange?.(paused)
   }, [paused, onPausedChange])
@@ -84,9 +93,20 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
 
   return (
     <>
-      <SelfView videoRef={videoRef} face={face} pose={pose} status={status} message={message} paused={cameraOff} />
+      <SelfView
+        videoRef={videoRef}
+        face={face}
+        pose={pose}
+        status={status}
+        message={message}
+        paused={cameraOff}
+        note={!consentOk ? '📷 카메라를 켜기 전이에요' : cameraFailed ? '📷 카메라를 켜지 못했어요' : undefined}
+      />
+      {/* 카메라 안내 (#376): 켜기 전 안내 → [나중에]면 작은 막대, 못 켰으면 원인별 안내 */}
+      {consent.state === 'needed' && (later ? <CameraLater onOpen={() => setLater(false)} /> : <CameraConsent onAgree={consent.agree} onLater={() => setLater(true)} />)}
+      {cameraFailed && <CameraTrouble errorName={errorName} onRetry={retry} />}
       {/* 앉는 순간부터 카메라 구도를 확인합니다. (공부 시작 전·공부 중 모두) */}
-      {!paused && <CameraGuideNotice pose={pose} />}
+      {!paused && consentOk && !cameraFailed && <CameraGuideNotice pose={pose} />}
 
       {choice && sessionId && calibrated ? (
         // key: 과목을 바꾸면 새 타이머로 다시 시작하고, 이전 타이머는 사라지면서 남은 기록을 저장합니다.
@@ -116,19 +136,22 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
       ) : choice && calibrated ? (
         <div style={{ ...startButton, background: 'rgba(32,35,42,.9)', color: '#fff' }}>자리 정보를 확인하는 중…</div>
       ) : (
-        !dialogOpen && (
+        !dialogOpen && consentOk && !cameraFailed && (
           <button type="button" style={startButton} onClick={() => setDialogOpen(true)}>
             📘 공부 시작하기
           </button>
         )
       )}
 
-      {dialogOpen && (
+      {dialogShown && (
         <StartStudyDialog
           subjects={subjects}
           loading={loading}
           loadError={loadError}
           addSubject={addSubject}
+          renameSubject={renameSubject}
+          setArchived={setArchived}
+          removeSubject={removeSubject}
           rules={rules}
           onStart={(c) => {
             setChoice(applyRules(c, rules)) // 창에서 잠갔더라도 판정에 들어가는 값은 여기서 한 번 더 맞춤

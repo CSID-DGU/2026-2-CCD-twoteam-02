@@ -75,7 +75,7 @@ export function usePlannerPage(day: string) {
   return { data: loaded?.day === day ? loaded.data : null, update, save }
 }
 
-type Seg = { kind: SegmentKind; subjectId: number; startedAt: number; endedAt: number }
+type Seg = { kind: SegmentKind; subjectId: number | null; startedAt: number; endedAt: number }
 
 // 그날(5시~다음 날 5시) 공부 상태 구간. 오늘 장이면 1분마다 다시 읽어 시간표가 따라 칠해짐
 export function useDaySegments(day: string) {
@@ -98,7 +98,7 @@ export function useDaySegments(day: string) {
       }
       setRows({
         day,
-        segs: (data ?? []).map((r) => ({ kind: r.kind as SegmentKind, subjectId: r.subject_id as number, startedAt: Date.parse(r.started_at), endedAt: Date.parse(r.ended_at) })),
+        segs: (data ?? []).map((r) => ({ kind: r.kind as SegmentKind, subjectId: r.subject_id as number | null, startedAt: Date.parse(r.started_at), endedAt: Date.parse(r.ended_at) })),
       })
     }
     void load()

@@ -1,16 +1,19 @@
 // 지점 데이터(JSON)에서 충돌 상자를 만듭니다. 화면 표시와 충돌 판정이 같은 값을 씁니다.
-import { LOUNGER, decorBoxes, stoolBoxes } from './theme'
+import { LOUNGER, decorBoxes, stoolBoxes, wallPose } from './theme'
 import type { BranchTheme } from './theme'
 import type { BranchRules } from './rulesLogic'
 import type { AmbienceKind } from './ambience'
+import type { NoteBoardSpec } from '../board/CorkBoard'
 
 export type Box = { x: number; z: number; w: number; d: number }
 
 // tall: 높은 의자(바 스툴) 자리. 앉은 캐릭터와 좌석 카메라가 TALL_RAISE 만큼 올라갑니다 (#57 다이너 테마)
 // chair: 원목 테마에서 이 자리의 의자 모양 (booth = 원목 부스, chair = 원목 의자, none = 의자 없이 방석만(원형 부스 안), stool = 높은 원목 스툴, tub = 둥근 1인 소파, 기본 chair)
 // desk: 이 자리 책상 모양 (round = 1인 둥근 작은 테이블, low = 낮은 둥근 테이블, 없으면 기본 테이블)
-// desk: carrel 칸막이 책상(도서관), computer 컴퓨터 책상(정보관). rise: 계단식 단 위 자리(강의실) — 책상·의자·앉은 높이를 올림(m)
-type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger'; desk?: 'round' | 'low' | 'carrel' | 'computer'; rise?: number }
+// desk: carrel 칸막이 책상(도서관), computer 컴퓨터 책상(정보관), cubicle 둥근 원목 칸막이 + 골유리 + 스탠드, bar 창가 바(바 상판은 테마 studyCafe 가 그림) — Cam Study Cafe.
+// chair: office 메시 사무용 의자, shell 패브릭 셸 의자(창가 바) — Cam Study Cafe. rise: 계단식 단 위 자리(강의실) — 책상·의자·앉은 높이를 올림(m)
+export type SeatChair = 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger' | 'office' | 'shell'
+type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: SeatChair; desk?: 'round' | 'low' | 'carrel' | 'computer' | 'cubicle' | 'bar'; rise?: number }
 export const TALL_RAISE = 0.3 // 높은 의자에 앉았을 때 올라가는 높이 (의자 0.45 → 스툴 0.75)
 // 지점 배치. 스터디카페는 키오스크(kiosk), 카페는 커피 바(bar)가 있습니다. (#44)
 export type BranchLayout = {
@@ -27,7 +30,9 @@ export type BranchLayout = {
   ambience?: AmbienceKind // 들어가면 깔리는 배경 소리 (ambience.ts, 예: 숨 라운지 물소리). 없으면 조용함
   rules?: BranchRules // 건물별 공부 규칙 (고정 설정·방해금지 고정·감정표현, rulesLogic.ts). 없으면 지금처럼
   elevator?: Box // 엘리베이터 문 (서쪽·동쪽 벽). 여러 층 건물(world.json floors)의 지점에만. 앞에서 E 로 다른 층으로
+  stairs?: 'up' | 'down' // 있으면 elevator 자리를 엘리베이터 대신 계단으로 그림 (별다방: 두 층뿐이라 E 를 누르면 층 고르기 없이 바로 다른 층으로)
   kiosk?: { x: number; z: number }
+  noteBoard?: NoteBoardSpec // 벽에 걸린 코르크 게시판 (앞에서 E 로 쪽지 보기·붙이기, board_notes 0047). Cam Study Cafe 1층
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
   mapSprite?: string // 전체 지도에서 지붕 대신 쓸 건물 그림 (public/ 기준 주소, 선택). 없으면 색 칠한 지붕 (#300)
@@ -49,6 +54,26 @@ export function elevatorFront(door: Box): { x: number; z: number; heading: numbe
   return { x: door.x + inward * (door.w / 2 + MEETING_DOOR_REACH), z: door.z, heading: (inward * Math.PI) / 2 }
 }
 
+// 계단 앞 E 를 누르는 자리. 계단은 벽을 따라 길게 놓여서, 옆면 가운데가 아니라 끝에 섭니다 (사람은 계단 끝으로 다가감).
+// up 은 낮은 끝(+z, 벽이 남·북이면 +x), down 은 바닥 구멍의 입구(그 반대 끝). StudyCafeDecor 의 Staircase 와 같은 규칙.
+// heading: 방 안쪽(벽 반대쪽)을 보는 방향 (계단에서 막 내려왔을 때)
+export function stairsFront(box: Box, dir: 'up' | 'down'): { x: number; z: number; heading: number } {
+  const alongZ = box.d >= box.w
+  const end = dir === 'up' ? 1 : -1
+  const reach = (alongZ ? box.d : box.w) / 2 + MEETING_DOOR_REACH
+  return alongZ
+    ? { x: box.x, z: box.z + end * reach, heading: box.x < 0 ? Math.PI / 2 : -Math.PI / 2 }
+    : { x: box.x + end * reach, z: box.z, heading: box.z < 0 ? 0 : Math.PI }
+}
+
+// 코르크 게시판 앞 자리: 의자처럼 Player 의 자리 목록에 넣어 E 를 받습니다(광장 순위 게시판 BOARD_NO 와 같은 방식). 앉지는 않음
+export const NOTE_BOARD_NO = 9000
+const NOTE_BOARD_GAP = 1.0 // 벽에서 이만큼 앞에 섬
+export function noteBoardSpot(b: NoteBoardSpec): Spot {
+  const p = wallPose(b.x, b.z, b.face, 0, NOTE_BOARD_GAP)
+  return { no: NOTE_BOARD_NO, x: p.x, z: p.z, rot: p.rotY + Math.PI } // 판을 바라봄
+}
+
 export function obstaclesOf(b: Branch): Box[] {
   return [
     ...b.walls,
@@ -65,7 +90,7 @@ export function obstaclesOf(b: Branch): Box[] {
 // 앉는 자리: 좌석 번호, 의자 위치, 앉았을 때 바라보는 방향(책상 쪽)
 // y: 앉는 높이 보정. 높은 의자면 TALL_RAISE, 아니면 0 (회의실처럼 따로 만드는 자리는 생략 = 0)
 // lie: 누운 각도(라운지 소파). 앉은 캐릭터를 이만큼 뒤로 눕히고, 1인칭 시점은 낮추고 위를 봄
-export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger'; lie?: number; rise?: number; standAt?: { x: number; z: number } }
+export type Spot = { no: number; x: number; z: number; rot: number; y?: number; tall?: boolean; chair?: SeatChair; lie?: number; rise?: number; standAt?: { x: number; z: number } }
 const CHAIR_GAP = 0.65 // 책상 중심에서 의자까지 거리
 const STAND_BACK = 0.7 // 단 위 자리에서 일어날 때 의자 뒤로 물러서는 거리 (단 끝 0.3 + 캐릭터 반경 0.3 + 여유, 다시 앉는 거리 0.9 안)
 export const CHAIR = { w: 0.45, h: 0.45, d: 0.45 }

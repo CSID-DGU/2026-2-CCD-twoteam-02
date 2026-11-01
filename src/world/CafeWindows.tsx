@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import type { BranchLayout } from '../space/layout'
 import { CAFE_WINDOW, FLOOR_H, paneCount } from './cafeWindowLogic'
 import type { CafeWindow, CafeWindows as Windows, WindowWall } from './cafeWindowLogic'
-import { cafeWindowsOf } from './cafeWindowsOf'
+import { cafeWindowsOf, windowLayoutOf } from './cafeWindowsOf'
 import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
 import type { Portal } from './cafePortal'
 import { benchSeats, buildingOf } from './worldLogic'
@@ -33,6 +33,7 @@ const FRAME: Record<FacadeStyle, { color: string; t: number; rows: number }> = {
   garden: { color: '#5e4330', t: 0.08, rows: 0 }, // 올리브 테라스 나무 틀
   modern: { color: '#0f0f10', t: 0.05, rows: 0 }, // 흑요 라운지 얇은 검은 틀 통유리
   woodbar: { color: '#c9a24a', t: 0.07, rows: 1 }, // 월넛 바 금테
+  moss: { color: '#1d1d1d', t: 0.05, rows: 0 }, // 이끼 정원 얇은 검은 철제 틀
 }
 const WALL_HALF = 0.1 // 지점 벽 두께(0.2)의 반. 창 판은 벽 바깥 면에, 거리는 그 바깥만 그림
 const SILL = { d: 0.14, t: 0.04 } // 창턱 깊이·두께 (방 안쪽으로)
@@ -52,7 +53,8 @@ function clipOf(wall: WindowWall, at: number) {
 }
 
 // showPeople: 거리의 사람을 그릴지 (캐릭터 숨김 실험 모드면 false)
-export function CafeWindows({ layout, showPeople }: { layout: Layout; showPeople: boolean }) {
+export function CafeWindows({ layout: raw, showPeople }: { layout: Layout; showPeople: boolean }) {
+  const layout = useMemo(() => windowLayoutOf(raw), [raw]) // 위층은 1층 출입문 자리를 빌려 씀
   const windows = useMemo(() => cafeWindowsOf(layout), [layout])
   if (!windows || !layout.door || windows.spots.length === 0) return null
   return <CafePortal slug={layout.id} doorZ={layout.door.z} doorX={layout.door.x} windows={windows} showPeople={showPeople} />

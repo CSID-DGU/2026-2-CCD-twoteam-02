@@ -2,13 +2,14 @@
 // React·DB 와 무관한 순수 로직입니다. 구간을 만드는 쪽은 segmentLogic.ts 입니다.
 import type { SegmentKind } from './segmentLogic'
 
-export type SegmentRow = { id: number; kind: SegmentKind; subjectId: number; startedAt: number; endedAt: number } // 시각은 ms
+// subjectId 가 null 이면 지운 과목 (#369)
+export type SegmentRow = { id: number; kind: SegmentKind; subjectId: number | null; startedAt: number; endedAt: number } // 시각은 ms
 
 // 한 칸. 5분 저장 경계에서 잘린 같은 종류의 구간들을 합친 것이라 원래 구간 번호(ids)를 같이 둡니다. (오판 신고 #121)
-export type BandCell = { kind: SegmentKind; subjectId: number; startedAt: number; endedAt: number; ids: number[] }
+export type BandCell = { kind: SegmentKind; subjectId: number | null; startedAt: number; endedAt: number; ids: number[] }
 
 // 공부 한 번: "공부 시작"부터 일어나거나 과목을 바꿀 때까지. 띠 한 줄이 된다.
-export type BandRun = { subjectId: number; startedAt: number; endedAt: number; cells: BandCell[] }
+export type BandRun = { subjectId: number | null; startedAt: number; endedAt: number; cells: BandCell[] }
 
 // 빨강의 사유 (focusLogic 의 상태 이름과 같은 말)
 export const KIND_LABEL: Record<SegmentKind, string> = {

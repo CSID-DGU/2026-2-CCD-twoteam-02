@@ -43,23 +43,33 @@ function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 
 // 지점별 실내
 const INTERIOR: Record<FacadeStyle, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
-  // 별다방: 크림 벽, 책 꽂힌 선반, 긴 책상과 초록 스탠드
+  // Cam Study Cafe (예전 별다방): 회벽, 펜던트 등, 둥근 원목 칸막이(위는 골유리) 줄과 검은 스탠드 불빛, 안쪽 원목 책장
   classic(ctx, w, h) {
-    rect(ctx, '#e9dcc3', 0, 0, w, h)
-    rect(ctx, '#7a5534', 0, h * 0.78, w, h * 0.22)
-    for (let s = 0; s < 2; s++) {
-      const y = 22 + s * 34
-      rect(ctx, '#6b4a2e', 12, y + 22, w - 24, 4)
-      for (let x = 16; x < w - 20; x += 7) rect(ctx, ['#a33', '#2f5d8a', '#c9a24a', '#3d7a4a', '#7a3d6b'][(x + s) % 5], x, y + 6 + ((x * 7) % 5), 5, 16 - ((x * 7) % 5))
+    rect(ctx, '#e9e4dc', 0, 0, w, h)
+    rect(ctx, '#9a7652', w * 0.3, h * 0.12, w * 0.4, h * 0.5) // 안쪽 책장
+    for (let y = h * 0.16; y < h * 0.6; y += 12) {
+      rect(ctx, '#d2b48c', w * 0.3, y, w * 0.4, 2)
+      glow(ctx, w * 0.5, y + 3, 30, 'rgba(255,215,160,0.35)')
     }
-    rect(ctx, '#5a3a22', 10, h * 0.66, w - 20, 8)
-    for (const x of [50, 128, 206]) {
-      rect(ctx, '#2c2c2c', x - 1, h * 0.56, 2, 14)
-      ctx.fillStyle = '#1f6b45'
+    for (const x of [w * 0.12, w * 0.3, w * 0.7, w * 0.88]) {
+      rect(ctx, '#1d1d1f', x - 1, 0, 2, h * 0.2) // 펜던트 줄
+      ctx.fillStyle = '#1d1d1f'
       ctx.beginPath()
-      ctx.ellipse(x, h * 0.56, 12, 7, 0, Math.PI, 0)
+      ctx.moveTo(x - 4, h * 0.2)
+      ctx.lineTo(x + 4, h * 0.2)
+      ctx.lineTo(x + 11, h * 0.28)
+      ctx.lineTo(x - 11, h * 0.28)
       ctx.fill()
-      glow(ctx, x, h * 0.62, 26)
+      glow(ctx, x, h * 0.3, 26)
+    }
+    for (let x = 8; x < w - 30; x += 44) {
+      ctx.fillStyle = '#d2b48c' // 둥근 칸막이 (위 모서리 둥글게)
+      ctx.beginPath()
+      ctx.roundRect(x, h * 0.48, 40, h * 0.52, [10, 10, 0, 0])
+      ctx.fill()
+      rect(ctx, '#f1ebdf', x + 4, h * 0.52, 32, h * 0.1) // 골유리
+      rect(ctx, '#1d1d1f', x + 30, h * 0.6, 2, 10) // 스탠드
+      glow(ctx, x + 26, h * 0.7, 18)
     }
   },
   // 레트로카페: 민트 벽, 빨간 네온 줄, 둥근 시계, 체크 바닥, 빨간 카운터와 스툴
@@ -133,6 +143,29 @@ const INTERIOR: Record<FacadeStyle, (ctx: CanvasRenderingContext2D, w: number, h
     }
     rect(ctx, '#6b3f24', 0, h * 0.68, w, h * 0.32)
     rect(ctx, '#c9a24a', 0, h * 0.68, w, 3)
+  },
+  // 이끼 정원: 밝은 벽, 이끼 러그, 검은 책상과 올리브 의자, 가운데 나무 화단, 둥근 전등
+  moss(ctx, w, h) {
+    rect(ctx, '#e4e1da', 0, 0, w, h)
+    rect(ctx, '#cfccc5', 0, h * 0.8, w, h * 0.2)
+    ctx.fillStyle = '#4f6a2a'
+    ctx.beginPath()
+    ctx.ellipse(w * 0.3, h * 0.9, 70, 12, 0, 0, Math.PI * 2)
+    ctx.fill()
+    rect(ctx, '#3f4a4f', w * 0.45, h * 0.62, 40, h * 0.2) // 나무 화단
+    rect(ctx, '#6b4a2e', w * 0.45 + 18, h * 0.3, 4, h * 0.32)
+    dot(ctx, '#5c8a3a', w * 0.45 + 20, h * 0.28, 26)
+    dot(ctx, '#7aa64a', w * 0.45 + 32, h * 0.22, 16)
+    for (const x of [40, 200]) {
+      rect(ctx, '#1d1d1d', x - 26, h * 0.66, 52, 4) // 검은 책상
+      rect(ctx, '#1d1d1d', x - 2, h * 0.66, 3, h * 0.14)
+      rect(ctx, '#6b7a4a', x - 12, h * 0.6, 24, 12) // 올리브 의자 등받이
+    }
+    for (const x of [60, 190]) {
+      rect(ctx, '#333', x, 0, 1, 28)
+      dot(ctx, '#fff4d6', x, 32, 7)
+      glow(ctx, x, 34, 30)
+    }
   },
 }
 
@@ -239,4 +272,14 @@ export function letterSignTexture(lines: SignLine[], face: string, side: string)
     })
   }
   return t
+}
+
+// 이끼 벽: 여러 초록 점을 촘촘히 겹쳐 폭신한 이끼처럼 (반복하지 않는 한 장)
+export function mossTexture() {
+  return cached('moss-wall', 128, 256, (ctx, w, h) => {
+    rect(ctx, '#3f5a2a', 0, 0, w, h)
+    let s = 7
+    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647)
+    for (let i = 0; i < 900; i++) dot(ctx, ['#4f6a2a', '#5c8a3a', '#6f9a44', '#3a5226', '#86ad4f'][i % 5], rnd() * w, rnd() * h, 2 + rnd() * 5)
+  })
 }

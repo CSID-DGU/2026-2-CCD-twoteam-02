@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 
 const PX = 512 // 그림 한 변
-export const TILE = { cobble: 8, brick: 4, gravel: 1.2, grass: 3 } // 그림 한 장이 덮는 땅 크기(m)
+export const TILE = { cobble: 8, brick: 4, gravel: 1.2, grass: 3, concrete: 3 } // 그림 한 장이 덮는 땅 크기(m)
 
 // 정해진 난수
 function random(seed: number) {
@@ -212,10 +212,53 @@ function speckle(ctx: CanvasRenderingContext2D, r: () => number, alpha: number) 
   ctx.restore()
 }
 
+// 콘크리트 (캠퍼스 산책로): 잔 알갱이 + 군데군데 얼룩 + 판 사이 줄눈(한 장에 2×2 판 = TILE.concrete 3m 에 1.5m 판)
+function makeConcrete(): Pair {
+  const [mc, m] = canvas()
+  const [bc, b] = canvas()
+  const r = random(83)
+  m.fillStyle = '#d2cfc8'
+  m.fillRect(0, 0, PX, PX)
+  b.fillStyle = '#9a9a9a'
+  b.fillRect(0, 0, PX, PX)
+  for (let i = 0; i < 18; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const rad = 30 + r() * 70
+    const dark = r() < 0.6
+    wrapped((dx, dy) => {
+      const g = m.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad)
+      g.addColorStop(0, dark ? 'rgba(120,115,105,0.18)' : 'rgba(255,255,250,0.2)')
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      m.fillStyle = g
+      m.fillRect(x + dx - rad, y + dy - rad, rad * 2, rad * 2)
+    })
+  }
+  for (let i = 0; i < 14000; i++) {
+    const x = r() * PX
+    const y = r() * PX
+    const l = 150 + Math.floor(r() * 90)
+    m.fillStyle = `rgb(${l},${l - 2},${l - 6})`
+    m.fillRect(x, y, 1.4, 1.4)
+    b.fillStyle = `rgb(${l - 20},${l - 20},${l - 20})`
+    b.fillRect(x, y, 1.4, 1.4)
+  }
+  // 줄눈: 가장자리와 가운데 (반복하면 판이 이어짐)
+  for (const k of [0, PX / 2]) {
+    m.fillStyle = 'rgba(90,85,78,0.55)'
+    m.fillRect(k, 0, 3, PX)
+    m.fillRect(0, k, PX, 3)
+    b.fillStyle = '#3a3a3a'
+    b.fillRect(k, 0, 3, PX)
+    b.fillRect(0, k, PX, 3)
+  }
+  return { map: texture(mc, true), bump: texture(bc, false) }
+}
+
 // 처음 쓸 때 한 번만 그립니다.
-let made: { cobble: Pair; brick: Pair; gravel: Pair; grass: Pair } | null = null
+let made: { cobble: Pair; brick: Pair; gravel: Pair; grass: Pair; concrete: Pair } | null = null
 export function groundTextures() {
-  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel(), grass: makeGrass() }
+  made ??= { cobble: makeCobble(), brick: makeBrick(), gravel: makeGravel(), grass: makeGrass(), concrete: makeConcrete() }
   return made
 }
 

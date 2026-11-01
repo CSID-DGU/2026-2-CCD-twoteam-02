@@ -21,6 +21,7 @@ import { GUIDE_POINTS, isFramed } from "./poseFrame";
 import { BG_SAMPLE_HEIGHT, BG_SAMPLE_WIDTH, cellMeans, compareBackground, personCells } from "./background";
 import type { PosePoint } from "./poseFrame";
 import { workerInterval } from "../lib/workerInterval";
+import { MODEL_LOAD_ERROR } from "./cameraHelp";
 
 // package.json에 설치된 @mediapipe/tasks-vision 버전과 맞춰야 합니다.
 const WASM_URL =
@@ -100,6 +101,8 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
   });
   const [status, setStatus] = useState<TrackingStatus>("loading");
   const [message, setMessage] = useState("");
+  const [errorName, setErrorName] = useState(""); // 웹캠을 못 켰을 때 오류 이름 (NotAllowedError 등, cameraHelp 가 원인을 나눔 #376)
+  const [attempt, setAttempt] = useState(0); // 올리면 웹캠부터 인식 모델까지 처음부터 다시 준비 (#376 [다시 시도])
   const [poseStatus, setPoseStatus] = useState<TrackingStatus>("loading");
 
   useEffect(() => {
@@ -261,6 +264,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
               if (cancelled) return;
               setStatus("error");
               setMessage(error instanceof Error ? error.message : String(error));
+              setErrorName(error instanceof Error ? error.name : "");
             })
             .finally(() => {
               opening = null;
@@ -271,14 +275,22 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       if (!pausedRef.current) await openCamera(video);
       if (cancelled) return;
 
-      const fileset = await FilesetResolver.forVisionTasks(WASM_URL);
-      faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-        outputFaceBlendshapes: true,
-        outputFacialTransformationMatrixes: true,
-      });
+      // 인식 모델(인터넷에서 받음)을 못 불러오면 카메라 문제와 구분해 알립니다(#376, cameraHelp 의 'model')
+      let fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
+      try {
+        fileset = await FilesetResolver.forVisionTasks(WASM_URL);
+        faceLandmarker = await FaceLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: "GPU" },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
+        });
+      } catch (error) {
+        const wrapped = new Error(error instanceof Error ? error.message : String(error));
+        wrapped.name = MODEL_LOAD_ERROR;
+        throw wrapped;
+      }
       if (cancelled) return;
       setStatus("ready");
 
@@ -397,6 +409,7 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       if (cancelled) return;
       setStatus("error");
       setMessage(error instanceof Error ? error.message : String(error));
+      setErrorName(error instanceof Error ? error.name : "");
     });
 
     return () => {
@@ -414,9 +427,17 @@ export function useTracking(videoRef: RefObject<HTMLVideoElement | null>, option
       poseState.bgSame = null;
       poseState.lastMotionMs = null;
     };
-  }, [videoRef]);
+  }, [videoRef, attempt]);
 
-  return { face, pose, phone, status, message, poseStatus };
+  // 다시 시도 (#376): 권한을 허용했거나 다른 앱을 닫은 뒤 일어나지 않고 웹캠을 다시 켭니다.
+  const retry = () => {
+    setStatus("loading");
+    setMessage("");
+    setErrorName("");
+    setAttempt((a) => a + 1);
+  };
+
+  return { face, pose, phone, status, message, errorName, retry, poseStatus };
 }
 
 function toJoint(world: Landmark, image: NormalizedLandmark): Joint {

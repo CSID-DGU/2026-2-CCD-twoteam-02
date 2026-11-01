@@ -9,6 +9,8 @@ import type { Box } from './layout'
 import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
 import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
 import { LABEL_PX, labelTexture } from './labelTexture'
+import { StudyCafeDecor } from './StudyCafeDecor'
+import { plasterTexture, stoneTileTexture } from './studyCafeTextures'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
@@ -29,7 +31,7 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
   const h = ceilingHeightOf(theme)
   return (
     <group>
-      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} height={h} hole={theme.dome} />}
+      {theme.ceiling && <Ceiling color={theme.ceiling.color} size={size} height={h} hole={theme.dome} plaster={theme.ceiling.texture === 'plaster'} />}
       {theme.dome && <DomeSkylight dome={theme.dome} height={h} />}
       {theme.round && <RoundWall round={theme.round} height={h} />}
       {theme.basin && <FogBasin basin={theme.basin} />}
@@ -54,6 +56,7 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
       {theme.risers?.map((r, i) => <RiserStep key={i} riser={r} />)}
       {theme.board && <Blackboard board={boardText ? { ...theme.board, text: boardText } : theme.board} />}
       {theme.mushrooms?.map((m, i) => <MushroomLamp key={i} lamp={m} />)}
+      {theme.studyCafe && <StudyCafeDecor decor={theme.studyCafe} height={h} />}
     </group>
   )
 }
@@ -63,7 +66,10 @@ export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[size.w, size.d]} />
-      {floor?.pattern === 'concrete' ? (
+      {floor?.pattern === 'stone' ? (
+        // 큰 돌 타일 텍스처 한 장에 타일 2×2 장이라, 면 전체에 (면 ÷ 타일 두 장)번 반복합니다.
+        <meshStandardMaterial roughness={0.7} map={stoneTileTexture(floor.colors, { x: size.w / (floor.cell * 2), y: size.d / (floor.cell * 2) })} />
+      ) : floor?.pattern === 'concrete' ? (
         // 콘크리트 텍스처 한 장이 cell(m) 크기라, 면 전체에 (면 ÷ cell)번 반복합니다.
         <meshStandardMaterial roughness={0.9} map={concreteTexture(floor.colors, { x: size.w / floor.cell, y: size.d / floor.cell })} />
       ) : floor?.pattern === 'brick' ? (
@@ -84,7 +90,8 @@ export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor
 
 // 천장: 아래를 보는 평면. planeGeometry 의 앞면은 +z 라 x 축으로 +90° 돌리면 앞면이 -y(아래)를 봅니다.
 // hole: 천창이 있으면 그 자리에 둥근 구멍 (ShapeGeometry 는 x·y 평면이라, x 축으로 돌리면 y 가 월드 z 가 됩니다)
-function Ceiling({ color, size, height, hole }: { color: string; size: Size; height: number; hole?: Dome }) {
+// plaster: 회벽 질감 (Cam Study Cafe)
+function Ceiling({ color, size, height, hole, plaster }: { color: string; size: Size; height: number; hole?: Dome; plaster?: boolean }) {
   const holed = useMemo(() => {
     if (!hole) return null
     const shape = new Shape()
@@ -101,7 +108,7 @@ function Ceiling({ color, size, height, hole }: { color: string; size: Size; hei
   return (
     <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]} geometry={holed ?? undefined}>
       {!holed && <planeGeometry args={[size.w, size.d]} />}
-      <meshStandardMaterial color={color} roughness={1} side={DoubleSide} />
+      <meshStandardMaterial color={plaster ? '#ffffff' : color} map={plaster ? plasterTexture(color, { x: size.w / 4, y: size.d / 4 }) : undefined} roughness={1} side={DoubleSide} />
     </mesh>
   )
 }

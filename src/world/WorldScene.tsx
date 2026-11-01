@@ -70,10 +70,14 @@ import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCro
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
-import { Benches, Building, Fence, Ground, Lamps, Trees } from './WorldDecor'
+import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
 import { NightFill, StringLights } from './StreetLights'
+import { ShopInteriors } from './ShopInteriors'
+import { SoccerPitch, Walks } from './CampusField'
+import { SoccerBall } from './SoccerBall'
+import { shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { LanternCourtyard } from './LanternTree'
 import { WorldSky } from './WorldSky'
@@ -404,17 +408,24 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <Garden plaza={PLAZA} buildings={PLACED} />
         <Fence plaza={PLAZA} />
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
-        {PLAZA.ground === 'lawn' ? <Trees trees={PLAZA.trees} /> : <LushTrees trees={PLAZA.trees} />}
-        {PLAZA.ground === 'lawn' ? <Benches benches={PLAZA.benches} /> : <GardenBenches benches={PLAZA.benches} />}
+        {/* 나무·벤치: 캠리단길·캠퍼스 모두 풍성한 활엽수와 정원 벤치 (질감 있게) */}
+        <LushTrees trees={PLAZA.trees} />
+        <GardenBenches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />
+        {/* 캠퍼스: 굽은 산책로, 축구장과 같이 차는 축구공 */}
+        {PLAZA.walks && <Walks walks={PLAZA.walks} />}
+        {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
+        {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
         {PLAZA.ground !== 'lawn' && <NightFill />}
+        {/* 캠리단길 가게 유리창으로 보이는 실제 실내와 안의 사람 (가까이·화면에 보일 때만 그림) */}
+        {world.id === 'plaza' && <ShopInteriors world={world} placed={PLACED} showPeople={condition === 'visible'} />}
         {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
         {PLAZA.board && <RankingBoard board={PLAZA.board} ranking={todayRanking} photos={boardPhotos} />}
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
-          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
+          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} glass={world.id === 'plaza' && b.spec.facade ? shopGlass(b.slug, b.spec.facade) : undefined} />
         ))}
         {/* 캠퍼스 건물: 흰 코니스·담쟁이·도서관 시계탑 */}
         {world.id === 'campus' && PLACED.map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}

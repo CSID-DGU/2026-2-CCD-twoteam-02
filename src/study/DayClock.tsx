@@ -38,7 +38,7 @@ function arcPath(from: number, to: number, rIn: number, rOut: number) {
 type Props = {
   runs: BandRun[]
   dayStart: number
-  colorOf: (subjectId: number) => string
+  colorOf: (subjectId: number | null) => string
   focusedSeconds: number // 가운데에 보일 그날 집중 합계
   hovered: number | null // 강조할 공부(시작 시각)
   onHover: (run: number | null) => void
