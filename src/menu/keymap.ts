@@ -5,12 +5,13 @@
 // 화면들은 누른 순간 getKeymap() 으로 지금 키를 읽고, 키 표시(키캡·안내 문구)는 useKeymap() 으로 바뀌면 다시 그립니다.
 import { useSyncExternalStore } from 'react'
 
-export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'recenter' | 'mic' | 'map' | 'bag'
+export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'flick' | 'recenter' | 'mic' | 'map' | 'bag'
 export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
 export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'interact', label: '앉기·입장·일어나기·프로필 보기' },
+  { action: 'flick', label: '딱밤 (빨간불인 친구 옆에서)' },
   { action: 'view', label: '시점 바꾸기 (1인칭·위에서)' },
   { action: 'recenter', label: '정면 보기 (앉았을 때) · 점프 (서 있을 때)' },
   { action: 'emoteWheel', label: '감정표현 바퀴' },
@@ -27,6 +28,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
 
 export const DEFAULT_KEYMAP: Keymap = {
   interact: 'KeyE',
+  flick: 'KeyQ', // 딱밤으로 깨우기 (#304)
   view: 'KeyV',
   recenter: 'Space', // 앉아서 둘러본 시점을 책상 정면으로 되돌림 (#112). 서 있을 때는 점프
   emoteWheel: 'KeyX',

@@ -15,7 +15,7 @@
 import { AnimationClip, Euler, LoopOnce, LoopRepeat, Quaternion, QuaternionKeyframeTrack, VectorKeyframeTrack } from 'three'
 import type { AnimationAction } from 'three'
 
-export type EmoteId = 'nod' | 'shake' | 'wave' | 'bend' | 'kick' | 'fall' | 'stretch' | 'toilet'
+export type EmoteId = 'nod' | 'shake' | 'wave' | 'bend' | 'kick' | 'fall' | 'stretch' | 'toilet' | 'flick'
 
 export type Emote = {
   id: EmoteId
@@ -39,7 +39,10 @@ export const EMOTES: Emote[] = [
   { id: 'toilet', code: 'Digit8', label: '화장실', icon: '🚻', clip: 'emote-toilet' },
 ]
 
-export const emoteById = (id: string | undefined) => EMOTES.find((e) => e.id === id)
+// 바퀴·숫자키에는 없고 다른 기능이 시키는 동작: 딱밤(#304, 친구 옆에서 Q). 다른 감정표현처럼 위치 메시지에 실려 주변 사람에게 보임
+export const SPECIAL_EMOTES: Emote[] = [{ id: 'flick', code: '', label: '딱밤', icon: '👉', clip: 'emote-flick' }]
+
+export const emoteById = (id: string | undefined) => EMOTES.find((e) => e.id === id) ?? SPECIAL_EMOTES.find((e) => e.id === id)
 
 // ── 직접 만든 동작 ─────────────────────────────────────────────
 
@@ -101,8 +104,15 @@ const toilet = new AnimationClip('emote-toilet', 2.4, [
   ),
 ])
 
+// 👉 딱밤 (#304): 몸을 살짝 숙이며 오른팔을 앞으로 뻗고, 손끝을 튕기듯 짧게 들었다 내립니다.
+const flick = new AnimationClip('emote-flick', 1.1, [
+  turn('arm-right', [[0, 0, 0, 0], [0.3, -1.45, 0, -0.15], [0.45, -1.45, 0, -0.15], [0.52, -1.75, 0, -0.1], [0.6, -1.4, 0, -0.15], [0.85, -1.4, 0, -0.15], [1.1, 0, 0, 0]]),
+  turn('torso', [[0, 0, 0, 0], [0.3, 0.18, 0, 0], [0.85, 0.18, 0, 0], [1.1, 0, 0, 0]]),
+  turn('head', [[0, 0, 0, 0], [0.3, 0.1, 0, 0], [0.85, 0.1, 0, 0], [1.1, 0, 0, 0]]),
+])
+
 // 캐릭터의 기본 동작 목록에 더해 쓰는 직접 만든 동작들
-export const EMOTE_CLIPS = [wave, bend, stretch, toilet]
+export const EMOTE_CLIPS = [wave, bend, stretch, toilet, flick]
 
 // 감정표현 한 번의 길이(초). 반복 횟수와 끝 자세 유지까지 포함합니다.
 export function emoteSeconds(emote: Emote, clipSeconds: number): number {
