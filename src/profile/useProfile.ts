@@ -14,7 +14,7 @@ export type ProfileSummary = {
   total_seconds?: number
   week_seconds?: number
   daily?: { date: string; seconds: number }[] // 최근 7일 (오래된 날부터)
-  week_subjects?: { name: string; seconds: number }[] // 이번 주 과목별 (많은 순)
+  week_subjects?: { id?: number | null; name: string; seconds: number }[] // 이번 주 과목별 (많은 순). id 는 0047 부터, 지운 과목은 null
 }
 
 export const VISIBILITY_LABEL: Record<Visibility, string> = {

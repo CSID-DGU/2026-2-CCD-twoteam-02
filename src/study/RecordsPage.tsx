@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { BackLink } from '../menu/BackLink'
 import { useSession } from '../auth/useSession'
 import { useSubjects } from './useSubjects'
+import { subjectName } from './subjectLogic'
 import { useStudyLogs } from './useStudyLogs'
 import {
   byDayOfMonth, byMonthOfYear, bySubject, filterSubject, formatHM,
@@ -27,7 +28,7 @@ const TABS: { key: Period; label: string }[] = [
 // 기록 본문. 페이지(/records)와 로비·지점 위 창이 같이 씁니다.
 export function RecordsView() {
   const { session } = useSession()
-  const { subjects } = useSubjects(session?.user.id)
+  const { subjects, loading: subjectsLoading } = useSubjects(session?.user.id) // 정리한 과목도 같이 옵니다 (#369)
   const { seconds: titleSeconds } = useMyTitle(session?.user.id) // 꽃 피는 길: 전체 누적 (기간과 무관, 저장 전 공부 포함)
   const [period, setPeriod] = useState<Period>('day')
   const [anchor, setAnchor] = useState(() => new Date()) // 보고 있는 날짜
@@ -42,18 +43,20 @@ export function RecordsView() {
   const opened = period === 'day' ? toRuns(cells).find((r) => r.startedAt === openedRun) : undefined
   const isFuture = shiftAnchor(period, anchor, 1) > new Date() // 다음 구간이 미래면 ▶ 를 막습니다.
 
-  const nameOf = (id: number) => subjects.find((s) => s.id === id)?.name ?? '(알 수 없는 과목)'
+  // 지운 과목은 "(지운 과목)", 과목 목록을 아직 못 읽었으면 "…" (#115: 읽기 전에 이름을 지어내지 않음)
+  const nameOf = (id: number | null) => subjectName(subjects, id, subjectsLoading)
   const filtered = rows ? filterSubject(rows, period === 'day' ? null : subjectId) : []
   const total = totalSeconds(filtered)
   const month = anchor.getMonth() + 1
 
   // 표로 보기·그래프에 같이 쓰는 값
-  const table: { label: string; seconds: number }[] =
+  // key: 줄 구분용. 일은 과목 번호(지운 과목은 'deleted'), 월·년은 날짜 칸 번호 (#115: 이름은 겹칠 수 있음)
+  const table: { key: string; id?: number | null; label: string; seconds: number }[] =
     period === 'day'
-      ? bySubject(filtered).map((s) => ({ label: nameOf(s.subjectId), seconds: s.seconds }))
+      ? bySubject(filtered).map((s) => ({ key: String(s.subjectId ?? 'deleted'), id: s.subjectId, label: nameOf(s.subjectId), seconds: s.seconds }))
       : period === 'month'
-        ? byDayOfMonth(filtered, anchor).map((s, i) => ({ label: `${month}월 ${i + 1}일`, seconds: s }))
-        : byMonthOfYear(filtered).map((s, i) => ({ label: `${i + 1}월`, seconds: s }))
+        ? byDayOfMonth(filtered, anchor).map((s, i) => ({ key: String(i), label: `${month}월 ${i + 1}일`, seconds: s }))
+        : byMonthOfYear(filtered).map((s, i) => ({ key: String(i), label: `${i + 1}월`, seconds: s }))
 
   // 공부 하나를 고르면 탭·날짜·합계 없이 그 공부만 보여 줍니다.
   if (opened) {
@@ -115,7 +118,7 @@ export function RecordsView() {
         ) : total === 0 ? (
           <p style={styles.muted}>이 기간에는 공부 기록이 없어요.</p>
         ) : period === 'day' ? (
-          <SubjectBars items={table.map((t) => ({ name: t.label, seconds: t.seconds }))} />
+          <SubjectBars items={table.map((t) => ({ id: t.id, name: t.label, seconds: t.seconds }))} />
         ) : (
           <ColumnChart
             values={table.map((t) => t.seconds)}
@@ -134,7 +137,7 @@ export function RecordsView() {
           <table style={styles.table}>
             <tbody>
               {table.filter((t) => t.seconds > 0).map((t) => (
-                <tr key={t.label}>
+                <tr key={t.key}>
                   <td style={styles.td}>{t.label}</td>
                   <td style={{ ...styles.td, textAlign: 'right' }}>{formatHM(t.seconds)}</td>
                 </tr>

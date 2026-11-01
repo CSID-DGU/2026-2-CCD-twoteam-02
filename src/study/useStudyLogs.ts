@@ -9,7 +9,7 @@ import type { LogRow } from './recordsLogic'
 
 const PAGE = 1000
 
-type DbRow = { started_at: string; subject_id: number; focused_seconds: number }
+type DbRow = { started_at: string; subject_id: number | null; focused_seconds: number } // 지운 과목은 null (#369)
 
 export function useStudyLogs(start: Date, end: Date) {
   const startIso = start.toISOString()

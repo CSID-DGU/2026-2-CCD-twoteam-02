@@ -24,7 +24,7 @@ const keyOf = (c: BandCell) => c.ids[0] // 칸의 첫 구간 번호. 다시 그�
 
 type DayProps = {
   cells: BandCell[]
-  nameOf: (subjectId: number) => string
+  nameOf: (subjectId: number | null) => string
   dayStart: number
   onOpen: (run: number) => void // 공부 하나를 골라 그 공부의 화면(RunDetail)으로 (시작 시각)
 }
@@ -36,7 +36,7 @@ export function DayBand({ cells, nameOf, dayStart, onOpen }: DayProps) {
   const focused = totals.find((t) => isGreen(t.kind))?.seconds ?? 0
   // 과목 색: 그날 처음 나온 순서대로
   const subjectIds = [...new Set(runs.map((r) => r.subjectId))]
-  const subjectColor = (id: number) => SUBJECT_COLORS[subjectIds.indexOf(id) % SUBJECT_COLORS.length]
+  const subjectColor = (id: number | null) => SUBJECT_COLORS[subjectIds.indexOf(id) % SUBJECT_COLORS.length]
   return (
     <div style={styles.wrap}>
       <DayClock

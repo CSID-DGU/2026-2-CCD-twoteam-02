@@ -2,7 +2,8 @@
 // React·DB 와 무관한 순수 로직입니다. 날짜 경계는 브라우저의 현지 시간(한국 시간) 기준입니다.
 // 자정을 넘기는 조각은 시작한 날에 넣습니다. 조각이 5분 이하라 차이가 거의 없습니다.
 
-export type LogRow = { startedAt: string; subjectId: number; focusedSeconds: number }
+// subjectId 가 null 이면 지운 과목의 기록입니다. (#369, 지워도 공부 시간은 남음)
+export type LogRow = { startedAt: string; subjectId: number | null; focusedSeconds: number }
 export type Period = 'day' | 'month' | 'year'
 
 // 보고 있는 구간의 시작(포함)과 끝(미포함). 기록을 읽어 올 범위로 씁니다.
@@ -27,9 +28,9 @@ export const filterSubject = (rows: LogRow[], subjectId: number | null) =>
 
 export const totalSeconds = (rows: LogRow[]) => rows.reduce((sum, r) => sum + r.focusedSeconds, 0)
 
-// 일: 과목별 합계 (많은 순)
-export function bySubject(rows: LogRow[]): { subjectId: number; seconds: number }[] {
-  const map = new Map<number, number>()
+// 일: 과목별 합계 (많은 순). 지운 과목(null)은 한 줄로 묶입니다.
+export function bySubject(rows: LogRow[]): { subjectId: number | null; seconds: number }[] {
+  const map = new Map<number | null, number>()
   for (const r of rows) map.set(r.subjectId, (map.get(r.subjectId) ?? 0) + r.focusedSeconds)
   return [...map].map(([subjectId, seconds]) => ({ subjectId, seconds })).sort((a, b) => b.seconds - a.seconds)
 }
