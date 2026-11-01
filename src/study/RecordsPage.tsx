@@ -1,4 +1,5 @@
 // 내 기록 화면 (/records): 과목별 공부 시간을 일·월·년 단위로 봅니다.
+// 월 단위는 달력(칸마다 시간, 진한 초록일수록 많이 함, 칸을 누르면 쉬는 날 OFF), 월·년은 과목별 비율 도넛도.
 // 저장된 기록은 초록불(집중)일 때 쌓인 시간만 담고 있습니다. (src/study/StudyRunner)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -13,6 +14,11 @@ import {
 } from './recordsLogic'
 import type { Period } from './recordsLogic'
 import { ColumnChart, SubjectBars } from './RecordCharts'
+import { MonthCalendar } from './MonthCalendar'
+import { SubjectDonut } from './SubjectDonut'
+import { useRestDays } from './useRestDays'
+import { canGoNextMonth } from './calendarLogic'
+import { subjectColorOf } from './subjectLogic'
 import { useStudySegments } from './useStudySegments'
 import { toCells, toRuns } from './bandLogic'
 import { DayBand, RunDetail } from './DayBand'
@@ -41,7 +47,16 @@ export function RecordsView() {
   const flow = useStudySegments(start, end, period === 'day') // 하루 띠 (#235): 일 탭에서만 읽음
   const cells = flow.rows ? toCells(flow.rows, start.getTime(), end.getTime()) : []
   const opened = period === 'day' ? toRuns(cells).find((r) => r.startedAt === openedRun) : undefined
-  const isFuture = shiftAnchor(period, anchor, 1) > new Date() // 다음 구간이 미래면 ▶ 를 막습니다.
+  // 다음 구간이 미래면 ▶ 를 막습니다. 월 단위만 쉬는 날을 미리 찍도록 다음 한 달까지 열어 둡니다.
+  const isFuture = period === 'month' ? !canGoNextMonth(anchor, new Date()) : shiftAnchor(period, anchor, 1) > new Date()
+  const rest = useRestDays(start, end) // 쉬는 날 (월 달력에서만 씀)
+  const [restError, setRestError] = useState('')
+  const toggleRest = (key: string) => {
+    void rest.toggle(key).then((err) => {
+      setRestError(err)
+      if (err) window.setTimeout(() => setRestError(''), 3000)
+    })
+  }
 
   // 지운 과목은 "(지운 과목)", 과목 목록을 아직 못 읽었으면 "…" (#115: 읽기 전에 이름을 지어내지 않음)
   const nameOf = (id: number | null) => subjectName(subjects, id, subjectsLoading)
@@ -115,6 +130,12 @@ export function RecordsView() {
           <p style={styles.error}>{error}</p>
         ) : rows === null ? (
           <p style={styles.muted}>기록을 불러오는 중…</p>
+        ) : period === 'month' ? (
+          // 월: 기록이 없는 달(미래 달 포함)도 쉬는 날을 찍을 수 있게 빈 달력을 보여 줍니다.
+          <>
+            <MonthCalendar anchor={anchor} seconds={byDayOfMonth(filtered, anchor)} rest={rest.days} today={new Date()} onToggleRest={toggleRest} />
+            {restError && <p style={styles.error}>{restError}</p>}
+          </>
         ) : total === 0 ? (
           <p style={styles.muted}>이 기간에는 공부 기록이 없어요.</p>
         ) : period === 'day' ? (
@@ -122,8 +143,7 @@ export function RecordsView() {
         ) : (
           <ColumnChart
             values={table.map((t) => t.seconds)}
-            // 월: 1·5·10·15·20·25·30일만 글자를 달아 겹치지 않게 합니다.
-            tickLabel={(i) => (period === 'year' ? `${i + 1}월` : [0, 4, 9, 14, 19, 24, 29].includes(i) ? String(i + 1) : '')}
+            tickLabel={(i) => `${i + 1}월`}
             tooltipLabel={(i) => table[i].label}
           />
         )}
@@ -146,6 +166,17 @@ export function RecordsView() {
           </table>
         )}
       </section>
+
+      {/* 과목별 비율 (월·년): 과목 하나만 골라 보면 비율이 의미 없어 숨깁니다. 색은 플래너 시간표와 같음 */}
+      {period !== 'day' && subjectId === null && rows && total > 0 && (
+        <section style={styles.card}>
+          <div style={styles.totalLabel}>과목별 비율 · {periodLabel(period, anchor)}</div>
+          <SubjectDonut
+            items={bySubject(filtered).map((x) => ({ subjectId: x.subjectId, name: nameOf(x.subjectId), seconds: x.seconds }))}
+            colorOf={(id) => subjectColorOf(subjects, id)}
+          />
+        </section>
+      )}
 
       {/* 공부 흐름 (#235): 그날 공부를 켜 둔 시간을 초록(집중)·빨강(타이머가 멈춘 시간)으로. 본인만 봅니다. */}
       {period === 'day' && (cells.length > 0 || total > 0) && (
