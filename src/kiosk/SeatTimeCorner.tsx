@@ -187,7 +187,7 @@ export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOS
 }
 
 const styles: Record<string, CSSProperties> = {
-  // 왼쪽 위 자리. 위에는 FPS(16)와 숨김 모드 인원 수(76)가 있습니다.
+  // 왼쪽 위 자리. 위에는 가방(16)과 숨김 모드 인원 수(76)가 있습니다.
   corner: {
     position: 'fixed', top: 136, left: 16, zIndex: 11,
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
