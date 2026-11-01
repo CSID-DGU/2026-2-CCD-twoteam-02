@@ -331,28 +331,6 @@
       "name": "없음"
     },
     {
-      "id": "straight",
-      "name": "일자",
-      "tint": "/models/Parts/brows/straight-tint.png",
-      "box": [
-        -96,
-        -23,
-        96,
-        23
-      ]
-    },
-    {
-      "id": "thick",
-      "name": "진한",
-      "tint": "/models/Parts/brows/thick-tint.png",
-      "box": [
-        -115,
-        -35,
-        109,
-        35
-      ]
-    },
-    {
       "id": "feather",
       "name": "결 있는 눈썹",
       "tint": "/models/Parts/brows/feather-tint.png",
