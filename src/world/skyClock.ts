@@ -4,6 +4,7 @@
 // 팀 계정의 조절판(SkyTimePanel)이 setSkyClock 으로 바꾸면 다음 프레임부터 그 시각·빠르기로 하늘이 움직입니다.
 // 날씨도 같습니다: 조절판에서 고르면(setSkyWeather) WorldSky 가 실제 날씨·주소(?weather=) 대신 그 날씨를 씁니다. null 이면 원래대로.
 // 눈 쌓임도 따로 고릅니다(setSkyCover, 0~1). 주소 ?snowcover= 와 같은 값이고, null 이면 날씨를 따릅니다(#329).
+// 먼 도시(밤 스카이라인)도 켜고 끕니다(setSkyline). 기본은 켜짐.
 // 내 브라우저 안의 값이라 다른 사람 하늘은 바뀌지 않고, 새로고침하면 실제 시각·날씨(또는 주소 값)로 돌아갑니다.
 import { useSyncExternalStore } from 'react'
 import type { Clock } from './skyLogic'
@@ -67,6 +68,16 @@ export function setSkyCover(next: number | null) {
   emit()
 }
 
+// 먼 도시 스카이라인 보이기 (CitySkyline). 기본은 보임. 지울지 팀이 정하기 전에 조절판에서 꺼 보며 비교하는 용도
+let skyline = true
+
+export const getSkyline = () => skyline
+
+export function setSkyline(next: boolean) {
+  skyline = next
+  emit()
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener)
   return () => listeners.delete(listener)
@@ -88,4 +99,8 @@ export function useSkyStrength(): number {
 
 export function useSkyCover(): number | null {
   return useSyncExternalStore(subscribe, getSkyCover)
+}
+
+export function useSkyline(): boolean {
+  return useSyncExternalStore(subscribe, getSkyline)
 }

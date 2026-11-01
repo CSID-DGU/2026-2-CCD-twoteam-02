@@ -81,6 +81,7 @@ import { shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { LanternCourtyard } from './LanternTree'
 import { WorldSky } from './WorldSky'
+import { CitySkyline } from './CitySkyline'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
@@ -403,6 +404,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <FpsProbe onSample={handleFps} />
         {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
+        {/* 밤에 지평선을 두르는 먼 도시 (팀 조절판에서 숨길 수 있음) */}
+        <CitySkyline />
 
         <Ground plaza={PLAZA} buildings={PLACED} />
         <Garden plaza={PLAZA} buildings={PLACED} />

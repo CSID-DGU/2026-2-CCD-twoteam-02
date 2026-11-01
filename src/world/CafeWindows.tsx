@@ -19,6 +19,7 @@ import { Garden, GardenBenches, LushTrees } from './Garden'
 import { Fountain } from './Fountain'
 import { NightFill, StringLights } from './StreetLights'
 import { WorldSky } from './WorldSky'
+import { CitySkyline } from './CitySkyline'
 import { useWorldWeather } from './useWorldWeather'
 import type { WorldConfig } from './worldConfig'
 import { useParticipants } from '../realtime/useParticipants'
@@ -110,6 +111,7 @@ function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string;
         <group position={[doorX, -(windows.level - 1) * FLOOR_H, doorZ]} rotation-y={-b.angle}>
           <group position={[-b.door.x, 0, -b.door.z]}>
             <WorldSky lamps={c.litLamps} weatherRef={weather} followRef={follow} />
+            <CitySkyline />
             <Ground plaza={plaza} buildings={c.placed} />
             <Garden plaza={plaza} buildings={c.placed} />
             <Fence plaza={plaza} />
@@ -158,7 +160,8 @@ function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string;
 }
 
 // 광장을 걷는 사람들. 광장 실시간 방을 보기만 합니다: 내 상태(me)를 비워 두어 내 위치는 보내지 않고 접속자로 들어가지도 않음
-function StreetPeople({ world }: { world: WorldConfig }) {
+// 루프탑(RooftopWorld)에서 내려다보는 거리에도 씁니다
+export function StreetPeople({ world }: { world: WorldConfig }) {
   const me = useRef<PresenceState | null>(null)
   const others = useParticipants(world.channel, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
   const spots = useMemo(() => [...computedOf(world).rests, ...(world.id === 'plaza' ? benchSeats(world.layout) : [])], [world]) // 앉은 사람 자세
