@@ -166,7 +166,48 @@ export function lawnMat(color: string) {
   let m = lawnMats.get(color)
   if (!m) {
     m = addSnowy(mat(color), SNOW_PART.full)
+    if (lawnTextured) withPair(m, groundTextures().grass)
     lawnMats.set(color, m)
+  }
+  return m
+}
+
+// 무늬(색·요철 한 쌍)를 재질에 붙임
+function withPair(m: THREE.MeshStandardMaterial, pair: { map: THREE.Texture; bump: THREE.Texture }) {
+  m.map = pair.map
+  m.bumpMap = pair.bump
+  m.bumpScale = BUMP
+  m.needsUpdate = true
+}
+
+// 캠퍼스(잔디 쿼드) 바닥 무늬: 잔디·축구장 줄무늬에 잔디 결, 길에 콘크리트. 처음 그릴 때 한 번만
+let lawnTextured = false
+export function applyLawnTextures() {
+  if (lawnTextured) return
+  lawnTextured = true
+  const t = groundTextures()
+  withPair(MAT.grass, t.grass)
+  withPair(MAT.path, t.concrete)
+  for (const m of lawnMats.values()) withPair(m, t.grass)
+}
+
+// 벽돌 벽 (캠퍼스 건물): 벽 색 + 벽돌 무늬. 상자 면마다 그림 한 장이 늘어나므로 건물 크기(w·h m)에 맞춰 반복 수를 정함
+const brickWalls = new Map<string, THREE.MeshStandardMaterial>()
+const BRICK_TILE = 2 // 벽돌 그림 한 장이 덮는 벽 크기(m)
+export function brickWallMat(color: string, w: number, h: number) {
+  const key = `${color}|${w}|${h}`
+  let m = brickWalls.get(key)
+  if (!m) {
+    const t = groundTextures().brick
+    const map = t.map.clone()
+    const bump = t.bump.clone()
+    for (const x of [map, bump]) {
+      x.wrapS = x.wrapT = THREE.RepeatWrapping
+      x.repeat.set(w / BRICK_TILE, h / BRICK_TILE)
+      x.needsUpdate = true
+    }
+    m = mat(color, { map, bumpMap: bump, bumpScale: 0.8 })
+    brickWalls.set(key, m)
   }
   return m
 }

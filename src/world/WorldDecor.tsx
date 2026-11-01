@@ -10,7 +10,7 @@ import { Instance, Instances } from '@react-three/drei'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout, Point } from './worldLogic'
-import { MAT, applyGroundTextures, colorMat, lawnMat, litWindowMat, roofMat } from './worldMaterials'
+import { MAT, applyGroundTextures, applyLawnTextures, brickWallMat, colorMat, lawnMat, litWindowMat, roofMat } from './worldMaterials'
 import { TILE, tiledPlane } from './worldTextures'
 import { Facade } from './Facades'
 
@@ -36,14 +36,12 @@ const LAWN = { stripe: 2, light: '#8fca72', dark: '#7dbb63' } // 줄 폭(m), 두
 export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: PlacedBuilding[] }) {
   const lawn = plaza.ground === 'lawn'
   const stripes = lawn ? Math.ceil(plaza.plaza.w / LAWN.stripe) : 0
-  useMemo(() => !lawn && applyGroundTextures(), [lawn]) // 처음 한 번 무늬를 재질에 붙임
+  useMemo(() => (lawn ? applyLawnTextures() : applyGroundTextures()), [lawn]) // 처음 한 번 무늬를 재질에 붙임 (캠퍼스는 잔디 결·콘크리트)
   const gravel = useMemo(() => gravelStrips(plaza, buildings.map((b) => b.rect)), [plaza, buildings])
   return (
     <group>
       {lawn ? (
-        <mesh rotation-x={-Math.PI / 2} material={MAT.grass}>
-          <planeGeometry args={[plaza.size.w, plaza.size.d]} />
-        </mesh>
+        <mesh rotation-x={-Math.PI / 2} material={MAT.grass} geometry={tiledPlane(plaza.size.w, plaza.size.d, TILE.grass)} />
       ) : (
         <mesh rotation-x={-Math.PI / 2} material={MAT.meadow} geometry={tiledPlane(plaza.size.w, plaza.size.d, TILE.grass)} />
       )}
@@ -51,9 +49,7 @@ export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
         Array.from({ length: stripes }, (_, i) => {
           const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
           return (
-            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={lawnMat(i % 2 ? LAWN.dark : LAWN.light)}>
-              <planeGeometry args={[w, plaza.plaza.d]} />
-            </mesh>
+            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={lawnMat(i % 2 ? LAWN.dark : LAWN.light)} geometry={tiledPlane(w, plaza.plaza.d, TILE.grass)} />
           )
         })
       ) : (
@@ -64,9 +60,7 @@ export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
       ))}
       {plaza.paths.map((p, i) =>
         lawn ? (
-          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path}>
-            <planeGeometry args={[p.w, p.d]} />
-          </mesh>
+          <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.path} geometry={tiledPlane(p.w, p.d, TILE.concrete)} />
         ) : (
           <mesh key={i} rotation-x={-Math.PI / 2} position={[p.x, LAYER.path, p.z]} material={MAT.brick} geometry={tiledPlane(p.w, p.d, TILE.brick)} />
         ),
@@ -105,7 +99,8 @@ export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: bo
   const d = sideways ? b.rect.w : b.rect.d
   const doorX = rotate(b.door.x - b.spec.x, b.door.z - b.spec.z, -b.angle).x // 실내 기준 입구 x
   const doorW = sideways ? b.door.d : b.door.w
-  const wall = colorMat(b.spec.wall)
+  const height0 = BUILDING_H * b.floors.length
+  const wall = b.spec.wallTexture === 'brick' ? brickWallMat(b.spec.wall, Math.max(w, d), height0) : colorMat(b.spec.wall)
   const roof = roofMat(b.spec.roof) // 지붕 전용 재질 (눈이 쌓이면 하얗게, #329)
   const multi = b.floors.length > 1
   const facade = b.spec.facade // 캠리단길 파사드 (없으면 예전 앞면)

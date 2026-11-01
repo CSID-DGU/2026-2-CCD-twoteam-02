@@ -4,7 +4,8 @@
 //                 벤치·게시판 앞(다가가 앉고 E 를 누르는 자리), 가로등
 //   grassTufts    잔디 위 풀 포기 TUFTS 개. 막힌 곳을 피해 고르게 흩뿌림
 //   flowerBeds    자갈 띠 바로 바깥을 두르는 화단. 몇 m 마다 종류를 바꿔 무리 지어 심고, 잔디 곳곳에 들꽃
-// 자리는 정해진 난수로 골라 매번 같습니다(다른 사람 화면과도 같음). 캠퍼스(잔디 쿼드)에는 두지 않습니다.
+// 자리는 정해진 난수로 골라 매번 같습니다(다른 사람 화면과도 같음).
+// 캠퍼스(잔디 쿼드)는 화단 띠 없이 풀 포기와 들꽃만. 굽은 길·축구장·등불나무 광장·쉬는 자리도 비움
 import { GRAVEL_W, gravelStrips, placeGates } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout } from './worldLogic'
 import type { Box } from '../space/layout'
@@ -37,10 +38,10 @@ const inside = (x: number, z: number, b: Box) => Math.abs(x - b.x) < b.w / 2 && 
 export function keepOutBoxes(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
   const { w, d } = plaza.plaza
   const rects = placed.map((b) => b.rect)
+  const lawn = plaza.ground === 'lawn'
   const boxes: Box[] = [
-    { x: 0, z: 0, w: w + GRAVEL_W * 2, d: d + GRAVEL_W * 2 },
+    ...(lawn ? lawnKeepOut(plaza) : [{ x: 0, z: 0, w: w + GRAVEL_W * 2, d: d + GRAVEL_W * 2 }, ...gravelStrips(plaza, rects)]),
     ...plaza.paths,
-    ...gravelStrips(plaza, rects),
     ...rects.map((r) => grow(r, PAD.building)),
     ...placed.map((b) => ({ x: b.entry.x, z: b.entry.z, w: PAD.entry * 2, d: PAD.entry * 2 })),
     ...plaza.benches.map((b) => ({ x: b.x, z: b.z, w: 1.6 + PAD.bench * 2, d: 1.6 + PAD.bench * 2 })),
@@ -56,10 +57,29 @@ export function keepOutBoxes(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[
   return boxes
 }
 
+// 캠퍼스에서 더 비울 곳: 축구장(골망 포함 + 1m), 굽은 길(0.5m 마다 네모), 등불나무 광장, 쉬는 자리
+const WALK_STEP = 0.5
+function lawnKeepOut(plaza: PlazaLayout): Box[] {
+  const out: Box[] = []
+  const p = plaza.pitch
+  if (p) out.push({ x: p.x, z: p.z, w: p.w + 2, d: p.d + 2 * 1.4 + 2 })
+  for (const wk of plaza.walks ?? []) {
+    for (let i = 1; i < wk.points.length; i++) {
+      const [ax, az] = wk.points[i - 1]
+      const [bx, bz] = wk.points[i]
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / WALK_STEP))
+      for (let k = 0; k <= n; k++) out.push({ x: ax + ((bx - ax) * k) / n, z: az + ((bz - az) * k) / n, w: wk.w + 0.5, d: wk.w + 0.5 })
+    }
+  }
+  const c = plaza.courtyard
+  if (c) out.push({ x: c.x, z: c.z, w: c.r * 2 + 0.8, d: c.r * 2 + 0.8 }, ...c.bags.map((b) => ({ x: b.x, z: b.z, w: 1.6, d: 1.6 })))
+  for (const r of plaza.rests ?? []) out.push({ x: r.x, z: r.z, w: 2, d: 2 })
+  return out
+}
+
 const nearTree = (plaza: PlazaLayout, x: number, z: number) => plaza.trees.some((t) => Math.hypot(t.x - x, t.z - z) < TREE_CLEAR)
 
 export function grassTufts(plaza: PlazaLayout, placed: PlacedBuilding[]): Tuft[] {
-  if (plaza.ground === 'lawn') return []
   const r = random(101)
   const keep = keepOutBoxes(plaza, placed)
   const hw = plaza.size.w / 2 - EDGE
@@ -77,7 +97,7 @@ export function grassTufts(plaza: PlazaLayout, placed: PlacedBuilding[]): Tuft[]
 }
 
 export function flowerBeds(plaza: PlazaLayout, placed: PlacedBuilding[]): Plant[] {
-  if (plaza.ground === 'lawn') return []
+  const lawn = plaza.ground === 'lawn' // 캠퍼스: 화단 띠 없이 들꽃만
   const r = random(202)
   const keep = keepOutBoxes(plaza, placed)
   const ok = (x: number, z: number) => !keep.some((b) => inside(x, z, b)) && !nearTree(plaza, x, z)
@@ -92,7 +112,7 @@ export function flowerBeds(plaza: PlazaLayout, placed: PlacedBuilding[]): Plant[
     [hw, -hd, 0, 1, hd * 2, 1, 0],
   ]
   let cluster = 0
-  for (const [sx, sz, dx, dz, len, ox, oz] of sides) {
+  for (const [sx, sz, dx, dz, len, ox, oz] of lawn ? [] : sides) {
     for (let a = 0; a < len; a += BED.step) {
       if (a % BED.cluster < BED.step) cluster++
       const kind = BED_KINDS[cluster % BED_KINDS.length]

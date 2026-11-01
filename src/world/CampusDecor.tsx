@@ -9,6 +9,7 @@ import { checkerTexture } from '../space/patternTexture'
 import { GATE_FENCE, GATE_POST } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, RestSpec } from './worldLogic'
 import { MAT as WMAT, colorMat, roofMat } from './worldMaterials'
+import { TILE, tiledPlane } from './worldTextures'
 
 // 색
 const C = {
@@ -317,13 +318,9 @@ export function GateBackdrop({ gate }: { gate: PlacedGate }) {
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
       {/* 잔디 (월드 땅보다 살짝 아래라 겹쳐도 깜빡이지 않음) */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, -B.depth / 2 - 1]} material={WMAT.grass}>
-        <planeGeometry args={[B.width, B.depth]} />
-      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, -B.depth / 2 - 1]} material={WMAT.grass} geometry={tiledPlane(B.width, B.depth, TILE.grass)} />
       {/* 이어지는 길 */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0.015, -B.depth / 2]} material={WMAT.path}>
-        <planeGeometry args={[B.road, B.depth]} />
-      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.015, -B.depth / 2]} material={WMAT.path} geometry={tiledPlane(B.road, B.depth, TILE.concrete)} />
       {/* 가로수 (원뿔 잎 + 줄기) */}
       <Instances limit={trees.length} material={WMAT.trunk} frames={1}>
         <cylinderGeometry args={[0.15, 0.2, 1.6, 6]} />
