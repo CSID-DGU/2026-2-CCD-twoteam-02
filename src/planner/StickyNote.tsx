@@ -1,7 +1,7 @@
 // 메모장에서 뜯은 메모 한 장. 화면에 붙여 두고 끌어 옮기고, 손글씨로 씀. 위쪽은 뜯은 자국(톱니)
 import { useEffect, useRef } from 'react'
 import type { Memo } from './useMemos'
-import { HAND, INK, NOTE_COLOR, handInput, paperSurface } from './paperStyle'
+import { HAND, INK, NOTE_COLOR, handInput, handSize, paperSurface } from './paperStyle'
 
 const W = 200
 const H = 190
@@ -54,7 +54,7 @@ export function StickyNote({ memo, onChange, onHide, onRemove }: { memo: Memo; o
           maxLength={1000}
           onChange={(e) => onChange({ body: e.target.value })}
           placeholder="메모"
-          style={{ ...handInput, position: 'absolute', inset: '28px 12px 10px 12px', width: 'auto', resize: 'none', fontSize: 21, lineHeight: 1.3, fontFamily: HAND, color: INK }}
+          style={{ ...handInput, position: 'absolute', inset: '28px 12px 10px 12px', width: 'auto', resize: 'none', fontSize: handSize(21), lineHeight: 1.3, fontFamily: HAND, color: INK }}
         />
       </div>
     </div>

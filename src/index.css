@@ -34,6 +34,23 @@
   font-weight: 400;
   font-display: swap;
 }
+/* 손글씨 고르기(src/planner/handFonts.ts)의 다른 두 글씨체. 고른 사람만 내려받습니다(쓰일 때만 받는 @font-face).
+   상주다정다감체 © 상주시(제작 TOGETHERGROUP): 산돌구름 라이선스 표 "임베딩: 웹사이트 서버 내 폰트 탑재 사용 가능", 상업적 재판매만 금지.
+   눈누(@noonnu) 가 jsDelivr 로 주는 파일 그대로 씁니다. */
+@font-face {
+  font-family: 'SANGJUDajungdagam';
+  src: url('https://cdn.jsdelivr.net/npm/@noonnu/sangju-dajungdagam@0.1.0/fonts/sangjudajungdagam-normal.woff') format('woff');
+  font-weight: 400;
+  font-display: swap;
+}
+/* 그리운 묘은또박체 © 그리운 × 묘은: 눈누 라이선스 표 "임베딩: 웹사이트·프로그램 서버 사용 가능", 폰트 파일 수정·재배포·판매 금지.
+   눈누가 주는 웹폰트 주소 그대로 씁니다(약 3.8MB라 고르기 버튼은 그림으로 보여 줌). */
+@font-face {
+  font-family: 'BelovedMyoeunttobak';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-1@1.0/Griun_Myoeunddobak-Rg.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
 
 :root {
   --text: #6b6375;
