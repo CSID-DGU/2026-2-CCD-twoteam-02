@@ -32,14 +32,12 @@ export function FpsProbe({ onSample }: { onSample: (fps: number, warm: boolean) 
 
 const ok = (pass: boolean) => (pass ? "#4ade80" : "#f87171");
 
+// 오른쪽 위 메뉴(SceneMenu)의 맨 위 칸에 들어갑니다(설정에서 FPS 표시를 켰을 때). 자리는 메뉴 상자가 정함
 export function PerfReadout({ perf }: { perf: Perf }) {
   const { fps, minFps, transitionMs } = perf;
   return (
     <div
       style={{
-        position: "fixed",
-        top: 16,
-        left: 16,
         padding: "6px 10px",
         borderRadius: 8,
         background: "rgba(32,35,42,.85)",

@@ -12,7 +12,7 @@ import { useIsTouch } from '../space/useIsTouch'
 import { useState } from 'react'
 import { useIsGuest } from '../auth/useIsGuest'
 import { GUEST_KEEP_DAYS } from '../auth/guestNotice'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 const guestNote: CSSProperties = { display: 'block', padding: '4px 8px', color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }
 
@@ -23,9 +23,10 @@ type Props = {
   lobbyLabel?: string // 나가기 버튼 글자 (없으면 "캠리단길로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
   onTracking?: () => void // 지점에서만: 트래킹 검증 화면으로 가는 버튼
   onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 조절판(시간·날씨) 열기·닫기
+  top?: ReactNode // 메뉴 맨 위에 둘 것 (FPS 표시). 있으면 메뉴가 그 아래로 내려감
 }
 
-export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로' }: Props) {
+export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로', top }: Props) {
   const keys = useKeymap()
   const team = useIsTeam(myId)
   // 폰(#377): 작은 화면을 가리지 않게 [☰] 하나로 접어 두고, 누르면 펼침. 고르면 다시 접힘
@@ -47,6 +48,7 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
   }
   return (
     <div style={menuStack}>
+      {top /* 맨 위 칸: FPS 표시(설정에서 켰을 때) */}
       {touch && (
         <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setUnfolded(false)} aria-label="메뉴 접기">
           ✕ 접기
