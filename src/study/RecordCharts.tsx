@@ -103,12 +103,13 @@ export function ColumnChart({ values, tickLabel, tooltipLabel }: ColumnProps) {
 }
 
 // 가로 막대: 일(과목별)
-export function SubjectBars({ items }: { items: { name: string; seconds: number }[] }) {
+// id: 과목 번호(지운 과목은 null). 줄을 이름이 아니라 번호로 구분합니다. 이름은 읽는 중에 겹칠 수 있어서예요(#115).
+export function SubjectBars({ items }: { items: { id?: number | null; name: string; seconds: number }[] }) {
   const max = Math.max(...items.map((i) => i.seconds), 1)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((it) => (
-        <div key={it.name} style={{ display: 'grid', gridTemplateColumns: '96px 1fr 88px', alignItems: 'center', gap: 8 }}>
+        <div key={it.id !== undefined ? `id-${it.id}` : it.name} style={{ display: 'grid', gridTemplateColumns: '96px 1fr 88px', alignItems: 'center', gap: 8 }}>
           <span style={{ color: CHART.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
           <div style={{ height: 14, background: CHART.grid, borderRadius: 4 }}>
             <div

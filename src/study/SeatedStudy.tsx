@@ -65,7 +65,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   const { face, pose, phone, status, message, errorName, retry } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices, paused: cameraOff })
   const cameraFailed = consentOk && status === 'error' // 웹캠을 못 켬 → 원인별 안내와 [다시 시도]
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
-  const { subjects, loading, loadError, addSubject } = useSubjects(userId)
+  const { subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject } = useSubjects(userId)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
   const [baseline, setBaseline] = useState<Baseline | null>(null) // 건너뛰면 null (눈 감음 판정 없음)
@@ -149,6 +149,9 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           loading={loading}
           loadError={loadError}
           addSubject={addSubject}
+          renameSubject={renameSubject}
+          setArchived={setArchived}
+          removeSubject={removeSubject}
           rules={rules}
           onStart={(c) => {
             setChoice(applyRules(c, rules)) // 창에서 잠갔더라도 판정에 들어가는 값은 여기서 한 번 더 맞춤

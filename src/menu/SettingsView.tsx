@@ -1,6 +1,7 @@
 // 설정 창 (#222). 오른쪽 위 메뉴의 "설정"(O)으로 엽니다.
-// 탭 셋으로 나눠 스크롤 없이 봅니다. 처음 열면 [내 정보]입니다.
+// 탭으로 나눠 스크롤 없이 봅니다. 처음 열면 [내 정보]입니다.
 //   내 정보  닉네임·생일·이메일·비밀번호 (예전 프로필의 "정보 변경" 탭)
+//   과목     과목 이름 바꾸기·정리·지우기 (#369, 공부 시작 창의 "과목 관리"와 같은 화면)
 //   마우스   1인칭 마우스 감도
 //   단축키   단축키 바꾸기 (#250)
 import { useState } from 'react'
@@ -8,9 +9,11 @@ import type { CSSProperties } from 'react'
 import { SENSITIVITY, getMouseSensitivity, sensitivityLabel, setMouseSensitivity } from './lookSettings'
 import { KeymapSettings } from './KeymapSettings'
 import { AccountSettings } from './AccountSettings'
+import { SubjectSettings } from '../study/SubjectManager'
 
 const TABS = [
   ['account', '내 정보'],
+  ['subjects', '과목'],
   ['mouse', '마우스'],
   ['keys', '단축키'],
 ] as const
@@ -41,6 +44,11 @@ export function SettingsView() {
       {tab === 'account' && (
         <div style={styles.card}>
           <AccountSettings />
+        </div>
+      )}
+      {tab === 'subjects' && (
+        <div style={styles.card}>
+          <SubjectSettings />
         </div>
       )}
       {tab === 'mouse' && (

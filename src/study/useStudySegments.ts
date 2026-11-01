@@ -7,7 +7,7 @@ import type { SegmentKind } from './segmentLogic'
 
 const PAGE = 1000
 
-type DbRow = { id: number; kind: SegmentKind; subject_id: number; started_at: string; ended_at: string }
+type DbRow = { id: number; kind: SegmentKind; subject_id: number | null; started_at: string; ended_at: string }
 
 export function useStudySegments(start: Date, end: Date, enabled: boolean) {
   const startIso = start.toISOString()
