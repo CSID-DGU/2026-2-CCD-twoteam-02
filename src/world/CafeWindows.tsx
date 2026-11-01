@@ -40,16 +40,19 @@ const WALL_HALF = 0.1 // 지점 벽 두께(0.2)의 반. 창 판은 벽 바깥 �
 const SILL = { d: 0.14, t: 0.04 } // 창턱 깊이·두께 (방 안쪽으로)
 
 type Layout = Pick<BranchLayout, 'id' | 'size' | 'door' | 'theme' | 'meetingDoor' | 'elevator'>
-const WALLS: WindowWall[] = ['front', 'west', 'east']
+const WALLS: WindowWall[] = ['front', 'back', 'west', 'east']
 // 벽마다 창 판을 놓을 바깥 면과 방 쪽을 보게 돌리는 각도 (판·틀은 창 가운데 기준, 방 쪽이 +z 가 되게 돌림)
-const TURN: Record<WindowWall, number> = { front: Math.PI, west: Math.PI / 2, east: -Math.PI / 2 }
+const TURN: Record<WindowWall, number> = { front: Math.PI, back: 0, west: Math.PI / 2, east: -Math.PI / 2 }
+const alongX = (wall: WindowWall) => wall === 'front' || wall === 'back' // 앞·뒷벽은 x 를 따라감
 function outerCenter(s: CafeWindow, y: number): [number, number, number] {
   if (s.wall === 'front') return [s.x, y, s.z + WALL_HALF]
+  if (s.wall === 'back') return [s.x, y, s.z - WALL_HALF]
   return [s.x + (s.wall === 'west' ? -WALL_HALF : WALL_HALF), y, s.z]
 }
 // 그 벽 바깥만 남기는 자르기 면 (지점 안쪽 거리는 그리지 않음)
 function clipOf(wall: WindowWall, at: number) {
   if (wall === 'front') return new THREE.Plane(new THREE.Vector3(0, 0, 1), -(at + WALL_HALF))
+  if (wall === 'back') return new THREE.Plane(new THREE.Vector3(0, 0, -1), at - WALL_HALF)
   return wall === 'west' ? new THREE.Plane(new THREE.Vector3(-1, 0, 0), at - WALL_HALF) : new THREE.Plane(new THREE.Vector3(1, 0, 0), -(at + WALL_HALF))
 }
 
@@ -58,10 +61,10 @@ export function CafeWindows({ layout: raw, showPeople }: { layout: Layout; showP
   const layout = useMemo(() => windowLayoutOf(raw), [raw]) // 위층은 1층 출입문 자리를 빌려 씀
   const windows = useMemo(() => cafeWindowsOf(layout), [layout])
   if (!windows || !layout.door || windows.spots.length === 0) return null
-  return <CafePortal slug={layout.id} doorZ={layout.door.z} doorX={layout.door.x} windows={windows} showPeople={showPeople} />
+  return <CafePortal slug={layout.id} doorZ={layout.door.z} doorX={layout.door.x} depth={layout.size.d} windows={windows} showPeople={showPeople} />
 }
 
-function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string; doorX: number; doorZ: number; windows: Windows; showPeople: boolean }) {
+function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: string; doorX: number; doorZ: number; depth: number; windows: Windows; showPeople: boolean }) {
   const world = worldOfBranch(slug)
   const c = computedOf(world)
   const b = buildingOf(c.placed, slug)!
@@ -69,6 +72,7 @@ function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string;
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
   const { sill, top } = CAFE_WINDOW
+  const buildingDepth = b.spec.d // 광장 건물 깊이 (실내보다 얕을 수 있음)
   const h = top - sill
   const y = (sill + top) / 2
   // 창이 난 벽마다 따로 그림 (자르는 방향이 달라서)
@@ -81,10 +85,12 @@ function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string;
         {
           target,
           mat: portalMaterial(target.texture),
-          clip: clipOf(wall, wall === 'front' ? spots[0].z : spots[0].x),
+          clip: clipOf(wall, alongX(wall) ? spots[0].z : spots[0].x),
+          // 뒷벽: 실내(depth)가 건물(spec.d)보다 깊으면 그만큼 거리를 뒤로 밀어, 건물 실제 뒷면 바로 바깥이 창 밖에 오게
+          ...(wall === 'back' && depth > buildingDepth ? { shift: new THREE.Vector3(0, 0, buildingDepth - depth) } : {}),
           windows: spots.map((s) => {
             const [cx, , cz] = outerCenter(s, y)
-            const half = wall === 'front' ? new THREE.Vector3(s.w / 2, h / 2, 0.01) : new THREE.Vector3(0.01, h / 2, s.w / 2)
+            const half = alongX(wall) ? new THREE.Vector3(s.w / 2, h / 2, 0.01) : new THREE.Vector3(0.01, h / 2, s.w / 2)
             const center = new THREE.Vector3(cx, y, cz)
             return new THREE.Box3(center.clone().sub(half), center.clone().add(half))
           }),
@@ -92,7 +98,7 @@ function CafePortal({ slug, doorX, doorZ, windows, showPeople }: { slug: string;
       ]
     })
     return { scene: new THREE.Scene(), views }
-  }, [windows, y, h])
+  }, [windows, y, h, depth, buildingDepth])
   useEffect(() => resizePortal(portal, size.width * dpr, size.height * dpr), [portal, size, dpr])
   useEffect(() => () => disposePortal(portal), [portal])
   useFrame(({ gl, camera }) => renderPortal(gl, camera, portal), -1) // 화면 그리기 전에 (음수 순서라 자동 그리기는 그대로)

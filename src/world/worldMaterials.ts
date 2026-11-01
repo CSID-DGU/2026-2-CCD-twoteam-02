@@ -191,26 +191,30 @@ export function applyLawnTextures() {
   for (const m of lawnMats.values()) withPair(m, t.grass)
 }
 
-// 벽돌 벽 (캠퍼스 건물): 벽 색 + 벽돌 무늬. 상자 면마다 그림 한 장이 늘어나므로 건물 크기(w·h m)에 맞춰 반복 수를 정함
-const brickWalls = new Map<string, THREE.MeshStandardMaterial>()
-const BRICK_TILE = 2 // 벽돌 그림 한 장이 덮는 벽 크기(m)
-export function brickWallMat(color: string, w: number, h: number) {
-  const key = `${color}|${w}|${h}`
-  let m = brickWalls.get(key)
+// 무늬 벽 (건물·장식 가게): 벽 색 + 무늬(벽돌·회벽·나무 판자). 상자 면마다 그림 한 장이 늘어나므로
+// 크기(w·h m)에 맞춰 반복 수를 정함. 무늬 그림은 같이 쓰고 반복 수만 다른 복사본
+export type WallTexture = 'brick' | 'stucco' | 'planks'
+const WALL_TILE: Record<WallTexture, number> = { brick: 2, stucco: 3, planks: 2.4 } // 그림 한 장이 덮는 벽 크기(m)
+const WALL_BUMP: Record<WallTexture, number> = { brick: 0.8, stucco: 0.4, planks: 0.6 }
+const texturedWalls = new Map<string, THREE.MeshStandardMaterial>()
+export function wallMat(kind: WallTexture, color: string, w: number, h: number) {
+  const key = `${kind}|${color}|${w.toFixed(2)}|${h.toFixed(2)}`
+  let m = texturedWalls.get(key)
   if (!m) {
-    const t = groundTextures().brick
+    const t = groundTextures()[kind]
     const map = t.map.clone()
     const bump = t.bump.clone()
     for (const x of [map, bump]) {
       x.wrapS = x.wrapT = THREE.RepeatWrapping
-      x.repeat.set(w / BRICK_TILE, h / BRICK_TILE)
+      x.repeat.set(w / WALL_TILE[kind], h / WALL_TILE[kind])
       x.needsUpdate = true
     }
-    m = mat(color, { map, bumpMap: bump, bumpScale: 0.8 })
-    brickWalls.set(key, m)
+    m = mat(color, { map, bumpMap: bump, bumpScale: WALL_BUMP[kind] })
+    texturedWalls.set(key, m)
   }
   return m
 }
+export const brickWallMat = (color: string, w: number, h: number) => wallMat('brick', color, w, h)
 
 // 쌓인 정도를 바꿉니다 (0 없음 ~ 1 다 덮임). WorldSky 가 매 프레임 불러도 1/100 단위로 바뀔 때만 다시 칠합니다.
 export function setSnowCover(cover: number) {

@@ -3,6 +3,8 @@ import { LOUNGER, decorBoxes, stoolBoxes, wallPose } from './theme'
 import type { BranchTheme } from './theme'
 import type { BranchRules } from './rulesLogic'
 import type { AmbienceKind } from './ambience'
+import { COUNTER, counterBox, npcSpot } from './baristaLogic'
+import type { Barista } from './baristaLogic'
 import type { NoteBoardSpec } from '../board/CorkBoard'
 
 export type Box = { x: number; z: number; w: number; d: number }
@@ -40,8 +42,9 @@ export type BranchLayout = {
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)
   mapSprite?: string // 전체 지도에서 지붕 대신 쓸 건물 그림 (public/ 기준 주소, 선택). 없으면 색 칠한 지붕 (#300)
   theme?: BranchTheme // 지점 테마(색·천장·액자·카운터, #57). 없으면 기본 모습. 값은 theme.ts 참고
+  barista?: Barista // 카페 바리스타 NPC 와 카운터 (baristaLogic.ts). 스터디카페·휴식공간은 없음
 }
-type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'elevator' | 'kiosk' | 'bar' | 'theme'>
+type Branch = Pick<BranchLayout, 'walls' | 'seats' | 'meetingDoor' | 'elevator' | 'kiosk' | 'bar' | 'theme' | 'barista'>
 
 export const SEAT = { w: 1.2, d: 0.6 }
 export const KIOSK = { w: 0.6, d: 0.4 }
@@ -85,6 +88,8 @@ export function obstaclesOf(b: Branch): Box[] {
     ...b.seats.filter((s) => s.chair !== 'lounger').map((s) => ({ x: s.x, z: s.z, ...SEAT })), // 라운지 소파는 책상이 없음
     ...(b.kiosk ? [{ x: b.kiosk.x, z: b.kiosk.z, ...KIOSK }] : []),
     ...(b.bar ? [b.bar] : []),
+    ...(b.barista?.counter ? [counterBox(b.barista)] : []), // 바리스타 카운터
+    ...(b.barista ? [{ ...npcSpot(b.barista), w: COUNTER.d * 0.6, d: COUNTER.d * 0.6 }] : []), // 바리스타 (카운터 옆으로 돌아 들어가지 않게)
     ...stoolBoxes(b.theme), // 테마의 카운터 스툴도 부딪힙니다
     ...decorBoxes(b.theme), // 고리 테이블 가운데(나무)도 막습니다
   ]

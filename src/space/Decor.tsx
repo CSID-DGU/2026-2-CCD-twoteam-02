@@ -3,14 +3,16 @@
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { CanvasTexture, DoubleSide, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
+import { CanvasTexture, Color, DoubleSide, InstancedMesh, Object3D, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
-import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Water } from './theme'
+import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, BOOKCASE, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Bookcase, Water } from './theme'
+import { RepeatWrapping } from 'three'
+import { TILE, groundTextures } from '../world/worldTextures'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { StudyCafeDecor } from './StudyCafeDecor'
-import { plasterTexture, stoneTileTexture } from './studyCafeTextures'
+import { plasterTexture, stoneTileTexture, woodTexture } from './studyCafeTextures'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
 const FAN_COLOR = '#3b3b3b'
@@ -39,6 +41,7 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
       {theme.ceiling?.lamps?.map((l, i) => <PendantLamp key={i} x={l.x} z={l.z} height={h} />)}
       {theme.wall?.neon && <NeonStrip color={theme.wall.neon} size={size} height={h} />}
       {theme.frames?.map((f, i) => <WallFrame key={i} frame={f} />)}
+      {theme.bookcases?.map((b, i) => <BookcaseShelf key={i} bookcase={b} />)}
       {theme.menu && <MenuBoard menu={theme.menu} />}
       {theme.ceiling?.grid && <CeilingGrid grid={theme.ceiling.grid} size={size} />}
       {theme.ceiling?.globes?.map((g, i) => <GlobeLamp key={i} globe={g} height={h} />)}
@@ -887,7 +890,11 @@ function RugMat({ rug }: { rug: Rug }) {
   return (
     <mesh position={[rug.x, 0.006, rug.z]} rotation={[-Math.PI / 2, 0, 0]}>
       <shapeGeometry args={[shape]} />
-      <meshStandardMaterial color={rug.color} roughness={1} />
+      {rug.grass ? (
+        <meshStandardMaterial color={rug.color} roughness={1} map={grassMaps().map} bumpMap={grassMaps().bump} bumpScale={1.2} />
+      ) : (
+        <meshStandardMaterial color={rug.color} roughness={1} />
+      )}
     </mesh>
   )
 }
@@ -1431,6 +1438,134 @@ function Blackboard({ board }: { board: Board }) {
         <boxGeometry args={[board.w, 0.04, 0.1]} />
         <meshStandardMaterial color={BOARD_FRAME} {...WOOD} />
       </mesh>
+    </group>
+  )
+}
+
+// 실내 이끼·풀 결: 광장 잔디 그림을 빌려 씀. 모양 좌표가 m 단위라 TILE.grass m 마다 한 장 반복. 처음 쓸 때 한 번만 복사
+let grass: { map: CanvasTexture; bump: CanvasTexture } | null = null
+function grassMaps() {
+  if (!grass) {
+    const t = groundTextures().grass
+    const rep = <T extends { clone(): T; wrapS: number; wrapT: number; repeat: Vector2; needsUpdate: boolean }>(x: T) => {
+      const c = x.clone()
+      c.wrapS = c.wrapT = RepeatWrapping
+      c.repeat.set(1 / TILE.grass, 1 / TILE.grass)
+      c.needsUpdate = true
+      return c
+    }
+    grass = { map: rep(t.map as CanvasTexture), bump: rep(t.bump as CanvasTexture) }
+  }
+  return grass
+}
+
+// 책장: 원목 틀(옆판·선반·뒤판) + 칸마다 높이·두께·색이 다른 책 (가끔 기울어진 책), 몇 칸은 작은 이끼 화분.
+// 책은 책장마다 InstancedMesh 하나로 그려 수백 권이어도 가볍게. 자리는 seed 로 정해 매번 같음
+const BOOK_COLORS = ['#e8e1d3', '#c9b48f', '#8a6b4a', '#4f5b4a', '#2f3a3f', '#6b7a4a', '#a3946f', '#3f5a24', '#7a3f2e', '#d9cdb6']
+type BookPose = { x: number; y: number; z: number; w: number; h: number; d: number; tilt: number; color: string }
+function bookcaseLayout(b: Bookcase) {
+  const B = BOOKCASE
+  const cols = Math.max(1, Math.round(b.w / B.col))
+  const cw = b.w / cols
+  const rh = (B.h - 0.1) / B.rows
+  let r = (b.seed ?? 1) * 9301 + 49297
+  const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280)
+  const books: BookPose[] = []
+  const pots: { x: number; y: number }[] = []
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < B.rows; j++) {
+      const x0 = -b.w / 2 + i * cw + B.board
+      const floor = 0.1 + j * rh + B.board / 2
+      if (j > 0 && rnd() < 0.15) {
+        pots.push({ x: x0 + cw / 2, y: floor })
+        continue
+      }
+      let x = x0 + 0.02
+      const end = x0 + cw - B.board - (rnd() < 0.5 ? 0.12 + rnd() * 0.15 : 0.02) // 칸 끝에 빈 자리 조금
+      while (x < end) {
+        const w = 0.025 + rnd() * 0.035
+        if (x + w > end) break
+        const h = Math.min(rh - 0.06, 0.2 + rnd() * 0.13)
+        const d = 0.17 + rnd() * 0.08
+        books.push({ x: x + w / 2, y: floor + h / 2, z: -B.depth / 2 + 0.03 + d / 2, w, h, d, tilt: 0, color: BOOK_COLORS[Math.floor(rnd() * BOOK_COLORS.length)] })
+        x += w + 0.002
+      }
+      // 칸 끝에 비스듬히 기댄 책 한 권 (가끔)
+      if (end < x0 + cw - B.board - 0.1 && rnd() < 0.6) {
+        const h = Math.min(rh - 0.06, 0.24)
+        const tilt = -0.35
+        books.push({ x: x + Math.sin(-tilt) * h / 2 + 0.02, y: floor + Math.cos(tilt) * h / 2, z: -B.depth / 2 + 0.13, w: 0.035, h, d: 0.2, tilt, color: BOOK_COLORS[Math.floor(rnd() * BOOK_COLORS.length)] })
+      }
+    }
+  }
+  return { cols, cw, rh, books, pots }
+}
+
+function BookcaseShelf({ bookcase }: { bookcase: Bookcase }) {
+  const B = BOOKCASE
+  const p = wallPose(bookcase.x, bookcase.z, bookcase.face, 0, WALL_THICKNESS / 2 + B.depth / 2)
+  const { cols, cw, rh, books, pots } = useMemo(() => bookcaseLayout(bookcase), [bookcase])
+  const ref = useRef<InstancedMesh>(null)
+  useEffect(() => {
+    const m = ref.current
+    if (!m) return
+    const o = new Object3D()
+    const c = new Color()
+    books.forEach((bk, k) => {
+      o.position.set(bk.x, bk.y, bk.z)
+      o.rotation.set(0, 0, bk.tilt)
+      o.scale.set(bk.w, bk.h, bk.d)
+      o.updateMatrix()
+      m.setMatrixAt(k, o.matrix)
+      m.setColorAt(k, c.set(bk.color))
+    })
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [books])
+  const wood = woodTexture('#8a6a4a')
+  return (
+    <group position={[p.x, 0, p.z]} rotation={[0, p.rotY, 0]}>
+      {/* 뒤판 (어두운 나무) */}
+      <mesh position={[0, B.h / 2, -B.depth / 2 + 0.01]}>
+        <boxGeometry args={[bookcase.w, B.h, 0.02]} />
+        <meshStandardMaterial map={woodTexture('#5a4330')} roughness={0.9} />
+      </mesh>
+      {/* 옆판·칸막이 */}
+      {Array.from({ length: cols + 1 }, (_, i) => (
+        <mesh key={`v${i}`} position={[-bookcase.w / 2 + i * cw, B.h / 2, 0]}>
+          <boxGeometry args={[B.board, B.h, B.depth]} />
+          <meshStandardMaterial map={wood} roughness={0.8} />
+        </mesh>
+      ))}
+      {/* 선반 (맨 아래는 받침, 맨 위는 윗판) */}
+      {Array.from({ length: B.rows + 1 }, (_, j) => (
+        <mesh key={`h${j}`} position={[0, 0.1 + j * rh, 0]}>
+          <boxGeometry args={[bookcase.w, B.board, B.depth]} />
+          <meshStandardMaterial map={wood} roughness={0.8} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.05, 0.01]}>
+        <boxGeometry args={[bookcase.w, 0.1, B.depth - 0.02]} />
+        <meshStandardMaterial map={woodTexture('#5a4330')} roughness={0.9} />
+      </mesh>
+      <instancedMesh ref={ref} args={[undefined, undefined, books.length]} key={books.length}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.85} />
+      </instancedMesh>
+      {pots.map((pt, i) => (
+        <group key={i} position={[pt.x, pt.y, 0]}>
+          <mesh position-y={0.06}>
+            <cylinderGeometry args={[0.07, 0.055, 0.12, 12]} />
+            <meshStandardMaterial color="#e8e1d6" roughness={0.7} />
+          </mesh>
+          {[[0, 0.17, 0, 0.09], [0.06, 0.14, 0.02, 0.06], [-0.06, 0.13, -0.01, 0.06]].map(([x, y, z, r], k) => (
+            <mesh key={k} position={[x, y, z]}>
+              <icosahedronGeometry args={[r, 1]} />
+              <meshStandardMaterial color={k % 2 ? '#5f7d33' : '#4f6a2a'} roughness={0.95} flatShading />
+            </mesh>
+          ))}
+        </group>
+      ))}
     </group>
   )
 }

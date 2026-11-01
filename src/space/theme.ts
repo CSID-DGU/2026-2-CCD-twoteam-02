@@ -53,7 +53,11 @@ export type Booth = { x: number; z: number; open: number }
 // 버섯 조명: 부스 등받이 위 작은 탁상 조명. light 면 실제 빛
 export type Mushroom = { x: number; z: number; y: number; light?: boolean }
 // 러그: 바닥에 깐 얇은 판. wobble 이 있으면 둥근 대신 물결 모양 가장자리(0~0.3 정도)
-export type Rug = { x: number; z: number; r: number; color: string; wobble?: number; seed?: number }
+// grass: 이끼·풀 결 질감 (없으면 한 색 천)
+export type Rug = { x: number; z: number; r: number; color: string; wobble?: number; seed?: number; grass?: boolean }
+// 책장: 벽(face 쪽을 봄)에 붙여 바닥에 세운 원목 책장. w 폭(칸 0.8m 씩), x·z 는 벽 위 가운데. 칸마다 입체 책·가끔 작은 화분
+export type Bookcase = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; w: number; seed?: number }
+export const BOOKCASE = { h: 2.2, depth: 0.34, col: 0.8, rows: 5, board: 0.03 }
 // 화분(화단): 타일 두른 상자 + 흙 + 풀. tree 면 가운데 작은 나무
 export type Planter = { x: number; z: number; w: number; d: number; tile: string; tree?: boolean }
 // 물길: 바닥보다 낮은 물 + 돌 테두리. 사각형 여러 개를 이어 꺾인 물길을 만듭니다
@@ -172,6 +176,9 @@ export type BranchTheme = {
   pillars?: Pillar[]
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
+  bookcases?: Bookcase[] // 바닥에 세운 원목 책장 (이끼 정원)
+  // 직접 지정한 통창 (world/cafeWindowLogic). 자동 규칙(출입문 벽·sideWindow 옆벽)에 더해 그 벽 at(앞·뒷벽은 x, 옆벽은 z) 가운데에 폭 w
+  windows?: { wall: 'front' | 'back' | 'west' | 'east'; at: number; w: number }[]
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
   desk?: string
   chair?: string // 의자 기본색. 가까이·내 자리 강조색은 테마와 무관
@@ -272,6 +279,7 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
     ...(sc?.windowBars ?? []).map((b) => wallBoxOf(b.x, b.z, b.len, STUDY_CAFE.barDepth, b.face)),
     ...(sc?.bookWalls ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (0.1 + STUDY_CAFE.shelfDepth) * 2, b.face)),
     ...(sc?.pots ?? []).filter((p) => p.tree).map((p) => ({ x: p.x, z: p.z, w: STUDY_CAFE.potR * 2, d: STUDY_CAFE.potR * 2 })),
+    ...(theme?.bookcases ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (WALL_THICKNESS / 2 + BOOKCASE.depth) * 2, b.face)), // 책장 (벽 반 두께 + 깊이)
   ]
   return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop)]
 }

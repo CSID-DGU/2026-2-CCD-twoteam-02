@@ -9,6 +9,7 @@ import type { BranchLayout } from '../space/layout'
 import { spotsOf } from '../space/layout'
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { BranchInterior } from '../space/BranchInterior'
+import { BaristaNpc } from '../space/BaristaNpc'
 import { useBranchInfo } from '../space/useBranchInfo'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
@@ -57,6 +58,7 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
                 lights={f.level === 1} // 조명은 한 번만 (층마다 넣으면 겹쳐서 너무 밝음)
               />
               {showPeople && <ShopPeople slug={f.slug} layout={layout} />}
+              {layout.barista && <BaristaNpc barista={layout.barista} />}
             </group>
           </group>
         )

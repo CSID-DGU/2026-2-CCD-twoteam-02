@@ -29,7 +29,17 @@ export function cafeWallPieces(raw: Layout, wall: Box, height: number): WallPiec
   if (!windows || !layout.door) return null
   const half = layout.size.w / 2
   const which: WindowWall | null =
-    wall.w > wall.d ? (Math.abs(wall.z - layout.door.z) < 0.3 ? 'front' : null) : Math.abs(wall.x + half) < 0.3 ? 'west' : Math.abs(wall.x - half) < 0.3 ? 'east' : null
+    wall.w > wall.d
+      ? Math.abs(wall.z - layout.door.z) < 0.3
+        ? 'front'
+        : Math.abs(wall.z + layout.size.d / 2) < 0.3
+          ? 'back'
+          : null
+      : Math.abs(wall.x + half) < 0.3
+        ? 'west'
+        : Math.abs(wall.x - half) < 0.3
+          ? 'east'
+          : null
   if (!which) return null
   const holes = windowHoles(windows.spots, which)
   return holes.length > 0 ? wallPieces(wall, height, holes) : null

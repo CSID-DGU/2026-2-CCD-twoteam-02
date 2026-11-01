@@ -10,6 +10,7 @@ import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, 
 import { BarTable, Carrel, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
+import { CafeCounter } from "./CafeCounter";
 import { Cubicles, OfficeChair, ShellChair, Staircase } from "./StudyCafeDecor";
 import { plasterTexture } from "./studyCafeTextures";
 import { CorkBoard } from "../board/CorkBoard";
@@ -247,6 +248,8 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
         </group>
       )}
 
+      {/* 카페 카운터 (바리스타 앞, baristaLogic) */}
+      {branch.barista && <CafeCounter barista={branch.barista} wood={colors.desk} />}
     </>
   );
 }

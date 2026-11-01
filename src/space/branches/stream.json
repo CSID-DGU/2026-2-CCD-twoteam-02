@@ -425,5 +425,45 @@
       "signBg": "#6f6a63",
       "knob": "#c9ccd2"
     }
+  },
+  "barista": {
+    "x": 4.9,
+    "z": 6.6,
+    "w": 3,
+    "facing": "north",
+    "counter": true,
+    "look": {
+      "hair": "slicked-back-textured",
+      "hairColor": "#5a3d27",
+      "top": "longsleeve",
+      "topColor": "#7d705e",
+      "bottomColor": "#3a3530",
+      "apron": "#e8e1d4",
+      "hat": "cap",
+      "hatColor": "#7d705e"
+    },
+    "menu": [
+      {
+        "name": "바닐라 라떼",
+        "icon": "☕"
+      },
+      {
+        "name": "블루 레모네이드",
+        "icon": "💧"
+      },
+      {
+        "name": "카모마일티",
+        "icon": "🌼"
+      },
+      {
+        "name": "아메리카노",
+        "icon": "☕"
+      },
+      {
+        "name": "마들렌",
+        "icon": "🧁",
+        "food": "madeleine"
+      }
+    ]
   }
 }

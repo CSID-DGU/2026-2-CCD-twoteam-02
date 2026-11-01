@@ -438,15 +438,16 @@ export function Staircase({ box, height, dir, near, nearColor }: { box: Box; hei
         </>
       ) : (
         <>
-          {/* 바닥 구멍: 북쪽(-z) 끝이 입구. 남쪽으로 갈수록 깊어져 어두운 디딤판 */}
-          <mesh position-y={0.003} rotation-x={-Math.PI / 2}>
+          {/* 바닥 구멍: 북쪽(-z) 끝이 입구. 남쪽으로 갈수록 깊어져 어두운 디딤판.
+              루프탑 데크(y 0.01)가 바닥보다 살짝 높아서 그보다 위에 그림 (아래면 데크에 덮여 계단이 안 보였음) */}
+          <mesh position-y={0.013} rotation-x={-Math.PI / 2}>
             <planeGeometry args={[W, L]} />
             <meshBasicMaterial color="#201b16" />
           </mesh>
           {Array.from({ length: Math.ceil(STAIR_STEPS * 0.6) }, (_, i) => {
             const k = 1 - i / (STAIR_STEPS * 0.6)
             return (
-              <mesh key={i} position={[0, 0.005, -L / 2 + (i + 0.5) * tread]} rotation-x={-Math.PI / 2}>
+              <mesh key={i} position={[0, 0.016, -L / 2 + (i + 0.5) * tread]} rotation-x={-Math.PI / 2}>
                 <planeGeometry args={[W - 0.06, tread * 0.85]} />
                 <meshBasicMaterial map={woodTexture(OAK)} color={`rgb(${Math.round(210 * k)},${Math.round(180 * k)},${Math.round(140 * k)})`} />
               </mesh>

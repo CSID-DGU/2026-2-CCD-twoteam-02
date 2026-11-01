@@ -30,7 +30,8 @@ const viewProj = new THREE.Matrix4()
 const buffer = new THREE.Vector2()
 
 // 벽 하나의 창들: 그 벽 바깥만 남기는 자르기 면(clip), 그 벽 창에 비출 그림(target)·재질(mat), 창 자리(화면에 보이는지 확인용)
-export type PortalView = { target: THREE.WebGLRenderTarget; mat: THREE.ShaderMaterial; clip: THREE.Plane; windows: THREE.Box3[] }
+// shift: 그 벽을 그릴 때만 거리 장면을 옮김 (뒷벽: 실내가 건물보다 깊어서, 건물 실제 뒷면에서 내다본 풍경이 오게)
+export type PortalView = { target: THREE.WebGLRenderTarget; mat: THREE.ShaderMaterial; clip: THREE.Plane; windows: THREE.Box3[]; shift?: THREE.Vector3 }
 export type Portal = { scene: THREE.Scene; views: PortalView[] }
 
 // 거리 장면을 벽마다 렌더 타깃에 그림 (useFrame 에서 화면보다 먼저). 창이 화면에 보이는 벽만
@@ -46,8 +47,11 @@ export function renderPortal(gl: THREE.WebGLRenderer, camera: THREE.Camera, p: P
     v.mat.uniforms.res.value.copy(buffer)
     gl.setRenderTarget(v.target)
     gl.clippingPlanes = [v.clip]
+    if (v.shift) p.scene.position.copy(v.shift)
+    else p.scene.position.set(0, 0, 0)
     gl.render(p.scene, camera)
   }
+  p.scene.position.set(0, 0, 0)
   gl.clippingPlanes = prevClip
   gl.setRenderTarget(prevTarget)
 }
