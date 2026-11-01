@@ -1,10 +1,13 @@
-// 가방 (B 또는 오른쪽 아래 가방 버튼): 스터디 플래너와 메모장이 들어 있습니다.
+// 가방 (B 또는 오른쪽 아래 가방 버튼): 스터디 플래너·메모장·시계가 들어 있습니다.
 //   - 플래너: 꺼내면 화면에 띄워 둠 (어느 화면에서든 그대로, 다시 넣으면 닫힘)
 //   - 메모장: 한 장 뜯으면 화면에 붙음. 붙인 메모는 떼서 가방에 넣어 두거나 버릴 수 있음
 // 로그인한 화면 어디서나 (App 이 깔아 줌). 띄워 둔 창은 화면 맨 위 층이라 걸으면서도 보입니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { PlannerWindow } from './PlannerWindow'
+import { ClockWindow } from './ClockWindow'
+import { AlarmRinging } from './AlarmRinging'
+import { useClockWatcher } from './useClock'
 import { StickyNote } from './StickyNote'
 import { MEMO_COLORS, useMemos } from './useMemos'
 import { useHandFont } from './useHandFont'
@@ -12,6 +15,22 @@ import { HAND, INK, NOTE_COLOR, PRINT, handSize, paperSurface } from './paperSty
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import { isShortcut } from '../menu/shortcuts'
 
+// 시계(스톱워치·알람) 꺼냄 여부. 플래너와 같은 방식으로 이 브라우저에 기억
+const CLOCK_OPEN_KEY = 'dooteum.clock.open'
+const loadClockOpen = () => {
+  try {
+    return localStorage.getItem(CLOCK_OPEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+const saveClockOpen = (v: boolean) => {
+  try {
+    localStorage.setItem(CLOCK_OPEN_KEY, v ? '1' : '0')
+  } catch {
+    // 기억 못 해도 이번엔 그대로
+  }
+}
 const OPEN_KEY = 'dooteum.planner.open'
 const loadOpen = () => {
   try {
@@ -55,6 +74,12 @@ const small: CSSProperties = { background: 'rgba(255,255,255,0.18)', color: '#ff
 export function BagLayer() {
   const [bagOpen, setBagOpen] = useState(false)
   const [planner, setPlanner] = useState(loadOpen)
+  const [clock, setClock] = useState(loadClockOpen)
+  useClockWatcher() // 시계를 닫아 둬도 알람이 울리게 (숨긴 탭에서도)
+  const toggleClock = (v: boolean) => {
+    setClock(v)
+    saveClockOpen(v)
+  }
   const [notice, setNotice] = useState('') // 메모 뜯기 실패 안내
   const { memos, tear, change, remove } = useMemos()
   useHandFont() // 내 손글씨 글씨체를 읽어 화면 전체(플래너·메모)에 적용
@@ -81,6 +106,8 @@ export function BagLayer() {
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
       {planner && <PlannerWindow onClose={() => togglePlanner(false)} />}
+      {clock && <ClockWindow onClose={() => toggleClock(false)} />}
+      <AlarmRinging />
       {memos
         .filter((m) => m.shown)
         .map((m) => (
@@ -104,6 +131,19 @@ export function BagLayer() {
               <div style={{ fontSize: 11, opacity: 0.8 }}>오늘 할 일·시간표 (집중 기록이 저절로 칠해져요)</div>
             </div>
             <button style={small} onClick={() => togglePlanner(!planner)}>{planner ? '넣기' : '꺼내기'}</button>
+          </div>
+
+          <div style={item}>
+            {/* 작은 민트 시계 그림 */}
+            <div style={{ position: 'relative', width: 34, height: 34, flex: 'none', borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #d9f2e6, #a9dcc6 60%, #8fcab2)', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+              <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', background: '#fffaf0' }} />
+              <div style={{ position: 'absolute', left: 13, top: -5, width: 8, height: 6, borderRadius: 2, background: '#f6c9d4' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700 }}>스톱워치</div>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>스톱워치·알람 (닫아 둬도 알람이 울려요)</div>
+            </div>
+            <button style={small} onClick={() => toggleClock(!clock)}>{clock ? '넣기' : '꺼내기'}</button>
           </div>
 
           <div style={item}>
