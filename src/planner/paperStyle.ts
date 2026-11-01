@@ -7,6 +7,8 @@ export const LINE = '#7aa6c2' // 플래너 인쇄 선·글자
 export const PAPER = '#f1ebe6'
 // 손글씨는 CSS 변수로: 고른 글씨체(applyHandFont)가 정하고, 정하기 전에는 오춘기 김작가
 export const HAND = "var(--hand-font, 'OchungiKim', 'KyoboHandwriting2020A', cursive)"
+// 고르기와 상관없는 기본 손글씨. 캔버스(ctx.font)는 CSS 변수를 못 읽고, 게시판처럼 여러 사람 글이 모이는 곳은 글씨를 하나로 둠
+export const HAND_FIXED = "'OchungiKim', 'KyoboHandwriting2020A', cursive"
 // 손글씨 글자 크기: 글씨체마다 크기가 달라 고른 글씨체의 배율(--hand-scale)을 곱함. 숫자는 오춘기 김작가 기준 px
 export const handSize = (px: number) => `calc(${px}px * var(--hand-scale, 1))`
 export const PRINT = "'Arial Rounded MT Bold', 'Nunito', 'Pretendard', system-ui, sans-serif"

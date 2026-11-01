@@ -2,7 +2,7 @@
 // 내 쪽지는 ✕ 로 뗄 수 있고, 게스트는 읽기만 합니다. Esc 또는 바깥을 누르면 닫힘.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { HAND, INK, NOTE_COLOR, PRINT } from '../planner/paperStyle'
+import { HAND_FIXED as HAND, INK, NOTE_COLOR, PRINT } from '../planner/paperStyle'
 import { CHALK, CHALK_FONT } from '../ranking/chalk'
 import { useIsGuest } from '../auth/useIsGuest'
 import { BOARD, BOARD_COLORS, agoLabel } from './boardLogic'

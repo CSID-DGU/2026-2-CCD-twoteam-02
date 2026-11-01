@@ -6,7 +6,7 @@ import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
 import { CHALK, chalkStar, chalkText, doodles, drawBoard, loadChalkFont } from '../ranking/chalk'
 import { wallPose } from '../space/theme'
 import type { Frame } from '../space/theme'
-import { HAND, INK, NOTE_COLOR } from '../planner/paperStyle'
+import { HAND_FIXED as HAND, INK, NOTE_COLOR } from '../planner/paperStyle'
 import { BOARD, pinLayout } from './boardLogic'
 import type { BoardNote } from './boardLogic'
 
