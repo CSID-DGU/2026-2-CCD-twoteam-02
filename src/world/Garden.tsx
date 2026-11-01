@@ -76,7 +76,7 @@ export function Garden({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
     return by
   }, [plaza, buildings])
   useFrame(({ clock }) => tickWind(clock.elapsedTime))
-  if (plaza.ground === 'lawn') return null
+  // 캠퍼스(잔디 쿼드)도 풀 포기·들꽃을 심음 (자리는 gardenLogic 이 길·축구장 등을 비우고 고름)
   return (
     <group>
       <Planted kind="tuft" items={tufts} />
