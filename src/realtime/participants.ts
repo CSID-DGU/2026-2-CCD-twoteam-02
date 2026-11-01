@@ -54,6 +54,8 @@ export type PresenceState = {
   // 꽃 피는 칭호 단계(1~8, src/level/levelLogic). 프로필 공부 기록 공개 범위가 '모두'일 때만 싣는다.
   // 없으면(0단계·공개 범위 친구만/나만·예전 버전) 받는 쪽은 닉네임판에 칭호(꽃 그림·테두리)를 그리지 않는다.
   lv?: number
+  // 딱밤 받기를 끈 사람만 싣는다(#304). 친구 화면에서 딱밤 안내를 띄우지 않으려는 것뿐이고, 받는 쪽이 따로 다시 막는다.
+  nf?: true
 }
 
 export type ArmVector = [number, number, number]
@@ -110,6 +112,14 @@ export type SignalPort = {
 export const CHAT_EVENT = 'chat'
 
 // 같은 방으로 채팅을 주고받는 통로. 채팅(useMeetingChat)이 receive 를 넣어 두고, useParticipants 가 send 를 채운다.
+// 딱밤(#304) 통로. 지점·광장 실시간 방에서 쓴다. 신호는 방 안 모두가 받는다(맞은 사람 머리 위 "딱!" 말풍선을 보이려고).
+// 받아들일지는 맞은 사람이 친구·거리·빨간불로 다시 확인한다(friends/flickLogic 의 acceptFlick).
+export const FLICK_EVENT = 'flick'
+export type FlickPort = {
+  receive: (from: string, to: string) => void
+  send: ((to: string) => void) | null // 방에 들어가기 전에는 null
+}
+
 export type ChatPort = {
   receive: (from: string, payload: unknown) => void
   send: ((text: string) => Promise<boolean>) | null // 방에 들어가기 전에는 null

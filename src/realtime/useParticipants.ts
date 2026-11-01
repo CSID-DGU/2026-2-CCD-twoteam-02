@@ -59,8 +59,8 @@ import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { onMyProfileChanged } from '../profile/characters'
-import { CHAT_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
-import type { ChatPort, Participant, PresenceState, SignalPort } from './participants'
+import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
+import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
@@ -79,6 +79,7 @@ export function useParticipants(
   signalRef?: RefObject<SignalPort>,
   chatRef?: RefObject<ChatPort>,
   client: SupabaseClient = supabase,
+  flickRef?: RefObject<FlickPort>, // 딱밤 통로 (지점·광장, #304)
 ) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
@@ -89,6 +90,7 @@ export function useParticipants(
     const channel = client.channel(room, isPrivate ? { config: { private: true } } : undefined)
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
+    const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
 
     const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -224,6 +226,12 @@ export function useParticipants(
         if (!chatPort || typeof from !== 'string' || from === me.current?.userId) return
         chatPort.receive(from, payload)
       })
+      .on('broadcast', { event: FLICK_EVENT }, ({ payload }) => {
+        // 딱밤. 누가 누구에게 보냈는지만 넘기고, 받아들일지는 딱밤 쪽(useFlick)이 확인한다.
+        const p = payload as { from?: unknown; to?: unknown } | null
+        if (!flickPort || typeof p?.from !== 'string' || typeof p?.to !== 'string' || p.from === me.current?.userId) return
+        flickPort.receive(p.from, p.to)
+      })
       .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
@@ -238,6 +246,12 @@ export function useParticipants(
           port.send = (to, data) => {
             const from = me.current?.userId
             if (from) void channel.send({ type: 'broadcast', event: SIGNAL_EVENT, payload: { from, to, data } })
+          }
+        }
+        if (flickPort) {
+          flickPort.send = (to) => {
+            const from = me.current?.userId
+            if (from) void channel.send({ type: 'broadcast', event: FLICK_EVENT, payload: { from, to } })
           }
         }
         if (chatPort) {
@@ -293,9 +307,10 @@ export function useParticipants(
       stopProfileListen()
       if (port) port.send = null
       if (chatPort) chatPort.send = null
+      if (flickPort) flickPort.send = null
       void channel.unsubscribe()
     }
-  }, [room, me, isPrivate, signalRef, chatRef, client])
+  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef])
 
   return others
 }
