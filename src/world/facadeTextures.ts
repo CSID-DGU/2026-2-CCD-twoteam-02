@@ -43,23 +43,33 @@ function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 
 // 지점별 실내
 const INTERIOR: Record<FacadeStyle, (ctx: CanvasRenderingContext2D, w: number, h: number) => void> = {
-  // 별다방: 크림 벽, 책 꽂힌 선반, 긴 책상과 초록 스탠드
+  // Cam Study Cafe (예전 별다방): 회벽, 펜던트 등, 둥근 원목 칸막이(위는 골유리) 줄과 검은 스탠드 불빛, 안쪽 원목 책장
   classic(ctx, w, h) {
-    rect(ctx, '#e9dcc3', 0, 0, w, h)
-    rect(ctx, '#7a5534', 0, h * 0.78, w, h * 0.22)
-    for (let s = 0; s < 2; s++) {
-      const y = 22 + s * 34
-      rect(ctx, '#6b4a2e', 12, y + 22, w - 24, 4)
-      for (let x = 16; x < w - 20; x += 7) rect(ctx, ['#a33', '#2f5d8a', '#c9a24a', '#3d7a4a', '#7a3d6b'][(x + s) % 5], x, y + 6 + ((x * 7) % 5), 5, 16 - ((x * 7) % 5))
+    rect(ctx, '#e9e4dc', 0, 0, w, h)
+    rect(ctx, '#9a7652', w * 0.3, h * 0.12, w * 0.4, h * 0.5) // 안쪽 책장
+    for (let y = h * 0.16; y < h * 0.6; y += 12) {
+      rect(ctx, '#d2b48c', w * 0.3, y, w * 0.4, 2)
+      glow(ctx, w * 0.5, y + 3, 30, 'rgba(255,215,160,0.35)')
     }
-    rect(ctx, '#5a3a22', 10, h * 0.66, w - 20, 8)
-    for (const x of [50, 128, 206]) {
-      rect(ctx, '#2c2c2c', x - 1, h * 0.56, 2, 14)
-      ctx.fillStyle = '#1f6b45'
+    for (const x of [w * 0.12, w * 0.3, w * 0.7, w * 0.88]) {
+      rect(ctx, '#1d1d1f', x - 1, 0, 2, h * 0.2) // 펜던트 줄
+      ctx.fillStyle = '#1d1d1f'
       ctx.beginPath()
-      ctx.ellipse(x, h * 0.56, 12, 7, 0, Math.PI, 0)
+      ctx.moveTo(x - 4, h * 0.2)
+      ctx.lineTo(x + 4, h * 0.2)
+      ctx.lineTo(x + 11, h * 0.28)
+      ctx.lineTo(x - 11, h * 0.28)
       ctx.fill()
-      glow(ctx, x, h * 0.62, 26)
+      glow(ctx, x, h * 0.3, 26)
+    }
+    for (let x = 8; x < w - 30; x += 44) {
+      ctx.fillStyle = '#d2b48c' // 둥근 칸막이 (위 모서리 둥글게)
+      ctx.beginPath()
+      ctx.roundRect(x, h * 0.48, 40, h * 0.52, [10, 10, 0, 0])
+      ctx.fill()
+      rect(ctx, '#f1ebdf', x + 4, h * 0.52, 32, h * 0.1) // 골유리
+      rect(ctx, '#1d1d1f', x + 30, h * 0.6, 2, 10) // 스탠드
+      glow(ctx, x + 26, h * 0.7, 18)
     }
   },
   // 레트로카페: 민트 벽, 빨간 네온 줄, 둥근 시계, 체크 바닥, 빨간 카운터와 스툴

@@ -26,10 +26,16 @@
       "w": 10,
       "d": 8,
       "facing": "south",
-      "wall": "#efe3cf",
+      "wall": "#f4f1ea",
       "facade": "classic",
       "sideWindow": "east",
-      "roof": "#a0463c"
+      "roof": "#2b2d31",
+      "floors": [
+        {
+          "slug": "byeol-2f",
+          "window": "#f3e3c0"
+        }
+      ]
     },
     {
       "slug": "moss",

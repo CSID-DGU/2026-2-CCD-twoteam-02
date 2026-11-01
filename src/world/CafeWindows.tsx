@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import type { BranchLayout } from '../space/layout'
 import { CAFE_WINDOW, FLOOR_H, paneCount } from './cafeWindowLogic'
 import type { CafeWindow, CafeWindows as Windows, WindowWall } from './cafeWindowLogic'
-import { cafeWindowsOf } from './cafeWindowsOf'
+import { cafeWindowsOf, windowLayoutOf } from './cafeWindowsOf'
 import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
 import type { Portal } from './cafePortal'
 import { benchSeats, buildingOf } from './worldLogic'
@@ -53,7 +53,8 @@ function clipOf(wall: WindowWall, at: number) {
 }
 
 // showPeople: 거리의 사람을 그릴지 (캐릭터 숨김 실험 모드면 false)
-export function CafeWindows({ layout, showPeople }: { layout: Layout; showPeople: boolean }) {
+export function CafeWindows({ layout: raw, showPeople }: { layout: Layout; showPeople: boolean }) {
+  const layout = useMemo(() => windowLayoutOf(raw), [raw]) // 위층은 1층 출입문 자리를 빌려 씀
   const windows = useMemo(() => cafeWindowsOf(layout), [layout])
   if (!windows || !layout.door || windows.spots.length === 0) return null
   return <CafePortal slug={layout.id} doorZ={layout.door.z} doorX={layout.door.x} windows={windows} showPeople={showPeople} />

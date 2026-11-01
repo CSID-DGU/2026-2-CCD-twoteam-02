@@ -1,37 +1,591 @@
 {
   "id": "byeol",
-  "name": "별다방",
-  "size": { "w": 16, "d": 16 },
-  "spawn": { "x": 0, "z": 7 },
-  "door": { "x": 0, "z": 8, "w": 1.6, "d": 0.3 },
-  "kiosk": { "x": 2, "z": 6.5 },
+  "name": "Cam Study Cafe",
+  "size": {
+    "w": 16,
+    "d": 16
+  },
+  "spawn": {
+    "x": 0,
+    "z": 7
+  },
+  "door": {
+    "x": 0,
+    "z": 8,
+    "w": 1.6,
+    "d": 0.3
+  },
+  "kiosk": {
+    "x": 2.2,
+    "z": 6.6
+  },
   "walls": [
-    { "x": 0, "z": -8, "w": 16, "d": 0.2 },
-    { "x": 0, "z": 8, "w": 16, "d": 0.2 },
-    { "x": -8, "z": 0, "w": 0.2, "d": 16 },
-    { "x": 8, "z": 0, "w": 0.2, "d": 16 }
+    {
+      "x": 0,
+      "z": -8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": 0,
+      "z": 8,
+      "w": 16,
+      "d": 0.2
+    },
+    {
+      "x": -8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    },
+    {
+      "x": 8,
+      "z": 0,
+      "w": 0.2,
+      "d": 16
+    }
   ],
-"seats": [
-  { "no": 1,  "x": -5,   "z": -4,   "rot": 0 },
-  { "no": 2,  "x": -2.5, "z": -4,   "rot": 0 },
-  { "no": 3,  "x": 0,   "z": -4,   "rot": 0 },
-  { "no": 4,  "x": 2.5, "z": -4,   "rot": 0 },
-  { "no": 5,  "x": 5,    "z": -4,   "rot": 0 },
-  { "no": 6,  "x": -5,   "z": -3.4, "rot": 3.1416 },
-  { "no": 7,  "x": -2.5, "z": -3.4, "rot": 3.1416 },
-  { "no": 8,  "x": 0,   "z": -3.4, "rot": 3.1416 },
-  { "no": 9,  "x": 2.5, "z": -3.4, "rot": 3.1416 },
-  { "no": 10, "x": 5,    "z": -3.4, "rot": 3.1416 },
-  { "no": 11, "x": -5,   "z": 1,    "rot": 0 },
-  { "no": 12, "x": -2.5, "z": 1,    "rot": 0 },
-  { "no": 13, "x": 0,   "z": 1,    "rot": 0 },
-  { "no": 14, "x": 2.5, "z": 1,    "rot": 0 },
-  { "no": 15, "x": 5,    "z": 1,    "rot": 0 },
-  { "no": 16, "x": -5,   "z": 1.6,  "rot": 3.1416 },
-  { "no": 17, "x": -2.5, "z": 1.6,  "rot": 3.1416 },
-  { "no": 18, "x": 0,   "z": 1.6,  "rot": 3.1416 },
-  { "no": 19, "x": 2.5, "z": 1.6,  "rot": 3.1416 },
-  { "no": 20, "x": 5,    "z": 1.6,  "rot": 3.1416 }
-],
-"meetingDoor": { "x": 8, "z": 5, "w": 0.3, "d": 1.4 }
+  "seats": [
+    {
+      "no": 1,
+      "x": 7.4,
+      "z": -6.9,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 2,
+      "x": 7.4,
+      "z": -5.6,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 3,
+      "x": 7.4,
+      "z": -4.3,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 4,
+      "x": 7.4,
+      "z": -3.0,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 5,
+      "x": 7.4,
+      "z": -1.7,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 6,
+      "x": 7.4,
+      "z": -0.4,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 7,
+      "x": 7.4,
+      "z": 0.9,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 8,
+      "x": 7.4,
+      "z": 2.2,
+      "rot": 1.571,
+      "desk": "bar",
+      "chair": "shell"
+    },
+    {
+      "no": 9,
+      "x": -4.4,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 10,
+      "x": -3.2,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 11,
+      "x": -2.0,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 12,
+      "x": 0.6,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 13,
+      "x": 1.8,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 14,
+      "x": 3.0,
+      "z": -5.2,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 15,
+      "x": -4.4,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 16,
+      "x": -3.2,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 17,
+      "x": -2.0,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 18,
+      "x": 0.6,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 19,
+      "x": 1.8,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 20,
+      "x": 3.0,
+      "z": -4.6,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 21,
+      "x": -4.4,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 22,
+      "x": -3.2,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 23,
+      "x": -2.0,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 24,
+      "x": 0.6,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 25,
+      "x": 1.8,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 26,
+      "x": 3.0,
+      "z": -1.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 27,
+      "x": -4.4,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 28,
+      "x": -3.2,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 29,
+      "x": -2.0,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 30,
+      "x": 0.6,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 31,
+      "x": 1.8,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 32,
+      "x": 3.0,
+      "z": -0.8,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 33,
+      "x": -4.4,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 34,
+      "x": -3.2,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 35,
+      "x": -2.0,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 36,
+      "x": 0.6,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 37,
+      "x": 1.8,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 38,
+      "x": 3.0,
+      "z": 2.4,
+      "rot": 0,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 39,
+      "x": -4.4,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 40,
+      "x": -3.2,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 41,
+      "x": -2.0,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 42,
+      "x": 0.6,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 43,
+      "x": 1.8,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    },
+    {
+      "no": 44,
+      "x": 3.0,
+      "z": 3.0,
+      "rot": 3.142,
+      "desk": "cubicle",
+      "chair": "office"
+    }
+  ],
+  "meetingDoor": {
+    "x": 8,
+    "z": 5,
+    "w": 0.3,
+    "d": 1.4
+  },
+  "elevator": {
+    "x": -7.3,
+    "z": 4.8,
+    "w": 1.2,
+    "d": 3.6
+  },
+  "stairs": "up",
+  "noteBoard": {
+    "x": -8,
+    "z": -2.6,
+    "w": 4.0,
+    "h": 1.5,
+    "y": 1.45,
+    "face": "e"
+  },
+  "theme": {
+    "floor": {
+      "pattern": "stone",
+      "colors": [
+        "#c2b9ad",
+        "#8c8378"
+      ],
+      "cell": 1.2
+    },
+    "wall": {
+      "color": "#e9e4dc",
+      "texture": "plaster"
+    },
+    "ceiling": {
+      "color": "#e2dfda",
+      "height": 3.2,
+      "texture": "plaster"
+    },
+    "studyCafe": {
+      "windowBars": [
+        {
+          "x": 7.625,
+          "z": -2.05,
+          "len": 11.3,
+          "face": "w",
+          "lamps": [
+            -4.85,
+            -3.55,
+            -2.25,
+            -0.95,
+            0.35,
+            1.65,
+            2.95,
+            4.25
+          ]
+        }
+      ],
+      "bookWalls": [
+        {
+          "x": -1.0,
+          "z": -8,
+          "w": 8.4,
+          "face": "s"
+        }
+      ],
+      "pots": [
+        {
+          "x": 7.72,
+          "z": -6.25
+        },
+        {
+          "x": 7.72,
+          "z": -4.95
+        },
+        {
+          "x": 7.72,
+          "z": -3.65
+        },
+        {
+          "x": 7.72,
+          "z": -2.35
+        },
+        {
+          "x": 7.72,
+          "z": -1.05
+        },
+        {
+          "x": 7.72,
+          "z": 0.25
+        },
+        {
+          "x": 7.72,
+          "z": 1.55
+        },
+        {
+          "x": -6.9,
+          "z": -7.1,
+          "tree": true
+        },
+        {
+          "x": 5.2,
+          "z": -7.1,
+          "tree": true
+        },
+        {
+          "x": -2.4,
+          "z": 7.3,
+          "tree": true
+        }
+      ],
+      "ducts": [
+        {
+          "x": -1.3,
+          "z": 0,
+          "len": 14,
+          "rot": 0
+        },
+        {
+          "x": 4.6,
+          "z": 0,
+          "len": 14,
+          "rot": 0
+        }
+      ],
+      "tracks": [
+        {
+          "x": -5.8,
+          "z": -1,
+          "len": 12,
+          "rot": 0
+        },
+        {
+          "x": -0.7,
+          "z": -1,
+          "len": 12,
+          "rot": 0
+        },
+        {
+          "x": 5.4,
+          "z": -0.5,
+          "len": 13,
+          "rot": 0
+        }
+      ],
+      "aircons": [
+        {
+          "x": -2.6,
+          "z": 0.6
+        },
+        {
+          "x": 2.4,
+          "z": -3.2
+        }
+      ],
+      "mottos": [
+        {
+          "x": 4.2,
+          "z": 8,
+          "face": "n",
+          "lines": [
+            "Focus",
+            "Learn",
+            "Grow"
+          ]
+        }
+      ]
+    },
+    "furniture": {
+      "style": "wood",
+      "accent": "#5b5f57",
+      "chrome": "#8a6a48",
+      "trim": "#c9a77c"
+    },
+    "desk": "#d2b48c",
+    "chair": "#7a7d80",
+    "light": {
+      "ambient": 0.78,
+      "sun": 0.5,
+      "color": "#fff3e2"
+    },
+    "door": {
+      "style": "wood",
+      "color": "#c9a77c",
+      "chrome": "#1d1d1f",
+      "signBg": "#1d1d1f",
+      "knob": "#1d1d1f"
+    }
+  }
 }
