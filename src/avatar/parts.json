@@ -331,25 +331,124 @@
       "name": "없음"
     },
     {
-      "id": "straight",
-      "name": "일자",
-      "tint": "/models/Parts/brows/straight-tint.png",
+      "id": "feather",
+      "name": "결 있는 눈썹",
+      "tint": "/models/Parts/brows/feather-tint.png",
       "box": [
-        -96,
-        -23,
-        96,
-        23
+        -126,
+        -26,
+        123,
+        29
       ]
     },
     {
-      "id": "thick",
-      "name": "진한",
-      "tint": "/models/Parts/brows/thick-tint.png",
+      "id": "arched",
+      "name": "둥근 아치 눈썹",
+      "tint": "/models/Parts/brows/arched-tint.png",
       "box": [
-        -115,
-        -35,
-        109,
-        35
+        -125,
+        -36,
+        122,
+        45
+      ]
+    },
+    {
+      "id": "angled",
+      "name": "각진 눈썹",
+      "tint": "/models/Parts/brows/angled-tint.png",
+      "box": [
+        -123,
+        -37,
+        124,
+        36
+      ]
+    },
+    {
+      "id": "wave",
+      "name": "물결 눈썹",
+      "tint": "/models/Parts/brows/wave-tint.png",
+      "box": [
+        -123,
+        -39,
+        121,
+        40
+      ]
+    },
+    {
+      "id": "flat",
+      "name": "두꺼운 일자 눈썹",
+      "tint": "/models/Parts/brows/flat-tint.png",
+      "box": [
+        -121,
+        -26,
+        121,
+        33
+      ]
+    },
+    {
+      "id": "thin-arch",
+      "name": "가는 아치 눈썹",
+      "tint": "/models/Parts/brows/thin-arch-tint.png",
+      "box": [
+        -126,
+        -30,
+        122,
+        37
+      ]
+    },
+    {
+      "id": "bold",
+      "name": "굵은 눈썹",
+      "tint": "/models/Parts/brows/bold-tint.png",
+      "box": [
+        -101,
+        -45,
+        97,
+        46
+      ]
+    },
+    {
+      "id": "slant",
+      "name": "비스듬한 눈썹",
+      "tint": "/models/Parts/brows/slant-tint.png",
+      "box": [
+        -125,
+        -39,
+        124,
+        40
+      ]
+    },
+    {
+      "id": "thin-slant",
+      "name": "가는 비스듬한 눈썹",
+      "tint": "/models/Parts/brows/thin-slant-tint.png",
+      "box": [
+        -120,
+        -36,
+        124,
+        30
+      ]
+    },
+    {
+      "id": "hook",
+      "name": "갈고리 눈썹",
+      "tint": "/models/Parts/brows/hook-tint.png",
+      "box": [
+        -118,
+        -44,
+        124,
+        44
+      ]
+    },
+    {
+      "id": "curl",
+      "name": "말린 눈썹",
+      "tint": "/models/Parts/brows/curl-tint.png",
+      "box": [
+        -124,
+        -45,
+        126,
+        39
       ]
     }
   ],

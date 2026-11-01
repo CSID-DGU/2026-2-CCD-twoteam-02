@@ -296,18 +296,11 @@ const DARK = [31, 31, 36]
 function makeParts(faces) {
   const arms = ['arm-left', 'arm-right']
   const legs = ['leg-left', 'leg-right']
-  const [bw, bh] = STICKER.brows
-  // 눈썹: 가운데 기준 가로 hw·세로 hh(스티커 픽셀)만큼 칠한 막대. 예전 크기 그대로(일자 1.5×0.35칸, 진한 1.75×0.55칸)
-  const brow = (p, hw, hh, dx, v) => rect(p.tint, bw / 2 + dx - hw, bh / 2 - hh, bw / 2 + dx + hw, bh / 2 + hh, gray(v), 255, bw)
   return {
-    // 눈·입은 그린 그림을 넣으므로(scripts/import-face-drawings.mjs) 여기서는 비워 둔다. parts.json 의 그 줄들은 그대로 남는다
+    // 눈·눈썹·입은 그린 그림을 넣으므로(scripts/import-face-drawings.mjs) 여기서는 "없음"만 둔다. parts.json 의 그 줄들은 그대로 남는다
     eyes: [],
     closedEyes: [],
-    brows: [
-      ['none', '없음', null],
-      ['straight', '일자', (p) => brow(p, 96, 22.5, 0, 200)],
-      ['thick', '진한', (p) => brow(p, 112, 35, -3, 170)],
-    ],
+    brows: [['none', '없음', null]],
     mouth: [],
     mouthOpen: [],
     // 머리카락은 머리에 붙이는 입체 부품(#296). 그리기 대신 상자 목록(HAIR_BOXES)을 주면 3D 모델 파일(.gltf)로 만든다

@@ -82,7 +82,7 @@ export const DEFAULT_AVATAR: Avatar = {
   eyes: 'sparkle', // 초롱초롱 눈 (김현 그림, 10/27)
   closedEyes: 'new-1', // 새 감은 눈 1 (11/01 김현 그림. 예전 감은 눈은 지움)
   eyeColor: '#5b3a1e',
-  brows: 'straight',
+  brows: 'flat', // 두꺼운 일자 눈썹 (11/01 김현 그림. 예전 막대 눈썹은 지움)
   mouth: 'soft-smile', // 살짝 웃는 입 (김현 그림, 10/27)
   mouthOpen: 'big-smile', // 활짝 벌린 입
   hair: 'none', // 머리카락 없음 (10/30 김현: 기본 머리 5종·단발·단색 버전을 지우고 텍스처 머리만 남김)
