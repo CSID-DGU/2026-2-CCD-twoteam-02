@@ -359,32 +359,21 @@
       "name": "살짝 웃는 입",
       "file": "/models/Parts/mouth/soft-smile.png",
       "box": [
-        -183,
-        -40,
-        169,
-        33
+        -250,
+        -64,
+        251,
+        34
       ]
     },
     {
-      "id": "tongue-out",
-      "name": "메롱 입",
-      "file": "/models/Parts/mouth/tongue-out.png",
+      "id": "smile",
+      "name": "웃는 입",
+      "file": "/models/Parts/mouth/smile.png",
       "box": [
-        -144,
-        -77,
-        187,
-        95
-      ]
-    },
-    {
-      "id": "beam",
-      "name": "환하게 웃는 입",
-      "file": "/models/Parts/mouth/beam.png",
-      "box": [
-        -149,
-        -68,
-        141,
-        37
+        -237,
+        -78,
+        231,
+        94
       ]
     },
     {
@@ -392,10 +381,10 @@
       "name": "물결 입",
       "file": "/models/Parts/mouth/wavy.png",
       "box": [
-        -128,
-        -47,
-        128,
-        39
+        -253,
+        -88,
+        254,
+        92
       ]
     },
     {
@@ -403,34 +392,78 @@
       "name": "시무룩한 입",
       "file": "/models/Parts/mouth/frown.png",
       "box": [
-        -162,
-        -32,
-        150,
-        68
+        -249,
+        -66,
+        248,
+        97
+      ]
+    },
+    {
+      "id": "tongue-out",
+      "name": "메롱 입",
+      "file": "/models/Parts/mouth/tongue-out.png",
+      "box": [
+        -218,
+        -116,
+        245,
+        117
       ]
     }
   ],
   "mouthOpen": [
     {
-      "id": "round-o",
-      "name": "동그랗게 벌린 입",
-      "file": "/models/Parts/mouthOpen/round-o.png",
-      "box": [
-        -81,
-        -116,
-        88,
-        116
-      ]
-    },
-    {
       "id": "big-smile",
       "name": "활짝 벌린 입",
       "file": "/models/Parts/mouthOpen/big-smile.png",
       "box": [
-        -204,
-        -87,
-        202,
-        75
+        -255,
+        -111,
+        254,
+        106
+      ]
+    },
+    {
+      "id": "laugh",
+      "name": "깔깔 웃는 입",
+      "file": "/models/Parts/mouthOpen/laugh.png",
+      "box": [
+        -217,
+        -116,
+        227,
+        117
+      ]
+    },
+    {
+      "id": "teeth-grin",
+      "name": "이 보이게 웃는 입",
+      "file": "/models/Parts/mouthOpen/teeth-grin.png",
+      "box": [
+        -175,
+        -118,
+        181,
+        118
+      ]
+    },
+    {
+      "id": "round-o",
+      "name": "동그랗게 벌린 입",
+      "file": "/models/Parts/mouthOpen/round-o.png",
+      "box": [
+        -99,
+        -117,
+        100,
+        117
+      ]
+    },
+    {
+      "id": "bucktooth",
+      "name": "앞니 입",
+      "file": "/models/Parts/mouthOpen/bucktooth.png",
+      "box": [
+        -131,
+        -117,
+        152,
+        116
       ]
     },
     {
@@ -438,10 +471,21 @@
       "name": "크게 벌린 입",
       "file": "/models/Parts/mouthOpen/wide-open.png",
       "box": [
-        -146,
-        -99,
-        157,
-        107
+        -176,
+        -119,
+        166,
+        118
+      ]
+    },
+    {
+      "id": "gasp",
+      "name": "놀라 벌린 입",
+      "file": "/models/Parts/mouthOpen/gasp.png",
+      "box": [
+        -206,
+        -118,
+        184,
+        118
       ]
     },
     {
@@ -449,9 +493,9 @@
       "name": "혀 내민 입",
       "file": "/models/Parts/mouthOpen/tongue-open.png",
       "box": [
-        -99,
-        -115,
-        74,
+        -93,
+        -118,
+        83,
         117
       ]
     },
@@ -460,21 +504,10 @@
       "name": "침 흘리는 입",
       "file": "/models/Parts/mouthOpen/drool.png",
       "box": [
-        -119,
-        -96,
-        136,
-        116
-      ]
-    },
-    {
-      "id": "teeth-grin",
-      "name": "이 보이게 웃는 입",
-      "file": "/models/Parts/mouthOpen/teeth-grin.png",
-      "box": [
-        -135,
-        -89,
-        113,
-        91
+        -142,
+        -114,
+        142,
+        121
       ]
     },
     {
@@ -482,32 +515,10 @@
       "name": "이 악문 입",
       "file": "/models/Parts/mouthOpen/clench.png",
       "box": [
-        -162,
-        -104,
-        166,
-        87
-      ]
-    },
-    {
-      "id": "laugh",
-      "name": "깔깔 웃는 입",
-      "file": "/models/Parts/mouthOpen/laugh.png",
-      "box": [
-        -130,
-        -83,
-        154,
-        82
-      ]
-    },
-    {
-      "id": "bucktooth",
-      "name": "앞니 입",
-      "file": "/models/Parts/mouthOpen/bucktooth.png",
-      "box": [
-        -118,
-        -98,
-        117,
-        96
+        -208,
+        -116,
+        208,
+        119
       ]
     }
   ],
