@@ -196,6 +196,7 @@ export function Facade(props: Props) {
       {props.style === 'modern' && <Modern {...props} />}
       {props.style === 'woodbar' && <WoodBar {...props} />}
       {props.style === 'moss' && <MossFront {...props} />}
+      {props.style === 'garden' && props.floors > 1 && <UpperFronts w={props.w} floorH={props.floorH} floorSlugs={props.floorSlugs} />}
     </group>
     </GlassCtx.Provider>
   )
@@ -313,18 +314,6 @@ function GardenFront({ w, floorH, floors, floorSlugs, doorX, doorW, doorH, open,
         <Pane key={side} style="garden" x={doorX + side * (doorW / 2 + 0.7 + winW / 2)} y={1.25} z={0.03} w={winW} h={1.4} frame={colorMat('#5e4330')} bars={1} />
       ))}
       <ArchDoor x={doorX} z={0.02} w={doorW} h={doorH + 0.2} color="#a7774d" open={open} near={near} />
-      {/* 위층 화분 난간 */}
-      {Array.from({ length: floors - 1 }, (_, i) => {
-        const y = (i + 1) * floorH
-        return (
-          <group key={i} position-y={y}>
-            <B p={[0, 0.2, 0.3]} s={[w - 0.6, 0.4, 0.45]} m={colorMat(terra)} />
-            {[-3.6, -1.8, 0, 1.8, 3.6].map((x) => (
-              <Planter key={x} p={[x, 0.3, 0.3]} size={0.4} box={terra} />
-            ))}
-          </group>
-        )
-      })}
       {/* 양옆 덩굴 */}
       <Vine p={[-w / 2 + 0.15, 1.2, 0.12]} len={height - 1.4} />
       <Vine p={[w / 2 - 0.15, 1.6, 0.12]} len={height - 1.8} />
@@ -355,10 +344,6 @@ function SquareSigns({ w, floorH, floorSlugs }: { w: number; floorH: number; flo
       ))}
       <B p={[0, top + 0.35, -0.4]} s={[signW * 0.85, 0.06, 0.06]} m={iron} />
       <Letters lines={SQUARE_NAME} face="#f7f3ea" side="#8f8a80" x={0} y={top + 0.75} z={-0.33} w={signW} />
-      {/* 위층 가게 이름: 화분 난간 위 벽에 작은 흰 글자 */}
-      {floorSlugs.slice(1).map((slug, i) => (
-        <Letters key={slug} lines={[{ text: floorName(slug), font: 'serif', size: 0.1, spacing: 12 }]} face="#f7f3ea" side="#8f8a80" x={0} y={(i + 1) * floorH + 2.15} z={0.04} w={4.4} />
-      ))}
       {/* 층별 안내판: 건물 앞 왼쪽 모서리 바깥 */}
       <group position={[-w / 2 - PYLON.x - PYLON.w / 2, 0, 1.0]}>
         <B p={[0, PYLON.h / 2, 0]} s={[PYLON.w, PYLON.h, PYLON.d]} m={colorMat('#2a2d31')} />
@@ -470,6 +455,115 @@ function MossFront({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
       </mesh>
       <Vine p={[doorX - doorW / 2 - 0.1, floorH - 0.4, 0.12]} len={1.2} />
       <Vine p={[doorX + doorW / 2 + 0.1, floorH - 0.4, 0.12]} len={0.9} />
+    </>
+  )
+}
+
+// ── 여러 층 건물(캠리 스퀘어)의 위층 앞면: 층마다 그 가게 콘셉트 ─────────────
+// 창은 그 층 실내 통창 구멍 자리(문 양옆 1.4~4.6m, 층 바닥에서 0.5~2.0m)라 광장에서 그 층 실제 실내가 보임(GlassCtx)
+const UPPER_WIN = { x: 3.0, w: 3.0, y: 1.25, h: 1.5 }
+const UPPER_SIGN: Record<string, SignLine[]> = {
+  stream: [
+    { text: 'Stream', font: 'hand', size: 0.34 },
+    { text: 'LOUNGE', font: 'serif', size: 0.12, spacing: 24, gap: 0.2 },
+  ],
+  breath: [
+    { text: 'Breath', font: 'script', size: 0.36 },
+    { text: 'LOUNGE', font: 'serif', size: 0.12, spacing: 24, gap: 0.15 },
+  ],
+}
+
+function UpperFronts({ w, floorH, floorSlugs }: { w: number; floorH: number; floorSlugs: string[] }) {
+  return (
+    <>
+      {floorSlugs.slice(1).map((slug, i) => (
+        <group key={slug} position-y={(i + 1) * floorH}>
+          {slug === 'breath' ? <BreathFront w={w} floorH={floorH} /> : <StreamFront w={w} floorH={floorH} slug={slug} />}
+        </group>
+      ))}
+    </>
+  )
+}
+
+// 2층 물결 라운지: 따뜻한 회갈색 돌 판 외벽, 청동 얇은 틀 가로 리본 창, 창 아래 흰 물결 띠와 물풀 화분 선반
+function StreamFront({ w, floorH, slug }: { w: number; floorH: number; slug: string }) {
+  const bronze = colorMat('#7d705e')
+  const stone = colorMat('#cfc8bd')
+  const top = floorH - 0.12 // 층 띠 바로 아래까지
+  return (
+    <>
+      <mesh position={[0, top / 2 + 0.06, 0.02]} material={stone}>
+        <planeGeometry args={[w, top - 0.06]} />
+      </mesh>
+      {/* 돌 판 줄눈 */}
+      {[-w / 4, 0, w / 4].map((x) => (
+        <B key={x} p={[x, top / 2, 0.025]} s={[0.025, top, 0.01]} m={colorMat('#b3aa9e')} />
+      ))}
+      <B p={[0, 2.35, 0.025]} s={[w, 0.025, 0.01]} m={colorMat('#b3aa9e')} />
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <Pane style="garden" x={side * UPPER_WIN.x} y={UPPER_WIN.y} z={0.03} w={UPPER_WIN.w} h={UPPER_WIN.h} frame={bronze} t={0.05} bars={2} />
+          {/* 물결 띠 (창 아래) */}
+          {Array.from({ length: 6 }, (_, k) => (
+            <mesh key={k} position={[side * UPPER_WIN.x - UPPER_WIN.w / 2 + 0.25 + k * 0.5, 0.33, 0.06]} rotation-z={Math.PI / 2}>
+              <torusGeometry args={[0.12, 0.022, 6, 12, Math.PI]} />
+              <meshStandardMaterial color="#f4f1ea" />
+            </mesh>
+          ))}
+          {/* 물풀 화분 선반 */}
+          <B p={[side * UPPER_WIN.x, 0.12, 0.28]} s={[UPPER_WIN.w + 0.2, 0.1, 0.42]} m={bronze} />
+          {[-0.3, 0.3].map((k) => (
+            <mesh key={k} geometry={bushGeo()} material={plantMat('#6fa58a', false)} position={[side * UPPER_WIN.x + k * UPPER_WIN.w, 0.18, 0.3]} scale={0.32} />
+          ))}
+        </group>
+      ))}
+      <Letters lines={UPPER_SIGN[slug] ?? [{ text: floorName(slug), font: 'serif', size: 0.12, spacing: 14 }]} face="#f7f3ea" side="#6f6a63" x={0} y={2.8} z={0.05} w={3.2} />
+    </>
+  )
+}
+
+// 3층 숨 라운지: 세이지 그린 벽 + 세로 나무 루버, 위가 둥근 아치 창 두 개, 매달린 화분
+function BreathFront({ w, floorH }: { w: number; floorH: number }) {
+  const sage = colorMat('#b4c69d')
+  const wood = colorMat('#98b083')
+  const frame = colorMat('#6c8258')
+  const top = floorH - 0.12
+  const archR = UPPER_WIN.w / 2
+  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture('garden'))
+  return (
+    <>
+      <mesh position={[0, top / 2 + 0.06, 0.02]} material={sage}>
+        <planeGeometry args={[w, top - 0.06]} />
+      </mesh>
+      {/* 세로 루버: 창 사이 가운데와 양 끝 */}
+      {Array.from({ length: 22 }, (_, k) => -w / 2 + 0.15 + k * ((w - 0.3) / 21))
+        .filter((x) => Math.abs(Math.abs(x) - UPPER_WIN.x) > UPPER_WIN.w / 2 + 0.08)
+        .map((x) => (
+          <B key={x} p={[x, top / 2, 0.06]} s={[0.07, top - 0.1, 0.08]} m={wood} />
+        ))}
+      {[-1, 1].map((side) => {
+        const cx = side * UPPER_WIN.x
+        const rectH = UPPER_WIN.h - archR * 0.5
+        return (
+          <group key={side}>
+            <Pane style="garden" x={cx} y={0.5 + rectH / 2} z={0.03} w={UPPER_WIN.w} h={rectH} frame={frame} t={0.06} bars={1} />
+            {/* 아치 테 (윗부분 반원) */}
+            <mesh position={[cx, 0.5 + rectH, 0.06]} scale={[1, 0.5, 1]}>
+              <torusGeometry args={[archR, 0.05, 8, 24, Math.PI]} />
+              <meshStandardMaterial color="#6c8258" />
+            </mesh>
+            {/* 아치 윗부분도 유리 (그 층 실내가 비침) */}
+            <mesh position={[cx, 0.5 + rectH, 0.025]} scale={[1, 0.5, 1]} material={glass}>
+              <circleGeometry args={[archR - 0.04, 24, 0, Math.PI]} />
+            </mesh>
+            {/* 매달린 화분 */}
+            <B p={[cx + side * (UPPER_WIN.w / 2 + 0.35), 2.6, 0.3]} s={[0.015, 0.5, 0.015]} m={MAT.iron} />
+            <mesh geometry={vineGeo(0.7)} material={plantMat('#7cc254', false)} position={[cx + side * (UPPER_WIN.w / 2 + 0.35), 2.3, 0.3]} />
+            <B p={[cx + side * (UPPER_WIN.w / 2 + 0.35), 2.32, 0.3]} s={[0.26, 0.18, 0.26]} m={colorMat('#c46a3f')} />
+          </group>
+        )
+      })}
+      <Letters lines={UPPER_SIGN.breath} face="#fbfbf2" side="#6c8258" x={0} y={2.85} z={0.12} w={3.0} />
     </>
   )
 }
