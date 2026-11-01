@@ -6,6 +6,7 @@ import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
+import { useShowPerf } from "../menu/perfSetting";
 import { SeatCamera } from "./SeatCamera";
 import { TopDownCamera } from "./TopDownCamera";
 import { MeetingDialog } from "../meeting/MeetingDialog";
@@ -287,6 +288,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const boardSpot = useMemo(() => (branch.noteBoard ? noteBoardSpot(branch.noteBoard) : null), [branch]);
   const freeSpots = [...spots.filter((c) => !taken.has(c.no)), ...(boardSpot ? [boardSpot] : [])];
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
+  const showPerf = useShowPerf(); // 설정 → 화면·마우스 (기본 꺼짐)
   const seatedAt = useRef(0); // 앉기 키를 누른 시각
 
   // 앉아 있는 동안 내 트래킹 결과. 고개 각도·눈 감김·팔을 다른 참여자에게 보내는 데 씁니다. (#129)
@@ -435,7 +437,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint} · ${viewHint}` : `${walkHint} · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`;
+  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint}\n${viewHint}` : `${walkHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
 
   return (
     <>
@@ -465,7 +467,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       ) : (
         <TopDownCamera area={branch.size} />
       )}
-      <FpsProbe onSample={handleFps} />
+      {showPerf && <FpsProbe onSample={handleFps} />}
       {/* 지점 실내 (조명·바닥·벽·천장·가구·문·키오스크·커피 바). 광장에서 가게 창으로 보이는 실내도 같은 부품 (BranchInterior) */}
       {/* 받은 음료: 앉으면 그 자리 책상에 내려놓음 (소파 자리는 책상이 없어 그대로 듦) */}
       {holding && seatSpot && seatDesk && seatSpot.chair !== "lounger" && <DeskDrink key={seatSpot.no} item={holding} desk={seatDesk} rot={seatSpot.rot} />}
@@ -575,7 +577,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {entry && !bell && <EntryNotice text={entry} onDone={() => setEntry(null)} />}
     {/* 칭호가 오르면 잠깐 뜨는 축하 카드. 누를 것도 초점도 없어 공부(타이머·판정)를 끊지 않습니다. */}
     {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
-    {!touch && <PerfReadout perf={perf} />}
     {(locked || (touch && view === "first")) && seat === null && (
       // 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람을 가리키고 E 를 누르면 프로필
       <div
@@ -618,7 +619,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       suspendLookRef={suspendLook}
       disabled={kioskOpen || orderOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
-    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} />}
+    {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} top={!touch && showPerf ? <PerfReadout perf={perf} /> : undefined} />}
     {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
@@ -676,6 +677,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           background: "rgba(32,35,42,.85)",
           color: "#fff",
           font: "14px system-ui, sans-serif",
+          whiteSpace: "pre-line", // 안내의 \n 에서 줄을 바꿈 (할 일 / 조작 키)
         }}
       >
         {hint}

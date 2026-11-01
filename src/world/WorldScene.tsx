@@ -47,6 +47,7 @@ import { TopDownCamera } from '../space/TopDownCamera'
 import { Minimap } from '../space/Minimap'
 import { useShowMinimap } from '../menu/minimapSetting'
 import { FpsProbe, PerfReadout } from '../space/PerfReadout'
+import { useShowPerf } from '../menu/perfSetting'
 import type { Perf } from '../space/PerfReadout'
 import { useSession } from '../auth/useSession'
 import { InfoPanel } from '../menu/InfoPanel'
@@ -180,6 +181,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const aimSign = useCallback((t: AimTarget | null) => setAim('sign', t), [setAim])
   const openAim = (t: AimTarget) => (t.kind === 'person' ? setPanel({ kind: 'profile', userId: t.id }) : setFortune(t.id))
   const [perf, setPerf] = useState<Perf>(initialPerf) // 측정용 FPS
+  const showPerf = useShowPerf() // 설정 → 화면·마우스 (기본 꺼짐)
   const { session } = useSession()
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참여자에게 단계를 보냅니다(sharedLevel).
   const myTitle = useMyTitle(session?.user.id)
@@ -399,8 +401,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
       : touch
-        ? `조이스틱으로 움직여 건물 입구로 가세요 · 끝까지 밀면 달리기 · ${viewHint}`
-        : `WASD로 움직여 건물 입구로 가세요 · Shift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+        ? `조이스틱으로 움직여 건물 입구로 가세요\n끝까지 밀면 달리기 · ${viewHint}` // 할 일 한 줄, 조작 키는 다음 줄
+        : `WASD로 움직여 건물 입구로 가세요\nShift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
@@ -420,7 +422,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ) : (
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
-        <FpsProbe onSample={handleFps} />
+        {showPerf && <FpsProbe onSample={handleFps} />}
         {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
         {/* 밤에 지평선을 두르는 먼 도시 (팀 조절판에서 숨길 수 있음) */}
@@ -548,7 +550,6 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
-      {!touch && <PerfReadout perf={perf} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람·별자리를 가리키고 E 를 누르면 프로필·운세 (#166, #321) */}
@@ -586,7 +587,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
       {/* 다른 자리(예: 별다방 7번)를 쓰는 중이면: 반납하고 이 벤치에 앉기 */}
       {cafe.conflict && <CafeConflictDialog message={cafe.conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
-      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onSkyTime={() => setSkyTimeOpen((v) => !v)} />}
+      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onSkyTime={() => setSkyTimeOpen((v) => !v)} top={!touch && showPerf ? <PerfReadout perf={perf} /> : undefined} />}
       {skyTimeOpen && <SkyTimePanel onClose={() => setSkyTimeOpen(false)} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {/* 순위 게시판·순위 창에 쓰는 캐릭터 얼굴 사진을 찍는 화면 (찍을 것이 있을 때만 만들어짐) */}
@@ -640,4 +641,6 @@ const hintBox: React.CSSProperties = {
   background: 'rgba(32,35,42,.85)',
   color: '#fff',
   font: '14px system-ui, sans-serif',
+  textAlign: 'center',
+  whiteSpace: 'pre-line', // 안내의 \n 에서 줄을 바꿈 (할 일 / 조작 키)
 }
