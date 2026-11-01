@@ -6,6 +6,9 @@ import { PlannerSheet, SHEET_H, SHEET_W } from './PlannerSheet'
 import { usePlannerPage, useDaySegments, usePlannerPeek, useWrittenDays } from './usePlanner'
 import { MARKERS, dayWindow, plannerDayOf, shiftDay } from './plannerLogic'
 import { PRINT } from './paperStyle'
+import { useSession } from '../auth/useSession'
+import { useSubjects } from '../study/useSubjects'
+import { subjectColorOf } from '../study/subjectLogic'
 import { NotebookStack } from './NotebookStack'
 import { canGoBack, canGoForward, canMark, hasWriting, mergeSeen, stackInfo } from './notebookLogic'
 import type { PlannerData } from './plannerLogic'
@@ -44,6 +47,10 @@ export function PlannerWindow({ onClose }: { onClose: () => void }) {
   }, [])
   const [scale, setScale] = useState(loadScale)
   const [marker, setMarker] = useState(0)
+  // 시간표 과목 색: 내 과목 순서로 (기록 화면 도넛과 같은 색)
+  const { session } = useSession()
+  const { subjects } = useSubjects(session?.user.id)
+  const colorOf = (id: number | null) => subjectColorOf(subjects, id)
   const { font, save: saveFont } = useHandFont()
   const [fontError, setFontError] = useState('')
   const pickFont = (id: (typeof HAND_FONTS)[number]['id']) => {
@@ -85,7 +92,7 @@ export function PlannerWindow({ onClose }: { onClose: () => void }) {
   const sheetOf = (d: string, pd: PlannerData | null, sg: typeof segs, editable: boolean): ReactNode => (
     <div style={{ transform: `scale(${scale})`, transformOrigin: '0 0', position: 'relative' }}>
       {pd ? (
-        <PlannerSheet day={d} dayStart={dayWindow(d).start} data={pd} segs={sg} marker={canMark(d, today) ? marker : null} update={editable ? update : () => {}} />
+        <PlannerSheet day={d} dayStart={dayWindow(d).start} data={pd} segs={sg} marker={canMark(d, today) ? marker : null} colorOf={colorOf} update={editable ? update : () => {}} />
       ) : (
         <div style={{ width: SHEET_W, height: SHEET_H, background: '#f1ebe6' }} />
       )}
