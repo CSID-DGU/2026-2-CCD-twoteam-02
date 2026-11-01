@@ -12,8 +12,11 @@ export type Box = { x: number; z: number; w: number; d: number }
 // desk: 이 자리 책상 모양 (round = 1인 둥근 작은 테이블, low = 낮은 둥근 테이블, 없으면 기본 테이블)
 // desk: carrel 칸막이 책상(도서관), computer 컴퓨터 책상(정보관), cubicle 둥근 원목 칸막이 + 골유리 + 스탠드, bar 창가 바(바 상판은 테마 studyCafe 가 그림) — Cam Study Cafe.
 // chair: office 메시 사무용 의자, shell 패브릭 셸 의자(창가 바) — Cam Study Cafe. rise: 계단식 단 위 자리(강의실) — 책상·의자·앉은 높이를 올림(m)
-export type SeatChair = 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger' | 'office' | 'shell'
-type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: SeatChair; desk?: 'round' | 'low' | 'carrel' | 'computer' | 'cubicle' | 'bar'; rise?: number }
+// 루프탑(theme.rooftop): desk rail 앞 난간 바, counter 바 카운터(둘 다 하이스툴, tall), candle 캔들 사각 테이블(chair rattan 라탄 의자).
+//   책상·의자 모두 RooftopDecor 가 그림
+export type SeatChair = 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger' | 'office' | 'shell' | 'rattan'
+export type SeatDesk = 'round' | 'low' | 'carrel' | 'computer' | 'cubicle' | 'bar' | 'rail' | 'counter' | 'candle'
+type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: SeatChair; desk?: SeatDesk; rise?: number }
 export const TALL_RAISE = 0.3 // 높은 의자에 앉았을 때 올라가는 높이 (의자 0.45 → 스툴 0.75)
 // 지점 배치. 스터디카페는 키오스크(kiosk), 카페는 커피 바(bar)가 있습니다. (#44)
 export type BranchLayout = {

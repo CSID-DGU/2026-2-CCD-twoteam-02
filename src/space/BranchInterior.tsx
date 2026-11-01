@@ -13,6 +13,7 @@ import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { Cubicles, OfficeChair, ShellChair, Staircase } from "./StudyCafeDecor";
 import { plasterTexture } from "./studyCafeTextures";
 import { CorkBoard } from "../board/CorkBoard";
+import { RooftopDeck } from "./RooftopDecor";
 import type { BoardNote } from "../board/boardLogic";
 
 const DOOR_HEIGHT = 2.2; // 출입문 높이 (로비 문과 같음)
@@ -48,6 +49,12 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
   ];
   const wallH = ceilingHeightOf(branch.theme); // 벽·천장 높이 (테마에 없으면 2.5)
   const cubicleSeats = useMemo(() => branch.seats.filter((s) => s.desk === "cubicle"), [branch]); // Cam Study Cafe 칸막이 책상 (한 번에 그림)
+  // 루프탑 (이끼 루프탑): 천장·벽·실내 조명 없이 난간과 소품만. 하늘·햇빛은 바깥(world/RooftopWorld 또는 광장)이 비춤.
+  // lights 는 지점 화면에서만 켜므로(광장 지붕 위·가게 창 안에서는 끔) 루프탑 불빛(점광원)을 낼지로 씁니다.
+  const roof = branch.theme?.rooftop;
+  if (roof) {
+    return <RooftopDeck branch={branch} roof={roof} seat={seat} near={near} mySeat={mySeat} nearElevator={nearElevator} elevatorLabel={elevatorLabel} glow={lights} />;
+  }
   return (
     <>
       {/* 조명·바닥·벽·책상 색은 지점 테마(#57)에서 읽습니다. 테마가 없으면 전과 같은 기본색입니다. */}

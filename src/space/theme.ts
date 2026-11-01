@@ -104,6 +104,30 @@ export function wallBoxOf(x: number, z: number, len: number, depth: number, face
   return face === 'e' || face === 'w' ? { x, z, w: depth, d: len } : { x, z, w: len, d: depth }
 }
 
+// 루프탑 카페 (이끼 루프탑): 천장·벽 대신 낮은 난간을 두르고, 바깥 거리·하늘이 그대로 보이는 지붕 위 테라스.
+// 좌표는 지점 좌표 = 건물 지붕 좌표(지점 크기가 건물 겉 크기와 같음). 그리는 것은 RooftopDecor.tsx, 바깥은 world/RooftopWorld.tsx
+//   deck     원목 데크 판 [밝은, 어두운] 색
+//   parapet  가장자리 콘크리트 난간 높이·색 (위에 유리 난간을 더 올림)
+//   railBar  앞(z) 난간을 따라 붙인 긴 원목 바 테이블. x0~x1 범위, 자리(desk 'rail')는 그 앞 하이스툴
+//   counter  콘크리트 바 카운터(아래 간접등). 자리(desk 'counter')는 그 앞 하이스툴
+//   pergola  카운터 위 나무 지붕살(x0~x1, z0~z1)과 매단 라탄 펜던트(lamps)
+//   tree     큰 화분 나무 (전구를 감고 랜턴을 매담)
+//   pots     둥근 화분, poles 전구줄을 거는 기둥, strings 전구줄 (양 끝 x·z, 높이는 전구줄 규칙 STRING.top)
+export type RooftopPoint = { x: number; z: number }
+export type Rooftop = {
+  deck: [string, string]
+  parapet: { h: number; color: string }
+  railBar: { z: number; x0: number; x1: number }
+  counter: { x: number; z: number; w: number; d: number }
+  pergola: { x0: number; x1: number; z0: number; z1: number; lamps: RooftopPoint[] }
+  tree: { x: number; z: number; r: number }
+  pots: (RooftopPoint & { r: number })[]
+  poles: RooftopPoint[]
+  strings: { from: RooftopPoint; to: RooftopPoint }[]
+}
+// 루프탑 치수 (m): 유리 난간 높이, 바 상판 높이·깊이, 퍼걸러 높이(전구줄 높이 STRING.top 과 맞춤), 기둥 굵기
+export const ROOFTOP = { glass: 0.38, barH: 1.05, barDepth: 0.45, pergolaH: 2.85, post: 0.12 }
+
 export type BranchTheme = {
   // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
   // concrete: 회색 콘크리트(colors = [바탕, 얼룩], cell 은 텍스처 한 장 크기)
@@ -126,6 +150,7 @@ export type BranchTheme = {
     texture?: 'plaster' // 천장 회벽 질감
   }
   studyCafe?: StudyCafeDecor // Cam Study Cafe 소품 (창가 바·책장·화분·덕트·트랙 조명·간판)
+  rooftop?: Rooftop // 루프탑 카페 (있으면 천장·벽·조명 대신 난간과 바깥 하늘). 이끼 루프탑
   tree?: Tree
   shelves?: Shelf[]
   booths?: Booth[] // 원형 부스 (흑요 라운지)
@@ -248,7 +273,24 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
     ...(sc?.bookWalls ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (0.1 + STUDY_CAFE.shelfDepth) * 2, b.face)),
     ...(sc?.pots ?? []).filter((p) => p.tree).map((p) => ({ x: p.x, z: p.z, w: STUDY_CAFE.potR * 2, d: STUDY_CAFE.potR * 2 })),
   ]
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe]
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop)]
+}
+
+// 루프탑에서 부딪히는 것: 앞 바 상판, 카운터, 퍼걸러 기둥 4개, 나무 화분, 둥근 화분, 전구줄 기둥
+// (바·카운터 앞 스툴과 테이블은 자리 책상 상자가 막음)
+export function rooftopBoxes(r?: Rooftop): { x: number; z: number; w: number; d: number }[] {
+  if (!r) return []
+  const R = ROOFTOP
+  const p = r.pergola
+  const square = (x: number, z: number, size: number) => ({ x, z, w: size, d: size })
+  return [
+    { x: (r.railBar.x0 + r.railBar.x1) / 2, z: r.railBar.z, w: r.railBar.x1 - r.railBar.x0, d: R.barDepth },
+    { ...r.counter },
+    ...[p.x0, p.x1].flatMap((x) => [p.z0, p.z1].map((z) => square(x, z, R.post))),
+    square(r.tree.x, r.tree.z, r.tree.r * 2),
+    ...r.pots.map((o) => square(o.x, o.z, o.r * 2)),
+    ...r.poles.map((o) => square(o.x, o.z, R.post)),
+  ]
 }
 
 // 둥근 방 곡선 벽을 부딪히게 하는 작은 상자들: 벽을 따라 ROUND_ROOM.boxStep 간격, 벽 바로 바깥에. 비운 쪽(gaps)은 뺍니다
