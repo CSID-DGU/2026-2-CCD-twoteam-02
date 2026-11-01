@@ -74,6 +74,8 @@ import { Benches, Building, Fence, Ground, Lamps, Trees } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
 import { NightFill, StringLights } from './StreetLights'
+import { ShopInteriors } from './ShopInteriors'
+import { shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { LanternCourtyard } from './LanternTree'
 import { WorldSky } from './WorldSky'
@@ -410,11 +412,13 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
         {PLAZA.ground !== 'lawn' && <NightFill />}
+        {/* 캠리단길 가게 유리창으로 보이는 실제 실내와 안의 사람 (가까이·화면에 보일 때만 그림) */}
+        {world.id === 'plaza' && <ShopInteriors world={world} placed={PLACED} showPeople={condition === 'visible'} />}
         {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
         {PLAZA.board && <RankingBoard board={PLAZA.board} ranking={todayRanking} photos={boardPhotos} />}
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
-          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} />
+          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} glass={world.id === 'plaza' && b.spec.facade ? shopGlass(b.slug, b.spec.facade) : undefined} />
         ))}
         {/* 캠퍼스 건물: 흰 코니스·담쟁이·도서관 시계탑 */}
         {world.id === 'campus' && PLACED.map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
