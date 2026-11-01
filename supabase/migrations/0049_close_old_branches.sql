@@ -1,4 +1,4 @@
--- 두뜀 0046: 레트로카페(옛 솔카페, slug sol)·흑요 라운지(obsidian)·월넛 바(walnut) 닫기
+-- 두뜀 0049: 레트로카페(옛 솔카페, slug sol)·흑요 라운지(obsidian)·월넛 바(walnut) 닫기
 -- 실행 위치: Supabase 대시보드 > SQL Editor (서비스 프로젝트. develop 전용이며 실험 프로젝트에서는 실행하지 않는다)
 --
 -- 배경:

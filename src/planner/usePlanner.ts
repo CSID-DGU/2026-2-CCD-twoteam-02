@@ -1,4 +1,4 @@
-// 스터디 플래너 하루 한 장 읽기·쓰기 (planner_pages, 0045). RLS 로 내 것만.
+// 스터디 플래너 하루 한 장 읽기·쓰기 (planner_pages, 0048). RLS 로 내 것만.
 // 쓰면 바로 화면에 보이고, 서버에는 SAVE_DELAY_MS 동안 더 안 쓰면 한 번에 저장합니다(글자마다 저장하지 않게).
 // 시간표 자동 칠하기용 집중 구간(study_segments)도 같이 읽고, 오늘 장이면 REFRESH_MS 마다 다시 읽습니다.
 import { useCallback, useEffect, useRef, useState } from 'react'

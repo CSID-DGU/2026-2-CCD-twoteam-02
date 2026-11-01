@@ -1,4 +1,4 @@
-// 뜯어 쓰는 메모 (memo_notes, 0045). RLS 로 내 것만.
+// 뜯어 쓰는 메모 (memo_notes, 0048). RLS 로 내 것만.
 // 글·자리를 바꾸면 바로 화면에 보이고, 서버에는 메모마다 SAVE_DELAY_MS 뒤 한 번에 저장합니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'

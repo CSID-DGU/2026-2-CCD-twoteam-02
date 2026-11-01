@@ -97,7 +97,7 @@ export function useSubjects(userId: string | undefined) {
     return ''
   }, [])
 
-  // 지워도 공부 기록은 남습니다(과목 번호만 비워짐, 0047).
+  // 지워도 공부 기록은 남습니다(과목 번호만 비워짐, 0050).
   const removeSubject = useCallback(async (id: number): Promise<string> => {
     const { error } = await supabase.from('subjects').delete().eq('id', id)
     if (error) return subjectErrorText(error.code, error.message, '지우지')
