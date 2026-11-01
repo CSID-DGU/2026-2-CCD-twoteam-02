@@ -1,4 +1,4 @@
-// 가방 (B 또는 왼쪽 아래 가방 버튼): 스터디 플래너와 메모장이 들어 있습니다.
+// 가방 (B 또는 오른쪽 아래 가방 버튼): 스터디 플래너와 메모장이 들어 있습니다.
 //   - 플래너: 꺼내면 화면에 띄워 둠 (어느 화면에서든 그대로, 다시 넣으면 닫힘)
 //   - 메모장: 한 장 뜯으면 화면에 붙음. 붙인 메모는 떼서 가방에 넣어 두거나 버릴 수 있음
 // 로그인한 화면 어디서나 (App 이 깔아 줌). 띄워 둔 창은 화면 맨 위 층이라 걸으면서도 보입니다.
@@ -27,13 +27,24 @@ const saveOpen = (v: boolean) => {
   }
 }
 
+// 오른쪽 아래에 있는 것 (가방이 피해야 함)
+//   - 미니맵(걸을 때): 화면 짧은 변의 34%, 최대 300px + 테두리 4px, 가장자리에서 16px (space/Minimap.tsx)
+//   - 내 모습 화면(앉았을 때): 200px, 가장자리에서 16px (space/SelfView.tsx) → 위·왼쪽 끝 216px
+const MAP_EDGE = 'calc(20px + min(300px, 34vmin))' // 미니맵 위·왼쪽 끝 (가장자리에서)
+const GAP = 12 // 미니맵·내 모습 화면과 띄우는 거리
+
+// 왼쪽 아래는 채팅 입력창과 겹쳐서 오른쪽 아래로: 미니맵·내 모습 화면 바로 위 (화면이 작으면 미니맵도 작아져 같이 내려옴)
 const bagButton: CSSProperties = {
-  position: 'fixed', left: 16, bottom: 64, zIndex: 41, pointerEvents: 'auto',
+  position: 'fixed', right: 16, bottom: `max(${216 + GAP}px, calc(${MAP_EDGE} + ${GAP}px))`, zIndex: 41, pointerEvents: 'auto',
   background: '#7a5534', color: '#fff', border: '2px solid #5a3a22', borderRadius: 12, padding: '6px 12px',
   fontSize: 14, cursor: 'pointer', boxShadow: '0 3px 8px rgba(0,0,0,0.3)', fontFamily: PRINT,
 }
+// 가방 창은 미니맵 왼쪽에 아래부터 열림 (버튼 위로 열면 낮은 화면에서 높이가 모자람).
+// 창 폭(270 + 안쪽 여백·테두리 34 = 304)이 들어갈 자리가 없는 좁은 화면이면 미니맵 위에 겹쳐 열림
 const bagPanel: CSSProperties = {
-  position: 'fixed', left: 16, bottom: 108, zIndex: 41, pointerEvents: 'auto', width: 270, padding: 14,
+  position: 'fixed', right: `max(16px, min(max(${216 + GAP}px, calc(${MAP_EDGE} + ${GAP}px)), calc(100vw - 320px)))`, bottom: 16,
+  zIndex: 41, pointerEvents: 'auto', width: 270, padding: 14,
+  maxHeight: 'calc(100vh - 66px)', overflowY: 'auto', // 66 = 위아래 여백 32 + 안쪽 여백·테두리 34
   background: '#8a6240', backgroundImage: 'repeating-linear-gradient(90deg, rgba(0,0,0,0.04) 0 2px, transparent 2px 6px)',
   border: '3px solid #5a3a22', borderRadius: 14, color: '#fff', fontFamily: PRINT, boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
 }
