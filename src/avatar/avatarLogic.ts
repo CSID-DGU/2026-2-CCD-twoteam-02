@@ -137,6 +137,10 @@ export function avatarFromDb(raw: unknown): Avatar {
   return fitLayout(out as Avatar)
 }
 
+// 캐릭터를 한 번이라도 저장했는지 (#146 가입 직후 캐릭터 고르기).
+// 가입할 때 들어가는 값은 DB 기본값인 예전 형식 {"model":"a"} 라 차림 칸이 하나도 없고, 꾸미기 창에서 저장하면 칸이 다 생깁니다.
+export const avatarChosen = (raw: unknown): boolean => !!raw && typeof raw === 'object' && FIELDS.some((k) => k in raw)
+
 // 차림 → DB 에 넣을 값 (칸 순서대로)
 export const avatarToDb = (a: Avatar) => Object.fromEntries(FIELDS.map((k) => [k, a[k]])) as Avatar
 

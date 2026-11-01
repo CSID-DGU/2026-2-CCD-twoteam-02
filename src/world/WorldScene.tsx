@@ -56,6 +56,7 @@ import { useMenuShortcuts } from '../menu/useMenuShortcuts'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
+import { FirstCharacterDialog } from '../profile/FirstCharacterDialog'
 import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
@@ -163,7 +164,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
-  const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
+  const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
+  const firstCharacter = avatarChosen === false // 캐릭터를 한 번도 고르지 않음 → 처음 고르는 창 (#146)
+  const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   // 조준점이 가리키는 사람·별자리 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim()
   const { set: setAim } = aim
@@ -190,7 +193,6 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const { birthday } = useMyBirthday(session?.user.id)
   const mySign = birthday ? signOfBirthday(birthday.month, birthday.day) : null
   const weather = useWorldWeather() // 실제 서울 날씨 (#317). ref 라 받아도 다시 그리지 않음
-  const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 광장에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   // 실시간 방 이름은 예전 로비와 같은 LOBBY_CHANNEL 그대로입니다(experiment 와 어긋나지 않게).
   const me = useRef<PresenceState | null>(null)
@@ -578,6 +580,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         />
       )}
       {fortune && <FortunePanel picked={fortune} myId={session?.user.id ?? null} onClose={() => setFortune(null)} />}
+      {/* 처음 들어온 사람: 캐릭터 고르기 (#146). 저장하면 닫히고 다시 뜨지 않음 */}
+      {firstCharacter && <FirstCharacterDialog save={saveAvatar} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: world.place, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
     </>
   )
