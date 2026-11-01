@@ -12,6 +12,7 @@
 export const AIM_RANGE = 8 // 이 거리(m) 안의 사람만 조준됨
 export const BODY = { radius: 0.35, standing: 1.65, seated: 1.25 } // 캐릭터를 대신하는 원기둥 (모델 키 약 1.6m)
 export const AIM_HZ = 10 // 조준 대상을 초당 이만큼 다시 확인
+export const CLOSE_RANGE = 1.5 // 조준한 사람이 이 거리(m) 안이면 close (딱밤처럼 바로 옆에서 하는 것, #304)
 
 // E 를 눌렀을 때 조준한 사람·별자리를 열지 (#408). 지금 서 있는 자리에서 할 수 있는 일(문·계단·키오스크·빈자리 등)이 있으면
 // 그 일이 먼저이고, 없을 때만 조준한 것을 엽니다. 조준이 먼저였을 때는 문 앞에 누가 서 있으면 문 대신 그 사람 프로필이 열려
@@ -19,7 +20,8 @@ export const AIM_HZ = 10 // 조준 대상을 초당 이만큼 다시 확인
 export const aimWins = (placeReady: boolean, aimed: boolean) => aimed && !placeReady
 
 // 조준점이 가리키는 것. 화면 아래 안내와 E 키가 씁니다.
-export type AimTarget = { kind: 'person'; id: string; name: string } | { kind: 'sign'; id: string; name: string }
+// close: 사람이 CLOSE_RANGE 안에 있음 (딱밤 #304)
+export type AimTarget = { kind: 'person'; id: string; name: string; close?: boolean } | { kind: 'sign'; id: string; name: string }
 
 export type Vec3 = { x: number; y: number; z: number }
 export type AimPerson = { id: string; name: string; x: number; z: number; y0: number; height: number }
@@ -27,7 +29,8 @@ export type AimPerson = { id: string; name: string; x: number; z: number; y0: nu
 // 같은 대상인지 (바뀔 때만 안내를 다시 그리려고)
 export function sameTarget(a: AimTarget | null, b: AimTarget | null): boolean {
   if (a === null || b === null) return a === b
-  return a.kind === b.kind && a.id === b.id
+  const close = (t: AimTarget) => t.kind === 'person' && t.close === true
+  return a.kind === b.kind && a.id === b.id && close(a) === close(b) // 가까워지거나 멀어져도 다시 알림 (딱밤 안내)
 }
 
 // origin 에서 dir(길이 1) 방향 광선이 사람 원기둥에 처음 닿는 거리. 안 닿으면 null
