@@ -11,7 +11,7 @@
         76,
         98
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "side-glance",
@@ -23,7 +23,7 @@
         112,
         63
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "blank",
@@ -35,7 +35,7 @@
         91,
         91
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "sparkle",
@@ -48,7 +48,7 @@
         86,
         83
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "lidded",
@@ -60,7 +60,7 @@
         100,
         70
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "sleepy",
@@ -72,7 +72,7 @@
         95,
         102
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "almond",
@@ -85,7 +85,7 @@
         89,
         46
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "crying",
@@ -98,7 +98,7 @@
         110,
         92
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "half",
@@ -110,7 +110,7 @@
         88,
         84
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "tiny-ring",
@@ -122,7 +122,7 @@
         21,
         21
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "dot",
@@ -134,7 +134,7 @@
         21,
         21
       ],
-      "hidden": true
+      "scale": 1.3
     },
     {
       "id": "new-1",

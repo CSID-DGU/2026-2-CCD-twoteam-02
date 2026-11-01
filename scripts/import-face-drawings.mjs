@@ -29,6 +29,8 @@ const SIZE = W // writePng 기본 크기
 const HOME = { eyes: { x: 1472, y: 960 }, closedEyes: { x: 1472, y: 960 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
 // 예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈(oldFrame). 새 틀보다 160 아래에 있어서 그만큼 아래를 잘라 새 자리에 맞춘다
 const OLD_EYE_HOME = { x: 1472, y: 1120 }
+// 예전 틀에 그린 눈은 앱이 1.3배로 키워 보여 줬다. 새 틀에서도 같은 모습이 되게 부품에 이 배율(scale)을 적는다
+const OLD_EYE_SCALE = 1.3
 // 스티커 그림 크기(얼굴 1024 기준). 2048 그림에서는 이 두 배를 잘라 반으로 줄인다. make-avatar-parts 와 같음
 const STICKER = { eyes: [320, 320], closedEyes: [320, 320], mouth: [512, 256], mouthOpen: [512, 256] }
 const LINE = [31, 31, 36] // 선 색
@@ -36,7 +38,7 @@ const LINE = [31, 31, 36] // 선 색
 const FILL = { teeth: [255, 255, 255], inside: [35, 25, 30], tongue: [214, 52, 64], white: [255, 255, 255] }
 
 // 넣을 그림. 그림 파일은 그림폴더/칸/id.png. 칸: eyes(뜬 눈)·closedEyes(감은 눈)·mouth(다문 입)·mouthOpen(벌린 입)
-// fill: 칸 번호 순서대로 채울 색(선만 그린 그림). oldFrame: 예전 그리기 틀에 그린 눈
+// fill: 칸 번호 순서대로 채울 색(선만 그린 그림). oldFrame: 예전 그리기 틀에 그린 눈 (예전 자리로 자르고 1.3배로 놓음)
 const DRAWINGS = [
   { slot: 'eyes', id: 'tall', name: '길쭉한 눈', oldFrame: true },
   { slot: 'eyes', id: 'side-glance', name: '곁눈질 눈', oldFrame: true },
@@ -291,6 +293,7 @@ for (const d of DRAWINGS) {
     bufs.push(open.tint)
   }
   item.box = boxOf(bufs, w, h)
+  if (d.oldFrame) item.scale = OLD_EYE_SCALE
   console.log(`${file} (${d.name})`)
   if (outArg) continue
   // 이미 있는 부품은 그 자리에서 바꾸고, 화면에서 내린 표시(hidden)는 그대로 둔다

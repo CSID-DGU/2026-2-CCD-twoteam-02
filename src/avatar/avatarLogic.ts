@@ -18,6 +18,7 @@ export type Slot = 'eyes' | 'closedEyes' | 'brows' | 'mouth' | 'mouthOpen' | 'ha
 // model: 머리에 붙이는 입체 부품(머리카락, #296)의 3D 모델 파일(.gltf·.glb). Blockbench 로 머리 뼈 좌표(가로 -4~4, 세로 0~8,
 //        얼굴 쪽 +z)에 맞춰 만들어 내보낸 것(1칸 = 1/16). modelScale: 붙일 때 키우는 배수(기본 16, 다른 단위로 만든 모델만 적음)
 // hidden: 꾸미기 창 목록과 무작위 고르기에서 뺀 부품. 이미 고른 사람의 캐릭터에는 그대로 보임
+// scale: 얼굴 부품을 놓을 때 그린 크기보다 더 키우는 배수(기본 1). 예전 그리기 틀에 그린 눈은 1.3 (예전 EYE_SCALE 과 같은 모습)
 export type Part = {
   id: string
   name: string
@@ -27,6 +28,7 @@ export type Part = {
   model?: string
   modelScale?: number
   hidden?: boolean
+  scale?: number
 }
 // 눈·눈썹·입 위치와 크기(#293). 모두 정수 단계. 눈 간격은 +가 넓게, 높이는 +가 위로, 크기는 +가 크게. 눈썹 간격은 눈을 따라감
 export type LayoutField = 'eyeX' | 'eyeY' | 'eyeSize' | 'browY' | 'browSize' | 'mouthY' | 'mouthSize'
@@ -215,7 +217,8 @@ function boxAt(slot: Slot, id: string, at: Spot): Box | null {
   const part = findPart(slot, id)
   if (!part || (!part.tint && !part.file)) return null // "없음"
   const [l, t, r, b] = part.box ?? DEFAULT_BOX[slot]!
-  return { x0: at.x + l * at.scale, y0: at.y + t * at.scale, x1: at.x + r * at.scale, y1: at.y + b * at.scale }
+  const k = at.scale * (part.scale ?? 1)
+  return { x0: at.x + l * k, y0: at.y + t * k, x1: at.x + r * k, y1: at.y + b * k }
 }
 // 이 위치·크기로 얼굴에 들어가는지: 얼굴 밖으로 나가거나, 두 눈(눈썹)이 겹치거나, 눈과 눈썹·입이 겹치면 false
 export function layoutFits(a: Avatar): boolean {
@@ -288,5 +291,5 @@ export function thumbRects(slot: Slot): Rect[] {
 // 얼굴 부품은 기본 자리에 놓은 얼굴에서 그 둘레만 잘라 크게 보여 줌 (얼굴 좌표)
 export function faceThumbRect(slot: Slot): Rect {
   if (slot === 'mouth' || slot === 'mouthOpen') return { x: 256, y: 692, w: 512, h: 280 }
-  return { x: 120, y: 300, w: 784, h: 420 } // 눈썹~눈 줄
+  return { x: 120, y: 220, w: 784, h: 420 } // 눈썹~눈 줄 (새 그리기 틀로 눈·눈썹이 80 올라가 같이 올림)
 }
