@@ -7,7 +7,8 @@ import type { CSSProperties } from 'react'
 import { PlannerWindow } from './PlannerWindow'
 import { StickyNote } from './StickyNote'
 import { MEMO_COLORS, useMemos } from './useMemos'
-import { HAND, INK, NOTE_COLOR, PRINT, paperSurface } from './paperStyle'
+import { useHandFont } from './useHandFont'
+import { HAND, INK, NOTE_COLOR, PRINT, handSize, paperSurface } from './paperStyle'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import { isShortcut } from '../menu/shortcuts'
 
@@ -56,6 +57,7 @@ export function BagLayer() {
   const [planner, setPlanner] = useState(loadOpen)
   const [notice, setNotice] = useState('') // 메모 뜯기 실패 안내
   const { memos, tear, change, remove } = useMemos()
+  useHandFont() // 내 손글씨 글씨체를 읽어 화면 전체(플래너·메모)에 적용
   const keymap = useKeymap()
   const togglePlanner = (v: boolean) => {
     setPlanner(v)
@@ -124,7 +126,7 @@ export function BagLayer() {
               <div style={{ fontSize: 12, opacity: 0.85 }}>가방에 넣어 둔 메모 {tucked.length}장</div>
               {tucked.map((m) => (
                 <div key={m.id} style={{ ...item, marginTop: 5, padding: 5, background: NOTE_COLOR[m.color], color: INK }}>
-                  <span style={{ flex: 1, fontFamily: HAND, fontSize: 17, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{m.body || '(빈 메모)'}</span>
+                  <span style={{ flex: 1, fontFamily: HAND, fontSize: handSize(17), overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{m.body || '(빈 메모)'}</span>
                   <button style={{ ...small, background: 'rgba(0,0,0,0.12)', color: INK }} onClick={() => change(m.id, { shown: true })}>붙이기</button>
                   <button style={{ ...small, background: 'rgba(0,0,0,0.12)', color: INK }} onClick={() => void remove(m.id)}>버리기</button>
                 </div>

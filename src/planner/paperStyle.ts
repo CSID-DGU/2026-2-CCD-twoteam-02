@@ -1,11 +1,14 @@
-// 가방 속 종이(플래너·메모) 모양. 인쇄된 글자는 반듯한 글꼴, 직접 쓴 글자는 손글씨(오춘기 김작가, index.css)
+// 가방 속 종이(플래너·메모) 모양. 인쇄된 글자는 반듯한 글꼴, 직접 쓴 글자는 손글씨(내가 고른 글씨체, handFonts.ts·index.css)
 import type { CSSProperties } from 'react'
 import type { MemoColor } from './useMemos'
 
 export const INK = '#2c3e66' // 펜 잉크 (직접 쓴 글씨)
 export const LINE = '#7aa6c2' // 플래너 인쇄 선·글자
 export const PAPER = '#f1ebe6'
-export const HAND = "'OchungiKim', 'KyoboHandwriting2020A', cursive"
+// 손글씨는 CSS 변수로: 고른 글씨체(applyHandFont)가 정하고, 정하기 전에는 오춘기 김작가
+export const HAND = "var(--hand-font, 'OchungiKim', 'KyoboHandwriting2020A', cursive)"
+// 손글씨 글자 크기: 글씨체마다 크기가 달라 고른 글씨체의 배율(--hand-scale)을 곱함. 숫자는 오춘기 김작가 기준 px
+export const handSize = (px: number) => `calc(${px}px * var(--hand-scale, 1))`
 export const PRINT = "'Arial Rounded MT Bold', 'Nunito', 'Pretendard', system-ui, sans-serif"
 
 // 종이 결: 아주 옅은 잡티(SVG 노이즈)를 깔아 화면색이 아니라 종이처럼
@@ -25,7 +28,7 @@ export const handInput: CSSProperties = {
   outline: 'none',
   padding: 0,
   width: '100%',
-  fontSize: 22,
+  fontSize: handSize(22),
   lineHeight: 1.1,
 }
 export const printLabel: CSSProperties = { fontFamily: PRINT, color: LINE, fontWeight: 800, letterSpacing: 1, fontSize: 13 }
