@@ -5,6 +5,7 @@
 //   Instances(인스턴싱): 같은 모양을 위치만 바꿔 한 번의 그리기 명령으로 여러 개 그리는 방법. 나무 40그루도 그리기 횟수는 몇 번뿐입니다.
 // 색·재질은 worldMaterials.ts 에서 한 번 만들어 같이 씁니다. (밤에 가로등·창문이 빛나는 것도 거기서, #316)
 import { useMemo } from 'react'
+import type * as THREE from 'three'
 import { Instance, Instances } from '@react-three/drei'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { BENCH, facingAngle, fenceSegments, gravelStrips, rotate } from './worldLogic'
@@ -97,7 +98,8 @@ export function Fence({ plaza }: { plaza: PlazaLayout }) {
 // 건물 가운데에 입구 방향만큼 돌린 무리(group)를 두고, 그 안에서는 실내와 같은 좌표(입구가 +Z 쪽)로 그립니다.
 // open: 열린 지점인지(아니면 회색 문), near: 입구 앞에 서 있는지(주황 문)
 // 여러 층 건물(b.floors)은 층마다 벽 높이만큼 쌓고, 위층은 창 색을 그 지점 분위기로, 앞면 가운데에 "2F 이름" 간판을 답니다.
-export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; near: boolean }) {
+// glass: 광장에서 가게 유리창·위층 앞 창에 비출 실제 실내 (ShopInteriors). 없으면 예전처럼 그림·색 창
+export function Building({ b, open, near, glass }: { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material }) {
   const sideways = b.spec.facing === 'east' || b.spec.facing === 'west'
   const w = sideways ? b.rect.d : b.rect.w // 실내 기준 가로·세로
   const d = sideways ? b.rect.w : b.rect.d
@@ -140,14 +142,14 @@ export function Building({ b, open, near }: { b: PlacedBuilding; open: boolean; 
               key={`${level}-${i}`}
               position={[x + Math.sin(rot) * OUT, WINDOW.y + level * BUILDING_H, z + Math.cos(rot) * OUT]}
               rotation-y={rot}
-              material={f.window ? (facade ? litWindowMat(f.window) : colorMat(f.window)) : MAT.window}
+              material={glass && facade && level > 0 && i < 2 ? glass : f.window ? (facade ? litWindowMat(f.window) : colorMat(f.window)) : MAT.window}
             >
               <planeGeometry args={[WINDOW.w, WINDOW.h]} />
             </mesh>
           )),
         )}
         {facade && (
-          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} floorSlugs={b.floors.map((f) => f.slug)} open={open} near={near} />
+          <Facade style={facade} w={w} d={d} floorH={BUILDING_H} floors={b.floors.length} doorX={doorX} doorW={doorW} doorH={DOOR_H} name={b.name} floorSlugs={b.floors.map((f) => f.slug)} open={open} near={near} glass={glass} />
         )}
         {/* 층 사이 띠와 위층 간판 (파사드가 있으면 위층 간판도 파사드가 그림) */}
         {b.floors.slice(1).map((f, i) => (

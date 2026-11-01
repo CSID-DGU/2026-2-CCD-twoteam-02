@@ -7,16 +7,20 @@
 //   woodbar  월넛 바     호두나무 판자 + 아래 붉은 벽돌, 금테 창, 벽 펜던트 전구, 술통 화분 / 둥근 창 나무 문
 // 창에는 그 지점 실내 그림이 들어가 밤에 빛납니다(worldMaterials.shopWindowMat). 문은 지금처럼 앞에 서면 주황,
 // 아직 안 연 지점은 회색. 좌표는 건물 실내 기준(입구가 +Z 쪽 앞면 z = d/2), 부딪힘·입구 자리는 그대로입니다.
+import { createContext, useContext } from 'react'
 import * as THREE from 'three'
 import type { FacadeStyle } from './worldLogic'
 import { MAT, colorMat, pictureMat, plantMat, shopWindowMat } from './worldMaterials'
-import { awningTexture, interiorTexture, letterSignTexture } from './facadeTextures'
+import { awningTexture, interiorTexture, letterSignTexture, mossTexture } from './facadeTextures'
 import type { SignLine } from './facadeTextures'
 import { groundTextures } from './worldTextures'
 import { bushShape, vineShape } from './plantShapes'
 
 type V3 = [number, number, number]
-type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; floorSlugs: string[]; open: boolean; near: boolean }
+type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; floorSlugs: string[]; open: boolean; near: boolean; glass?: THREE.Material }
+
+// 광장에서 가게 유리창에 비출 실제 실내 (ShopInteriors 가 그린 그림). 없으면 실내 그림(interiorTexture)
+const GlassCtx = createContext<THREE.Material | null>(null)
 
 // 여러 곳이 같이 쓰는 모양·재질 (처음 쓸 때 한 번)
 const shared = new Map<string, unknown>()
@@ -40,7 +44,7 @@ function B({ p, s, m }: { p: V3; s: V3; m: THREE.Material }) {
 
 // 실내가 비치는 창 + 테두리(+ 가운데 살)
 function Pane({ style, x, y, z, w, h, frame, t = 0.08, bars = 0 }: { style: FacadeStyle; x: number; y: number; z: number; w: number; h: number; frame: THREE.Material; t?: number; bars?: number }) {
-  const glass = shopWindowMat(interiorTexture(style))
+  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture(style))
   return (
     <group position={[x, y, z]}>
       <mesh position-z={0.01} material={glass}>
@@ -80,6 +84,10 @@ const SIGN_TEXT: Record<FacadeStyle, SignLine[]> = {
     { text: 'Walnut', font: 'script', size: 0.3 },
     { text: 'BAR', font: 'serif', size: 0.13, spacing: 24, gap: 0.1 },
   ],
+  moss: [
+    { text: 'Moss', font: 'hand', size: 0.34 },
+    { text: 'GARDEN', font: 'serif', size: 0.12, spacing: 24, gap: 0.2 },
+  ],
 }
 // 여러 층 건물(올리브 테라스 건물)은 상가 "캠리 스퀘어": 옥상 간판, 입구 옆 층별 안내 기둥, 위층마다 영문 가게 이름
 const SQUARE_NAME: SignLine[] = [{ text: 'CAMRI SQUARE', font: 'serif', size: 0.2, spacing: 30 }]
@@ -115,10 +123,11 @@ const doorPanel = (open: boolean, near: boolean, color: string) => (near ? MAT.n
 
 // 둥근 창(포트홀) 문: 판 + 둥근 유리 + 테
 function RoundDoor({ x, z, w, h, color, trim, open, near, style }: { x: number; z: number; w: number; h: number; color: string; trim: string; open: boolean; near: boolean; style: FacadeStyle }) {
+  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture(style))
   return (
     <group position={[x, 0, z]}>
       <B p={[0, h / 2, 0.08]} s={[w, h, 0.16]} m={doorPanel(open, near, color)} />
-      <mesh position={[0, h * 0.68, 0.17]} material={shopWindowMat(interiorTexture(style))}>
+      <mesh position={[0, h * 0.68, 0.17]} material={glass}>
         <circleGeometry args={[w * 0.22, 24]} />
       </mesh>
       <mesh position={[0, h * 0.68, 0.18]} material={colorMat(trim)}>
@@ -175,16 +184,20 @@ function Vine({ p, len }: { p: V3; len: number }) {
   return <mesh geometry={g} material={plantMat('#7cc254', false)} position={p} />
 }
 
+// glass: 광장에서는 유리창으로 실제 실내가 보임 (ShopInteriors). 지점 안 통창 너머 거리에서는 없음
 export function Facade(props: Props) {
   const z = props.d / 2
   return (
+    <GlassCtx.Provider value={props.glass ?? null}>
     <group position-z={z}>
       {props.style === 'classic' && <Classic {...props} />}
       {props.style === 'diner' && <Diner {...props} />}
       {props.style === 'garden' && <GardenFront {...props} />}
       {props.style === 'modern' && <Modern {...props} />}
       {props.style === 'woodbar' && <WoodBar {...props} />}
+      {props.style === 'moss' && <MossFront {...props} />}
     </group>
+    </GlassCtx.Provider>
   )
 }
 
@@ -393,6 +406,46 @@ function WoodBar({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
         )
       })}
       <RoundDoor x={doorX} z={0.02} w={doorW} h={doorH} color="#6b3f24" trim="#c9a24a" open={open} near={near} style="woodbar" />
+    </>
+  )
+}
+
+// 이끼 정원: 짙은 이끼색 벽, 양옆 이끼 벽 패널(살아 있는 벽), 얇은 검은 틀 큰 유리, 나무 문, 콘크리트 화분과 고사리
+const MOSS_PANEL = 1.1 // 양옆 이끼 벽 폭
+function MossFront({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
+  const black = colorMat('#1d1d1d')
+  const winW = (w - doorW - 2 * MOSS_PANEL - 1.4) / 2
+  const moss = pictureMat(mossTexture())
+  return (
+    <>
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          {/* 이끼 벽 패널 + 나무 테 */}
+          <mesh position={[side * (w / 2 - MOSS_PANEL / 2 - 0.1), (floorH - 0.3) / 2, 0.06]} material={moss}>
+            <planeGeometry args={[MOSS_PANEL, floorH - 0.3]} />
+          </mesh>
+          <B p={[side * (w / 2 - MOSS_PANEL / 2 - 0.1), floorH - 0.3, 0.06]} s={[MOSS_PANEL + 0.1, 0.06, 0.1]} m={colorMat('#46553a')} />
+          <Pane style="moss" x={doorX + side * (doorW / 2 + 0.5 + winW / 2)} y={1.4} z={0.02} w={winW} h={2.3} frame={black} t={0.05} bars={1} />
+          {/* 긴 콘크리트 화분 + 고사리 */}
+          <group position={[doorX + side * (doorW / 2 + 0.5 + winW / 2), 0, 0.45]}>
+            <B p={[0, 0.22, 0]} s={[winW, 0.44, 0.45]} m={colorMat('#9a9a94')} />
+            {[-0.35, 0, 0.35].map((k) => (
+              <mesh key={k} geometry={bushGeo()} material={plantMat('#5c8a3a', false)} position={[k * winW, 0.42, 0]} scale={0.45} />
+            ))}
+          </group>
+        </group>
+      ))}
+      <Letters lines={SIGN_TEXT.moss} face="#eef2e2" side="#56663a" x={doorX} y={floorH - 0.75} z={0.05} w={3.2} />
+      {/* 나무 문 + 둥근 손잡이 */}
+      <B p={[doorX, doorH / 2, 0.08]} s={[doorW, doorH, 0.16]} m={doorPanel(open, near, '#46553a')} />
+      {[0.3, 0.65].map((k) => (
+        <B key={k} p={[doorX, doorH * k, 0.17]} s={[doorW - 0.3, 0.03, 0.02]} m={colorMat('#2f3a26')} />
+      ))}
+      <mesh position={[doorX + doorW * 0.32, doorH * 0.48, 0.2]} material={colorMat('#c9ccd2')}>
+        <sphereGeometry args={[0.05, 10, 8]} />
+      </mesh>
+      <Vine p={[doorX - doorW / 2 - 0.1, floorH - 0.4, 0.12]} len={1.2} />
+      <Vine p={[doorX + doorW / 2 + 0.1, floorH - 0.4, 0.12]} len={0.9} />
     </>
   )
 }

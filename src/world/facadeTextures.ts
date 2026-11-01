@@ -134,6 +134,29 @@ const INTERIOR: Record<FacadeStyle, (ctx: CanvasRenderingContext2D, w: number, h
     rect(ctx, '#6b3f24', 0, h * 0.68, w, h * 0.32)
     rect(ctx, '#c9a24a', 0, h * 0.68, w, 3)
   },
+  // 이끼 정원: 밝은 벽, 이끼 러그, 검은 책상과 올리브 의자, 가운데 나무 화단, 둥근 전등
+  moss(ctx, w, h) {
+    rect(ctx, '#e4e1da', 0, 0, w, h)
+    rect(ctx, '#cfccc5', 0, h * 0.8, w, h * 0.2)
+    ctx.fillStyle = '#4f6a2a'
+    ctx.beginPath()
+    ctx.ellipse(w * 0.3, h * 0.9, 70, 12, 0, 0, Math.PI * 2)
+    ctx.fill()
+    rect(ctx, '#3f4a4f', w * 0.45, h * 0.62, 40, h * 0.2) // 나무 화단
+    rect(ctx, '#6b4a2e', w * 0.45 + 18, h * 0.3, 4, h * 0.32)
+    dot(ctx, '#5c8a3a', w * 0.45 + 20, h * 0.28, 26)
+    dot(ctx, '#7aa64a', w * 0.45 + 32, h * 0.22, 16)
+    for (const x of [40, 200]) {
+      rect(ctx, '#1d1d1d', x - 26, h * 0.66, 52, 4) // 검은 책상
+      rect(ctx, '#1d1d1d', x - 2, h * 0.66, 3, h * 0.14)
+      rect(ctx, '#6b7a4a', x - 12, h * 0.6, 24, 12) // 올리브 의자 등받이
+    }
+    for (const x of [60, 190]) {
+      rect(ctx, '#333', x, 0, 1, 28)
+      dot(ctx, '#fff4d6', x, 32, 7)
+      glow(ctx, x, 34, 30)
+    }
+  },
 }
 
 export function interiorTexture(style: FacadeStyle) {
@@ -239,4 +262,14 @@ export function letterSignTexture(lines: SignLine[], face: string, side: string)
     })
   }
   return t
+}
+
+// 이끼 벽: 여러 초록 점을 촘촘히 겹쳐 폭신한 이끼처럼 (반복하지 않는 한 장)
+export function mossTexture() {
+  return cached('moss-wall', 128, 256, (ctx, w, h) => {
+    rect(ctx, '#3f5a2a', 0, 0, w, h)
+    let s = 7
+    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647)
+    for (let i = 0; i < 900; i++) dot(ctx, ['#4f6a2a', '#5c8a3a', '#6f9a44', '#3a5226', '#86ad4f'][i % 5], rnd() * w, rnd() * h, 2 + rnd() * 5)
+  })
 }

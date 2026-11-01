@@ -33,6 +33,7 @@ const FRAME: Record<FacadeStyle, { color: string; t: number; rows: number }> = {
   garden: { color: '#5e4330', t: 0.08, rows: 0 }, // 올리브 테라스 나무 틀
   modern: { color: '#0f0f10', t: 0.05, rows: 0 }, // 흑요 라운지 얇은 검은 틀 통유리
   woodbar: { color: '#c9a24a', t: 0.07, rows: 1 }, // 월넛 바 금테
+  moss: { color: '#1d1d1d', t: 0.05, rows: 0 }, // 이끼 정원 얇은 검은 철제 틀
 }
 const WALL_HALF = 0.1 // 지점 벽 두께(0.2)의 반. 창 판은 벽 바깥 면에, 거리는 그 바깥만 그림
 const SILL = { d: 0.14, t: 0.04 } // 창턱 깊이·두께 (방 안쪽으로)
