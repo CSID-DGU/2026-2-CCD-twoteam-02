@@ -1,17 +1,20 @@
 // 지점 테마 소품 (#57): 천장·팬·네온 띠·벽 액자·타일 카운터·스툴.
 // 전부 상자·원통과 캔버스 텍스처로 만들고 외부 모델은 없습니다. 테마가 없는 지점은 아무것도 그리지 않습니다.
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { ArcBuilder } from './arcGeometry'
+import { LIB_TILE, marbleFloorMat, oakGrain, plasterBump, plasterFine, weave } from './libraryTextures'
 import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, Color, DoubleSide, InstancedMesh, Object3D, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
-import { ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, BOOKCASE, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
+import { ROUND_WINDOW, roundWindowAngles, roundWindowHoles, ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, BOOKCASE, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
 import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Bookcase, Water } from './theme'
 import { RepeatWrapping } from 'three'
-import { TILE, groundTextures } from '../world/worldTextures'
+import { TILE, groundTextures, tiledPlane } from '../world/worldTextures'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { StudyCafeDecor } from './StudyCafeDecor'
+import { LibraryStacks } from './LibraryStacks'
 import { plasterTexture, stoneTileTexture, woodTexture } from './studyCafeTextures'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
 
@@ -42,8 +45,9 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
       {theme.wall?.neon && <NeonStrip color={theme.wall.neon} size={size} height={h} />}
       {theme.frames?.map((f, i) => <WallFrame key={i} frame={f} />)}
       {theme.bookcases?.map((b, i) => <BookcaseShelf key={i} bookcase={b} />)}
+      {theme.stacks && <LibraryStacks stacks={theme.stacks} />}
       {theme.menu && <MenuBoard menu={theme.menu} />}
-      {theme.ceiling?.grid && <CeilingGrid grid={theme.ceiling.grid} size={size} />}
+      {theme.ceiling?.grid && (theme.ceiling.grid.coffer ? <CofferCeiling grid={theme.ceiling.grid} size={size} radius={theme.round?.r} /> : <CeilingGrid grid={theme.ceiling.grid} size={size} />)}
       {theme.ceiling?.globes?.map((g, i) => <GlobeLamp key={i} globe={g} height={h} />)}
       {theme.tree && <OliveTree tree={theme.tree} />}
       {theme.shelves?.map((sh, i) => <WallShelf key={i} shelf={sh} />)}
@@ -67,9 +71,16 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
 // 바닥: 테마 무늬(체크·벽돌·콘크리트) 텍스처, 없으면 color 한 색. 지점과 회의실이 같이 씁니다.
 export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor']; size: Size; color: string }) {
   return (
+    floor?.pattern === 'marble' ? (
+      // 밝은 대리석 바닥 (도서관): 바닥 색 colors[0], 줄눈 색 colors[1]. UV 가 미터인 판 (무늬 크기는 libraryTextures 의 MARBLE)
+      <mesh rotation={[-Math.PI / 2, 0, 0]} geometry={tiledPlane(size.w, size.d, 1)} material={marbleFloorMat(floor.colors[0], floor.colors[1])} />
+    ) : (
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[size.w, size.d]} />
-      {floor?.pattern === 'stone' ? (
+      {floor?.pattern === 'wood' ? (
+        // 나뭇결 판: 텍스처 한 장 = 판 하나(세로 결)라, 가로로 cell(m)마다 한 장씩 반복
+        <meshStandardMaterial roughness={0.8} map={woodTexture(floor.colors[0], { x: size.w / floor.cell, y: size.d / (floor.cell * 2) })} />
+      ) : floor?.pattern === 'stone' ? (
         // 큰 돌 타일 텍스처 한 장에 타일 2×2 장이라, 면 전체에 (면 ÷ 타일 두 장)번 반복합니다.
         <meshStandardMaterial roughness={0.7} map={stoneTileTexture(floor.colors, { x: size.w / (floor.cell * 2), y: size.d / (floor.cell * 2) })} />
       ) : floor?.pattern === 'concrete' ? (
@@ -88,6 +99,7 @@ export function ThemedFloor({ floor, size, color }: { floor?: BranchTheme['floor
         <meshStandardMaterial color={color} />
       )}
     </mesh>
+    )
   )
 }
 
@@ -440,10 +452,97 @@ export function Stool({ x, z, legH = STOOL.legH, color = STOOL_SEAT_COLOR, legCo
 // ---------------------------------------------------------------
 const WOOD = { roughness: 0.75, metalness: 0 }
 
-// 천장 아래 철제 격자: step 간격으로 x·z 방향 얇은 검은 막대
+// 도서관 흰 우물천장 (사진 IMG_4660): 넓은 보 사이가 비스듬히 패인 칸. 칸 하나를 InstancedMesh 로 찍어 그리기 호출 두 번(칸·전구).
+// 아래를 보는 면만 있어 위에서 내려다보는 2D 화면·미니맵에는 안 보입니다 (Ceiling 천장판과 같음).
+// 아래를 보는 면은 지점 비스듬한 빛을 못 받으므로, 면마다 정점 밝기(shade)로 패인 깊이를 냅니다 (실시간 조명 없음).
+const COFFER = { rim: 0.55, rimDrop: 0.06, lift: 0.14, depth: 0.31, bevel: 0.16, bulb: 0.07, shade: { beam: 1, lit: 0.92, dark: 0.74, panel: 0.9 } }
+export function CofferCeiling({ grid, size, radius }: { grid: NonNullable<NonNullable<BranchTheme['ceiling']>['grid']>; size: Size; radius?: number }) {
+  const C = COFFER
+  const t = grid.thick ?? 0.3
+  const cells = useMemo(() => {
+    const out: [number, number][] = []
+    const reach = radius === undefined ? Infinity : radius + grid.step * 0.8 // 둥근 벽 밖 칸은 뺌
+    for (let x = -size.w / 2 + grid.step / 2; x < size.w / 2; x += grid.step) for (let z = -size.d / 2 + grid.step / 2; z < size.d / 2; z += grid.step) if (Math.hypot(x, z) < reach) out.push([x, z])
+    return out
+  }, [size, grid.step, radius])
+  const geo = useMemo(() => {
+    const b = new ArcBuilder(1)
+    const o = grid.step / 2 // 칸 바깥 (보 가운데)
+    const i = o - t / 2 // 패임 시작
+    const k = i - C.bevel // 패임 바닥
+    const d = C.depth
+    const down: [number, number, number] = [0, -1, 0]
+    b.shade = C.shade.beam
+    b.quad([-o, 0, -o], [o, 0, -o], [-o, 0, -i], [o, 0, -i], down, [0, 0, 1, 1])
+    b.quad([-o, 0, i], [o, 0, i], [-o, 0, o], [o, 0, o], down, [0, 0, 1, 1])
+    b.quad([-o, 0, -i], [-i, 0, -i], [-o, 0, i], [-i, 0, i], down, [0, 0, 1, 1])
+    b.quad([i, 0, -i], [o, 0, -i], [i, 0, i], [o, 0, i], down, [0, 0, 1, 1])
+    // 비스듬한 네 면: 해가 비치는 쪽은 밝게, 반대쪽은 어둡게
+    const len = Math.hypot(C.bevel, d)
+    const ny = -C.bevel / len
+    const nh = d / len
+    b.shade = C.shade.dark
+    b.quad([-i, 0, -i], [i, 0, -i], [-k, d, -k], [k, d, -k], [0, ny, nh], [0, 0, 1, 1])
+    b.shade = C.shade.lit
+    b.quad([-i, 0, i], [i, 0, i], [-k, d, k], [k, d, k], [0, ny, -nh], [0, 0, 1, 1])
+    b.shade = C.shade.lit * 0.96
+    b.quad([-i, 0, -i], [-i, 0, i], [-k, d, -k], [-k, d, k], [nh, ny, 0], [0, 0, 1, 1])
+    b.shade = C.shade.dark * 1.06
+    b.quad([i, 0, -i], [i, 0, i], [k, d, -k], [k, d, k], [-nh, ny, 0], [0, 0, 1, 1])
+    b.shade = C.shade.panel
+    b.quad([-k, d, -k], [k, d, -k], [-k, d, k], [k, d, k], down, [0, 0, 1, 1])
+    return b.build(true)
+  }, [grid.step, t, C])
+  // 둥근 벽을 따라 도는 보: 칸이 곡면 벽에 잘려 톱니처럼 보이는 자리를 가림
+  const rim = useMemo(() => {
+    if (radius === undefined) return null
+    const b = new ArcBuilder(1)
+    const inner = radius - C.rim
+    b.ledge(inner, radius, 0, Math.PI * 2, grid.y - C.rimDrop, false)
+    b.band(inner, 0, Math.PI * 2, grid.y - C.rimDrop, grid.y + C.depth, true)
+    return b.build()
+  }, [radius, grid.y, C])
+  useEffect(() => () => geo.dispose(), [geo])
+  useEffect(() => () => rim?.dispose(), [rim])
+  const cell = useRef<InstancedMesh>(null)
+  const bulb = useRef<InstancedMesh>(null)
+  useLayoutEffect(() => {
+    if (!cell.current || !bulb.current) return
+    const o = new Object3D()
+    cells.forEach(([x, z], n) => {
+      o.position.set(x, grid.y, z)
+      o.updateMatrix()
+      cell.current!.setMatrixAt(n, o.matrix)
+      o.position.y = grid.y + C.depth
+      o.updateMatrix()
+      bulb.current!.setMatrixAt(n, o.matrix)
+    })
+    cell.current.instanceMatrix.needsUpdate = true
+    bulb.current.instanceMatrix.needsUpdate = true
+  }, [cells, grid.y, C.depth])
+  return (
+    <group>
+      {rim && (
+        <mesh geometry={rim}>
+          <meshStandardMaterial color={grid.color} metalness={0} roughness={0.95} emissive={grid.color} emissiveIntensity={C.lift} />
+        </mesh>
+      )}
+      <instancedMesh ref={cell} args={[geo, undefined, cells.length]} key={`c${cells.length}`} frustumCulled={false}>
+        <meshStandardMaterial color={grid.color} vertexColors metalness={0} roughness={0.95} emissive={grid.color} emissiveIntensity={COFFER.lift} />
+      </instancedMesh>
+      <instancedMesh ref={bulb} args={[undefined, undefined, cells.length]} key={`g${cells.length}`} frustumCulled={false}>
+        {/* 공의 아래 반쪽만: 위에서 내려다보면 안 보임 */}
+        <sphereGeometry args={[C.bulb, 10, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2]} />
+        <meshStandardMaterial color="#fff6e6" emissive="#ffe6c2" emissiveIntensity={1.1} />
+      </instancedMesh>
+    </group>
+  )
+}
+
+// 천장 아래 철제 격자: step 간격으로 x·z 방향 얇은 막대
 function CeilingGrid({ grid, size }: { grid: NonNullable<NonNullable<BranchTheme['ceiling']>['grid']>; size: Size }) {
   const bars: { pos: [number, number, number]; args: [number, number, number] }[] = []
-  const t = 0.04
+  const t = grid.thick ?? 0.04
   for (let x = -size.w / 2 + grid.step; x < size.w / 2 - 0.01; x += grid.step) bars.push({ pos: [x, grid.y, 0], args: [t, t, size.d - 0.4] })
   for (let z = -size.d / 2 + grid.step; z < size.d / 2 - 0.01; z += grid.step) bars.push({ pos: [0, grid.y, z], args: [size.w - 0.4, t, t] })
   return (
@@ -605,8 +704,11 @@ export function RingTable({ ring, color, height }: { ring: RingTableSpec; color:
 }
 
 // 원목 의자: 방석 + 다리 4개 + 등받이(기둥 둘 + 가로 판). rot 방향(책상 쪽)을 보고 등받이는 반대쪽(-z)
-export function WoodChair({ x, z, rot, color, wood }: { x: number; z: number; rot: number; color: string; wood: string }) {
+// legColor·back: 다리 색, 등받이 색 (없으면 wood). 도서관 빨간 의자는 등받이 = 방석 색, 다리 = 어두운 금속색
+// fabric: 방석·등받이에 천 짜임 (재질 색이 곱해져 강조색도 그대로)
+export function WoodChair({ x, z, rot, color, wood, legColor, back, fabric }: { x: number; z: number; rot: number; color: string; wood: string; legColor?: string; back?: string; fabric?: boolean }) {
   const C = WOOD_CHAIR
+  const cloth = fabric ? { map: weave(), roughness: 0.98 } : WOOD
   const legH = C.seatH - C.seatT
   const lx = C.w / 2 - 0.04
   const lz = C.d / 2 - 0.04
@@ -615,23 +717,23 @@ export function WoodChair({ x, z, rot, color, wood }: { x: number; z: number; ro
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
       <mesh position={[0, C.seatH - C.seatT / 2, 0]}>
         <boxGeometry args={[C.w, C.seatT, C.d]} />
-        <meshStandardMaterial color={color} {...WOOD} />
+        <meshStandardMaterial color={color} {...cloth} />
       </mesh>
       {legs.map(([dx, dz], i) => (
         <mesh key={i} position={[dx, legH / 2, dz]}>
           <cylinderGeometry args={[C.legR, C.legR, legH, 8]} />
-          <meshStandardMaterial color={wood} {...WOOD} />
+          <meshStandardMaterial color={legColor ?? wood} {...WOOD} />
         </mesh>
       ))}
       {[-lx, lx].map((dx, i) => (
         <mesh key={i} position={[dx, C.seatH + C.backH / 2, -lz]}>
           <boxGeometry args={[0.03, C.backH, 0.03]} />
-          <meshStandardMaterial color={wood} {...WOOD} />
+          <meshStandardMaterial color={legColor ?? wood} {...WOOD} />
         </mesh>
       ))}
       <mesh position={[0, C.seatH + C.backH - 0.08, -lz]}>
         <boxGeometry args={[C.w, 0.12, C.backT]} />
-        <meshStandardMaterial color={wood} {...WOOD} />
+        <meshStandardMaterial color={back ?? wood} {...(back ? cloth : WOOD)} />
       </mesh>
     </group>
   )
@@ -899,6 +1001,56 @@ function RugMat({ rug }: { rug: Rug }) {
   )
 }
 
+// 야자 잎: 활처럼 휘어 늘어진 잎 한 장(가는 판)을 돌려 가며 찍음 (그리기 호출 한 번). 잎마다 색·길이가 조금씩 다름
+const PALM = { count: 34, trunkH: 0.9, len: 1.5, w: 0.2, segs: 6, colors: ['#3f7a3a', '#2f6a35', '#5c9147', '#4c8540', '#7aa257'] }
+function PalmLeaves({ y }: { y: number }) {
+  const P = PALM
+  const ref = useRef<InstancedMesh>(null)
+  const geo = useMemo(() => {
+    const b = new ArcBuilder(1)
+    const at = (t: number): [number, number] => [t * P.len, Math.sin(t * Math.PI * 0.9) * 0.45 - t * t * 0.7] // 가운데에서 바깥으로 올랐다 처짐
+    for (let i = 0; i < P.segs; i++) {
+      const t0 = i / P.segs
+      const t1 = (i + 1) / P.segs
+      const [x0, y0] = at(t0)
+      const [x1, y1] = at(t1)
+      const w0 = P.w * Math.sin(Math.PI * (0.08 + t0 * 0.92)) // 끝으로 갈수록 좁아짐
+      const w1 = P.w * Math.sin(Math.PI * (0.08 + t1 * 0.92))
+      b.quad([x0, y0, -w0 / 2], [x1, y1, -w1 / 2], [x0, y0, w0 / 2], [x1, y1, w1 / 2], [0, 1, 0], [0, 0, 1, 1])
+    }
+    return b.build()
+  }, [P])
+  useEffect(() => () => geo.dispose(), [geo])
+  useLayoutEffect(() => {
+    const m = ref.current
+    if (!m) return
+    const o = new Object3D()
+    const c = new Color()
+    for (let i = 0; i < P.count; i++) {
+      const k = (i * 0.618) % 1 // 고르게 흩어진 고정 값
+      o.position.set(0, y + P.trunkH * (0.72 + k * 0.28), 0)
+      o.rotation.set(0, i * 2.4, 0)
+      o.scale.setScalar(0.72 + k * 0.4)
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+      m.setColorAt(i, c.set(P.colors[i % P.colors.length]))
+    }
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [y, P])
+  return (
+    <group>
+      <mesh position-y={y + P.trunkH / 2}>
+        <cylinderGeometry args={[0.05, 0.09, P.trunkH, 8]} />
+        <meshStandardMaterial color="#6b5440" roughness={1} />
+      </mesh>
+      <instancedMesh ref={ref} args={[geo, undefined, P.count]} frustumCulled={false}>
+        <meshStandardMaterial roughness={0.8} side={DoubleSide} />
+      </instancedMesh>
+    </group>
+  )
+}
+
 // 화분(화단): 타일 두른 상자 + 흙 + 풀 덩어리 몇 개, tree 면 가운데 작은 나무
 function PlanterBox({ planter }: { planter: Planter }) {
   const h = 0.55
@@ -925,6 +1077,7 @@ function PlanterBox({ planter }: { planter: Planter }) {
           </mesh>
         )
       })}
+      {planter.palm && <PalmLeaves y={h} />}
       {planter.tree && (
         <group position={[0, h, 0]}>
           <mesh position={[0, 0.5, 0]}>
@@ -1033,6 +1186,26 @@ function BackBarShelf({ backbar }: { backbar: BackBar }) {
 // 원목 살 기둥 조명: 빛나는 가운데 기둥을 세로 원목 살이 감쌈
 function SlatPillar({ pillar }: { pillar: Pillar }) {
   const P = PILLAR
+  if (pillar.solid) {
+    // 살 없는 매끈한 기둥 (도서관 흰 기둥): 몸통 + 아래 받침 + 위 머리띠
+    return (
+      <group position={[pillar.x, 0, pillar.z]}>
+        <mesh position={[0, pillar.h / 2, 0]}>
+          <cylinderGeometry args={[P.r * 0.8, P.r * 0.8, pillar.h, 24]} />
+          {/* 매끈한 회벽 */}
+          <meshStandardMaterial color={pillar.solid} map={plasterFine()} roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0.08, 0]}>
+          <cylinderGeometry args={[P.r, P.r, 0.16, 24]} />
+          <meshStandardMaterial color={pillar.solid} roughness={0.9} />
+        </mesh>
+        <mesh position={[0, pillar.h - 0.08, 0]}>
+          <cylinderGeometry args={[P.r, P.r, 0.16, 24]} />
+          <meshStandardMaterial color={pillar.solid} roughness={0.9} />
+        </mesh>
+      </group>
+    )
+  }
   return (
     <group position={[pillar.x, 0, pillar.z]}>
       <mesh position={[0, pillar.h / 2, 0]}>
@@ -1144,16 +1317,31 @@ function RoundWall({ round, height }: { round: RoundRoom; height: number }) {
         return [g + half, next - g - half * 2] as [number, number]
       })
     : [[0, Math.PI * 2]]
-  const map = concreteTexture([round.color, round.fin], { x: 6, y: 1 })
+  // 창이 있는 벽(도서관): 구멍 낸 회벽 한 덩어리. 안쪽 면만 있어 밖에서 유리로 들여다볼 때 시야를 막지 않음
+  const holed = useMemo(() => {
+    if (!round.windows) return null
+    const b = new ArcBuilder(LIB_TILE.plaster)
+    b.wall(round.r, half, Math.PI * 2 - half, 0, height, round.peek ? [] : roundWindowHoles(round), true)
+    return b.build()
+  }, [round, half, height])
+  useEffect(() => () => holed?.dispose(), [holed])
+  const map = holed ? null : concreteTexture([round.color, round.fin], { x: 6, y: 1 }) // 창 없는 둥근 벽만 씀
   const fins = Array.from({ length: round.fins }, (_, i) => (i / round.fins) * Math.PI * 2).filter((a) => !inRoundGap(round, a))
   return (
     <group>
-      {arcs.map(([start, len], i) => (
-        <mesh key={i} position-y={height / 2}>
-          <cylinderGeometry args={[round.r, round.r, height, 96, 1, true, start, len]} />
-          <meshStandardMaterial map={map} roughness={1} side={DoubleSide} />
+      {holed ? (
+        <mesh geometry={holed}>
+          <meshStandardMaterial color={round.color} map={plasterFine()} bumpMap={plasterBump()} bumpScale={0.3} roughness={0.95} />
         </mesh>
-      ))}
+      ) : (
+        arcs.map(([start, len], i) => (
+          <mesh key={i} position-y={height / 2}>
+            <cylinderGeometry args={[round.r, round.r, height, 96, 1, true, start, len]} />
+            <meshStandardMaterial map={map} roughness={1} side={DoubleSide} />
+          </mesh>
+        ))
+      )}
+      {round.peek ? <RoundWindows round={round} /> : null}
       {fins.map((a, i) => (
         // 곡선 기둥: 아래가 넓게 벌어진 원기둥을 벽 쪽으로 납작하게 (가운데를 보게 돌림)
         <group key={i} position={[Math.sin(a) * (round.r - R.fin.out / 2), 0, Math.cos(a) * (round.r - R.fin.out / 2)]} rotation-y={a}>
@@ -1163,6 +1351,56 @@ function RoundWall({ round, height }: { round: RoundRoom; height: number }) {
           </mesh>
         </group>
       ))}
+    </group>
+  )
+}
+
+// 건물 밖 유리로 들여다볼 때 맞은편 벽의 창: 빛나는 판 + 테두리·세로 창살을 InstancedMesh 두 개로 한 번에 그립니다 (창 안에 창 장면을 또 그리지 않음).
+// 지점 안에서 보는 진짜 창은 world/LibraryWindows 가 그립니다.
+// 판은 곡선 벽 안쪽에 접선 방향 평면으로 띄웁니다. 폭이 좁아 가운데에서 inset 만큼 띄우면 양 끝도 벽 안쪽에 있습니다.
+function RoundWindows({ round }: { round: RoundRoom }) {
+  const W = ROUND_WINDOW
+  const angles = useMemo(() => roundWindowAngles(round), [round])
+  const glow = useRef<InstancedMesh>(null)
+  const bars = useRef<InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const g = glow.current
+    const b = bars.current
+    if (!g || !b) return
+    const o = new Object3D()
+    const r = round.r - W.inset
+    const place = (m: InstancedMesh, k: number, a: number, lx: number, y: number, sx: number, sy: number, sz: number) => {
+      // 창 로컬(옆 lx, 높이 y) → 월드: 접선 방향은 (cos a, 0, -sin a)
+      o.position.set(Math.sin(a) * r + Math.cos(a) * lx, y, Math.cos(a) * r - Math.sin(a) * lx)
+      o.rotation.set(0, a + Math.PI, 0) // 앞면이 가운데를 보게
+      o.scale.set(sx, sy, sz)
+      o.updateMatrix()
+      m.setMatrixAt(k, o.matrix)
+    }
+    const cy = W.y + W.h / 2
+    let k = 0
+    angles.forEach((a, i) => {
+      place(g, i, a, 0, cy, W.w, W.h, 1)
+      place(b, k++, a, 0, W.y + W.frame / 2, W.w + W.frame, W.frame, 0.06) // 아래
+      place(b, k++, a, 0, W.y + W.h - W.frame / 2, W.w + W.frame, W.frame, 0.06) // 위
+      place(b, k++, a, -W.w / 2, cy, W.frame, W.h, 0.06) // 왼쪽
+      place(b, k++, a, W.w / 2, cy, W.frame, W.h, 0.06) // 오른쪽
+      place(b, k++, a, 0, cy, W.frame * 0.6, W.h, 0.06) // 가운데 세로 창살
+      place(b, k++, a, 0, cy, W.w, W.frame * 0.6, 0.06) // 가운데 가로 창살
+    })
+    g.instanceMatrix.needsUpdate = true
+    b.instanceMatrix.needsUpdate = true
+  }, [angles, round.r, W])
+  return (
+    <group>
+      <instancedMesh ref={glow} args={[undefined, undefined, angles.length]} key={`g${angles.length}`} frustumCulled={false}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial color={W.glow} side={DoubleSide} />
+      </instancedMesh>
+      <instancedMesh ref={bars} args={[undefined, undefined, angles.length * 6]} key={`b${angles.length}`} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={W.frameColor} roughness={0.9} />
+      </instancedMesh>
     </group>
   )
 }
@@ -1287,7 +1525,6 @@ export function Lounger({ x, z, rot, color, base, pillow }: { x: number; z: numb
 // ── 캠빛 대학교 실내 ──────────────────────────────────────────────────
 // 책상 높이·크기는 다른 책상과 같게(0.74m, 1.2×0.6). rot 방향(앉은 사람이 보는 쪽)이 책상 안쪽입니다.
 const CAMPUS_DESK = { h: 0.74, w: 1.2, d: 0.6, top: 0.04, leg: 0.04 }
-const CARREL = { panelH: 0.5, panelT: 0.025, panel: '#d9cfbd', lampShade: '#1f6b3a', lampGlow: '#ffe7a8' }
 const COMPUTER = { screen: { w: 0.56, h: 0.34 }, frame: '#2a2d33', glow: '#2b4a6b', keyboard: '#3a3d44' }
 const BOARD_FRAME = '#6b4a2e'
 
@@ -1310,43 +1547,71 @@ function DeskBody({ color }: { color: string }) {
   )
 }
 
-// 도서관 칸막이 책상: 책상 + 앞·양옆 칸막이 + 초록 갓 독서등(은은한 빛)
-export function Carrel({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
-  const D = CAMPUS_DESK
-  const C = CARREL
-  const y = D.h + C.panelH / 2
+// 도서관 긴 나무 책상: 한 줄 자리(xs, 같은 z·방향)가 이어 붙은 한 장의 상판 + 자리마다 거위목 스탠드.
+// 앉은 사람 앞(+z, 책상 안쪽)이 책상 먼 쪽이고, 스탠드는 거기 놓여 앉은 사람 쪽으로 갓을 숙입니다. 스탠드는 불만 켜진 척 하고 실제 조명은 없습니다.
+const LONG_DESK = { h: 0.74, w: 1.2, d: 0.6, top: 0.05, legT: 0.05, legEvery: 2.6, legColor: '#8a6a48' } // 옆판은 상판보다 짙은 나무 (금속감 없이, 빛을 받아 면이 구분되게)
+const GOOSENECK = { x: 0.42, z: 0.18, stalk: 0.3, neck: 0.16, tilt: 0.9, metal: '#2f3a33', glow: '#ffe7a8' }
+export function LongDesk({ row, color }: { row: { z: number; rot: number; xs: number[] }; color: string }) {
+  const D = LONG_DESK
+  const x0 = row.xs[0] - D.w / 2
+  const x1 = row.xs[row.xs.length - 1] + D.w / 2
+  const len = x1 - x0
+  const legs = Math.max(2, Math.round(len / D.legEvery) + 1) // 양 끝 + 가운데
+  // 상판: 미터 UV 라 책상 길이가 달라도 나뭇결이 늘어나지 않음 (결은 길이 방향)
+  const top = useMemo(() => {
+    const b = new ArcBuilder(LIB_TILE.grain)
+    b.box(0, 0, 0, 0, len, D.top, D.d)
+    return b.build()
+  }, [len, D.top, D.d])
+  useEffect(() => () => top.dispose(), [top])
   return (
-    <group position={[x, 0, z]} rotation-y={rot}>
-      <DeskBody color={color} />
-      {/* 칸막이: 앉은 사람 앞(+z)과 양옆 */}
-      <mesh position={[0, y, D.d / 2 - C.panelT / 2]}>
-        <boxGeometry args={[D.w, C.panelH, C.panelT]} />
-        <meshStandardMaterial color={C.panel} roughness={0.9} />
+    <group>
+      <mesh position={[(x0 + x1) / 2, D.h - D.top / 2, row.z]} geometry={top}>
+        <meshStandardMaterial color={color} map={oakGrain()} roughness={0.6} />
       </mesh>
-      {[-1, 1].map((sx) => (
-        <mesh key={sx} position={[sx * (D.w / 2 - C.panelT / 2), y, 0]}>
-          <boxGeometry args={[C.panelT, C.panelH, D.d]} />
-          <meshStandardMaterial color={C.panel} roughness={0.9} />
+      {Array.from({ length: legs }, (_, i) => (
+        <mesh key={i} position={[x0 + 0.15 + (i * (len - 0.3)) / (legs - 1), (D.h - D.top) / 2, row.z]}>
+          <boxGeometry args={[D.legT, D.h - D.top, D.d - 0.1]} />
+          <meshStandardMaterial color={D.legColor} map={oakGrain()} roughness={0.7} />
         </mesh>
       ))}
-      {/* 초록 독서등: 받침 + 기둥 + 반원통 갓 (아랫면이 따뜻하게 빛남) */}
-      <group position={[-D.w / 2 + 0.2, D.h, D.d / 2 - 0.15]}>
+      {row.xs.map((sx) => (
+        <GooseneckLamp key={sx} x={sx} z={row.z} rot={row.rot} />
+      ))}
+    </group>
+  )
+}
+
+// 거위목 스탠드: 받침 + 세로 기둥 + 앉은 사람 쪽으로 기운 목 + 아랫면이 빛나는 갓. (x, z) 는 자리 책상 가운데, rot 은 앉은 방향
+function GooseneckLamp({ x, z, rot }: { x: number; z: number; rot: number }) {
+  const G = GOOSENECK
+  return (
+    <group position={[x, LONG_DESK.h, z]} rotation-y={rot}>
+      <group position={[G.x, 0, G.z]}>
         <mesh position-y={0.01}>
           <cylinderGeometry args={[0.06, 0.07, 0.02, 12]} />
-          <meshStandardMaterial color="#b08d3c" metalness={0.7} roughness={0.3} />
+          <meshStandardMaterial color={G.metal} metalness={0.5} roughness={0.5} />
         </mesh>
-        <mesh position-y={0.14}>
-          <cylinderGeometry args={[0.008, 0.008, 0.26, 6]} />
-          <meshStandardMaterial color="#b08d3c" metalness={0.7} roughness={0.3} />
+        <mesh position-y={G.stalk / 2}>
+          <cylinderGeometry args={[0.007, 0.007, G.stalk, 6]} />
+          <meshStandardMaterial color={G.metal} metalness={0.5} roughness={0.5} />
         </mesh>
-        <mesh position={[0.1, 0.28, 0]} rotation-z={Math.PI / 2}>
-          <cylinderGeometry args={[0.06, 0.06, 0.3, 12, 1, true, 0, Math.PI]} />
-          <meshStandardMaterial color={C.lampShade} side={DoubleSide} />
+        {/* 목: 기둥 끝에서 앉은 사람 쪽(-z)으로 비스듬히 */}
+        <mesh position={[0, G.stalk + Math.cos(G.tilt) * G.neck * 0.5, -Math.sin(G.tilt) * G.neck * 0.5]} rotation-x={-G.tilt}>
+          <cylinderGeometry args={[0.007, 0.007, G.neck, 6]} />
+          <meshStandardMaterial color={G.metal} metalness={0.5} roughness={0.5} />
         </mesh>
-        <mesh position={[0.1, 0.27, 0]} rotation-x={Math.PI / 2}>
-          <planeGeometry args={[0.28, 0.1]} />
-          <meshStandardMaterial color={C.lampGlow} emissive={C.lampGlow} emissiveIntensity={0.8} side={DoubleSide} />
-        </mesh>
+        <group position={[0, G.stalk + Math.cos(G.tilt) * G.neck, -Math.sin(G.tilt) * G.neck]}>
+          {/* 갓: 꼭지가 위, 아래가 열린 원뿔 + 아랫면 빛나는 원판 */}
+          <mesh>
+            <coneGeometry args={[0.07, 0.09, 14, 1, true]} />
+            <meshStandardMaterial color={G.metal} side={DoubleSide} />
+          </mesh>
+          <mesh position-y={-0.04} rotation-x={Math.PI / 2}>
+            <circleGeometry args={[0.055, 14]} />
+            <meshBasicMaterial color={G.glow} side={DoubleSide} />
+          </mesh>
+        </group>
       </group>
     </group>
   )

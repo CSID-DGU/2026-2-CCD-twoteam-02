@@ -2,215 +2,232 @@
   "id": "cambit-library",
   "name": "캠빛 중앙도서관",
   "size": {
-    "w": 16,
-    "d": 16
+    "w": 20,
+    "d": 20
   },
   "spawn": {
     "x": 0,
-    "z": 7
+    "z": 9
   },
   "door": {
     "x": 0,
-    "z": 8,
+    "z": 10,
     "w": 1.6,
     "d": 0.3
   },
   "walls": [
     {
       "x": 0,
-      "z": -8,
-      "w": 16,
+      "z": -10,
+      "w": 20,
       "d": 0.2
     },
     {
       "x": 0,
-      "z": 8,
-      "w": 16,
+      "z": 10,
+      "w": 20,
       "d": 0.2
     },
     {
-      "x": -8,
+      "x": -10,
       "z": 0,
       "w": 0.2,
-      "d": 16
+      "d": 20
     },
     {
-      "x": 8,
+      "x": 10,
       "z": 0,
       "w": 0.2,
-      "d": 16
+      "d": 20
     }
   ],
   "seats": [
     {
       "no": 1,
-      "x": -4.5,
-      "z": -5.4,
+      "x": -3.25,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 2,
-      "x": -3.25,
-      "z": -5.4,
+      "x": -1.95,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 3,
-      "x": -2.0,
-      "z": -5.4,
+      "x": -0.65,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 4,
-      "x": 2.0,
-      "z": -5.4,
+      "x": 0.65,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 5,
-      "x": 3.25,
-      "z": -5.4,
+      "x": 1.95,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 6,
-      "x": 4.5,
-      "z": -5.4,
+      "x": 3.25,
+      "z": -0.6,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 7,
-      "x": -4.5,
-      "z": -2.4,
+      "x": -3.25,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 8,
-      "x": -3.25,
-      "z": -2.4,
+      "x": -1.95,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 9,
-      "x": -2.0,
-      "z": -2.4,
+      "x": -0.65,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 10,
-      "x": 2.0,
-      "z": -2.4,
+      "x": 0.65,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 11,
-      "x": 3.25,
-      "z": -2.4,
+      "x": 1.95,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 12,
-      "x": 4.5,
-      "z": -2.4,
+      "x": 3.25,
+      "z": 1.2,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 13,
-      "x": -4.5,
-      "z": 0.6,
+      "x": -3.25,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 14,
-      "x": -3.25,
-      "z": 0.6,
+      "x": -1.95,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 15,
-      "x": -2.0,
-      "z": 0.6,
+      "x": -0.65,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 16,
-      "x": 2.0,
-      "z": 0.6,
+      "x": 0.65,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 17,
-      "x": 3.25,
-      "z": 0.6,
+      "x": 1.95,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 18,
-      "x": 4.5,
-      "z": 0.6,
+      "x": 3.25,
+      "z": 3.0,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 19,
-      "x": -4.5,
-      "z": 3.6,
+      "x": -3.25,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 20,
-      "x": -3.25,
-      "z": 3.6,
+      "x": -1.95,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 21,
-      "x": -2.0,
-      "z": 3.6,
+      "x": -0.65,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 22,
-      "x": 2.0,
-      "z": 3.6,
+      "x": 0.65,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 23,
-      "x": 3.25,
-      "z": 3.6,
+      "x": 1.95,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     },
     {
       "no": 24,
-      "x": 4.5,
-      "z": 3.6,
+      "x": 3.25,
+      "z": 4.8,
       "rot": 3.142,
-      "desk": "carrel"
+      "desk": "long"
     }
   ],
+  "barista": {
+    "x": -4.2,
+    "z": 6.5,
+    "w": 2.4,
+    "facing": "east",
+    "counter": true,
+    "service": "library",
+    "menu": [],
+    "greeting": "찾는 책이 있으세요? 📚",
+    "look": {
+      "hair": "side-swept-textured",
+      "hairColor": "#3b2a20",
+      "top": "longsleeve",
+      "topColor": "#2f5a3a",
+      "bottomColor": "#2b2b2e"
+    }
+  },
   "rules": {
     "allowOtherScreen": false,
     "allowDevices": false,
@@ -220,106 +237,40 @@
   },
   "theme": {
     "floor": {
-      "pattern": "concrete",
+      "pattern": "marble",
       "colors": [
-        "#9a7550",
-        "#8a6744"
+        "#fffaf1",
+        "#cfc7b8"
       ],
-      "cell": 3
+      "cell": 2
     },
     "wall": {
       "color": "#efe6d6"
     },
     "ceiling": {
-      "color": "#f4efe6",
+      "color": "#f6f3ec",
       "height": 4.4,
-      "lamps": [
-        {
-          "x": -3,
-          "z": -4
-        },
-        {
-          "x": 3,
-          "z": -4
-        },
-        {
-          "x": -3,
-          "z": 2
-        },
-        {
-          "x": 3,
-          "z": 2
-        }
-      ]
-    },
-    "shelves": [
-      {
-        "x": -5,
-        "z": -8,
-        "face": "s",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": -1.6,
-        "z": -8,
-        "face": "s",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": 1.6,
-        "z": -8,
-        "face": "s",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": 5,
-        "z": -8,
-        "face": "s",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": -8,
-        "z": -3,
-        "face": "e",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": -8,
-        "z": 1.5,
-        "face": "e",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": 8,
-        "z": -3,
-        "face": "w",
-        "w": 3,
-        "rows": 4
-      },
-      {
-        "x": 8,
-        "z": 1.5,
-        "face": "w",
-        "w": 3,
-        "rows": 4
+      "grid": {
+        "color": "#ffffff",
+        "step": 2,
+        "y": 4.05,
+        "thick": 0.3,
+        "coffer": true
       }
-    ],
+    },
     "furniture": {
       "style": "wood",
       "accent": "#2f5a3a",
       "chrome": "#6b4a2e",
-      "trim": "#6b4a2e"
+      "trim": "#6b4a2e",
+      "chairLegs": "#2b2b2e",
+      "chairBackSeat": true,
+      "fabric": true
     },
-    "desk": "#8a6040",
-    "chair": "#2f5a3a",
+    "desk": "#c9a574",
+    "chair": "#b3262e",
     "light": {
-      "ambient": 0.85,
+      "ambient": 1.0,
       "sun": 0.65,
       "color": "#fff1dc"
     },
@@ -329,6 +280,82 @@
       "chrome": "#3a2a1e",
       "signBg": "#1f3b2d",
       "knob": "#c9a24a"
-    }
+    },
+    "round": {
+      "r": 9.6,
+      "color": "#f3eee2",
+      "fin": "#ffffff",
+      "fins": 10,
+      "gaps": [
+        0
+      ],
+      "windows": 10
+    },
+    "stacks": [
+      {
+        "a": 4.49159,
+        "shelf": "시"
+      },
+      {
+        "a": 4.04159,
+        "shelf": "시"
+      },
+      {
+        "a": 3.59159,
+        "shelf": "한국 장편"
+      },
+      {
+        "a": 3.14159,
+        "shelf": "한국 단편"
+      },
+      {
+        "a": 2.69159,
+        "shelf": "한국 단편"
+      },
+      {
+        "a": 2.24159,
+        "shelf": "한국 단편"
+      },
+      {
+        "a": 1.79159,
+        "shelf": "한국 단편"
+      }
+    ],
+    "pillars": [
+      {
+        "x": -5.6,
+        "z": 1.8,
+        "h": 4.4,
+        "solid": "#ffffff"
+      },
+      {
+        "x": 5.6,
+        "z": 1.8,
+        "h": 4.4,
+        "solid": "#ffffff"
+      },
+      {
+        "x": -5.6,
+        "z": 6.2,
+        "h": 4.4,
+        "solid": "#ffffff"
+      },
+      {
+        "x": 5.6,
+        "z": 6.2,
+        "h": 4.4,
+        "solid": "#ffffff"
+      }
+    ],
+    "planters": [
+      {
+        "x": -6.6,
+        "z": 4.0,
+        "w": 1.2,
+        "d": 1.2,
+        "tile": "#e8e1d6",
+        "palm": true
+      }
+    ]
   }
 }

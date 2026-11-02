@@ -1,5 +1,5 @@
 // 지점 데이터(JSON)에서 충돌 상자를 만듭니다. 화면 표시와 충돌 판정이 같은 값을 씁니다.
-import { LOUNGER, decorBoxes, stoolBoxes, wallPose } from './theme'
+import { LOUNGER, decorBoxes, stackFront, stoolBoxes, wallPose } from './theme'
 import type { BranchTheme } from './theme'
 import type { BranchRules } from './rulesLogic'
 import type { AmbienceKind } from './ambience'
@@ -14,12 +14,13 @@ export type Box = { x: number; z: number; w: number; d: number }
 // tall: 높은 의자(바 스툴) 자리. 앉은 캐릭터와 좌석 카메라가 TALL_RAISE 만큼 올라갑니다 (#57 다이너 테마)
 // chair: 원목 테마에서 이 자리의 의자 모양 (booth = 원목 부스, chair = 원목 의자, none = 의자 없이 방석만(원형 부스 안), stool = 높은 원목 스툴, tub = 둥근 1인 소파, 기본 chair)
 // desk: 이 자리 책상 모양 (round = 1인 둥근 작은 테이블, low = 낮은 둥근 테이블, 없으면 기본 테이블)
-// desk: carrel 칸막이 책상(도서관), computer 컴퓨터 책상(정보관), cubicle 둥근 원목 칸막이 + 골유리 + 스탠드, bar 창가 바(바 상판은 테마 studyCafe 가 그림) — Cam Study Cafe.
+// desk: computer 컴퓨터 책상(정보관), cubicle 둥근 원목 칸막이 + 골유리 + 스탠드, bar 창가 바(바 상판은 테마 studyCafe 가 그림) — Cam Study Cafe.
 // chair: office 메시 사무용 의자, shell 패브릭 셸 의자(창가 바) — Cam Study Cafe. rise: 계단식 단 위 자리(강의실) — 책상·의자·앉은 높이를 올림(m)
 // 루프탑(theme.rooftop): desk rail 앞 난간 바, counter 바 카운터(둘 다 하이스툴, tall), candle 캔들 사각 테이블(chair rattan 라탄 의자).
 //   책상·의자 모두 RooftopDecor 가 그림
 export type SeatChair = 'booth' | 'chair' | 'none' | 'stool' | 'tub' | 'lounger' | 'office' | 'shell' | 'rattan'
-export type SeatDesk = 'round' | 'low' | 'carrel' | 'computer' | 'cubicle' | 'bar' | 'rail' | 'counter' | 'candle'
+// long: 같은 줄 자리가 이어 붙은 긴 나무 책상 + 자리마다 스탠드 (중앙도서관, longDeskRows 가 줄로 묶음)
+export type SeatDesk = 'round' | 'low' | 'computer' | 'cubicle' | 'bar' | 'rail' | 'counter' | 'candle' | 'long'
 type Seat = { no: number; x: number; z: number; rot: number; tall?: boolean; chair?: SeatChair; desk?: SeatDesk; rise?: number }
 export const TALL_RAISE = 0.3 // 높은 의자에 앉았을 때 올라가는 높이 (의자 0.45 → 스툴 0.75)
 // 지점 배치. 스터디카페는 키오스크(kiosk), 카페는 커피 바(bar)가 있습니다. (#44)
@@ -81,6 +82,27 @@ const NOTE_BOARD_GAP = 1.0 // 벽에서 이만큼 앞에 섬
 export function noteBoardSpot(b: NoteBoardSpec): Spot {
   const p = wallPose(b.x, b.z, b.face, 0, NOTE_BOARD_GAP)
   return { no: NOTE_BOARD_NO, x: p.x, z: p.z, rot: p.rotY + Math.PI } // 판을 바라봄
+}
+
+// 도서관 서가 앞 자리: 게시판처럼 Player 의 자리 목록에 넣어 E 를 받습니다(앉지 않고 대여 창을 엶). 번호 = SHELF_NO + theme.stacks 순서
+export const SHELF_NO = 9100
+export const isShelfNo = (no: number) => no >= SHELF_NO && no < SHELF_NO + 100
+export function shelfSpots(theme?: BranchTheme): Spot[] {
+  return (theme?.stacks ?? []).map((s, i) => ({ no: SHELF_NO + i, ...stackFront(s) }))
+}
+
+// 긴 책상 줄: desk 'long' 인 자리를 같은 z·방향끼리 묶고 x 순으로 정렬. 자리 간격이 LONG_DESK_JOIN 보다 벌어지면 다른 책상으로 끊습니다.
+const LONG_DESK_JOIN = SEAT.w + 0.5
+export type LongDeskRow = { z: number; rot: number; xs: number[] }
+export function longDeskRows(seats: { x: number; z: number; rot: number; desk?: SeatDesk }[]): LongDeskRow[] {
+  const sorted = seats.filter((s) => s.desk === 'long').sort((a, b) => a.z - b.z || a.rot - b.rot || a.x - b.x)
+  const rows: LongDeskRow[] = []
+  for (const s of sorted) {
+    const last = rows[rows.length - 1]
+    if (last && last.z === s.z && last.rot === s.rot && s.x - last.xs[last.xs.length - 1] <= LONG_DESK_JOIN) last.xs.push(s.x)
+    else rows.push({ z: s.z, rot: s.rot, xs: [s.x] })
+  }
+  return rows
 }
 
 export function obstaclesOf(b: Branch): Box[] {

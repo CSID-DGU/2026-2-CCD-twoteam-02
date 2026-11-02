@@ -4,10 +4,10 @@
 import { useMemo } from "react";
 import { Billboard } from "@react-three/drei";
 import type { BranchLayout } from "./layout";
-import { CHAIR, KIOSK, SEAT, spotsOf } from "./layout";
+import { CHAIR, KIOSK, SEAT, longDeskRows, spotsOf } from "./layout";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { BarTable, Carrel, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
+import { BarTable, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, LongDesk, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { CafeCounter } from "./CafeCounter";
@@ -52,6 +52,7 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
   const cubicleSeats = useMemo(() => branch.seats.filter((s) => s.desk === "cubicle"), [branch]); // Cam Study Cafe 칸막이 책상 (한 번에 그림)
   // 루프탑 (이끼 루프탑): 천장·벽·실내 조명 없이 난간과 소품만. 하늘·햇빛은 바깥(world/RooftopWorld 또는 광장)이 비춤.
   // lights 는 지점 화면에서만 켜므로(광장 지붕 위·가게 창 안에서는 끔) 루프탑 불빛(점광원)을 낼지로 씁니다.
+  const longRows = useMemo(() => longDeskRows(branch.seats), [branch]); // 중앙도서관 긴 책상 줄 (없으면 빈 목록)
   const roof = branch.theme?.rooftop;
   if (roof) {
     return <RooftopDeck branch={branch} roof={roof} seat={seat} near={near} mySeat={mySeat} nearElevator={nearElevator} elevatorLabel={elevatorLabel} glow={lights} />;
@@ -94,13 +95,14 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
 
       {/* Cam Study Cafe 칸막이 책상: 자리가 많아 한 번에 찍어 그림 (아래 자리별 책상에서는 건너뜀) */}
       <Cubicles seats={cubicleSeats} />
+      {longRows.map((row) => (
+        <LongDesk key={`${row.z}|${row.rot}|${row.xs[0]}`} row={row} color={colors.desk} />
+      ))}
       {branch.seats.map((s) => {
-        if (s.desk === "cubicle" || s.desk === "bar") return null; // 창가 바 상판은 테마 소품(studyCafe)이 그림
+        if (s.desk === "cubicle" || s.desk === "bar" || s.desk === "long") return null; // 창가 바 상판은 테마 소품(studyCafe)이, 긴 책상은 아래 줄 단위(LongDesk)가 그림
         // 계단식 단 위 자리(강의실, rise)는 책상째 그만큼 올립니다.
         const deskEl = s.chair === "lounger" ? null : furniture ? ( // 라운지 소파는 책상이 없음
-          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "carrel" ? (
-            <Carrel key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 도서관 칸막이 책상
-          ) : s.desk === "computer" ? (
+          insideTable(s, furniture.tables, sharedRings) ? null : s.desk === "computer" ? (
             <ComputerDesk key={s.no} x={s.x} z={s.z} rot={s.rot} color={colors.desk} /> // 정보관 컴퓨터 책상
           ) : s.desk === "round" ? ( // 공용 테이블 안의 자리는 개별 책상을 안 그림
             <RoundTable key={s.no} x={s.x} z={s.z} color={colors.desk} marble={branch.theme?.booth?.marble} />
@@ -150,7 +152,7 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
           ) : c.chair === "booth" ? (
             <WoodBooth key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : furniture.accent} wood={colors.chair} cushion={furniture.accent} />
           ) : (
-            <WoodChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} wood={furniture.chrome} />
+            <WoodChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} wood={furniture.chrome} legColor={furniture.chairLegs} back={furniture.chairBackSeat ? chairColor : undefined} fabric={furniture.fabric} />
           )
         ) : furniture ? (
           c.tall && desk && insideTable(desk, furniture.tables) ? ( // 바 테이블 자리는 둥근 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)
