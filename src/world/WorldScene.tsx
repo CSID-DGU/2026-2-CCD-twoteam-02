@@ -71,7 +71,7 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCrossed, spotKindOf, toBranchHeading } from './worldLogic'
+import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCrossed, gateViewSpan, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
@@ -523,7 +523,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {GATES.map((g) => (
           <group key={g.no}>
             {PLAZA.beach || g.spec.to === 'beach' ? <BeachGate gate={g} near={near === g.no} /> : <UniversityGate gate={g} near={near === g.no} />}
-            {PLAZA.beach || g.spec.to === 'beach' ? <BeachGateView gate={g} inland={!!PLAZA.beach} /> : <GateBackdrop gate={g} />}
+            {/* 문 너머 바닥은 옆 문 풍경과 겹치지 않는 데까지만 (겹치면 같은 높이라 깜빡임) */}
+            {PLAZA.beach || g.spec.to === 'beach' ? (
+              <BeachGateView gate={g} inland={!!PLAZA.beach} limit={gateViewSpan(GATES, g)} />
+            ) : (
+              <GateBackdrop gate={g} limit={gateViewSpan(GATES, g)} />
+            )}
           </group>
         ))}
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}

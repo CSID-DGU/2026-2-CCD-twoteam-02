@@ -306,8 +306,10 @@ function goldText(aspect: number, near: boolean) {
 // 문 너머 풍경: 울타리 밖으로 길·잔디·가로수·가로등이 이어지고, 멀리 행선지가 보입니다.
 // 정문이 세상 끝 울타리에 붙어 있어 너머가 빈 하늘이라 "떨어지는" 느낌이 났던 것을 고칩니다(사용자 피드백).
 // 걸어갈 수는 없습니다(통울타리 부딪힘 그대로). 문 기준 -Z 가 너머입니다.
-export function GateBackdrop({ gate }: { gate: PlacedGate }) {
+// limit: 옆 문 풍경과 겹치지 않는 가로 범위 (gateViewSpan). 잔디는 원래 폭 안에서 이 범위까지만
+export function GateBackdrop({ gate, limit = [-Infinity, Infinity] }: { gate: PlacedGate; limit?: [number, number] }) {
   const B = BACKDROP
+  const span = [Math.max(limit[0], -B.width / 2), Math.min(limit[1], B.width / 2)]
   const trees = useMemo(() => {
     const out: [number, number][] = []
     for (let z = -4; z > -B.depth + 4; z -= B.treeStep) for (const sx of [-1, 1]) out.push([sx * B.treeX, z])
@@ -317,7 +319,7 @@ export function GateBackdrop({ gate }: { gate: PlacedGate }) {
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
       {/* 잔디 (월드 땅보다 살짝 아래라 겹쳐도 깜빡이지 않음) */}
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, -B.depth / 2 - 1]} material={WMAT.grass} geometry={tiledPlane(B.width, B.depth, TILE.grass)} />
+      <mesh rotation-x={-Math.PI / 2} position={[(span[0] + span[1]) / 2, -0.02, -B.depth / 2 - 1]} material={WMAT.grass} geometry={tiledPlane(span[1] - span[0], B.depth, TILE.grass)} />
       {/* 이어지는 길 */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.015, -B.depth / 2]} material={WMAT.path} geometry={tiledPlane(B.road, B.depth, TILE.concrete)} />
       {/* 가로수 (원뿔 잎 + 줄기) */}
