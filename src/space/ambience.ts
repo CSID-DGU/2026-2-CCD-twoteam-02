@@ -13,7 +13,7 @@
 // 막혀 있으면 다음에 누르거나 칠 때 시작합니다.
 // 켜고 끈 것·음량은 이 브라우저에 기억합니다(마우스 감도와 같은 방식, DB 변경 없음).
 
-export type AmbienceKind = 'stream' // 시냇물. 다른 소리를 더하면 여기에 이름을 늘립니다
+export type AmbienceKind = 'stream' | 'waves' // 시냇물, 파도. 다른 소리를 더하면 여기에 이름을 늘립니다
 
 const BASE_GAIN = 0.5 // 음량 100% 일 때 전체 크기. 공부·쉬는 데 거슬리지 않게 작게
 const FADE_IN = 2.5 // 들어오면 이만큼(초) 천천히 커짐
@@ -30,6 +30,17 @@ const BUBBLE_SECONDS = 0.045 // 방울 하나의 길이
 const DRIP_GAP_MS = [900, 3200] // 똑 사이 간격(ms) 범위
 const DRIP_GAIN = 0.05
 const DRIP_FREQ = [1600, 3000] // 똑 높이(Hz) 범위
+
+// 파도: 잡음을 낮은 쪽만 남겨 밀려오고 빠지게. 두 겹이 서로 다른 주기로 겹쳐 일정하게 반복되는 느낌을 없앰
+const WAVE_SECONDS = [8, 14] // 파도 하나가 밀려왔다 빠지는 길이(초) 범위
+const WAVE_GAIN = [0.12, 0.34] // 파도 하나의 크기 범위
+const WAVE_FREQ = { low: 320, high: 1250 } // 빠졌을 때·부서질 때 필터 높이(Hz)
+const WAVE_RISE = 0.4 // 파도 길이 중 커지는 데 쓰는 비율
+const WAVE_BED = 0.05 // 파도 사이에도 깔리는 바다 소리
+const WAVE_BED_FREQ = 420
+const WAVE_FOAM = { freq: 3200, gain: 0.05, delay: 0.3 } // 부서진 뒤 거품 소리: 높이, 크기, 파도 길이 중 시작 위치
+const WAVE_LAYER_GAP = 4500 // 둘째 겹이 늦게 시작하는 시간(ms)
+const LEVEL_SECONDS = 0.6 // 위치에 따라 크기가 바뀌는 데 걸리는 시간(초)
 
 const between = ([lo, hi]: number[]) => lo + Math.random() * (hi - lo)
 
@@ -48,7 +59,8 @@ function loop(ctx: AudioContext, buffer: AudioBuffer): AudioBufferSourceNode {
   return src
 }
 
-export type AmbienceHandle = { setVolume: (volume: number) => void; stop: () => void }
+// setLevel: 사용자 음량에 곱하는 크기 0~1 (물과의 거리 등). 부드럽게 바뀜
+export type AmbienceHandle = { setVolume: (volume: number) => void; setLevel: (level: number) => void; stop: () => void }
 
 // 배경 소리를 시작합니다. volume 0~1. 돌려받은 stop 으로 끕니다(서서히 줄어든 뒤 정리).
 export function startAmbience(kind: AmbienceKind, volume: number): AmbienceHandle | null {
@@ -62,7 +74,8 @@ export function startAmbience(kind: AmbienceKind, volume: number): AmbienceHandl
   const master = ctx.createGain()
   master.gain.setValueAtTime(0.0001, now)
   master.gain.linearRampToValueAtTime(BASE_GAIN * volume, now + FADE_IN)
-  master.connect(ctx.destination)
+  const levelGain = ctx.createGain() // 위치에 따른 크기 (사용자 음량과 따로)
+  master.connect(levelGain).connect(ctx.destination)
   const sources: AudioScheduledSourceNode[] = []
 
   if (kind === 'stream') {
@@ -85,6 +98,60 @@ export function startAmbience(kind: AmbienceKind, volume: number): AmbienceHandl
     sparkleGain.gain.value = SPARKLE_GAIN
     sparkle.connect(high).connect(sparkleGain).connect(master)
     sources.push(flow, sparkle)
+  }
+  const waveTimers: number[] = []
+  if (kind === 'waves') {
+    const white = noiseBuffer(ctx)
+    const bed = loop(ctx, white)
+    const bedFilter = ctx.createBiquadFilter()
+    bedFilter.type = 'lowpass'
+    bedFilter.frequency.value = WAVE_BED_FREQ
+    const bedGain = ctx.createGain()
+    bedGain.gain.value = WAVE_BED
+    bed.connect(bedFilter).connect(bedGain).connect(master)
+    sources.push(bed)
+    // 파도 한 겹: 필터가 열리며 커졌다가 닫히며 줄어듦. 끝나면 다음 파도를 불규칙한 길이로
+    const layer = (slot: number) => {
+      const src = loop(ctx, white)
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'lowpass'
+      filter.frequency.value = WAVE_FREQ.low
+      const gain = ctx.createGain()
+      gain.gain.value = 0
+      src.connect(filter).connect(gain).connect(master)
+      const foam = loop(ctx, white)
+      const high = ctx.createBiquadFilter()
+      high.type = 'highpass'
+      high.frequency.value = WAVE_FOAM.freq
+      const foamGain = ctx.createGain()
+      foamGain.gain.value = 0
+      foam.connect(high).connect(foamGain).connect(master)
+      sources.push(src, foam)
+      const swell = () => {
+        const t = ctx.currentTime
+        const len = between(WAVE_SECONDS)
+        const peak = t + len * WAVE_RISE
+        const top = between(WAVE_GAIN)
+        gain.gain.cancelScheduledValues(t)
+        gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), t)
+        gain.gain.linearRampToValueAtTime(top, peak)
+        gain.gain.linearRampToValueAtTime(0.0001, t + len)
+        filter.frequency.cancelScheduledValues(t)
+        filter.frequency.setValueAtTime(WAVE_FREQ.low, t)
+        filter.frequency.exponentialRampToValueAtTime(WAVE_FREQ.high, peak)
+        filter.frequency.exponentialRampToValueAtTime(WAVE_FREQ.low, t + len)
+        foamGain.gain.cancelScheduledValues(t)
+        foamGain.gain.setValueAtTime(0, t + len * WAVE_FOAM.delay)
+        foamGain.gain.linearRampToValueAtTime(WAVE_FOAM.gain * (top / WAVE_GAIN[1]), peak + 0.4)
+        foamGain.gain.linearRampToValueAtTime(0, t + len)
+        waveTimers[slot] = window.setTimeout(swell, len * 1000)
+      }
+      return swell
+    }
+    const first = layer(0)
+    const second = layer(1)
+    first()
+    waveTimers[2] = window.setTimeout(second, WAVE_LAYER_GAP)
   }
   sources.forEach((s) => s.start())
 
@@ -138,9 +205,14 @@ export function startAmbience(kind: AmbienceKind, volume: number): AmbienceHandl
       master.gain.cancelScheduledValues(ctx.currentTime)
       master.gain.setTargetAtTime(BASE_GAIN * v, ctx.currentTime, 0.1)
     },
+    setLevel(level) {
+      if (stopped) return
+      levelGain.gain.setTargetAtTime(level, ctx.currentTime, LEVEL_SECONDS)
+    },
     stop() {
       if (stopped) return
       stopped = true
+      waveTimers.forEach((id) => window.clearTimeout(id))
       window.clearTimeout(timers.bubble)
       window.clearTimeout(timers.drip)
       unlisten()
