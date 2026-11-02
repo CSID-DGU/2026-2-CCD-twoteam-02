@@ -6,11 +6,14 @@
 //   물결      물줄기가 떨어지는 자리에서 둥근 물결이 퍼지며 사라짐
 //   물방울    점 DROPS 개를 한 번에 그림(Points). 가장자리에서 튀어 나와 떨어지고 물에 닿으면 한 번 튐 (fountainLogic)
 // 모양 값·물방울 움직임은 fountainLogic, 부딪힘은 지금처럼 world.json 의 fountain.r 원입니다.
+//   소리      posRef(내 자리)를 주면 가까이 갈수록 물소리 (fountainSound). 카페 창 너머 거리처럼 posRef 없이 그리면 소리 없음
 //   LatheGeometry(돌림판): 옆모습 선을 세로축으로 한 바퀴 돌려 만든 입체. 항아리·접시 같은 둥근 모양에 씀
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BASIN, DROPS, TIERS, makeDrops, stepDrop, waterSheets, writePositions } from './fountainLogic'
+import type { RefObject } from 'react'
+import { BASIN, DROPS, TIERS, fountainLoudness, makeDrops, stepDrop, waterSheets, writePositions } from './fountainLogic'
+import { setFountainVolume, stopFountainSound } from './fountainSound'
 import type { Drop } from './fountainLogic'
 import type { PlazaLayout } from './worldLogic'
 import { COLOR, MAT } from './worldMaterials'
@@ -69,7 +72,27 @@ function markRipple(m: THREE.Mesh, base: number) {
   m.userData.base = base
 }
 
-export function Fountain({ fountain }: { fountain: NonNullable<PlazaLayout['fountain']> }) {
+// posRef: 내 자리 (주면 물소리), muted: 채팅 "소리 끔"
+export function Fountain({ fountain, posRef, muted = false }: { fountain: NonNullable<PlazaLayout['fountain']>; posRef?: RefObject<{ x: number; z: number }>; muted?: boolean }) {
+  return (
+    <>
+      <FountainBody fountain={fountain} />
+      {posRef && <FountainSound fountain={fountain} posRef={posRef} muted={muted} />}
+    </>
+  )
+}
+
+// 물소리: 매 프레임 거리로 크기 (보이는 것은 없음)
+function FountainSound({ fountain, posRef, muted }: { fountain: { x: number; z: number }; posRef: RefObject<{ x: number; z: number }>; muted: boolean }) {
+  useEffect(() => stopFountainSound, [])
+  useFrame(() => {
+    const p = posRef.current
+    setFountainVolume(muted || !p ? 0 : fountainLoudness(fountain, p))
+  })
+  return null
+}
+
+function FountainBody({ fountain }: { fountain: NonNullable<PlazaLayout['fountain']> }) {
   const { x, z, r } = fountain
   const marble = useMemo(() => new THREE.MeshStandardMaterial({ color: MARBLE, roughness: 0.55, side: THREE.DoubleSide }), [])
   const water = useMemo(() => MAT.water.clone(), []) // 물빛을 바꾸므로 공용 재질을 복사해 이 분수만 씀

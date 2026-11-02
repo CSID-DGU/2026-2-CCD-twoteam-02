@@ -473,7 +473,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <Ground plaza={PLAZA} buildings={PLACED} />
         <Garden plaza={PLAZA} buildings={PLACED} />
         <Fence plaza={PLAZA} />
-        {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
+        {/* 분수: 가까이 가면 물소리 (채팅 "소리 끔"이면 조용) */}
+        {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} posRef={pos} muted={chat?.muted ?? false} />}
         {/* 나무·벤치: 캠리단길·캠퍼스 모두 풍성한 활엽수와 정원 벤치 (질감 있게) */}
         <LushTrees trees={PLAZA.trees} />
         <GardenBenches benches={PLAZA.benches} />
