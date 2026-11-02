@@ -17,7 +17,7 @@
 // 하늘과 빛은 WorldSky 가 현실 시각(서울)을 따라 바꾼다(#316, 확인용 주소 ?time=21:30 · ?speed=600).
 // 날씨는 실제 서울 날씨(Open-Meteo 시간별 예보, #317, 확인용 주소 ?weather=rain · snow · cloudy · clear).
 //
-// 같은 화면으로 두 바깥 공간(월드)을 그립니다: 광장(/)과 캠빛 대학교 캠퍼스(/campus). 무엇을 그릴지는 world(worldConfig.ts)가 정합니다.
+// 같은 화면으로 세 바깥 공간(월드)을 그립니다: 광장(/), 캠빛 대학교 캠퍼스(/campus), 캠빛 해변(/beach). 무엇을 그릴지는 world(worldConfig.ts)가 정합니다.
 // 월드 사이는 정문(gates)으로 오갑니다. 정문 앞에서 E 를 누르면 다른 월드로 넘어가 그쪽 정문 앞에 문을 등지고 섭니다.
 //
 // 벤치에서 공부하기: 광장은 DB 에서 카페 종류 지점 'plaza' 이고(0038) 벤치마다 두 자리가 그 좌석이다.
@@ -92,6 +92,14 @@ import { drinkLine, heldItem, heldToast, setHeldItem, useEatKey } from '../space
 import type { MenuItem } from '../space/baristaLogic'
 import { WorldSky } from './WorldSky'
 import { CitySkyline } from './CitySkyline'
+import { BeachGate, BeachGateView, BeachScenery } from './BeachScenery'
+import { BeachSeats } from './BeachSeats'
+import { BeachLights } from './BeachLights'
+import { BeachShells } from './BeachShells'
+import { BeachBridge } from './BeachBridge'
+import { SandSteps } from './SandSteps'
+import { waveLevel } from './beachLogic'
+import { AmbienceControl } from '../space/AmbienceControl'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
@@ -410,6 +418,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 자리 앞에서 E 가 할 일이 있는지: 입장·정문·쉬는 자리, 게시판 열기, 벤치 자리 잡기(PC). 문 닫은 건물은 안내만이라 아님
   // 할 일이 있으면 조준한 사람·별자리보다 먼저 (#408, Player 와 같은 규칙)
   const placeReady = near !== null && acts(near)
+  const goal = PLAZA.beach ? '비치체어로 가세요' : '건물 입구로 가세요'
   const hint = panel || cafe.conflict
     ? ''
     : studyPaused
@@ -443,8 +452,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         ? `${nearBuilding.name} · ${K.interact} 입장 (위층은 안에서 엘리베이터)`
         : `${nearBuilding.name} · ${K.interact} 입장`
       : touch
-        ? `조이스틱으로 움직여 건물 입구로 가세요\n끝까지 밀면 달리기 · ${viewHint}` // 할 일 한 줄, 조작 키는 다음 줄
-        : `WASD로 움직여 건물 입구로 가세요${eatHint}\nShift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+        ? `조이스틱으로 움직여 ${goal}\n끝까지 밀면 달리기 · ${viewHint}` // 할 일 한 줄, 조작 키는 다음 줄
+        : `WASD로 움직여 ${goal}${eatHint}\nShift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
@@ -468,14 +477,28 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
         {/* 밤에 지평선을 두르는 먼 도시 (팀 조절판에서 숨길 수 있음) */}
-        <CitySkyline />
+        {!PLAZA.beach && <CitySkyline />}
 
-        <Ground plaza={PLAZA} buildings={PLACED} />
-        <Garden plaza={PLAZA} buildings={PLACED} />
-        <Fence plaza={PLAZA} />
+        {/* 해변은 땅·울타리·나무를 자기 것으로 그림 (BeachScenery) */}
+        {PLAZA.beach ? (
+          <>
+            <BeachScenery plaza={PLAZA} />
+            <BeachSeats beach={PLAZA.beach} />
+            <BeachBridge />
+            <BeachShells beach={PLAZA.beach} size={PLAZA.size} />
+            <SandSteps posRef={pos} size={PLAZA.size} muted={(chat?.muted ?? false) || seat !== null} />
+            {PLAZA.beach.torches && <BeachLights torches={PLAZA.beach.torches} />}
+          </>
+        ) : (
+          <>
+            <Ground plaza={PLAZA} buildings={PLACED} />
+            <Garden plaza={PLAZA} buildings={PLACED} />
+            <Fence plaza={PLAZA} />
+          </>
+        )}
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} />}
         {/* 나무·벤치: 캠리단길·캠퍼스 모두 풍성한 활엽수와 정원 벤치 (질감 있게) */}
-        <LushTrees trees={PLAZA.trees} />
+        {!PLAZA.beach && <LushTrees trees={PLAZA.trees} />}
         <GardenBenches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />
         {/* 캠퍼스: 굽은 산책로, 축구장과 같이 차는 축구공 */}
@@ -498,8 +521,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
         {GATES.map((g) => (
           <group key={g.no}>
-            <UniversityGate gate={g} near={near === g.no} />
-            <GateBackdrop gate={g} />
+            {PLAZA.beach || g.spec.to === 'beach' ? <BeachGate gate={g} near={near === g.no} /> : <UniversityGate gate={g} near={near === g.no} />}
+            {PLAZA.beach || g.spec.to === 'beach' ? <BeachGateView gate={g} inland={!!PLAZA.beach} /> : <GateBackdrop gate={g} />}
           </group>
         ))}
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
@@ -655,6 +678,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {/* 처음 들어온 사람: 캐릭터 고르기 (#146). 저장하면 닫히고 다시 뜨지 않음 */}
       {firstCharacter && <FirstCharacterDialog save={saveAvatar} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: world.place, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
+      {/* 해변 파도 소리: 물에 가까울수록 크게. 앉아서 공부할 때도 납니다 */}
+      {PLAZA.beach && <AmbienceControl kind="waves" levelOf={() => waveLevel(pos.current.z, PLAZA.beach!.shoreZ)} />}
     </>
   )
 }
