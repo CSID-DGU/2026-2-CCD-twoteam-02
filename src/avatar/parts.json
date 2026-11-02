@@ -682,6 +682,12 @@
       "id": "tank",
       "name": "민소매",
       "tint": "/models/Parts/top/tank-tint.png"
+    },
+    {
+      "id": "me-crop-cardigan",
+      "name": "크롭티와 가디건",
+      "tint": "/models/Parts/top/me-crop-cardigan-tint.png",
+      "file": "/models/Parts/top/me-crop-cardigan.png"
     }
   ],
   "bottom": [
