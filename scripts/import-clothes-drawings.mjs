@@ -38,6 +38,7 @@ const ARM = cells({ right: [2, 20, 4, 11], front: [6, 20, 4, 11], left: [10, 20,
 const DRAWINGS = [
   { slot: 'top', id: 'me-crop-cardigan', name: '크롭티와 가디건' },
   { slot: 'top', id: 'stripe-sweater', name: '줄무늬 스웨터' },
+  { slot: 'top', id: 'two-tone-top', name: '투톤 맨투맨' },
 ]
 
 // 작은 그림의 픽셀을 그대로 키워 2048 로 맞춘다 (32·64·128 … 처럼 2048 을 나누어떨어지는 정사각형만)
