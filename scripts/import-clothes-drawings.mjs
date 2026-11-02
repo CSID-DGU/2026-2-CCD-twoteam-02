@@ -37,6 +37,7 @@ const ARM = cells({ right: [2, 20, 4, 11], front: [6, 20, 4, 11], left: [10, 20,
 // 넣을 그림. 그림 파일은 그림폴더/칸/id.png
 const DRAWINGS = [
   { slot: 'top', id: 'me-crop-cardigan', name: '크롭티와 가디건' },
+  { slot: 'top', id: 'stripe-sweater', name: '줄무늬 스웨터' },
 ]
 
 // 작은 그림의 픽셀을 그대로 키워 2048 로 맞춘다 (32·64·128 … 처럼 2048 을 나누어떨어지는 정사각형만)

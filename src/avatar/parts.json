@@ -688,6 +688,11 @@
       "name": "크롭티와 가디건",
       "tint": "/models/Parts/top/me-crop-cardigan-tint.png",
       "file": "/models/Parts/top/me-crop-cardigan.png"
+    },
+    {
+      "id": "stripe-sweater",
+      "name": "줄무늬 스웨터",
+      "file": "/models/Parts/top/stripe-sweater.png"
     }
   ],
   "bottom": [
