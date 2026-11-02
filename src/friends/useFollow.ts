@@ -11,10 +11,10 @@ import type { RefObject } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { ARRIVE_WAIT_MS, besideSpot, routeOfPlace } from './followLogic'
 import type { Places } from './followLogic'
-import { CAMPUS_PLACE, LOBBY_PLACE } from '../realtime/online'
+import { BEACH_PLACE, CAMPUS_PLACE, LOBBY_PLACE } from '../realtime/online'
 import { useOnline } from '../realtime/onlineContext'
 import { BRANCH_LAYOUTS } from '../space/branches'
-import { CAMPUS_WORLD } from '../world/worldConfig'
+import { BEACH_WORLD, CAMPUS_WORLD } from '../world/worldConfig'
 import type { Box, Spot } from '../space/layout'
 import type { Participant } from '../realtime/participants'
 
@@ -22,8 +22,7 @@ const REQUEST_TTL_MS = 30_000 // 이만큼 지난 요청은 버림 (도착한 �
 
 export const PLACES: Places = {
   lobby: LOBBY_PLACE,
-  campus: CAMPUS_PLACE,
-  campusPath: CAMPUS_WORLD.path,
+  worlds: { [CAMPUS_PLACE]: CAMPUS_WORLD.path, [BEACH_PLACE]: BEACH_WORLD.path },
   isBranch: (place) => place in BRANCH_LAYOUTS,
 }
 

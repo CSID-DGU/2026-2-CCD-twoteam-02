@@ -12,7 +12,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from 'react'
 import world from '../world/world.json'
 import campus from '../world/campus.json'
-import { CAMPUS_PLACE } from '../realtime/online'
+import beach from '../world/beach.json'
+import { parasolSpots } from '../world/beachLogic'
+import { BEACH_PLACE, CAMPUS_PLACE } from '../realtime/online'
 import { BENCH, gravelStrips, placeBuildings } from '../world/worldLogic'
 import type { PlacedBuilding, PlazaLayout, WorldId } from '../world/worldLogic'
 import { flowerBeds } from '../world/gardenLogic'
@@ -40,17 +42,32 @@ export type MapHere = {
 // ── 한 장에 놓을 두 월드 (배치 JSON 은 실행 중에 바뀌지 않으므로 한 번만) ──────────
 // layout: 지도 좌표의 배치(turn 만큼 돌린 것), raw: 월드 배치 그대로(바닥을 돌려 그릴 때), turn: 돌린 각도(라디안), offset: 옮긴 자리
 type AtlasWorld = { id: WorldId; layout: WorldLayout; raw: PlazaLayout; offset: Point; turn: number; placed: PlacedBuilding[]; ribbon: string }
-const RAW: Record<WorldId, PlazaLayout> = { plaza: world as PlazaLayout, campus: campus as PlazaLayout }
+const RAW: Record<WorldId, PlazaLayout> = { plaza: world as PlazaLayout, campus: campus as PlazaLayout, beach: beach as PlazaLayout }
 const PLAZA_GATE = RAW.plaza.gates?.find((g) => g.to === 'campus')
 const CAMPUS_GATE = RAW.campus.gates?.find((g) => g.to === 'plaza')
 const CAMPUS_AT = PLAZA_GATE && CAMPUS_GATE ? campusOffset(RAW.plaza, PLAZA_GATE, CAMPUS_GATE) : { x: -70, z: 0 }
+// 해변은 광장 서쪽 문 너머 북서쪽. 해변 남쪽 문까지 길로 잇습니다 (캠퍼스처럼 문끼리 맞대지 않고, 바다가 지도 위쪽을 보게 돌리지 않음)
+const BEACH_AT = { x: -52, z: -56 }
+const BEACH_ROAD_OUT = 6 // 광장 문에서 서쪽으로 나가는 길이
+const BEACH_ROAD_BELOW = 3 // 해변 아래로 지나가는 여유
 const ATLAS: AtlasWorld[] = [
   { id: 'plaza', layout: buildWorld(RAW.plaza, BRANCH_LAYOUTS), raw: RAW.plaza, offset: { x: 0, z: 0 }, turn: 0, placed: placeBuildings(RAW.plaza, BRANCH_LAYOUTS), ribbon: '#7a4b2a' },
   { id: 'campus', layout: turnWorld(buildWorld(RAW.campus, BRANCH_LAYOUTS, CAMPUS_PLACE), CAMPUS_TURN), raw: RAW.campus, offset: CAMPUS_AT, turn: CAMPUS_TURN, placed: placeBuildings(RAW.campus, BRANCH_LAYOUTS), ribbon: '#8a2f2f' },
+  { id: 'beach', layout: buildWorld(RAW.beach, BRANCH_LAYOUTS, BEACH_PLACE), raw: RAW.beach, offset: BEACH_AT, turn: 0, placed: [], ribbon: '#2f7fa8' },
 ]
 const rectOf = (w: AtlasWorld) => worldRect(w.raw, w.offset, w.turn) // 지도에서 그 월드가 차지하는 사각형
 const BOUNDS = unionRect(ATLAS.map(rectOf))
 const ROAD = PLAZA_GATE && CAMPUS_GATE ? linkRoad(RAW.plaza, PLAZA_GATE, CAMPUS_GATE, CAMPUS_AT) : null
+const BEACH_DOOR = RAW.plaza.gates?.find((g) => g.to === 'beach')
+const BEACH_BACK = RAW.beach.gates?.find((g) => g.to === 'plaza')
+const BEACH_ROAD: Point[] | null = BEACH_DOOR && BEACH_BACK
+  ? (() => {
+      // 광장 서쪽 문 → 북쪽으로 올라가 → 해변 남쪽 문
+      const doorX = BEACH_AT.x + BEACH_BACK.x
+      const below = BEACH_AT.z + RAW.beach.size.d / 2 + BEACH_ROAD_BELOW
+      return [{ x: BEACH_DOOR.x, z: BEACH_DOOR.z }, { x: BEACH_DOOR.x - BEACH_ROAD_OUT, z: BEACH_DOOR.z }, { x: BEACH_DOOR.x - BEACH_ROAD_OUT, z: below }, { x: doorX, z: below }, { x: doorX, z: BEACH_AT.z + BEACH_BACK.z }]
+    })()
+  : null
 
 // 있는 곳(접속 상태 이름)이 어느 월드의 어느 공간인지
 function locate(place: string): { w: AtlasWorld; p: MapPlace } | null {
@@ -69,6 +86,7 @@ const C = {
   gravel: '#dccfb3',
   stoneEdge: '#a8987a',
   water: '#7cc4e6',
+  sand: '#ead9b2',
   waterDeep: '#4fa3cf',
   path: '#dcd0b4',
   pathEdge: '#bfae8b',
@@ -201,6 +219,7 @@ export function WorldMap({ here }: { here?: MapHere }) {
         <Defs />
         <rect x={BOUNDS.x - BOUNDS.w} y={BOUNDS.z - BOUNDS.d} width={BOUNDS.w * 3} height={BOUNDS.d * 3} fill="url(#map-paper)" />
         {ROAD && <Road points={ROAD} />}
+        {BEACH_ROAD && <Road points={BEACH_ROAD} />}
 
         {ATLAS.map((w) => (
           <g key={w.id} transform={`translate(${w.offset.x} ${w.offset.z})`}>
@@ -331,7 +350,7 @@ function Island({ w, children }: { w: AtlasWorld; children: (b: MapBranch) => Re
   const size = raw.size
   const spin = `rotate(${(-w.turn * 180) / Math.PI})` // 바닥을 돌리는 SVG 변환 (SVG 는 시계 방향이 + 라 부호 반대)
   const gravel = useMemo(() => gravelStrips(raw, w.placed.map((b) => b.rect)), [raw, w.placed])
-  const flowers = useMemo(() => flowerBeds(raw, w.placed), [raw, w.placed])
+  const flowers = useMemo(() => (raw.beach ? [] : flowerBeds(raw, w.placed)), [raw, w.placed])
   const bulbs = useMemo(() => stringBulbs(raw.strings ?? []), [raw])
   // 남쪽일수록 앞: 건물은 바닥 앞 끝, 나무는 줄기 자리
   const standing = [
@@ -345,7 +364,18 @@ function Island({ w, children }: { w: AtlasWorld; children: (b: MapBranch) => Re
       <rect x={-size.w / 2 - 0.6} y={-size.d / 2 - 0.6} width={size.w + 1.2} height={size.d + 1.2} rx={2.4} fill={C.hedge} />
       <rect x={-size.w / 2} y={-size.d / 2} width={size.w} height={size.d} rx={1.8} fill="url(#map-grass)" />
 
-      {raw.ground !== 'lawn' && (
+      {/* 해변: 모래와 바다, 파라솔 자리 (돌바닥·꽃밭 없음) */}
+      {raw.beach && (
+        <>
+          <rect x={-size.w / 2} y={-size.d / 2} width={size.w} height={size.d} rx={1.8} fill={C.sand} />
+          <rect x={-size.w / 2} y={-size.d / 2} width={size.w} height={raw.beach.shoreZ + size.d / 2} rx={1.8} fill={C.waterDeep} />
+          <rect x={-size.w / 2} y={raw.beach.shoreZ - 1.2} width={size.w} height={1.2} fill={C.water} />
+          {parasolSpots(raw.beach).map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.z} r={1.1} fill={i % 2 ? '#2f8fb5' : '#e8604c'} stroke="#fff" strokeWidth={0.2} />
+          ))}
+        </>
+      )}
+      {raw.ground !== 'lawn' && !raw.beach && (
         <>
           {gravel.map((g, i) => (
             <rect key={i} {...rectProps(g)} fill={C.gravel} />

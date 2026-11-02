@@ -16,7 +16,7 @@ import ResetPasswordPage from './auth/ResetPasswordPage'
 import EmailChangedPage from './auth/EmailChangedPage'
 import GuestLinkedPage from './auth/GuestLinkedPage'
 import WorldScene from './world/WorldScene'
-import { CAMPUS_WORLD, PLAZA_WORLD } from './world/worldConfig'
+import { BEACH_WORLD, CAMPUS_WORLD, PLAZA_WORLD } from './world/worldConfig'
 import RecordsPage from './study/RecordsPage'
 import FriendsPage from './friends/FriendsPage'
 import ProfilePage from './profile/ProfilePage'
@@ -102,6 +102,17 @@ function AppRoutes() {
           <Protected>
             <div style={{ width: '100vw', height: '100vh' }}>
               <WorldScene key="campus" world={CAMPUS_WORLD} onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
+            </div>
+          </Protected>
+        }
+      />
+      {/* 캠빛 해변: 광장 동쪽 문으로 옵니다. 건물은 없고 비치체어에서 공부합니다. */}
+      <Route
+        path="/beach"
+        element={
+          <Protected>
+            <div style={{ width: '100vw', height: '100vh' }}>
+              <WorldScene key="beach" world={BEACH_WORLD} onEnter={(branch, heading) => navigate(`/space?branch=${branch.slug}`, { state: { heading } })} />
             </div>
           </Protected>
         }

@@ -5,7 +5,7 @@ import type { Sample, StudyContext } from './recentSamples'
 export const MESSAGE_MAX = 500 // reports.message 의 check 제약과 같은 값
 export const LIST_LIMIT = 200 // 신고 목록에 불러오는 최대 건수
 // 주소에 ?branch= 가 없는 바깥 화면의 이름 (#342). 광장은 DB 지점 이름과 같은 plaza(벤치 공부, 0038)
-const PAGE_BRANCH: Record<string, string> = { '/': 'plaza', '/campus': 'campus' }
+const PAGE_BRANCH: Record<string, string> = { '/': 'plaza', '/campus': 'campus', '/beach': 'beach' }
 
 export type ReportKind = 'judgment' | 'bug' | 'other'
 export type JudgmentDetail = 'false_alarm' | 'missed' | 'unsure'
