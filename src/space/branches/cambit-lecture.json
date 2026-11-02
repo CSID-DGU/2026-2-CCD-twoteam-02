@@ -299,5 +299,19 @@
       "signBg": "#1f3b2d",
       "knob": "#c9a24a"
     }
+  },
+  "professor": {
+    "x": -4.6,
+    "z": -6.7,
+    "rot": 0.3,
+    "look": {
+      "hair": "slicked-back-textured",
+      "hairColor": "#9ca3af",
+      "top": "longsleeve",
+      "topColor": "#f3f4f6",
+      "bottomColor": "#374151",
+      "glasses": "#1f2937",
+      "tie": "#7a2e2e"
+    }
   }
 }
