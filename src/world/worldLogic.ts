@@ -84,7 +84,12 @@ export type PlazaLayout = {
   lamps: (Point & { light?: boolean })[] // light: 밤에 둘레를 비추는 점광원을 단 가로등 (#316)
   strings?: { from: Point; to: Point }[] // 캠리단길 전구 줄: 두 가로등 사이에 거는 줄 조명 (끝은 가로등 자리)
   board?: Point & { facing: Facing } // 순위 게시판 (#59). facing: 판 앞면이 보는 쪽
+  signposts?: Signpost[] // 길 안내 표지판 (처음 온 사람용): 큰 곳(다른 월드 문·큰 건물) 쪽을 가리키는 나무 화살표
 }
+
+// 길 안내 표지판: 기둥 하나에 화살표 판 여러 장. 화살표는 gate(그 월드로 가는 문) 또는 x·z 자리를 가리킴. sub 는 작은 영문 글자
+export type SignArrow = { label: string; sub?: string; gate?: WorldId; x?: number; z?: number }
+export type Signpost = Point & { arrows: SignArrow[] }
 
 // 건물을 놓는 데 필요한 지점 정보 (이름, 지도에서 줄일 실내 크기, 입구 문 폭)
 export type BranchShape = Pick<BranchLayout, 'name' | 'size' | 'door'>
@@ -300,6 +305,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ),
     ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences, ...g.back]),
     ...(plaza.board ? [boardBox(plaza.board)] : []),
+    ...(plaza.signposts ?? []).map((p) => ({ x: p.x, z: p.z, w: SIGN_POST, d: SIGN_POST })), // 길 안내 표지판 기둥
     ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
     ...(plaza.beach ? beachObstacles(plaza.beach, plaza.size) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
@@ -363,6 +369,18 @@ export const WORLD_FROM = 'world:'
 // 그 지점(slug)이 있는 건물. 위층 지점이면 그 층이 있는 건물입니다.
 export function buildingOf(placed: PlacedBuilding[], slug: string): PlacedBuilding | undefined {
   return placed.find((p) => p.floors.some((f) => f.slug === slug))
+}
+
+// 표지판 화살표가 가리킬 방향(자리 각도 규칙: 0 = +z)과 거리(5m 단위로 반올림). 가리킬 곳을 못 찾으면 뺌
+export const SIGN_POST = 0.3 // 표지판 기둥 부딪힘 폭
+export function signArrows(post: Signpost, gates: GateSpec[]): { label: string; sub?: string; angle: number; dist: number }[] {
+  return post.arrows.flatMap((a) => {
+    const t = a.gate ? gates.find((g) => g.to === a.gate) : a.x !== undefined && a.z !== undefined ? { x: a.x, z: a.z } : undefined
+    if (!t) return []
+    const dx = t.x - post.x
+    const dz = t.z - post.z
+    return [{ label: a.label, sub: a.sub, angle: Math.atan2(dx, dz), dist: Math.max(5, Math.round(Math.hypot(dx, dz) / 5) * 5) }]
+  })
 }
 
 // 문 너머 풍경 바닥(모래·잔디 판)이 옆 문의 풍경 바닥과 겹치지 않는 범위 (문 기준 가로 좌표 [왼쪽, 오른쪽]).

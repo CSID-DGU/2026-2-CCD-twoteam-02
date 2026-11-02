@@ -93,6 +93,7 @@ import type { MenuItem } from '../space/baristaLogic'
 import { WorldSky } from './WorldSky'
 import { CitySkyline } from './CitySkyline'
 import { BeachGate, BeachGateView, BeachScenery } from './BeachScenery'
+import { Signposts } from './Signposts'
 import { BeachSeats } from './BeachSeats'
 import { BeachLights } from './BeachLights'
 import { BeachShells } from './BeachShells'
@@ -531,6 +532,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             )}
           </group>
         ))}
+        {/* 길 안내 표지판: 처음 온 사람에게 다른 월드 문·큰 곳 방향 (지도를 몰라도) */}
+        {PLAZA.signposts && <Signposts posts={PLAZA.signposts} gates={PLAZA.gates ?? []} />}
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
         {/* 캠퍼스 가운데 등불 나무 광장: 둥근 원목 화단 속 큰 나무 + 등불, 둘레 빈백에서 공부 */}
         {PLAZA.courtyard && <LanternCourtyard courtyard={PLAZA.courtyard} />}

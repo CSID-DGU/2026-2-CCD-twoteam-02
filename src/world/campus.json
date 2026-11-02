@@ -479,5 +479,8 @@
         "rot": 2.97
       }
     ]
-  }
+  },
+  "signposts": [
+    {"x": -9.6, "z": 24.8, "arrows": [{"label": "캠리단길 · 해변", "sub": "CAMRI STREET · BEACH", "gate": "plaza"}, {"label": "등불나무 광장", "sub": "LANTERN TREE", "x": -17.5, "z": 4}, {"label": "원통 도서관", "sub": "LIBRARY", "x": -6, "z": -25.4}]}
+  ]
 }
