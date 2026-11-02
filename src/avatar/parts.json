@@ -693,6 +693,12 @@
       "id": "stripe-sweater",
       "name": "줄무늬 스웨터",
       "file": "/models/Parts/top/stripe-sweater.png"
+    },
+    {
+      "id": "two-tone-top",
+      "name": "투톤 맨투맨",
+      "tint": "/models/Parts/top/two-tone-top-tint.png",
+      "file": "/models/Parts/top/two-tone-top.png"
     }
   ],
   "bottom": [
