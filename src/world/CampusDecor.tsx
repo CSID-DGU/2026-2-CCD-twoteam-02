@@ -1,4 +1,4 @@
-// 캠빛 대학교 캠퍼스를 그리는 부품: 담쟁이 정문, 쿼드의 돗자리·빈백, 벽돌 건물 장식(흰 코니스·담쟁이·도서관 시계탑).
+// 캠빛 대학교 캠퍼스를 그리는 부품: 담쟁이 정문, 쿼드의 돗자리·빈백, 벽돌 건물 장식(흰 코니스·담쟁이).
 // 아이비리그가 떠오르는 화사한 미국 대학 느낌(설계: docs/superpowers/specs/2026-10-31-cambit-campus-design.md).
 // 지금 광장 소품처럼 그림 파일 없이 코드로 그립니다. 잎처럼 여럿인 것은 drei Instances 로 한 번에 그립니다(성능).
 // 담쟁이 잎은 동그라미가 아니라 끝이 뾰족한 세 갈래 잎 모양 판입니다(사용자 요구).
@@ -34,7 +34,6 @@ const END_POST = { h: 1.7, lampR: 0.22 } // 울타리 끝 작은 기둥 높이, 
 const BACKDROP = { width: 46, depth: 36, road: 4, treeX: 4.5, treeStep: 5 } // 문 너머 풍경 (m)
 const LEAF = 0.24 // 담쟁이 잎 한 장 크기
 const WALL_H = 3.6 // 광장 건물 한 층 벽 높이 (WorldDecor 의 BUILDING_H 와 같게)
-const TOWER = { w: 3, h: 5, roofH: 2.6, clockR: 0.8 }
 const MAT_SIZE = { w: 1.8, d: 1.4, t: 0.03 } // 돗자리
 const BEANBAG_R = 0.55
 const MAT_COLORS: [string, string][] = [['#d9534f', '#f7f2ea'], ['#4a86c5', '#f7f2ea'], ['#e8b931', '#f7f2ea'], ['#5aa469', '#f7f2ea']]
@@ -423,7 +422,7 @@ export function Beanbags({ rests }: { rests: RestSpec[] }) {
   )
 }
 
-// 캠퍼스 건물 장식: 지붕 아래 흰 코니스, 앞면 양쪽 모서리를 타고 오르는 담쟁이, 도서관이면 시계탑.
+// 캠퍼스 건물 장식: 지붕 아래 흰 코니스, 앞면 양쪽 모서리를 타고 오르는 담쟁이.
 // 건물 몸체·창·문·간판은 광장과 같은 Building 이 그리고, 여기서는 그 위에 덧붙입니다.
 export function CampusBuildingTrim({ b }: { b: PlacedBuilding }) {
   const sideways = b.spec.facing === 'east' || b.spec.facing === 'west'
@@ -434,36 +433,12 @@ export function CampusBuildingTrim({ b }: { b: PlacedBuilding }) {
     const rand = seeded(Math.round(b.spec.x * 13 + b.spec.z * 7) + 3)
     return [-1, 1].flatMap((sx) => wallLeaves(rand, sx * (w / 2 - 0.9), d / 2, 1.6, height * 0.85, 60, 0))
   }, [b.spec.x, b.spec.z, w, d, height])
-  const library = b.slug === 'cambit-library'
   return (
     <group position={[b.spec.x, 0, b.spec.z]} rotation-y={b.angle}>
       <mesh position-y={height - 0.15} material={MAT.cap}>
         <boxGeometry args={[w + 0.2, 0.3, d + 0.2]} />
       </mesh>
       <IvyLeaves leaves={leaves} />
-      {library && (
-        // 시계탑: 지붕 위 뒤쪽 가운데. 벽돌 탑 + 흰 시계 + 뾰족한 지붕
-        <group position={[0, height, -d / 4]}>
-          <mesh position-y={TOWER.h / 2} material={MAT.brick}>
-            <boxGeometry args={[TOWER.w, TOWER.h, TOWER.w]} />
-          </mesh>
-          <mesh position-y={TOWER.h + 0.1} material={MAT.cap}>
-            <boxGeometry args={[TOWER.w + 0.3, 0.2, TOWER.w + 0.3]} />
-          </mesh>
-          <mesh position-y={TOWER.h + 0.2 + TOWER.roofH / 2} rotation-y={Math.PI / 4} material={roofMat(b.spec.roof)}>
-            <coneGeometry args={[TOWER.w * 0.78, TOWER.roofH, 4]} />
-          </mesh>
-          <mesh position={[0, TOWER.h * 0.62, TOWER.w / 2 + 0.01]} material={MAT.clockFace}>
-            <circleGeometry args={[TOWER.clockR, 32]} />
-          </mesh>
-          {/* 시곗바늘 (10시 10분) */}
-          {[[0.55, -0.5], [0.4, 1.05]].map(([len, a], i) => (
-            <mesh key={i} position={[Math.sin(a) * len * TOWER.clockR * 0.5, TOWER.h * 0.62 + Math.cos(a) * len * TOWER.clockR * 0.5, TOWER.w / 2 + 0.02]} rotation-z={-a} material={MAT.iron}>
-              <boxGeometry args={[0.06, len * TOWER.clockR, 0.01]} />
-            </mesh>
-          ))}
-        </group>
-      )}
     </group>
   )
 }

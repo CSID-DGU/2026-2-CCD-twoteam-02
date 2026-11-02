@@ -13,7 +13,8 @@ export type FoodKind = 'scone' | 'madeleine' | 'ciabatta' | 'sandwich'
 export type MenuItem = { name: string; icon: string; food?: FoodKind }
 // apron: 앞치마 색, hat: 모자 모양(캡·베레모·두건)과 색
 export type BaristaLook = { hair: string; hairColor: string; top: string; topColor: string; bottomColor: string; skin?: string; apron?: string; hat?: 'cap' | 'beret' | 'bandana'; hatColor?: string }
-export type Barista = { x: number; z: number; w: number; facing: Facing; counter: boolean; look: BaristaLook; menu: MenuItem[]; greeting?: string }
+export type Barista = { x: number; z: number; w: number; facing: Facing; counter: boolean; look: BaristaLook; menu: MenuItem[]; greeting?: string; service?: 'library' }
+// service: 'library' 면 주문 창 대신 책 대여 창을 엶 (캠빛 중앙도서관 사서. menu 는 빈 배열)
 
 // d: 카운터 깊이, h: 높이, behind: 카운터 가운데에서 바리스타까지, front: 카운터 가운데에서 주문 자리까지, reach: 주문 자리에서 이 거리 안이면 가까움
 export const COUNTER = { d: 0.8, h: 0.9, behind: 0.85, front: 1.2, reach: 1.3 }

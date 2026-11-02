@@ -1,6 +1,8 @@
 // 지점 테마 (#57): 바닥·벽·천장·액자·카운터의 색과 배치. 값은 지점 JSON(theme)에 있고 여기서는 읽어 계산만 합니다.
 // 테마가 없는 지점(별다방)은 DEFAULT_COLORS 로 전과 똑같이 그립니다. React·three 와 무관한 순수 로직입니다.
 
+import type { BookShelf } from '../library/libraryLogic'
+
 export type FanSpot = { x: number; z: number; scale?: number } // scale: 크기 배율 (기본 1)
 
 // 벽 액자. face 는 액자가 보는 쪽(n·s·e·w). 좌표는 벽 좌표를 그대로 적고, framePose 가 벽 안쪽으로 띄웁니다.
@@ -16,7 +18,8 @@ export type SharedTable = { x: number; z: number; w: number; d: number }
 export type RingTable = { x: number; z: number; inner: number; outer: number }
 // style: diner = 크롬 다리·소파, wood = 원목 다리·원목 의자·원목 부스(자리마다 seats[].chair 로 고름)
 // accent: 소파 흰 띠·부스 쿠션 색, chrome: 다리·기둥 색, trim: 상판 테두리 색(없으면 chrome)
-export type Furniture = { style: 'diner' | 'wood'; accent: string; chrome: string; trim?: string; tables?: SharedTable[]; rings?: RingTable[] }
+// chairStyle: 기본 자리 의자 모양. leather = 가죽 방석·곡면 등받이·철제 다리 (도서관). 없으면 원목 의자
+export type Furniture = { style: 'diner' | 'wood'; accent: string; chrome: string; trim?: string; tables?: SharedTable[]; rings?: RingTable[]; chairStyle?: 'leather' }
 
 // 자리가 공용 테이블(긴 테이블 또는 고리 테이블) 안에 있는지 (개별 책상을 그릴지 정하는 데 씀)
 export function insideTable(seat: { x: number; z: number }, tables?: SharedTable[], rings?: RingTable[]): boolean {
@@ -59,12 +62,15 @@ export type Rug = { x: number; z: number; r: number; color: string; wobble?: num
 export type Bookcase = { x: number; z: number; face: 'n' | 's' | 'e' | 'w'; w: number; seed?: number }
 export const BOOKCASE = { h: 2.2, depth: 0.34, col: 0.8, rows: 5, board: 0.03 }
 // 화분(화단): 타일 두른 상자 + 흙 + 풀. tree 면 가운데 작은 나무
-export type Planter = { x: number; z: number; w: number; d: number; tile: string; tree?: boolean }
+// palm: 작은 나무 대신 잎이 늘어진 야자 (도서관)
+export type Planter = { x: number; z: number; w: number; d: number; tile: string; tree?: boolean; palm?: boolean }
 // 물길: 바닥보다 낮은 물 + 돌 테두리. 사각형 여러 개를 이어 꺾인 물길을 만듭니다
 export type Water = { x: number; z: number; w: number; d: number }
 // 둥근 방 (숨 라운지): 네모난 방 안에 반지름 r 의 곡선 벽을 두르고, 벽을 따라 세로 곡선 기둥(fin) fins 개.
 // gaps: 벽을 비우는 쪽(자리 각도 규칙: 0 = 남쪽 출입문, -π/2 = 서쪽 엘리베이터). 곡선 벽은 작은 상자를 이어 부딪히게 합니다
-export type RoundRoom = { r: number; color: string; fin: string; fins: number; gaps: number[] }
+// windows: 벽에 낸 창 개수 (곡선 기둥 사이 가운데에 고르게, 비운 쪽은 건너뜀. 숨 라운지는 없음)
+// windows: 창 수 (벽에 구멍을 내고 창 너머는 world/LibraryWindows 가 그림). peek: 건물 밖 유리로 들여다볼 때 (둥근 벽은 안쪽 면만, 창은 빛나는 판)
+export type RoundRoom = { r: number; color: string; fin: string; fins: number; gaps: number[]; windows?: number; peek?: boolean }
 // 천장 천창: 천장(높이 h)에 반지름 R 로 뚫린 구멍에서 위로 depth 만큼 좁아지는 깔때기, 맨 위 반지름 r 은 빛나는 판
 export type Dome = { x: number; z: number; R: number; r: number; depth: number; color: string; glow: string }
 // 가운데 돌 수반 + 낮게 깔리는 안개
@@ -78,7 +84,8 @@ export type Bar = { x: number; z: number; inner: number; outer: number; from: nu
 // 바 뒤 둥근 진열장: 원통 받침 + 놋쇠 테 선반 3단 + 병
 export type BackBar = { x: number; z: number; r: number }
 // 원목 살 기둥 조명: 세로 살 여러 개가 빛나는 기둥을 감쌈. 바닥부터 h 높이
-export type Pillar = { x: number; z: number; h: number; light?: boolean }
+// solid: 색을 적으면 살 없이 그 색 매끈한 기둥 (도서관 흰 기둥). 없으면 살 기둥 조명
+export type Pillar = { x: number; z: number; h: number; light?: boolean; solid?: string }
 
 // Cam Study Cafe (별다방 자리, 스터디카페 사진 느낌). face 는 그 물건이 보는 쪽(벽 안쪽)
 // 창가 바: 실제 통창(world.json sideWindow) 앞 벽에 붙은 긴 원목 바(가운데 x,z, 길이 len). lamps: 펜던트 등 자리(바 길이 방향, 가운데에서 m)
@@ -136,7 +143,8 @@ export type BranchTheme = {
   // checker: 두 색 체크(cell 은 한 칸 크기), brick: 가로로 긴 벽돌(colors = [벽돌, 줄눈], cell 은 벽돌 길이)
   // concrete: 회색 콘크리트(colors = [바탕, 얼룩], cell 은 텍스처 한 장 크기)
   // stone: 큰 돌 타일(colors = [바탕, 얼룩], cell 은 타일 한 장 크기)
-  floor?: { pattern: 'checker' | 'brick' | 'concrete' | 'stone'; colors: [string, string]; cell: number }
+  // wood: 나뭇결 바닥 (colors[0] 만 씀, cell 은 판 한 장이 가로로 차지하는 m)
+  floor?: { pattern: 'checker' | 'brick' | 'concrete' | 'stone' | 'wood' | 'marble'; colors: [string, string]; cell: number }
   wall?: {
     color: string
     texture?: 'plaster' // 회벽 질감 (없으면 한 색)
@@ -149,7 +157,8 @@ export type BranchTheme = {
     fans?: FanSpot[]
     lamps?: { x: number; z: number }[] // 크롬 돔 펜던트 조명
     globes?: Globe[] // 둥근 전구 조명
-    grid?: { color: string; step: number; y: number } // 천장 아래 철제 격자 (step 간격, y 높이)
+    // 천장 아래 격자 (step 간격, y 높이). thick: 막대 굵기(기본 0.04), coffer: 칠한 우물천장 (도서관: y 가 보 아래 면, 그 위로 패임)
+    grid?: { color: string; step: number; y: number; thick?: number; coffer?: boolean }
     coves?: { x: number; z: number; r: number }[] // 천장 둥근 간접조명 고리
     texture?: 'plaster' // 천장 회벽 질감
   }
@@ -177,6 +186,7 @@ export type BranchTheme = {
   menu?: Menu // 메뉴판 (커피 바 뒤 벽 등)
   frames?: Frame[]
   bookcases?: Bookcase[] // 바닥에 세운 원목 책장 (이끼 정원)
+  stacks?: LibraryStack[] // 방 가운데에서 바깥벽으로 뻗은 긴 서가 (캠빛 중앙도서관)
   // 직접 지정한 통창 (world/cafeWindowLogic). 자동 규칙(출입문 벽·sideWindow 옆벽)에 더해 그 벽 at(앞·뒷벽은 x, 옆벽은 z) 가운데에 폭 w
   windows?: { wall: 'front' | 'back' | 'west' | 'east'; at: number; w: number }[]
   counter?: { style: 'tile'; top: string; stools?: { x: number; z: number }[] } // 커피 바 자리를 타일 카운터로
@@ -281,7 +291,7 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
     ...(sc?.pots ?? []).filter((p) => p.tree).map((p) => ({ x: p.x, z: p.z, w: STUDY_CAFE.potR * 2, d: STUDY_CAFE.potR * 2 })),
     ...(theme?.bookcases ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (WALL_THICKNESS / 2 + BOOKCASE.depth) * 2, b.face)), // 책장 (벽 반 두께 + 깊이)
   ]
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop)]
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop), ...stackBoxes(theme?.stacks)]
 }
 
 // 루프탑에서 부딪히는 것: 앞 바 상판, 카운터, 퍼걸러 기둥 4개, 나무 화분, 둥근 화분, 전구줄 기둥
@@ -403,4 +413,97 @@ export function barSeats(bar: Bar, count: number, startNo: number): { no: number
     const a = bar.from + ((i + 0.5) * (bar.to - bar.from)) / count
     return { no: startNo + i, x: round3(bar.x + Math.sin(a) * r), z: round3(bar.z + Math.cos(a) * r), rot: round3(a + Math.PI), tall: true, chair: 'stool' }
   })
+}
+
+// ── 캠빛 중앙도서관: 둥근 방의 서가(stack)와 창 ─────────────────────────────────
+// 서가: 방 가운데에서 바깥벽 쪽으로 반지름 방향으로 뻗은 긴 책장. 양쪽 면 모두에 책이 있어 양옆으로 걸어 다닙니다.
+// a: 방 가운데에서 본 각도(자리 각도 규칙, 0 = +z 남쪽), shelf: 이 서가에 꽂힌 분야 (안쪽 끝 안내판 글자)
+export type LibraryStack = { a: number; shelf: BookShelf }
+// from~to: 가운데에서 서가 안쪽·바깥 끝까지 거리(m), thick: 서가 두께(옆으로), h: 높이,
+// boxStep: 부딪힘 상자 간격, front: 서가 앞에 서는 자리의 가운데 거리
+export const STACK = { from: 5.6, to: 9.2, thick: 0.6, h: 2.6, boxStep: 0.45, front: 4.9 }
+// 서가 속: 칸(bays, 칸막이로 나뉨)·줄(rows), 판·칸막이·뒤판 두께, 맨 아래 받침 높이, 책등이 놓이는 앞면(가운데에서 옆으로 m)
+export const STACK_SHELF = { rows: 5, bays: 4, board: 0.03, divider: 0.04, back: 0.04, plinth: 0.1, face: 0.27 }
+// 서가 안내판: 안쪽 끝에 매단 흰 판의 폭·높이 위치
+export const STACK_SIGN = { w: 0.9, y: 2.3, gap: 0.012 }
+// 책등 색 (차분한 책 색)
+export const STACK_BOOK_COLORS = ['#e8e1d3', '#c9b48f', '#8a6b4a', '#4f5b4a', '#2f3a3f', '#6b7a4a', '#a3946f', '#3f5a24', '#7a3f2e', '#d9cdb6', '#9c3b3b', '#35506b']
+// 창: 곡선 벽 안쪽에 띄운 빛나는 판. 폭·높이·바닥에서 아래 끝 높이·테두리 굵기·벽에서 안쪽으로 띄우는 거리, 색
+// 둥근 벽 창: 폭·높이·창턱 높이, 창틀 굵기, 빛나는 판(peek)이 벽에서 들어온 길이, 색, 유리 칸 수, 벽에서 유리까지 깊이(네모 벽 안쪽 면 9.9m 안에 들어와야 함), 창턱 판
+export const ROUND_WINDOW = { w: 3.2, h: 3.0, y: 0.8, frame: 0.07, inset: 0.2, glow: '#fff4d8', frameColor: '#f6f2ea', cols: 3, rows: 4, reveal: 0.22, sill: { out: 0.12, t: 0.05 } }
+
+const PEEK_FRONT = 0.2 // 밖에서 들여다볼 때 건물 앞쪽 창은 빼는 기준: 유리 바로 뒤에 빛나는 판이 와서 시야를 막으므로 맞은편만
+// 둥근 벽 창 자리: 곡선 기둥 사이 가운데(기둥이 fins 개면 그 사이 각도 절반)에 고르게 windows 개, 비운 쪽(gaps)은 건너뜀
+export function roundWindowAngles(round: RoundRoom): number[] {
+  const count = round.windows ?? 0
+  if (count === 0) return []
+  const step = (Math.PI * 2) / count
+  const off = round.fins > 0 ? Math.PI / round.fins : step / 2 // 기둥(0 에서 시작)과 어긋나게
+  return Array.from({ length: count }, (_, i) => off + i * step).filter((a) => !inRoundGap(round, a) && !(round.peek && Math.cos(a) > PEEK_FRONT))
+}
+// 둥근 벽 창 구멍 (각도 범위·높이)
+export function roundWindowHoles(round: RoundRoom) {
+  const W = ROUND_WINDOW
+  const half = W.w / 2 / round.r
+  return roundWindowAngles(round).map((a) => ({ a0: a - half, a1: a + half, y0: W.y, y1: W.y + W.h }))
+}
+
+// 서가 부딪힘 상자: 가운데에서 바깥으로 안쪽 끝~바깥 끝 사이를 boxStep 이하 간격으로 thick 정사각형 상자로 채웁니다
+// (축에 나란한 상자라 비스듬한 서가는 상자 여러 개로 이어 막음). 서가는 상자 가운데가 from+thick/2 ~ to-thick/2 라 상자 끝이 from~to 안.
+export function stackBoxes(stacks?: LibraryStack[]): { x: number; z: number; w: number; d: number }[] {
+  if (!stacks) return []
+  const S = STACK
+  const n = Math.ceil((S.to - S.from - S.thick) / S.boxStep) + 1
+  const out: { x: number; z: number; w: number; d: number }[] = []
+  for (const st of stacks) {
+    for (let i = 0; i < n; i++) {
+      const r = S.from + S.thick / 2 + ((S.to - S.from - S.thick) * i) / (n - 1)
+      out.push({ x: Math.sin(st.a) * r, z: Math.cos(st.a) * r, w: S.thick, d: S.thick })
+    }
+  }
+  return out
+}
+
+// 서가 앞에 서는 자리: 안쪽 끝에서 가운데 쪽으로 STACK.front 거리, 서가를 바라봄(rot = a, 바깥쪽)
+export function stackFront(s: LibraryStack): { x: number; z: number; rot: number } {
+  return { x: Math.sin(s.a) * STACK.front, z: Math.cos(s.a) * STACK.front, rot: s.a }
+}
+
+// 서가 한 개의 책등 배치 (서가 기준 좌표: side ±1 = 옆으로 어느 면, r = 가운데에서 바깥으로 거리, y = 높이 가운데).
+// seed 가 같으면 항상 같은 모양이라 다시 그려도 책이 바뀌지 않습니다. React·three 와 무관한 순수 함수.
+export type StackBook = { side: 1 | -1; r: number; y: number; w: number; h: number; d: number; color: number }
+export function stackBooks(seed: number): StackBook[] {
+  const S = STACK
+  const K = STACK_SHELF
+  // 작은 시드 난수 (mulberry32)
+  let t = seed >>> 0
+  const rnd = () => {
+    t = (t + 0x6d2b79f5) >>> 0
+    let v = Math.imul(t ^ (t >>> 15), 1 | t)
+    v = (v + Math.imul(v ^ (v >>> 7), 61 | v)) ^ v
+    return ((v ^ (v >>> 14)) >>> 0) / 4294967296
+  }
+  const len = S.to - S.from
+  const rowH = (S.h - K.plinth) / K.rows
+  const bayStep = (len - K.divider) / K.bays
+  const out: StackBook[] = []
+  for (const side of [-1, 1] as const) {
+    for (let j = 0; j < K.rows; j++) {
+      const floor = K.plinth + j * rowH + K.board / 2
+      for (let b = 0; b < K.bays; b++) {
+        const start = S.from + K.divider + b * bayStep + 0.01
+        const end = S.from + K.divider / 2 + (b + 1) * bayStep - K.divider / 2 - (rnd() < 0.35 ? 0.1 + rnd() * 0.25 : 0.01) // 칸 끝에 빈 자리 조금
+        let r = start
+        for (;;) {
+          const w = 0.025 + rnd() * 0.045
+          if (r + w > end) break
+          const h = Math.min(rowH - K.board - 0.04, 0.24 + rnd() * 0.16)
+          const d = 0.16 + rnd() * 0.07
+          out.push({ side, r: r + w / 2, y: floor + h / 2, w, h, d, color: Math.floor(rnd() * STACK_BOOK_COLORS.length) })
+          r += w + 0.002
+        }
+      }
+    }
+  }
+  return out
 }
