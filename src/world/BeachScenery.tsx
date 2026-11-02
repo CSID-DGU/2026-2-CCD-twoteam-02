@@ -464,15 +464,17 @@ function Pickets({ side, from, len }: { side: number; from: number; len: number 
 // 문 너머로 보이는 풍경: 모래와 나무 길 뒤로, 광장 쪽 문은 바다, 해변 쪽 문은 숲 (캠퍼스 문의 길·소나무 대신)
 const OVER_GATE = { w: 90, sand: 46, sea: 160, walk: 3.4 }
 const overSeaMat = new THREE.MeshStandardMaterial({ color: SEA_COLOR.day[0], roughness: 0.35 })
-export function BeachGateView({ gate, inland }: { gate: PlacedGate; inland: boolean }) {
+// limit: 옆 문 풍경과 겹치지 않는 가로 범위 (gateViewSpan). 모래판은 원래 폭 안에서 이 범위까지만
+export function BeachGateView({ gate, inland, limit = [-Infinity, Infinity] }: { gate: PlacedGate; inland: boolean; limit?: [number, number] }) {
+  const span = [Math.max(limit[0], -OVER_GATE.w / 2), Math.min(limit[1], OVER_GATE.w / 2)]
   sandMaterial ??= sandMat()
   plankMaterial ??= new THREE.MeshStandardMaterial({ map: plankTexture(), roughness: 0.8 })
   const walk = useMemo(() => plankPlane(OVER_GATE.walk, OVER_GATE.sand), [])
   useEffect(() => () => walk.dispose(), [walk])
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
-      <mesh rotation-x={-Math.PI / 2} position={[0, -0.02, -OVER_GATE.sand / 2 - 1]} material={sandMaterial}>
-        <planeGeometry args={[OVER_GATE.w, OVER_GATE.sand]} />
+      <mesh rotation-x={-Math.PI / 2} position={[(span[0] + span[1]) / 2, -0.02, -OVER_GATE.sand / 2 - 1]} material={sandMaterial}>
+        <planeGeometry args={[span[1] - span[0], OVER_GATE.sand]} />
       </mesh>
       {/* 문 너머로 이어지는 나무 길 */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.01, -OVER_GATE.sand / 2]} geometry={walk} material={plankMaterial} />
