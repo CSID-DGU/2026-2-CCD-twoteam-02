@@ -263,12 +263,10 @@
       "accent": "#2f5a3a",
       "chrome": "#6b4a2e",
       "trim": "#6b4a2e",
-      "chairLegs": "#2b2b2e",
-      "chairBackSeat": true,
-      "fabric": true
+      "chairStyle": "leather"
     },
     "desk": "#c9a574",
-    "chair": "#b3262e",
+    "chair": "#b4703a",
     "light": {
       "ambient": 1.0,
       "sun": 0.65,

@@ -7,7 +7,7 @@ import type { BranchLayout } from "./layout";
 import { CHAIR, KIOSK, SEAT, longDeskRows, spotsOf } from "./layout";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
-import { BarTable, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, LongDesk, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
+import { BarTable, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, LongDesk, LeatherChair, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { CafeCounter } from "./CafeCounter";
@@ -151,8 +151,10 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
             <SeatPad key={c.no} x={c.x} z={c.z} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : branch.theme?.booth?.leather ?? colors.chair} />
           ) : c.chair === "booth" ? (
             <WoodBooth key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : furniture.accent} wood={colors.chair} cushion={furniture.accent} />
+          ) : furniture.chairStyle === "leather" ? (
+            <LeatherChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} />
           ) : (
-            <WoodChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} wood={furniture.chrome} legColor={furniture.chairLegs} back={furniture.chairBackSeat ? chairColor : undefined} fabric={furniture.fabric} />
+            <WoodChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={chairColor} wood={furniture.chrome} />
           )
         ) : furniture ? (
           c.tall && desk && insideTable(desk, furniture.tables) ? ( // 바 테이블 자리는 둥근 스툴, 그 밖은 부스 소파(높은 자리면 받침 위에)

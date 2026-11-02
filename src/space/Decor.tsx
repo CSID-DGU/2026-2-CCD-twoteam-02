@@ -3,14 +3,14 @@
 // 천장은 아래를 향한 한 면만 그려서, 위에서 내려다보는 2D 카메라·미니맵에서는 보이지 않고 1인칭·좌석에서만 보입니다.
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { ArcBuilder } from './arcGeometry'
-import { LIB_TILE, marbleFloorMat, oakGrain, plasterBump, plasterFine, weave } from './libraryTextures'
+import { LIB_TILE, marbleFloorMat, oakGrain, plasterBump, plasterFine } from './libraryTextures'
 import { useFrame } from '@react-three/fiber'
 import { CanvasTexture, Color, DoubleSide, InstancedMesh, Object3D, ExtrudeGeometry, LatheGeometry, Path, SRGBColorSpace, Shape, ShapeGeometry, Vector2 } from 'three'
 import type { Group } from 'three'
 import type { Box } from './layout'
 import { ROUND_WINDOW, roundWindowAngles, roundWindowHoles, ARCH_DOOR, BAR_TOP, BASIN, DOME, ELEVATOR, LOUNGER, ROUND_ROOM, inRoundGap, BOOTH, DINER_DESK, LOW_TABLE, MARBLE_TABLE, MUSHROOM, PILLAR, ROUND_TABLE, TUB, BOOKCASE, FAN, FRAME, GLOBE, LAMP, SOFA, STOOL, TALL_DESK_HEIGHT, WALL_THICKNESS, WOOD_BOOTH, WOOD_CHAIR, WOOD_DOOR, ceilingHeightOf, framePose, wallPose } from './theme'
 import type { BackBar, Bar, Basin, Board, Booth, BranchTheme, Dome, Riser, RoundRoom, FanSpot, Frame, Globe, Menu, Mushroom, Pillar, Planter, RingTable as RingTableSpec, Rug, SharedTable, Shelf, Tree, Bookcase, Water } from './theme'
-import { RepeatWrapping } from 'three'
+import { CatmullRomCurve3, RepeatWrapping, TubeGeometry, Vector3 } from 'three'
 import { TILE, groundTextures, tiledPlane } from '../world/worldTextures'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { StudyCafeDecor } from './StudyCafeDecor'
@@ -704,11 +704,8 @@ export function RingTable({ ring, color, height }: { ring: RingTableSpec; color:
 }
 
 // 원목 의자: 방석 + 다리 4개 + 등받이(기둥 둘 + 가로 판). rot 방향(책상 쪽)을 보고 등받이는 반대쪽(-z)
-// legColor·back: 다리 색, 등받이 색 (없으면 wood). 도서관 빨간 의자는 등받이 = 방석 색, 다리 = 어두운 금속색
-// fabric: 방석·등받이에 천 짜임 (재질 색이 곱해져 강조색도 그대로)
-export function WoodChair({ x, z, rot, color, wood, legColor, back, fabric }: { x: number; z: number; rot: number; color: string; wood: string; legColor?: string; back?: string; fabric?: boolean }) {
+export function WoodChair({ x, z, rot, color, wood }: { x: number; z: number; rot: number; color: string; wood: string }) {
   const C = WOOD_CHAIR
-  const cloth = fabric ? { map: weave(), roughness: 0.98 } : WOOD
   const legH = C.seatH - C.seatT
   const lx = C.w / 2 - 0.04
   const lz = C.d / 2 - 0.04
@@ -717,24 +714,104 @@ export function WoodChair({ x, z, rot, color, wood, legColor, back, fabric }: { 
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
       <mesh position={[0, C.seatH - C.seatT / 2, 0]}>
         <boxGeometry args={[C.w, C.seatT, C.d]} />
-        <meshStandardMaterial color={color} {...cloth} />
+        <meshStandardMaterial color={color} {...WOOD} />
       </mesh>
       {legs.map(([dx, dz], i) => (
         <mesh key={i} position={[dx, legH / 2, dz]}>
           <cylinderGeometry args={[C.legR, C.legR, legH, 8]} />
-          <meshStandardMaterial color={legColor ?? wood} {...WOOD} />
+          <meshStandardMaterial color={wood} {...WOOD} />
         </mesh>
       ))}
       {[-lx, lx].map((dx, i) => (
         <mesh key={i} position={[dx, C.seatH + C.backH / 2, -lz]}>
           <boxGeometry args={[0.03, C.backH, 0.03]} />
-          <meshStandardMaterial color={legColor ?? wood} {...WOOD} />
+          <meshStandardMaterial color={wood} {...WOOD} />
         </mesh>
       ))}
       <mesh position={[0, C.seatH + C.backH - 0.08, -lz]}>
         <boxGeometry args={[C.w, 0.12, C.backT]} />
-        <meshStandardMaterial color={back ?? wood} {...(back ? cloth : WOOD)} />
+        <meshStandardMaterial color={wood} {...WOOD} />
       </mesh>
+    </group>
+  )
+}
+
+// 도서관 가죽 의자 (사진 참고 IMG_4665): 둥근 가죽 방석 + 몸을 감싸는 곡면 등받이 + 가는 검은 철제 다리.
+// 뒷다리에서 올라온 철제 살이 등받이 뒤를 둘러 반대쪽 뒷다리로 내려갑니다. 모양은 24석이 함께 씁니다.
+const LEATHER_CHAIR = {
+  seat: { w: 0.46, d: 0.44, r: 0.13, h: 0.46, t: 0.05, bevel: 0.018 }, // 방석: 폭·깊이·모서리 반지름·윗면 높이·두께
+  back: { r: 0.26, half: 1.0, t: 0.035, y0: 0.59, h: 0.17, bevel: 0.014, cz: 0.02 }, // 등받이: 반지름·반쪽 각도·두께·아래 높이·높이·둥글기·원 중심 z
+  frame: { r: 0.011, y: 0.64, out: 0.012, color: '#1b1b1d', roughness: 0.45, metalness: 0.6 }, // 철제 살: 굵기·등받이를 두르는 높이·등받이에서 띄움
+  legFoot: { fx: 0.21, fz: 0.25, bx: 0.22, bz: 0.29 }, // 다리가 바닥에 닿는 자리 (앞·뒤)
+  legTop: { fx: 0.17, fz: 0.15, bx: 0.2, bz: 0.19 }, // 다리가 방석 아래에 닿는 자리
+}
+const LEATHER_FINISH = { roughness: 0.5, metalness: 0.02 }
+let leatherChairShapes: { seat: ExtrudeGeometry; back: ExtrudeGeometry; rail: TubeGeometry; front: TubeGeometry } | null = null
+function leatherChair() {
+  if (leatherChairShapes) return leatherChairShapes
+  const { seat: S, back: B, frame: F, legFoot: LF, legTop: LT } = LEATHER_CHAIR
+  // 방석: 둥근 네모를 세운 뒤 눕힘
+  const hw = S.w / 2 - S.bevel
+  const hd = S.d / 2 - S.bevel
+  const r = S.r
+  const pad = new Shape()
+  pad.moveTo(-hw + r, -hd)
+  pad.lineTo(hw - r, -hd)
+  pad.absarc(hw - r, -hd + r, r, -Math.PI / 2, 0, false)
+  pad.lineTo(hw, hd - r)
+  pad.absarc(hw - r, hd - r, r, 0, Math.PI / 2, false)
+  pad.lineTo(-hw + r, hd)
+  pad.absarc(-hw + r, hd - r, r, Math.PI / 2, Math.PI, false)
+  pad.lineTo(-hw, -hd + r)
+  pad.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false)
+  const seat = new ExtrudeGeometry(pad, { depth: S.t - S.bevel * 2, bevelEnabled: true, bevelSize: S.bevel, bevelThickness: S.bevel, bevelSegments: 3, curveSegments: 8 })
+  seat.rotateX(-Math.PI / 2)
+  seat.translate(0, S.h - S.t + S.bevel, 0)
+  // 등받이: 위에서 본 활 모양을 높이만큼 뽑음 (도형의 +y 가 돌린 뒤 -z = 등 쪽)
+  const a0 = Math.PI / 2 - B.half
+  const a1 = Math.PI / 2 + B.half
+  const shell = new Shape()
+  shell.absarc(0, 0, B.r, a0, a1, false)
+  shell.absarc(0, 0, B.r - B.t, a1, a0, true)
+  shell.closePath()
+  const back = new ExtrudeGeometry(shell, { depth: B.h - B.bevel * 2, bevelEnabled: true, bevelSize: B.bevel, bevelThickness: B.bevel, bevelSegments: 3, curveSegments: 18 })
+  back.rotateX(-Math.PI / 2)
+  back.translate(0, B.y0 + B.bevel, B.cz)
+  // 철제 살: 왼쪽 뒷다리 → 등받이 뒤를 둘러 → 오른쪽 뒷다리
+  const railR = B.r + B.bevel + F.out
+  const arc: Vector3[] = []
+  const STEPS = 12
+  for (let i = 0; i <= STEPS; i++) {
+    const a = -B.half + (i / STEPS) * B.half * 2
+    arc.push(new Vector3(Math.sin(a) * railR, F.y, B.cz - Math.cos(a) * railR))
+  }
+  const side = (sx: number) => [new Vector3(sx * LF.bx, 0, -LF.bz), new Vector3(sx * LT.bx, S.h - S.t, -LT.bz)]
+  const rail = new TubeGeometry(new CatmullRomCurve3([...side(-1), ...arc, ...side(1).reverse()]), 48, F.r, 6, false)
+  // 앞다리 두 개 (왼쪽 모양을 재질과 함께 좌우로 뒤집어 씁니다)
+  const front = new TubeGeometry(new CatmullRomCurve3([new Vector3(-LF.fx, 0, LF.fz), new Vector3(-LT.fx, S.h - S.t, LT.fz)]), 1, F.r, 6, false)
+  leatherChairShapes = { seat, back, rail, front }
+  return leatherChairShapes
+}
+
+export function LeatherChair({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
+  const g = leatherChair()
+  const F = LEATHER_CHAIR.frame
+  return (
+    <group position={[x, 0, z]} rotation={[0, rot, 0]}>
+      <mesh geometry={g.seat}>
+        <meshStandardMaterial color={color} {...LEATHER_FINISH} />
+      </mesh>
+      <mesh geometry={g.back}>
+        <meshStandardMaterial color={color} {...LEATHER_FINISH} />
+      </mesh>
+      <mesh geometry={g.rail}>
+        <meshStandardMaterial color={F.color} roughness={F.roughness} metalness={F.metalness} />
+      </mesh>
+      {[1, -1].map((sx) => (
+        <mesh key={sx} geometry={g.front} scale={[sx, 1, 1]}>
+          <meshStandardMaterial color={F.color} roughness={F.roughness} metalness={F.metalness} side={DoubleSide} />
+        </mesh>
+      ))}
     </group>
   )
 }

@@ -4,7 +4,6 @@
 //   limestone    줄눈 없는 매끈한 돌 (프리즈·코니스)
 //   marbleFloorMat 밝은 대리석 바닥 (판마다 다른 결, 줄눈, 은은한 광택)
 //   oakGrain     책상·서가 나뭇결 (결이 u 방향)
-//   weave        천 짜임 (의자 천. 흰색 기반이라 재질 색이 입혀짐, 강조색도 그대로)
 //   plaster      곡면 벽·기둥 회벽 요철 (색은 재질 색)
 //   glowSprite   둥근 불빛 번짐 (가산 혼합용)
 //   apronGlow    건물 둘레 바닥에 번지는 빛
@@ -201,26 +200,6 @@ export function oakGrain() {
   }
   grainMap = tex(mc, true, 8)
   return grainMap
-}
-
-let weaveMap: THREE.CanvasTexture | null = null
-export function weave() {
-  if (weaveMap) return weaveMap
-  const [mc, m] = canvas(128, 128)
-  const r = random(59)
-  m.fillStyle = '#ffffff'
-  m.fillRect(0, 0, 128, 128)
-  for (let y = 0; y < 128; y += 4) {
-    for (let x = 0; x < 128; x += 4) {
-      const over = (x + y) % 8 === 0 // 씨실·날실이 번갈아 위로
-      m.fillStyle = `rgba(0,0,0,${over ? 0.28 : 0.1})`
-      m.fillRect(x, y, over ? 4 : 3, over ? 3 : 4)
-    }
-  }
-  speckle(m, r, 128, 128, 900, 0.08)
-  weaveMap = tex(mc, true)
-  weaveMap.repeat.set(3, 3)
-  return weaveMap
 }
 
 // 곱게 바른 회벽 (거의 흰색, 재질 색이 입혀짐). 얼룩 없이 잔 결만

@@ -18,9 +18,8 @@ export type SharedTable = { x: number; z: number; w: number; d: number }
 export type RingTable = { x: number; z: number; inner: number; outer: number }
 // style: diner = 크롬 다리·소파, wood = 원목 다리·원목 의자·원목 부스(자리마다 seats[].chair 로 고름)
 // accent: 소파 흰 띠·부스 쿠션 색, chrome: 다리·기둥 색, trim: 상판 테두리 색(없으면 chrome)
-// fabric: 의자 방석·등받이에 천 짜임 무늬 (도서관 빨간 의자)
-// chairLegs·chairBackSeat: 원목 의자의 다리 색, 등받이를 방석과 같은 색으로 (둘 다 없으면 다리·등받이는 chrome 원목색. 도서관 빨간 의자)
-export type Furniture = { style: 'diner' | 'wood'; accent: string; chrome: string; trim?: string; tables?: SharedTable[]; rings?: RingTable[]; chairLegs?: string; chairBackSeat?: boolean; fabric?: boolean }
+// chairStyle: 기본 자리 의자 모양. leather = 가죽 방석·곡면 등받이·철제 다리 (도서관). 없으면 원목 의자
+export type Furniture = { style: 'diner' | 'wood'; accent: string; chrome: string; trim?: string; tables?: SharedTable[]; rings?: RingTable[]; chairStyle?: 'leather' }
 
 // 자리가 공용 테이블(긴 테이블 또는 고리 테이블) 안에 있는지 (개별 책상을 그릴지 정하는 데 씀)
 export function insideTable(seat: { x: number; z: number }, tables?: SharedTable[], rings?: RingTable[]): boolean {
