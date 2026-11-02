@@ -22,5 +22,8 @@
     { "from": { "x": -24, "z": 10.2 }, "to": { "x": -8, "z": 10.2 } },
     { "from": { "x": -8, "z": 10.2 }, "to": { "x": 8, "z": 10.2 } },
     { "from": { "x": 8, "z": 10.2 }, "to": { "x": 24, "z": 10.2 } }
+  ],
+  "signposts": [
+    {"x": 2.4, "z": 13.5, "arrows": [{"label": "캠리단길 · 대학교", "sub": "CAMRI STREET · UNIVERSITY", "gate": "plaza"}]}
   ]
 }

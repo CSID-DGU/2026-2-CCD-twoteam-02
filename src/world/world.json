@@ -526,5 +526,8 @@
       "w": 1.8,
       "facing": "south"
     }
-  }
+  },
+  "signposts": [
+    {"x": -3.6, "z": 3.6, "arrows": [{"label": "캠빛 대학교", "sub": "CAMBIT UNIVERSITY", "gate": "campus"}, {"label": "캠빛 해변", "sub": "CAMBIT BEACH", "gate": "beach"}]}
+  ]
 }
