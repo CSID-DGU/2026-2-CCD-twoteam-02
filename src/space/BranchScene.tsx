@@ -75,7 +75,7 @@ import { orderSpot } from "./baristaLogic";
 import { ProfessorNpc } from "./ProfessorNpc";
 import { DEFAULT_GREETING, PROFESSOR, nearProfessor, phaseLine } from "./professorLogic";
 import type { MenuItem } from "./baristaLogic";
-import { heldItem, setHeldItem } from "./heldItem";
+import { drinkLine, heldItem, setHeldItem, useEatKey } from "./heldItem";
 import { BoardPanel } from "../board/BoardPanel";
 import { useBoardNotes } from "../board/useBoardNotes";
 import { useClassPhase } from "../study/useClassPhase";
@@ -386,6 +386,14 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
   }, [kioskOpen, orderOpen, panelOpen, meetingOpen, elevatorOpen, boardOpen, setView]);
+  // 먹기·마시기 키(설정 eat, 기본 C): 손이 비워지고 잠깐 한마디
+  const eat = (item: MenuItem) => {
+    setHeldItem(null);
+    setHoldingState(null);
+    setTouchNote(drinkLine(item));
+    sayTimer.current.push(window.setTimeout(() => setTouchNote(""), 3000));
+  };
+  useEatKey(holding, kioskOpen || orderOpen || panelOpen || meetingOpen || elevatorOpen || boardOpen, eat); // 받은 음료·빵 먹고 마시기
 
   // 광장으로 나가기: 출입문에서 E, 또는 서 있을 때 L 키(#205). 보던 방향 그대로 광장의 이 건물 입구 앞에 섭니다(#150, #315).
   // 이 지점이 있는 바깥 공간: 광장 지점이면 광장(/), 캠빛 대학교 건물이면 캠퍼스(/campus)로 돌아갑니다.
@@ -426,6 +434,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     ? view === "top" ? "👁 1인칭으로" : "오른쪽을 끌어 둘러보기 · 👁 위에서 보기"
     : view === "top" ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`;
   const wasd = touch ? "" : "WASD·"; // 앉아 있을 때 안내: 폰은 화면 끌기만
+  const eatHint = holding ? ` · ${keyLabel(keymap.eat)} ${holding.food ? "먹기" : "마시기"}` : ""; // 받은 음료·빵
   const walkHint =
     seat !== null
       ? isRest
@@ -462,7 +471,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint : touch ? `${walkHint}\n${viewHint}` : `${walkHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
+  const hint = kioskOpen || orderOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint + eatHint : touch ? `${walkHint}${eatHint}\n${viewHint}` : `${walkHint}${eatHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
 
   return (
     <>

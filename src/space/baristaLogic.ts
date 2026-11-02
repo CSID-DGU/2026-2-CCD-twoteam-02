@@ -9,7 +9,7 @@
 
 export type Facing = 'north' | 'south' | 'east' | 'west'
 // food: 빵이면 그 모양 (컵 대신 접시에 담겨 나옴). 없으면 음료 컵
-export type FoodKind = 'scone' | 'madeleine' | 'ciabatta' | 'sandwich'
+export type FoodKind = 'scone' | 'madeleine' | 'ciabatta' | 'sandwich' | 'marshmallow' // marshmallow: 캠프파이어 가판대, 꼬챙이에 꽂아 구움
 export type MenuItem = { name: string; icon: string; food?: FoodKind }
 // apron: 앞치마 색, hat: 모자 모양(캡·베레모·두건)과 색
 export type BaristaLook = { hair: string; hairColor: string; top: string; topColor: string; bottomColor: string; skin?: string; apron?: string; hat?: 'cap' | 'beret' | 'bandana'; hatColor?: string }

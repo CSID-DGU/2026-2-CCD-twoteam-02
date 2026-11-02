@@ -11,7 +11,7 @@ import type { CafeWindow, CafeWindows as Windows, WindowWall } from './cafeWindo
 import { cafeWindowsOf, windowLayoutOf } from './cafeWindowsOf'
 import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
 import type { Portal } from './cafePortal'
-import { benchSeats, buildingOf } from './worldLogic'
+import { benchSeats, buildingOf, campfireStudySeats } from './worldLogic'
 import type { FacadeStyle } from './worldLogic'
 import { computedOf, worldOfBranch } from './worldConfig'
 import { Building, Fence, Ground, Lamps } from './WorldDecor'
@@ -170,6 +170,6 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
 export function StreetPeople({ world }: { world: WorldConfig }) {
   const me = useRef<PresenceState | null>(null)
   const others = useParticipants(world.channel, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
-  const spots = useMemo(() => [...computedOf(world).rests, ...(world.id === 'plaza' ? benchSeats(world.layout) : [])], [world]) // 앉은 사람 자세
+  const spots = useMemo(() => [...computedOf(world).rests, ...(world.id === 'plaza' ? [...benchSeats(world.layout), ...campfireStudySeats(world.layout)] : [])], [world]) // 앉은 사람 자세
   return <OtherParticipants others={others} spots={spots} />
 }
