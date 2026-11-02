@@ -1,8 +1,9 @@
 // 광장에서 가게 유리창으로 보이는 실제 실내와 안의 사람 (방법은 shopGlass.ts).
 // 가게마다 그 지점 실내(BranchInterior)를 건물 자리에 맞춰 놓은 따로 된 장면을 둡니다. 캠리 스퀘어는 층마다 높이를 올려 쌓음.
 // 안의 사람: 지점 실시간 방을 보기만 함(watchSupabase, 내 위치는 안 보냄). 집중 상태 표시등은 밖에서 안 보이게 끔.
-// 광장(캠리단길)에서만 씁니다. 지점 안 통창으로 보이는 거리(CafeWindows)에는 두지 않습니다(창 속 창이 끝없이 이어지지 않게).
-import { Fragment, useEffect, useMemo, useRef } from 'react'
+// 광장(캠리단길)과 캠퍼스의 원통 도서관에서 씁니다. 지점 안 통창으로 보이는 거리(CafeWindows·LibraryWindows)에는 두지 않습니다(창 속 창이 끝없이 이어지지 않게).
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { BranchLayout } from '../space/layout'
@@ -20,23 +21,89 @@ import { FLOOR_H } from './cafeWindowLogic'
 import { storiesOf } from './worldLogic'
 import type { PlacedBuilding } from './worldLogic'
 import type { WorldConfig } from './worldConfig'
-import { placeShop, renderShops, shopView } from './shopGlass'
+import { DRUM_GLASS, drumView, placeShop, renderShops, shopView } from './shopGlass'
+import { ArcBuilder } from '../space/arcGeometry'
+import { CofferCeiling } from '../space/Decor'
+import { LibraryStacks } from '../space/LibraryStacks'
+import { LIB_TILE, plasterBump, plasterFine } from '../space/libraryTextures'
+
+// 원통 도서관 위층 (밖에서 위쪽 창으로 들여다볼 때만): 실내 천장(4.4m)보다 창이 높아, 그 위로 서가가 있는 위층을 그립니다.
+const DRUM_UPPER = { y: 4.4, top: 8.2, grid: 8.0 }
+
+// 밖에서 볼 때의 도서관 실내: 네모 벽·출입문은 유리를 가리므로 빼고, 둥근 벽은 안쪽 면만 + 맞은편 창은 빛나는 판으로 (창 안에 창을 그리지 않음)
+// 지점마다 한 번만 만듦: 렌더마다 새 객체면 사람이 움직일 때마다 둥근 벽·위층 지오메트리를 다시 만들게 됨
+const peekLayouts = new WeakMap<BranchLayout, BranchLayout>()
+function peekLayout(l: BranchLayout): BranchLayout {
+  let p = peekLayouts.get(l)
+  if (!p) {
+    p = { ...l, door: undefined, walls: [], theme: l.theme && { ...l.theme, round: l.theme.round && { ...l.theme.round, peek: true } } }
+    peekLayouts.set(l, p)
+  }
+  return p
+}
+
+// 원통 도서관 안 사람들: 캠퍼스 어디에 있든 실시간 방을 붙들지 않게 문 가까이 있을 때만 구독 (m, 드나듦 경계에서 깜빡이지 않게 둘을 다르게). 거리 확인은 초 단위
+const PEOPLE_RANGE = { enter: 35, leave: 45, checkEvery: 1 }
+const camAt = new THREE.Vector3()
+function WhenNear({ door, children }: { door: { x: number; z: number }; children: ReactNode }) {
+  const [inRange, setInRange] = useState(false)
+  const waited = useRef(PEOPLE_RANGE.checkEvery) // 처음 프레임에 바로 한 번 확인
+  useFrame(({ camera }, delta) => {
+    waited.current += delta
+    if (waited.current < PEOPLE_RANGE.checkEvery) return
+    waited.current = 0
+    camera.getWorldPosition(camAt)
+    const d = Math.hypot(camAt.x - door.x, camAt.z - door.z) // 수평 거리 (위에서 보기 카메라 높이는 빼고)
+    const next = d <= (inRange ? PEOPLE_RANGE.leave : PEOPLE_RANGE.enter)
+    if (next !== inRange) setInRange(next)
+  })
+  return inRange ? <>{children}</> : null
+}
+
+// 위층: 곡면 벽 + 격자 천장 + 같은 서가 (InstancedMesh 라 그리기 호출 몇 번뿐)
+function DrumUpper({ layout }: { layout: BranchLayout }) {
+  const round = layout.theme?.round
+  const geo = useMemo(() => {
+    const g = new ArcBuilder(LIB_TILE.plaster)
+    if (round) g.band(round.r, 0, Math.PI * 2, DRUM_UPPER.y, DRUM_UPPER.top, true)
+    return g.build()
+  }, [round])
+  useEffect(() => () => geo.dispose(), [geo])
+  const grid = layout.theme?.ceiling?.grid
+  if (!round) return null
+  return (
+    <>
+      <mesh geometry={geo}>
+        <meshStandardMaterial color={round.color} map={plasterFine()} bumpMap={plasterBump()} roughness={0.95} />
+      </mesh>
+      {grid && <CofferCeiling grid={{ ...grid, y: DRUM_UPPER.grid }} size={layout.size} radius={round.r} />}
+      {layout.theme?.stacks && (
+        <group position-y={DRUM_UPPER.y}>
+          <LibraryStacks stacks={layout.theme.stacks} />
+        </group>
+      )}
+    </>
+  )
+}
 
 export function ShopInteriors({ world, placed, showPeople }: { world: WorldConfig; placed: PlacedBuilding[]; showPeople: boolean }) {
-  const shops = useMemo(() => placed.filter((b) => b.spec.facade), [placed])
+  const shops = useMemo(() => placed.filter((b) => b.spec.facade || b.spec.shape === 'drum'), [placed])
   const slugs = useMemo(() => shops.map((b) => b.slug), [shops])
 
   // 가게 자리 (화면에 보이는지·가까운지 판단용): 건물 상자 전체, 출입문 자리
   useEffect(() => {
     for (const b of shops) {
       const r = b.rect
-      const top = FLOOR_H * storiesOf(b).length // 지붕 위 루프탑은 유리창이 없어 빼고
-      placeShop(b.slug, new THREE.Box3(new THREE.Vector3(r.x - r.w / 2, 0, r.z - r.d / 2), new THREE.Vector3(r.x + r.w / 2, top, r.z + r.d / 2)), new THREE.Vector3(b.door.x, 1.5, b.door.z))
+      const drum = b.spec.shape === 'drum'
+      const top = drum ? DRUM_GLASS.top : FLOOR_H * storiesOf(b).length // 지붕 위 루프탑은 유리창이 없어 빼고
+      const facing = drum ? new THREE.Vector3(b.door.x - b.spec.x, 0, b.door.z - b.spec.z).normalize() : undefined
+      const center = drum ? new THREE.Vector3(b.spec.x, 1.5, b.spec.z) : undefined
+      placeShop(b.slug, new THREE.Box3(new THREE.Vector3(r.x - r.w / 2, 0, r.z - r.d / 2), new THREE.Vector3(r.x + r.w / 2, top, r.z + r.d / 2)), new THREE.Vector3(b.door.x, 1.5, b.door.z), facing, center)
     }
   }, [shops])
   useFrame(({ gl, camera }) => renderShops(gl, camera, slugs), -1) // 화면 그리기 전에 (음수 순서라 자동 그리기는 그대로)
 
-  return <>{shops.map((b) => <Fragment key={b.slug}>{createPortal(<ShopScene b={b} world={world} showPeople={showPeople} />, shopView(b.slug, b.spec.facade).scene)}</Fragment>)}</>
+  return <>{shops.map((b) => <Fragment key={b.slug}>{createPortal(<ShopScene b={b} world={world} showPeople={showPeople} />, (b.spec.shape === 'drum' ? drumView(b.slug) : shopView(b.slug, b.spec.facade)).scene)}</Fragment>)}</>
 }
 
 // 한 건물의 실내 (층마다). 지점 좌표 → 거리 좌표: 지점 출입문이 건물 출입문 자리에 오게 옮기고 건물 방향으로 돌림
@@ -44,10 +111,12 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
   return (
     <>
       {storiesOf(b).map((f) => {
-        const layout = BRANCH_LAYOUTS[f.slug]
+        const real = BRANCH_LAYOUTS[f.slug]
         // 출입문이 없는 위층(Cam Study Cafe 2층, 계단으로만 오감)은 같은 건물 1층 출입문 자리에 맞춰 놓음
-        const door = layout?.door ?? BRANCH_LAYOUTS[b.floors[0].slug]?.door
-        if (!layout || !door) return null
+        const door = real?.door ?? BRANCH_LAYOUTS[b.floors[0].slug]?.door
+        if (!real || !door) return null
+        const drum = b.spec.shape === 'drum'
+        const layout = drum ? peekLayout(real) : real
         return (
           <group key={f.slug} position={[b.door.x, (f.level - 1) * FLOOR_H, b.door.z]} rotation-y={b.angle}>
             <group position={[-door.x, 0, -door.z]}>
@@ -57,7 +126,9 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
                 elevatorLabel={b.floors.length > 1 && layout.elevator ? `${f.level}F` : null}
                 lights={f.level === 1} // 조명은 한 번만 (층마다 넣으면 겹쳐서 너무 밝음)
               />
-              {showPeople && <ShopPeople slug={f.slug} layout={layout} />}
+              {drum && <DrumUpper layout={layout} />}
+              {/* 광장 가게는 전과 같이 늘 구독, 원통 도서관만 문 가까이에서 */}
+              {showPeople && (drum ? <WhenNear door={b.door}><ShopPeople slug={f.slug} layout={layout} /></WhenNear> : <ShopPeople slug={f.slug} layout={layout} />)}
               {layout.barista && <BaristaNpc barista={layout.barista} />}
             </group>
           </group>

@@ -25,13 +25,13 @@
     {
       "slug": "cambit-library",
       "x": -6,
-      "z": -24,
-      "w": 16,
-      "d": 8,
+      "z": -26,
+      "w": 12,
+      "d": 12,
       "facing": "south",
-      "wall": "#a8473a",
-      "roof": "#5a5f66",
-      "wallTexture": "brick"
+      "wall": "#d8cfba",
+      "roof": "#cfc7b4",
+      "shape": "drum"
     },
     {
       "slug": "cambit-lounge",
@@ -339,6 +339,14 @@
     {
       "x": -10.5,
       "z": -16.5
+    },
+    {
+      "x": -2.9,
+      "z": -18.6
+    },
+    {
+      "x": -9.1,
+      "z": -18.6
     },
     {
       "x": 9,
