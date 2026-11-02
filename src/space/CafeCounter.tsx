@@ -50,7 +50,19 @@ export function CafeCounter({ barista, wood = '#8a6a4a' }: { barista: Barista; w
           <mesh position-y={COUNTER.h + 0.03} material={top}>
             <boxGeometry args={[len + 0.1, 0.06, COUNTER.d + 0.12]} />
           </mesh>
+          {/* 도서관 사서 카운터: 머신·컵·빵 진열장 대신 책 더미 두 무더기 */}
+          {barista.service === 'library' &&
+            [-len / 2 + 0.6, len / 2 - 0.6].map((x, i) => (
+              <group key={x} position={[x, COUNTER.h + 0.06, 0]}>
+                {[0, 1, 2].slice(0, 3 - i).map((k) => (
+                  <mesh key={k} position={[0, 0.03 + k * 0.06, 0]} rotation-y={k * 0.25} material={colorMat(['#7a3f2e', '#2f5a3a', '#c9b48f'][k])}>
+                    <boxGeometry args={[0.3, 0.05, 0.22]} />
+                  </mesh>
+                ))}
+              </group>
+            ))}
           {/* 에스프레소 머신 (바리스타 쪽) */}
+          {barista.service !== 'library' && <>
           <group position={[-len / 2 + 0.55, COUNTER.h + 0.06, -0.12]}>
             <mesh position-y={0.22} material={chrome}>
               <boxGeometry args={[0.6, 0.44, 0.4]} />
@@ -81,10 +93,11 @@ export function CafeCounter({ barista, wood = '#8a6a4a' }: { barista: Barista; w
               </mesh>
             ))}
           </group>
+          </>}
         </>
       )}
-      {/* 매단 메뉴판 (손님 쪽을 봄) */}
-      <group position={[0, BOARD.y, -0.2]}>
+      {/* 매단 메뉴판 (손님 쪽을 봄). 메뉴가 없는 사서 카운터에는 걸지 않음 */}
+      {barista.menu.length > 0 && <group position={[0, BOARD.y, -0.2]}>
         <mesh>
           <planeGeometry args={[BOARD.w, BOARD.h]} />
           <meshStandardMaterial map={menu} />
@@ -94,7 +107,7 @@ export function CafeCounter({ barista, wood = '#8a6a4a' }: { barista: Barista; w
             <cylinderGeometry args={[0.01, 0.01, 0.8, 4]} />
           </mesh>
         ))}
-      </group>
+      </group>}
     </group>
   )
 }
