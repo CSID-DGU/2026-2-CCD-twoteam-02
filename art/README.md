@@ -8,6 +8,8 @@
 | `face-guide/그리기-틀-2048.png` | 프로크리에이트 밑그림. 그리는 틀·가운데 십자·얼굴 칸만 있다 |
 | `face-guide/얼굴-지도-2048.png` | 설명 그림. 그리는 틀, 사용자가 옮길 수 있는 범위와 거리(px) |
 | `face-drawings/칸/id.png` | 김현이 그린 원본. 칸(`eyes`·`closedEyes`·`brows`·`mouth`·`mouthOpen`)마다 폴더를 나누고 파일 이름은 부품 id 와 같다. 앱에 들어간 부품은 여기서 만든다 |
+| `clothes-guide/상의-그리기-틀-2048.png` | 상의 격자판 밑그림 (면 이름과 색 규칙이 적혀 있다) |
+| `clothes-drawings/칸/id.png` | 그린 옷 원본 (지금은 `top`). 파일 이름은 부품 id 와 같다 |
 | `hair/머리-시작.bbmodel` | 입체 머리카락을 Blockbench 로 만들 때 여는 시작 파일 |
 | `hair/사용법.md` | Blockbench 로 머리카락 만드는 법 (그림 포함) |
 | `hair/id.bbmodel` | 김현이 만든 머리카락 원본(예: `bob-textured` 텍스처 단발). 내보낸 `.gltf` 는 `public/models/Parts/hair/` 에만 둔다 |
@@ -55,3 +57,31 @@ node scripts/import-face-drawings.mjs
 
 스티커 그림(`public/models/Parts/칸/id.png`)과 `src/avatar/parts.json` 줄이 생긴다. 시험만 해 볼 때는 `node scripts/import-face-drawings.mjs art/face-drawings 내보낼폴더` 로 그 폴더에만 쓴다.
 선만 그린 칸의 색(`fill`)은 칸의 가운데가 위에 있는 것부터(같으면 왼쪽부터) 1, 2, 3 … 순서로 적는다.
+
+## 상의 그리는 법 (#56)
+
+틀은 몸의 면을 칸으로 펼쳐 놓은 격자판이다. 한 칸은 머리카락 그림 한 칸과 같은 크기이고, 캔버스 전체는 32×32칸이다. 몸통 앞은 8×9칸, 옆은 6×9칸, 팔은 4×11칸이다.
+
+김현은 피그마 파일 [상의 그리기 틀](https://www.figma.com/design/ssTikA0i3RlOmsGZOdX4HH)에서 그린다. 면마다 사각형이 있어 위치를 맞추기 쉽다. 다른 프로그램에서는 `clothes-guide/상의-그리기-틀-2048.png` 를 밑그림으로 쓴다.
+
+1. 칸 안을 칠한다. 옷마다 프레임이나 레이어를 따로 만든다.
+   - 몸통은 오른쪽·앞·왼쪽·뒤가 한 줄로 이어져 있어, 칸 경계를 넘어 그대로 그리면 옷에서도 이어진다.
+   - 팔은 왼팔만 그린다. 오른팔은 좌우를 뒤집어 만든다(바깥쪽 무늬는 양팔 모두 바깥에 온다).
+   - 비워 둔 곳은 맨살이 보인다. 배꼽티는 배를, 반팔은 "반팔 끝" 아래를 비운다.
+   - 틀에 없는 아랫면은 앞면의 아래 끝 줄로 채운다.
+2. 색
+
+   | 칠한 색 | 앱에서 |
+   |---|---|
+   | 흰색 | 고른 상의 색 |
+   | 그 밖의 색 | 칠한 색 그대로 (가디건, 단추, 선, 무늬 등. 회색·검정도 그대로) |
+   | 반투명 | 그만큼 맨살이 비친다 |
+
+   면마다 밝기는 스크립트가 넣으므로 칠하지 않는다.
+3. 스킨에서 몸통 앞면은 117×132px 이다. 선은 16px 이상으로 굵게, 무늬는 크게 그린다. 더 가는 선은 흐리게 보인다.
+4. 밑그림을 끄고 2048×2048 투명 PNG 로 내보내 `clothes-drawings/top/id.png` 로 넣는다.
+5. `scripts/import-clothes-drawings.mjs` 위쪽의 `DRAWINGS` 표에 [칸, id, 이름] 을 적고 돌린다.
+
+```
+node scripts/import-clothes-drawings.mjs
+```
