@@ -208,9 +208,21 @@ export type PlacedGate = {
   posts: Box[] // 양쪽 벽돌 기둥 (부딪힘)
   fences: Box[] // 양옆 철제 울타리와 끝 작은 기둥 (부딪힘)
   fenceLen: number // 양옆 울타리 길이
+  back: Box[] // 정문 뒤(기둥·울타리 뒷면 ~ 월드 끝 울타리) 틈을 막는 상자. 돌아 들어가 문 너머 풍경 속을 걷지 않게
 }
 
 const gateFrame = (g: GateSpec) => ({ x: g.x, z: g.z, facing: g.facing })
+
+// 정문 뒤 틈: 기둥 뒷면부터 문 너머(-Z 쪽) 월드 끝까지, 끝 기둥 바깥까지의 폭(half 양쪽)으로 한 상자. 틈이 없으면 없음
+function gateBack(layout: PlazaLayout, spec: GateSpec, half: number): Box[] {
+  const back = rotate(0, -1, facingAngle(spec.facing)) // 문 너머 방향 (월드)
+  const { w, d } = layout.size
+  const edge = Math.abs(back.x) > 0.5 ? (back.x < 0 ? spec.x + w / 2 : w / 2 - spec.x) : back.z < 0 ? spec.z + d / 2 : d / 2 - spec.z
+  const gap = edge - GATE_POST / 2
+  if (gap <= 0.01) return []
+  const c = gatePoint(spec, 0, -(GATE_POST / 2 + gap / 2))
+  return [sideways(spec.facing) ? { ...c, w: gap, d: half * 2 } : { ...c, w: half * 2, d: gap }]
+}
 function gatePoint(g: GateSpec, x: number, z: number): Point {
   const c = rotate(x, z, facingAngle(g.facing))
   return { x: g.x + c.x, z: g.z + c.z }
@@ -239,6 +251,7 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
       posts: [-postX, postX].map((x) => ({ ...gatePoint(spec, x, 0), w: GATE_POST, d: GATE_POST })),
       fences: [-1, 1].flatMap((sx) => [box(sx * fenceX, fenceLen, GATE_FENCE.t), box(sx * endX, GATE_FENCE.endPost, GATE_FENCE.endPost)]),
       fenceLen,
+      back: gateBack(layout, spec, endX + GATE_FENCE.endPost / 2),
     }
   })
 }
@@ -278,7 +291,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...plaza.benches.map((b) =>
       sideways(b.facing) ? { x: b.x, z: b.z, w: BENCH.d, d: BENCH.w } : { x: b.x, z: b.z, w: BENCH.w, d: BENCH.d },
     ),
-    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences]),
+    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences, ...g.back]),
     ...(plaza.board ? [boardBox(plaza.board)] : []),
     ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
