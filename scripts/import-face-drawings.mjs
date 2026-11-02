@@ -16,16 +16,15 @@
 // 쓰는 법: node scripts/import-face-drawings.mjs [그림폴더] [내보낼폴더]
 //   그림폴더를 빼면 art/face-drawings (원본 그림을 모아 두는 곳).
 //   내보낼폴더를 주면 그 폴더에만 그림을 쓰고 parts.json 은 고치지 않는다(시험해 볼 때).
-// 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다.
+// 새 라이브러리 없이 Node 기본 기능(zlib)으로 PNG 를 읽고 쓴다(png.mjs).
 import fs from 'node:fs'
 import path from 'node:path'
-import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
+import { readPng, writePng } from './png.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const LIST = path.join(ROOT, 'src/avatar/parts.json')
 const W = 2048 // 그린 얼굴 캔버스 한 변
-const SIZE = W // writePng 기본 크기
 // 기본 자리(2048 기준, 얼굴 1칸 = 256px). avatarLogic.EYE_HOME·MOUTH_HOME 의 두 배
 const HOME = { eyes: { x: 1472, y: 960 }, closedEyes: { x: 1472, y: 960 }, brows: { x: 1472, y: 560 }, mouth: { x: 1024, y: 1664 }, mouthOpen: { x: 1024, y: 1664 } }
 // 예전 그리기 틀(눈 448, 가운데 높이 1120)에 그린 눈(oldFrame). 새 틀보다 160 아래에 있어서 그만큼 아래를 잘라 새 자리에 맞춘다
@@ -97,78 +96,6 @@ const DRAWINGS = [
   { slot: 'brows', id: 'hook', name: '갈고리 눈썹' },
   { slot: 'brows', id: 'curl', name: '말린 눈썹' },
 ]
-
-// ── PNG 읽기·쓰기 (8비트 RGBA·RGB, 인터레이스 없음) ─────────────────────
-function readPng(file) {
-  const buf = fs.readFileSync(file)
-  let pos = 8, w = 0, h = 0, type = 0
-  const idat = []
-  while (pos < buf.length) {
-    const len = buf.readUInt32BE(pos), name = buf.toString('ascii', pos + 4, pos + 8), data = buf.subarray(pos + 8, pos + 8 + len)
-    if (name === 'IHDR') {
-      w = data.readUInt32BE(0)
-      h = data.readUInt32BE(4)
-      type = data[9]
-      if (data[8] !== 8 || data[12] !== 0 || (type !== 6 && type !== 2)) throw new Error(`${file}: 8비트 RGBA·RGB PNG 만 읽습니다`)
-    } else if (name === 'IDAT') idat.push(data)
-    pos += 12 + len
-  }
-  const ch = type === 6 ? 4 : 3, stride = w * ch
-  const raw = zlib.inflateSync(Buffer.concat(idat)), px = Buffer.alloc(stride * h)
-  for (let y = 0; y < h; y++) {
-    const filter = raw[y * (stride + 1)]
-    for (let x = 0; x < stride; x++) {
-      const a = x >= ch ? px[y * stride + x - ch] : 0, b = y ? px[(y - 1) * stride + x] : 0, c = x >= ch && y ? px[(y - 1) * stride + x - ch] : 0
-      let v = raw[y * (stride + 1) + 1 + x]
-      if (filter === 1) v += a
-      else if (filter === 2) v += b
-      else if (filter === 3) v += (a + b) >> 1
-      else if (filter === 4) {
-        const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c)
-        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c
-      }
-      px[y * stride + x] = v & 255
-    }
-  }
-  const rgba = Buffer.alloc(w * h * 4)
-  for (let i = 0; i < w * h; i++) rgba.set(ch === 4 ? px.subarray(i * 4, i * 4 + 4) : [px[i * 3], px[i * 3 + 1], px[i * 3 + 2], 255], i * 4)
-  return { w, h, rgba }
-}
-const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
-  let c = n
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-  return c >>> 0
-})
-function crc32(buf) {
-  let c = 0xffffffff
-  for (const b of buf) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8)
-  return (c ^ 0xffffffff) >>> 0
-}
-function chunk(type, data) {
-  const len = Buffer.alloc(4)
-  len.writeUInt32BE(data.length)
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
-  const crc = Buffer.alloc(4)
-  crc.writeUInt32BE(crc32(body))
-  return Buffer.concat([len, body, crc])
-}
-function writePng(file, rgba, w = SIZE, h = SIZE) {
-  const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(w, 0)
-  ihdr.writeUInt32BE(h, 4)
-  ihdr[8] = 8 // 비트
-  ihdr[9] = 6 // RGBA
-  const raw = Buffer.alloc((w * 4 + 1) * h)
-  for (let y = 0; y < h; y++) rgba.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4) // 줄마다 필터 0
-  const png = Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    chunk('IHDR', ihdr),
-    chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-    chunk('IEND', Buffer.alloc(0)),
-  ])
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, png)
-}
 
 // ── 그림 한 장 → 스티커 ─────────────────────────────────────────────
 // 2048 그림(미리 곱한 알파)에서 기본 자리 home 을 가운데로 스티커의 두 배 크기를 잘라 반으로 줄인다(2×2 평균)

@@ -5,6 +5,7 @@
 //   TIERS  위로 쌓은 접시 셋 (아래가 크고 위가 작음): 가장자리 반지름 r, 가장자리 높이 y, 깊이, 물이 가장자리보다 낮은 정도 lip
 // 물줄기 (waterSheets)  접시마다 가장자리에서 바로 아래 물(아래 접시, 맨 아래는 수반)까지 떨어지는 물 막
 // 물방울 (Drop)          접시 가장자리에서 바깥으로 튀어 나와 떨어지고, 아래 물에 닿으면 한 번 튀어 오른 뒤 다시 가장자리에서 태어남
+// 소리 (fountainLoudness) 분수 가운데에서의 거리 → 물소리 크기 0~1 (가까이 가면 쏴아, 멀어지면 조용히. 소리는 fountainSound)
 export const BASIN = { h: 0.55, lip: 0.14, waterY: 0.47 }
 export const TIERS = [
   { r: 1.45, y: 1.35, depth: 0.3, lip: 0.05 },
@@ -12,6 +13,7 @@ export const TIERS = [
   { r: 0.55, y: 2.8, depth: 0.18, lip: 0.04 },
 ]
 export const GRAVITY = 9.8 // m/s²
+export const FOUNTAIN_SOUND = { near: 3, far: 8 } // 이 거리 안이면 소리 최대, 밖이면 소리 없음(m). 수반(반지름 2.5) 곁에 가야 들리게
 export const DROPS = 240 // 물방울 수 (점 하나씩, 한 번에 그림)
 const OUT = { min: 0.25, max: 0.7 } // 가장자리에서 바깥으로 나가는 빠르기(m/s)
 const UP_MAX = 0.35 // 처음 위로 뜨는 빠르기 최대(m/s)
@@ -81,4 +83,13 @@ export function writePositions(drops: Drop[], out: Float32Array) {
     out[i * 3 + 1] = d.y
     out[i * 3 + 2] = d.z
   })
+}
+
+// 분수 가운데 → 내 자리 거리로 물소리 크기 (멀어질수록 빨리 작아짐)
+export function fountainLoudness(f: { x: number; z: number }, p: { x: number; z: number }) {
+  const d = Math.hypot(p.x - f.x, p.z - f.z)
+  if (d <= FOUNTAIN_SOUND.near) return 1
+  if (d >= FOUNTAIN_SOUND.far) return 0
+  const t = 1 - (d - FOUNTAIN_SOUND.near) / (FOUNTAIN_SOUND.far - FOUNTAIN_SOUND.near)
+  return t * t
 }

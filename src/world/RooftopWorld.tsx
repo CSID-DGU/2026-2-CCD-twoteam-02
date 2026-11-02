@@ -13,6 +13,7 @@ import { computedOf, worldOfBranch } from './worldConfig'
 import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { Garden, GardenBenches, LushTrees } from './Garden'
 import { Fountain } from './Fountain'
+import { Campfire } from './Campfire'
 import { NightFill, StringLights } from './StreetLights'
 import { WorldSky } from './WorldSky'
 import { useWorldWeather } from './useWorldWeather'
@@ -35,6 +36,7 @@ export function RooftopWorld({ slug, showPeople }: { slug: string; showPeople: b
         <Garden plaza={plaza} buildings={c.placed} />
         <Fence plaza={plaza} />
         {plaza.fountain && <Fountain fountain={plaza.fountain} />}
+        {plaza.campfire && <Campfire fire={plaza.campfire} />} {/* 광장 서쪽 캠프파이어 (보이기만: 소리·굽기 없음) */}
         <LushTrees trees={plaza.trees} />
         <GardenBenches benches={plaza.benches} />
         <Lamps lamps={plaza.lamps} />
