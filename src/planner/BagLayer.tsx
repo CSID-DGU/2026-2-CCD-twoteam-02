@@ -14,6 +14,12 @@ import { useHandFont } from './useHandFont'
 import { HAND, INK, NOTE_COLOR, PRINT, handSize, paperSurface } from './paperStyle'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
 import { isShortcut } from '../menu/shortcuts'
+import { useSession } from '../auth/useSession'
+import { useLoans } from '../library/useLoans'
+import { ReaderWindow } from '../library/ReaderWindow'
+import { BOOKS } from '../library/catalog'
+import { dueLabel } from '../library/libraryLogic'
+import type { Loan } from '../library/libraryLogic'
 
 // 시계(스톱워치·알람) 꺼냄 여부. 플래너와 같은 방식으로 이 브라우저에 기억
 const CLOCK_OPEN_KEY = 'dooteum.clock.open'
@@ -42,6 +48,24 @@ const loadOpen = () => {
 const saveOpen = (v: boolean) => {
   try {
     localStorage.setItem(OPEN_KEY, v ? '1' : '0')
+  } catch {
+    // 기억 못 해도 이번엔 그대로
+  }
+}
+
+// 꺼내 둔 책(한 번에 한 권)은 계정별로 이 브라우저에 기억
+const readerKey = (uid: string) => `dooteum.reader.open.${uid}`
+const loadReader = (uid: string) => {
+  try {
+    return localStorage.getItem(readerKey(uid)) ?? ''
+  } catch {
+    return ''
+  }
+}
+const saveReader = (uid: string, bookId: string) => {
+  try {
+    if (bookId) localStorage.setItem(readerKey(uid), bookId)
+    else localStorage.removeItem(readerKey(uid))
   } catch {
     // 기억 못 해도 이번엔 그대로
   }
@@ -87,6 +111,41 @@ export function BagLayer() {
     saveClockOpen(v)
   }
   const [notice, setNotice] = useState('') // 메모 뜯기 실패 안내
+  // 빌린 책: 꺼낸 책은 열 때의 대여 값(reading)으로 그려, 읽는 동안 기한이 지나도 닫지 않음(닫으면 목록에서 사라짐)
+  const { session } = useSession()
+  const uid = session?.user.id ?? ''
+  const { loans, loading: loansLoading, giveBack, savePosition } = useLoans()
+  const [reading, setReading] = useState<Loan | null>(null)
+  const [bookNotice, setBookNotice] = useState('')
+  const [now, setNow] = useState(() => Date.now()) // D-day 글자용 시각 (1분마다 갱신)
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(t)
+  }, [])
+  const [restored, setRestored] = useState(false)
+  const openBook = (loan: Loan) => {
+    setReading(loan)
+    saveReader(uid, loan.bookId)
+  }
+  const closeBook = () => {
+    setReading(null)
+    saveReader(uid, '')
+  }
+  // 새로고침 뒤: 기억해 둔 책이 아직 빌린 상태면 다시 꺼냄 (대여 목록을 처음 읽은 뒤 한 번만)
+  // (렌더 중 상태 바꾸기: React 가 허용하는 '이전 값과 비교해 맞추기' 방식)
+  if (!restored && uid && !loansLoading) {
+    setRestored(true)
+    const saved = loadReader(uid)
+    const loan = loans.find((l) => l.bookId === saved && BOOKS.some((b) => b.id === l.bookId))
+    if (loan) setReading(loan)
+    else if (saved && loans.length > 0) saveReader(uid, '') // 반납했거나 기한이 끝난 책
+  }
+  const readingInfo = reading ? BOOKS.find((b) => b.id === reading.bookId) : undefined
+  const giveBackBook = async (loan: Loan) => {
+    const err = await giveBack(loan.id)
+    setBookNotice(err ?? '')
+    if (!err && reading?.id === loan.id) closeBook()
+  }
   const { memos, tear, change, remove } = useMemos()
   useHandFont() // 내 손글씨 글씨체를 읽어 화면 전체(플래너·메모)에 적용
   const keymap = useKeymap()
@@ -113,6 +172,15 @@ export function BagLayer() {
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
       {planner && <PlannerWindow onClose={() => togglePlanner(false)} />}
       {clock && <ClockWindow onClose={() => toggleClock(false)} />}
+      {reading && readingInfo && (
+        <ReaderWindow
+          key={reading.id}
+          loan={reading}
+          info={readingInfo}
+          onClose={closeBook}
+          onPosition={(n) => savePosition(reading.id, n)}
+        />
+      )}
       <AlarmRinging />
       {memos
         .filter((m) => m.shown)
@@ -165,6 +233,25 @@ export function BagLayer() {
               </div>
             </div>
           </div>
+
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.85 }}>📚 빌린 책</div>
+          {loans.length === 0 && <div style={{ ...item, fontSize: 12, opacity: 0.85 }}>도서관에서 책을 빌려 보세요.</div>}
+          {loans.map((l) => {
+            const book = BOOKS.find((b) => b.id === l.bookId)
+            if (!book) return null
+            const out = reading?.id === l.id
+            return (
+              <div key={l.id} style={item}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{book.title}</div>
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>{book.author} · {dueLabel(l.dueAt, now)}</div>
+                </div>
+                <button style={small} onClick={() => (out ? closeBook() : openBook(l))}>{out ? '넣기' : '꺼내기'}</button>
+                <button style={small} onClick={() => void giveBackBook(l)}>반납</button>
+              </div>
+            )
+          })}
+          {bookNotice && <div style={{ marginTop: 8, fontSize: 12, background: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: 8 }}>{bookNotice}</div>}
 
           {notice && <div style={{ marginTop: 8, fontSize: 12, background: 'rgba(255,255,255,0.7)', padding: '6px 8px', borderRadius: 8 }}>{notice}</div>}
 

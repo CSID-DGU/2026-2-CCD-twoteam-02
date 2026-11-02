@@ -14,6 +14,7 @@ import { MAT, applyGroundTextures, applyLawnTextures, brickWallMat, colorMat, la
 import { TILE, tiledPlane } from './worldTextures'
 import { Facade } from './Facades'
 import { RoofDeck } from './RoofDeck'
+import { LibraryDrum } from './LibraryDrum'
 
 // 크기·높이 (m)
 const BUILDING_H = STORY_H // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -96,7 +97,13 @@ export function Fence({ plaza }: { plaza: PlazaLayout }) {
 // glass: 광장에서 가게 유리창·위층 앞 창에 비출 실제 실내 (ShopInteriors). 없으면 예전처럼 그림·색 창
 // 지붕 위 루프탑 층(roof, 이끼 루프탑)은 벽을 쌓지 않고 지붕 위에 루프탑을 그대로 올립니다(RoofDeck). deck 이 false 면 안 그림
 // (루프탑 안에서 바깥을 그릴 때: 루프탑 자체는 지점 화면이 그리므로 겹치지 않게)
-export function Building({ b, open, near, glass, deck = true }: { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material; deck?: boolean }) {
+type BuildingProps = { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material; deck?: boolean }
+// 모양이 원통(shape 'drum', 캠퍼스 도서관)이면 LibraryDrum, 아니면 네모 건물. 카페 창·루프탑에서 바깥을 그릴 때도 같은 모양이 되도록 여기서 나눔
+export function Building(props: BuildingProps) {
+  return props.b.spec.shape === 'drum' ? <LibraryDrum b={props.b} open={props.open} near={props.near} glass={props.glass} /> : <BoxBuilding {...props} />
+}
+
+function BoxBuilding({ b, open, near, glass, deck = true }: BuildingProps) {
   const sideways = b.spec.facing === 'east' || b.spec.facing === 'west'
   const w = sideways ? b.rect.d : b.rect.w // 실내 기준 가로·세로
   const d = sideways ? b.rect.w : b.rect.d

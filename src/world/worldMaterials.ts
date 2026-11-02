@@ -160,6 +160,25 @@ export function roofMat(color: string) {
   return m
 }
 
+// 무늬 있는 지붕 (원통 도서관): 콘크리트 결. 위 면 UV 가 원판 전체 0~1 이라 ROOF_TILES 번 반복. 눈이 오면 다 덮임
+const ROOF_TILES = 4
+const texturedRoofs = new Map<string, THREE.MeshStandardMaterial>()
+export function texturedRoofMat(color: string) {
+  let m = texturedRoofs.get(color)
+  if (!m) {
+    const t = groundTextures().concrete
+    const map = t.map.clone()
+    const bump = t.bump.clone()
+    for (const x of [map, bump]) {
+      x.repeat.set(ROOF_TILES, ROOF_TILES)
+      x.needsUpdate = true
+    }
+    m = addSnowy(mat(color, { map, bumpMap: bump, bumpScale: BUMP, roughness: 0.95 }), SNOW_PART.full)
+    texturedRoofs.set(color, m)
+  }
+  return m
+}
+
 // 줄무늬 잔디 전용 재질 (색별로 한 번만). 눈이 오면 다 덮임
 const lawnMats = new Map<string, THREE.MeshStandardMaterial>()
 export function lawnMat(color: string) {

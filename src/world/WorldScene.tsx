@@ -82,7 +82,7 @@ import { NightFill, StringLights } from './StreetLights'
 import { ShopInteriors } from './ShopInteriors'
 import { SoccerPitch, Walks } from './CampusField'
 import { SoccerBall } from './SoccerBall'
-import { shopGlass } from './shopGlass'
+import { drumView, shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { LanternCourtyard } from './LanternTree'
 import { Campfire } from './Campfire'
@@ -486,15 +486,15 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
         {PLAZA.ground !== 'lawn' && <NightFill />}
         {/* 캠리단길 가게 유리창으로 보이는 실제 실내와 안의 사람 (가까이·화면에 보일 때만 그림) */}
-        {world.id === 'plaza' && <ShopInteriors world={world} placed={PLACED} showPeople={condition === 'visible'} />}
+        <ShopInteriors world={world} placed={PLACED} showPeople={condition === 'visible'} />
         {/* 순위 게시판 (#59): 판에 오늘 1~3위, 앞에서 E 로 순위 창 */}
         {PLAZA.board && <RankingBoard board={PLAZA.board} ranking={todayRanking} photos={boardPhotos} />}
         {PLACED.map((b) => (
           // 목록을 아직 안 읽었으면 열린 것으로 그립니다(지금 로비와 같음).
-          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} glass={world.id === 'plaza' && b.spec.facade ? shopGlass(b.slug, b.spec.facade) : undefined} />
+          <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} glass={b.spec.shape === 'drum' ? drumView(b.slug).mat : world.id === 'plaza' && b.spec.facade ? shopGlass(b.slug, b.spec.facade) : undefined} />
         ))}
-        {/* 캠퍼스 건물: 흰 코니스·담쟁이·도서관 시계탑 */}
-        {world.id === 'campus' && PLACED.map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
+        {/* 캠퍼스 건물: 흰 코니스·담쟁이 (원통 도서관은 자기 코니스가 있어 제외, 시계탑도 같이 없어짐) */}
+        {world.id === 'campus' && PLACED.filter((b) => b.spec.shape !== 'drum').map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
         {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
         {GATES.map((g) => (
           <group key={g.no}>

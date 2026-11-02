@@ -40,7 +40,7 @@ export const BRANCH_LAYOUTS: Record<string, BranchLayout> = {
   breath: { ...breath, seats: breath.seats as BranchLayout['seats'], theme: breath.theme as BranchTheme, ambience: breath.ambience as AmbienceKind },
   // 캠빛 대학교 캠퍼스 건물 (src/world/campus.json): 도서관(칸막이·조용함 규칙)·강의동(계단식·칠판)·정보관(컴퓨터·다른 화면 허용)·
   // 학생회관 카페·학생 라운지(휴식). 건물별 공부 규칙은 rules(rulesLogic.ts), 휴식은 rest.
-  'cambit-library': { ...cambitLibrary, seats: cambitLibrary.seats as BranchLayout['seats'], theme: cambitLibrary.theme as BranchTheme },
+  'cambit-library': { ...cambitLibrary, seats: cambitLibrary.seats as BranchLayout['seats'], theme: cambitLibrary.theme as BranchTheme, barista: cambitLibrary.barista as BranchLayout['barista'] }, // 사서 (baristaLogic service 'library')
   'cambit-lecture': { ...cambitLecture, seats: cambitLecture.seats as BranchLayout['seats'], theme: cambitLecture.theme as BranchTheme }, // 교수 NPC (professorLogic)
   'cambit-info': { ...cambitInfo, seats: cambitInfo.seats as BranchLayout['seats'], theme: cambitInfo.theme as BranchTheme },
   'cambit-cafe': { ...cambitCafe, seats: cambitCafe.seats as BranchLayout['seats'], theme: cambitCafe.theme as BranchTheme, barista: cambitCafe.barista as BranchLayout['barista'] }, // 카페 바리스타 (baristaLogic)
