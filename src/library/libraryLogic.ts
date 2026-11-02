@@ -17,6 +17,7 @@ export const SHELVES = ['한국 단편', '한국 장편', '시'] as const
 export type BookShelf = (typeof SHELVES)[number] // theme.ts 의 Shelf(벽 선반)와 다른 타입
 
 const DAY_MS = 86_400_000
+const DUE_SLACK_MS = 300_000 // 이 시각 차이(화면 시각이 조금 뒤처짐·서버와 시계 차이)로 D-14 가 D-15 로 보이지 않게 빼는 여유
 
 export type Loan = { id: number; bookId: string; dueAt: string; returnedAt: string | null; position: number }
 export type BookInfo = { id: string; title: string; author: string; shelf: BookShelf; sourceUrl: string } // sourceUrl: 읽기 화면에 보여 줄 출처 페이지 주소
@@ -32,7 +33,7 @@ export function canBorrow(bookId: string, loans: Loan[], nowMs: number): 'ok' | 
   return active.length >= MAX_LOANS ? 'full' : 'ok'
 }
 
-export const daysLeft = (dueAt: string, nowMs: number) => Math.ceil((Date.parse(dueAt) - nowMs) / DAY_MS) // 올림: 남은 동안은 최소 1
+export const daysLeft = (dueAt: string, nowMs: number) => Math.ceil((Date.parse(dueAt) - nowMs - DUE_SLACK_MS) / DAY_MS) // 올림: 여유보다 많이 남은 동안은 최소 1
 
 export const dueLabel = (dueAt: string, nowMs: number) => `D-${Math.max(0, daysLeft(dueAt, nowMs))}`
 

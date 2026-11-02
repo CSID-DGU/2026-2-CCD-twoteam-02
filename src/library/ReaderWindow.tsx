@@ -34,7 +34,7 @@ export function ReaderWindow({ loan, info, onClose, onPosition }: { loan: Loan; 
   const width = Math.min(WIDTH, viewW - SIDE_GAP)
   // 문단 요소는 책이 바뀔 때만 만듦: 읽는 자리가 바뀌어 다시 그려져도 수천 개 <p> 를 비교하지 않게
   const paragraphs = useMemo(
-    () => book?.paragraphs.map((p, i) => <p key={i} style={{ margin: '0 0 0.9em', whiteSpace: 'pre-line' }}>{p}</p>) ?? null,
+    () => book?.paragraphs.map((p, i) => <p key={i} style={{ margin: '0 0 0.9em', whiteSpace: 'pre-line', textAlign: 'left' }}>{p}</p>) ?? null,
     [book],
   )
 
