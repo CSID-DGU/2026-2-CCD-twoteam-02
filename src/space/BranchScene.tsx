@@ -72,6 +72,8 @@ import { BaristaNpc } from "./BaristaNpc";
 import { OrderPanel } from "./OrderPanel";
 import { DeskDrink, DrinkInView } from "./HeldDrink";
 import { orderSpot } from "./baristaLogic";
+import { ProfessorNpc } from "./ProfessorNpc";
+import { DEFAULT_GREETING, PROFESSOR, nearProfessor, phaseLine } from "./professorLogic";
 import type { MenuItem } from "./baristaLogic";
 import { heldItem, setHeldItem } from "./heldItem";
 import { BoardPanel } from "../board/BoardPanel";
@@ -129,11 +131,24 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [entry, setEntry] = useState(() => entryNotice(branch));
   // 강의실 공동 시간표 (캠빛 강의동): 칠판 글씨, 쉬는 시간엔 타이머·기록 멈춤(breakTime), 바뀌는 순간 종 알림
   const classNow = useClassPhase(branch.rules?.timetable === true);
+  // 강의동 교수 (professorLogic): 교탁 앞에 오면 손 흔들며 인사, 수업 시작·쉬는 시간에 한마디. 말풍선은 잠깐 뒤 사라짐
+  const professor = branch.professor;
+  const [profSay, setProfSay] = useState<{ text: string } | null>(null); // 새로 말할 때마다 새 객체라 같은 말도 다시 셈
+  const [profWave, setProfWave] = useState(0); // 손 흔들기 번호
+  const [profNear, setProfNear] = useState(false); // 교탁 앞인지 (바뀔 때만 인사)
+  useEffect(() => {
+    if (!profSay) return;
+    const t = window.setTimeout(() => setProfSay(null), PROFESSOR.sayMs);
+    return () => window.clearTimeout(t);
+  }, [profSay]);
   const [bell, setBell] = useState<"class" | "break" | null>(null);
   const [seenPhase, setSeenPhase] = useState(classNow?.phase ?? null);
   if ((classNow?.phase ?? null) !== seenPhase) {
     // 처음 읽을 때(null → 값)는 알리지 않고, 수업 ↔ 쉬는 시간이 바뀔 때만 (렌더 중 이전 값과 비교하는 React 권장 방식)
-    if (seenPhase !== null && classNow) setBell(classNow.phase);
+    if (seenPhase !== null && classNow) {
+      setBell(classNow.phase);
+      if (professor) setProfSay({ text: phaseLine(classNow.phase, classNow.period) }); // 교수도 알림
+    }
     setSeenPhase(classNow?.phase ?? null);
   }
   // 건물 규칙(캠빛 대학교 도서관): 이 지점에 있는 동안 방해금지를 켠 채로 고정, 나가면 풂
@@ -304,6 +319,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     pos.current.x = x;
     pos.current.z = z;
     bodyHeading.current = h;
+    if (professor) {
+      const close = seat === null && nearProfessor({ x, z }, professor);
+      if (close !== profNear) {
+        setProfNear(close);
+        if (close) {
+          setProfWave((n) => n + 1);
+          setProfSay({ text: professor.greeting ?? DEFAULT_GREETING });
+        }
+      }
+    }
     const id = session?.user.id;
     if (!id) return;
     // 앉아 있을 때만 고개·눈(얼굴을 찾았을 때)과 팔을 싣습니다. 다른 사람 화면에서는 거울이 아니라 실제 방향입니다.
@@ -473,6 +498,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       {holding && seatSpot && seatDesk && seatSpot.chair !== "lounger" && <DeskDrink key={seatSpot.no} item={holding} desk={seatDesk} rot={seatSpot.rot} />}
       {/* 카페 바리스타 (카운터 뒤) */}
       {barista && <BaristaNpc barista={barista} bubble={baristaSay} greetSeq={greet.seq} emote={greet.emote} />}
+      {/* 강의동 교수 (칠판 옆 교탁 뒤) */}
+      {professor && <ProfessorNpc professor={professor} bubble={profSay?.text ?? null} greetSeq={profWave} wood={branch.theme?.desk} />}
       <BranchInterior
         branch={branch}
         seat={seat}

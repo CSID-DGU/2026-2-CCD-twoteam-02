@@ -91,8 +91,8 @@ function Hat({ kind, color }: { kind: 'cap' | 'beret' | 'bandana'; color: string
   )
 }
 
-// 말풍선: 글 길이만큼 넓어지는 판 (글자·이모지가 눌리지 않게)
-function Bubble({ text }: { text: string }) {
+// 말풍선: 글 길이만큼 넓어지는 판 (글자·이모지가 눌리지 않게). 강의동 교수(ProfessorNpc)도 같이 씀
+export function Bubble({ text }: { text: string }) {
   const b = bubbleTexture(text)
   return (
     <Billboard position-y={BUBBLE_Y}>
