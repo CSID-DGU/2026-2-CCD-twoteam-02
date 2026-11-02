@@ -9,6 +9,12 @@ const M = 1 / CUP_WORLD_SCALE // 빵은 m 로 적고 모델 단위로 바꿈
 
 const mat = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.8 })
 
+// 마시멜로 색: 굽기(campfireLogic.toastColor)에 따라 Campfire 가 매 프레임 바꿈. 한 번에 하나만 들므로 재질 하나를 같이 씀
+const marshmallowMat = new THREE.MeshStandardMaterial({ color: '#fbf7f0', roughness: 0.9 })
+export function setMarshmallowColor(hex: string) {
+  marshmallowMat.color.set(hex)
+}
+
 // 테이크아웃 컵 (흰 컵 + 갈색 슬리브 + 뚜껑)
 export function makeCup() {
   const g = new THREE.Group()
@@ -59,6 +65,19 @@ export function makeFood(kind: FoodKind) {
     flour.position.y = on + 0.052
     flour.rotation.y = 0.5
     g.add(m, flour)
+  } else if (kind === 'marshmallow') {
+    // 꼬챙이에 꽂은 마시멜로 두 개 (접시 대신). 꼬챙이는 앞으로 비스듬히
+    g.remove(plate)
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.42, 6), mat('#b8935f'))
+    stick.rotation.x = Math.PI / 2 - 0.5
+    stick.position.set(0, 0.1, 0.18)
+    g.add(stick)
+    ;[0.3, 0.35].forEach((t) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.034, 12), marshmallowMat)
+      m.rotation.x = Math.PI / 2 - 0.5
+      m.position.set(0, 0.1 + Math.cos(Math.PI / 2 - 0.5) * (t - 0.18), 0.18 + Math.sin(Math.PI / 2 - 0.5) * (t - 0.18))
+      g.add(m)
+    })
   } else {
     // 샌드위치: 세모 두 쪽 (빵·양상추·햄·빵)
     ;[-0.03, 0.03].forEach((x, i) => {

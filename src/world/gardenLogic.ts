@@ -42,6 +42,7 @@ export function keepOutBoxes(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[
   const boxes: Box[] = [
     ...(lawn ? lawnKeepOut(plaza) : [{ x: 0, z: 0, w: w + GRAVEL_W * 2, d: d + GRAVEL_W * 2 }, ...gravelStrips(plaza, rects)]),
     ...plaza.paths,
+    ...campfireKeepOut(plaza),
     ...rects.map((r) => grow(r, PAD.building)),
     ...placed.map((b) => ({ x: b.entry.x, z: b.entry.z, w: PAD.entry * 2, d: PAD.entry * 2 })),
     ...plaza.benches.map((b) => ({ x: b.x, z: b.z, w: 1.6 + PAD.bench * 2, d: 1.6 + PAD.bench * 2 })),
@@ -75,6 +76,14 @@ function lawnKeepOut(plaza: PlazaLayout): Box[] {
   if (c) out.push({ x: c.x, z: c.z, w: c.r * 2 + 0.8, d: c.r * 2 + 0.8 }, ...c.bags.map((b) => ({ x: b.x, z: b.z, w: 1.6, d: 1.6 })))
   for (const r of plaza.rests ?? []) out.push({ x: r.x, z: r.z, w: 2, d: 2 })
   return out
+}
+
+// 캠프파이어 둘레 (통나무 바깥 1m 까지 풀·꽃을 비움)
+const campfireKeepOut = (plaza: PlazaLayout): Box[] => {
+  const f = plaza.campfire
+  if (!f) return []
+  const s = f.stall // 가판대 둘레 1m 도
+  return [{ x: f.x, z: f.z, w: (f.r + 1) * 2, d: (f.r + 1) * 2 }, ...(s ? [{ x: s.x, z: s.z, w: s.w + 2, d: 3.4 }] : [])]
 }
 
 const nearTree = (plaza: PlazaLayout, x: number, z: number) => plaza.trees.some((t) => Math.hypot(t.x - x, t.z - z) < TREE_CLEAR)

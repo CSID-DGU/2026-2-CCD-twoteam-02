@@ -27,6 +27,8 @@
 //   쉬는 자리(rests)는 캠퍼스 쿼드의 돗자리·빈백. 앉아도 기록 없이 쉬기만 합니다.
 //   Player 의 "앉는 자리" 번호가 건물 입구(1~)·정문(GATE_NO_BASE~)·쉬는 자리(REST_NO_BASE~)로 나뉩니다(spotKindOf).
 //   캠퍼스 가운데 등불 나무 광장의 빈백은 광장 벤치처럼 공부 자리입니다(courtyardSeats).
+import { campfireSeats, fireBox, stallBoxes } from './campfireLogic'
+import type { CampfireSpec } from './campfireLogic'
 import type { Pitch } from './ballLogic'
 import type { Box, BranchLayout, Spot } from '../space/layout'
 
@@ -69,6 +71,7 @@ export type PlazaLayout = {
   gates?: GateSpec[]
   rests?: RestSpec[]
   courtyard?: CourtyardSpec // 등불 나무 광장 (캠퍼스)
+  campfire?: CampfireSpec // 캠프파이어 (캠리단길 광장 서쪽 잔디). 통나무 의자가 공부 자리 (campfireLogic)
   walks?: Walk[] // 굽은 산책로 (캠퍼스): 점을 이은 길, w 폭
   pitch?: Pitch // 축구장 (캠퍼스): 가운데·크기·골대 폭. 공은 ballLogic
   buildings: BuildingSpec[]
@@ -209,9 +212,21 @@ export type PlacedGate = {
   posts: Box[] // 양쪽 벽돌 기둥 (부딪힘)
   fences: Box[] // 양옆 철제 울타리와 끝 작은 기둥 (부딪힘)
   fenceLen: number // 양옆 울타리 길이
+  back: Box[] // 정문 뒤(기둥·울타리 뒷면 ~ 월드 끝 울타리) 틈을 막는 상자. 돌아 들어가 문 너머 풍경 속을 걷지 않게
 }
 
 const gateFrame = (g: GateSpec) => ({ x: g.x, z: g.z, facing: g.facing })
+
+// 정문 뒤 틈: 기둥 뒷면부터 문 너머(-Z 쪽) 월드 끝까지, 끝 기둥 바깥까지의 폭(half 양쪽)으로 한 상자. 틈이 없으면 없음
+function gateBack(layout: PlazaLayout, spec: GateSpec, half: number): Box[] {
+  const back = rotate(0, -1, facingAngle(spec.facing)) // 문 너머 방향 (월드)
+  const { w, d } = layout.size
+  const edge = Math.abs(back.x) > 0.5 ? (back.x < 0 ? spec.x + w / 2 : w / 2 - spec.x) : back.z < 0 ? spec.z + d / 2 : d / 2 - spec.z
+  const gap = edge - GATE_POST / 2
+  if (gap <= 0.01) return []
+  const c = gatePoint(spec, 0, -(GATE_POST / 2 + gap / 2))
+  return [sideways(spec.facing) ? { ...c, w: gap, d: half * 2 } : { ...c, w: half * 2, d: gap }]
+}
 function gatePoint(g: GateSpec, x: number, z: number): Point {
   const c = rotate(x, z, facingAngle(g.facing))
   return { x: g.x + c.x, z: g.z + c.z }
@@ -240,6 +255,7 @@ export function placeGates(layout: PlazaLayout): PlacedGate[] {
       posts: [-postX, postX].map((x) => ({ ...gatePoint(spec, x, 0), w: GATE_POST, d: GATE_POST })),
       fences: [-1, 1].flatMap((sx) => [box(sx * fenceX, fenceLen, GATE_FENCE.t), box(sx * endX, GATE_FENCE.endPost, GATE_FENCE.endPost)]),
       fenceLen,
+      back: gateBack(layout, spec, endX + GATE_FENCE.endPost / 2),
     }
   })
 }
@@ -279,10 +295,12 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...plaza.benches.map((b) =>
       sideways(b.facing) ? { x: b.x, z: b.z, w: BENCH.d, d: BENCH.w } : { x: b.x, z: b.z, w: BENCH.w, d: BENCH.d },
     ),
-    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences]),
+    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences, ...g.back]),
     ...(plaza.board ? [boardBox(plaza.board)] : []),
     ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
+    ...(plaza.campfire ? [fireBox(plaza.campfire)] : []), // 불 둘레 돌 고리 (통나무는 안 막음)
+    ...(plaza.campfire?.stall ? stallBoxes(plaza.campfire.stall) : []), // 마시멜로 가판대 카운터·판매원
   ]
 }
 
@@ -464,6 +482,11 @@ export function benchSeats(plaza: PlazaLayout): Spot[] {
       return { no: BENCH_SEAT_BASE + i * BENCH_SEATS_PER_BENCH + j + 1, x: b.x + r.x, z: b.z + r.z, rot: angle }
     })
   })
+}
+
+// 캠프파이어 통나무 자리: 벤치 자리 다음 DB 좌석 번호 (광장 벤치 16석이면 17~). 광장 공부 자리 = 벤치 + 통나무
+export function campfireStudySeats(plaza: PlazaLayout): Spot[] {
+  return plaza.campfire ? campfireSeats(plaza.campfire, BENCH_SEAT_BASE + plaza.benches.length * BENCH_SEATS_PER_BENCH + 1) : []
 }
 
 export const isBenchSpot = (no: number) => no > BENCH_SEAT_BASE

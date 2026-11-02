@@ -4,7 +4,7 @@
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { CAMPUS_CHANNEL, LOBBY_CHANNEL } from '../realtime/participants'
 import { CAMPUS_PLACE, LOBBY_PLACE } from '../realtime/online'
-import { benchSeats, boardSpot, buildingOf, courtyardSeats, placeBuildings, placeGates, plazaObstacles, restSpots } from './worldLogic'
+import { benchSeats, boardSpot, buildingOf, campfireStudySeats, courtyardSeats, placeBuildings, placeGates, plazaObstacles, restSpots } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, PlazaLayout, WorldId } from './worldLogic'
 import type { Box, Spot } from '../space/layout'
 import world from './world.json'
@@ -39,7 +39,7 @@ export type WorldComputed = {
   placed: PlacedBuilding[]
   gates: PlacedGate[]
   rests: Spot[] // 쉬는 자리 (돗자리·빈백)
-  studySpots: Spot[] // 공부 자리: 광장은 벤치 자리, 캠퍼스는 등불 나무 광장 빈백
+  studySpots: Spot[] // 공부 자리: 광장은 벤치 자리 + 캠프파이어 통나무, 캠퍼스는 등불 나무 광장 빈백
   obstacles: Box[]
   entries: Spot[] // Player 의 "앉는 자리": 건물 입구 + 정문 입장 자리 + 쉬는 자리 + 순위 게시판 앞(#59)
   litLamps: PlazaLayout['lamps'] // 밤에 점광원을 켜는 가로등 (JSON 의 light)
@@ -56,7 +56,7 @@ export function computedOf(w: WorldConfig): WorldComputed {
       placed,
       gates,
       rests,
-      studySpots: w.id === 'campus' ? courtyardSeats(w.layout) : benchSeats(w.layout),
+      studySpots: w.id === 'campus' ? courtyardSeats(w.layout) : [...benchSeats(w.layout), ...campfireStudySeats(w.layout)],
       obstacles: plazaObstacles(w.layout, placed),
       entries: [...placed.map((b) => b.entry), ...gates.map((g) => g.entry), ...rests, ...(board ? [board] : [])],
       litLamps: w.layout.lamps.filter((l) => l.light),

@@ -85,6 +85,11 @@ import { SoccerBall } from './SoccerBall'
 import { drumView, shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { LanternCourtyard } from './LanternTree'
+import { Campfire } from './Campfire'
+import { MARSHMALLOW, eatLine, stallOrderSpot } from './campfireLogic'
+import { DrinkInView } from '../space/HeldDrink'
+import { drinkLine, heldItem, heldToast, setHeldItem, useEatKey } from '../space/heldItem'
+import type { MenuItem } from '../space/baristaLogic'
 import { WorldSky } from './WorldSky'
 import { CitySkyline } from './CitySkyline'
 import { FortunePanel } from './FortunePanel'
@@ -173,6 +178,39 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   const firstCharacter = avatarChosen === false // 캐릭터를 한 번도 고르지 않음 → 처음 고르는 창 (#146)
   const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
+  // 들고 있는 것 (카페 음료·빵, 캠프파이어 마시멜로). 지점 화면과 같은 기억(heldItem)이라 카페에서 받은 것도 들고 나옴
+  const [holding, setHoldingState] = useState(heldItem)
+  const setHolding = (item: MenuItem | null) => {
+    setHeldItem(item)
+    setHoldingState(item)
+  }
+  // 마시멜로 가판대 (캠프파이어 옆): 키오스크 자리를 빌려 앞에서 E 로 받음 (카페 주문과 같은 방식). 판매원 말풍선·동작
+  const stall = PLAZA.campfire?.stall
+  const [nearStall, setNearStall] = useState(false)
+  const [vendor, setVendor] = useState<{ say: string | null; seq: number }>({ say: null, seq: 0 })
+  const [toastName, setToastName] = useState('') // 들고 있는 마시멜로 굽기 이름 (안내 글자)
+  const [greetedStall, setGreetedStall] = useState(false)
+  if (stall && nearStall !== greetedStall) {
+    setGreetedStall(nearStall)
+    setVendor((v) => ({ say: nearStall ? '마시멜로 구워 드실래요? 🔥' : null, seq: nearStall ? v.seq + 1 : v.seq }))
+  }
+  const buyMarshmallow = () => {
+    setHolding(MARSHMALLOW)
+    setVendor((v) => ({ say: '여기요! 불 가까이서 천천히 구워 드세요 🍡', seq: v.seq + 1 }))
+  }
+  const eatTimer = useRef<number | null>(null)
+  const eat = (item: MenuItem) => {
+    const line = item.food === 'marshmallow' ? eatLine(heldToast()) : drinkLine(item)
+    setHeldItem(null)
+    setHoldingState(null)
+    setMessage(line)
+    if (eatTimer.current !== null) window.clearTimeout(eatTimer.current)
+    eatTimer.current = window.setTimeout(() => setMessage(''), 3000)
+  }
+  useEffect(() => () => {
+    if (eatTimer.current !== null) window.clearTimeout(eatTimer.current)
+  }, [])
+  useEatKey(holding, panel !== null || overlay, eat)
   // 조준점이 가리키는 사람·별자리 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim()
   const { set: setAim } = aim
@@ -363,6 +401,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter), flick: keyLabel(keymap.flick) }
+  // 들고 있으면 안내 끝에 먹기 키 (마시멜로는 굽기 정도도)
+  const eatHint = holding ? ` · ${keyLabel(keymap.eat)} ${holding.food === 'marshmallow' ? `먹기 (${toastName || '생 마시멜로'})` : holding.food ? '먹기' : '마시기'}` : ''
   const viewHint = touch
     ? view === 'top' ? '👁 1인칭으로' : '오른쪽을 끌어 둘러보기 · 👁 위에서 보기'
     : view === 'top' ? `${K.view} 1인칭으로` : locked ? `Esc 커서 보이기 · ${K.view} 위에서 보기` : `클릭해서 둘러보기 · ${K.view} 위에서 보기`
@@ -382,8 +422,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기`
           : `${aim.target.name} · ${K.interact} 프로필 보기`
         : `${aim.target.name} · ${K.interact} 오늘의 운세`
+    : nearStall && stall
+      ? `마시멜로 가판대 · ${K.interact} 받기 (무료)`
     : benchSeated
-      ? `${world.study.label} · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기`
+      ? `${world.study.label} · ${wasd}끌어서 둘러보기 · ${K.recenter} 정면 보기 · ${K.interact} 일어나기${eatHint}`
     : near !== null && spotKindOf(near) === 'bench'
       ? `${world.study.label} · ${K.interact} 앉아서 공부하기`
     : near === BOARD_NO
@@ -402,7 +444,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         : `${nearBuilding.name} · ${K.interact} 입장`
       : touch
         ? `조이스틱으로 움직여 건물 입구로 가세요\n끝까지 밀면 달리기 · ${viewHint}` // 할 일 한 줄, 조작 키는 다음 줄
-        : `WASD로 움직여 건물 입구로 가세요\nShift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
+        : `WASD로 움직여 건물 입구로 가세요${eatHint}\nShift 달리기 · ${K.recenter} 점프 · ${K.emoteWheel} 감정표현 · ${viewHint}`
 
   return (
     <>
@@ -463,6 +505,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.rests && <Mats rests={PLAZA.rests} />}
         {/* 캠퍼스 가운데 등불 나무 광장: 둥근 원목 화단 속 큰 나무 + 등불, 둘레 빈백에서 공부 */}
         {PLAZA.courtyard && <LanternCourtyard courtyard={PLAZA.courtyard} />}
+        {/* 캠리단길 광장 서쪽 캠프파이어: 통나무 의자에서 공부, 가까이 가면 장작 소리 (채팅 "소리 끔"이면 조용. 방해금지는 공부하면 자동으로 켜져서 따르지 않음 — 불멍하며 공부) */}
+        {PLAZA.campfire && <Campfire fire={PLAZA.campfire} posRef={pos} muted={chat?.muted ?? false} vendorSay={vendor.say} vendorSeq={vendor.seq} onToast={setToastName} />}
+        {/* 들고 있는 것: 1인칭으로 걷거나 앉으면 내 몸이 숨겨지므로 화면 오른쪽 아래에 */}
+        {holding && (seatSpot || view === 'first') && <DrinkInView item={holding} emoteRef={emote} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
 
         {/* 광장의 다른 참여자. 프로필 창 (#166): 1인칭은 조준점 + E, 위에서 보면 클릭. 앉아 있으면 열지 않음. 쉬는 자리·벤치에 앉은 사람은 앉은 모습으로.
@@ -489,10 +535,13 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             spots={freeSpots}
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
-            kiosk={NO_KIOSK}
+            kiosk={stall ? stallOrderSpot(stall) : NO_KIOSK}
             frozen={panel !== null || overlay}
-            onNearKiosk={() => {}}
-            onKiosk={() => {}}
+            onNearKiosk={setNearStall}
+            onKiosk={() => {
+              if (stall) buyMarshmallow()
+            }}
+            holding={holding}
             onNear={(no) => {
               setNear(no)
               if (no === null) setMessage('') // 입구에서 벗어나면 "준비 중" 안내를 내림
