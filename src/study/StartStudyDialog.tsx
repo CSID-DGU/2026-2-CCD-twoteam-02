@@ -10,6 +10,7 @@ import type { Subject } from './subjectLogic'
 import type { SubjectsApi } from './useSubjects'
 import { SubjectManager } from './SubjectManager'
 import { PHONE_SECONDS } from '../focus/focusLogic'
+import { READING_SUBJECT } from '../library/libraryLogic'
 
 // allowOtherScreen: ⓐ 다른 탭·앱 사용함 (다른 화면 판정 끔), allowDevices: ⓑ 휴대폰·학습기기 사용함 (휴대폰 판정 끔). 따로 켤 수 있습니다. (#172)
 export type StudyChoice = { subject: Subject; allowOtherScreen: boolean; allowDevices: boolean }
@@ -18,9 +19,10 @@ type Props = Pick<SubjectsApi, 'subjects' | 'loading' | 'loadError' | 'addSubjec
   onStart: (choice: StudyChoice) => void
   onCancel: () => void
   rules?: BranchRules // 건물별 규칙 (캠빛 대학교 도서관·정보관). 고정된 칸은 바꿀 수 없음
+  suggestReading?: boolean // 도서관에서 빌린 책이 있고 `독서` 과목이 없으면 `+ 독서` 칩을 보여 줌
 }
 
-export function StartStudyDialog({ subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject, onStart, onCancel, rules }: Props) {
+export function StartStudyDialog({ subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject, onStart, onCancel, rules, suggestReading }: Props) {
   const fixed = lockedSettings(rules) // 고정된 칸 (null 이면 고를 수 있음)
   const [pickedId, setPickedId] = useState<number | null>(null)
   const [adding, setAdding] = useState(false) // [+ 새 과목]을 눌러 이름 칸을 연 상태
@@ -31,20 +33,27 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, ren
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  async function handleAdd(e: FormEvent) {
-    e.preventDefault()
-    if (busy) return
+  // 과목을 만들고 고릅니다. 성공하면 true (실패하면 안내문을 error 에 둠)
+  async function addAndPick(name: string): Promise<boolean> {
+    if (busy) return false
     setBusy(true)
     setError('')
-    const result = await addSubject(newName)
+    const result = await addSubject(name)
     setBusy(false)
     if (typeof result === 'string') {
       setError(result)
-      return
+      return false
     }
     setPickedId(result.id)
-    setNewName('')
-    setAdding(false)
+    return true
+  }
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault()
+    if (await addAndPick(newName)) {
+      setNewName('')
+      setAdding(false)
+    }
   }
 
   const active = activeSubjects(subjects)
@@ -105,6 +114,11 @@ export function StartStudyDialog({ subjects, loading, loadError, addSubject, ren
                 {s.name}
               </button>
             ))}
+            {suggestReading && (
+              <button type="button" style={{ ...styles.chip, ...styles.addChip }} disabled={busy} onClick={() => void addAndPick(READING_SUBJECT)}>
+                + {READING_SUBJECT}
+              </button>
+            )}
             {!showAdd && (
               <button type="button" style={{ ...styles.chip, ...styles.addChip }} onClick={() => setAdding(true)}>
                 + 새 과목
