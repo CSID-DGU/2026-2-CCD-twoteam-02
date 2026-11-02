@@ -4,13 +4,14 @@
 import { useMemo } from "react";
 import { Billboard } from "@react-three/drei";
 import type { BranchLayout } from "./layout";
-import { CHAIR, KIOSK, SEAT, longDeskRows, spotsOf } from "./layout";
+import { CHAIR, SEAT, longDeskRows, spotsOf } from "./layout";
 import { LABEL_PX, labelTexture } from "./labelTexture";
 import { DEFAULT_COLORS, DINER_DESK, TALL_STOOL_LEG, ceilingHeightOf, colorsOf, insideTable } from "./theme";
 import { BarTable, ComputerDesk, Counter, Decor, DinerDesk, ElevatorDoor, LongDesk, LeatherChair, Lounger, LowTable, RingTable, RoundTable, SeatPad, Sofa, Stool, ThemedDoor, ThemedFloor, TubChair, WoodBooth, WoodChair } from "./Decor";
 import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { CafeCounter } from "./CafeCounter";
+import { KioskStand } from "./KioskStand";
 import { Cubicles, OfficeChair, ShellChair, Staircase } from "./StudyCafeDecor";
 import { plasterTexture } from "./studyCafeTextures";
 import { CorkBoard } from "../board/CorkBoard";
@@ -224,12 +225,7 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
         </group>
       )}
 
-      {branch.kiosk && (
-        <mesh position={[branch.kiosk.x, 0.6, branch.kiosk.z]}>
-          <boxGeometry args={[KIOSK.w, 1.2, KIOSK.d]} />
-          <meshStandardMaterial color="#22c55e" />
-        </mesh>
-      )}
+      {branch.kiosk && <KioskStand x={branch.kiosk.x} z={branch.kiosk.z} name={branch.name} />}
 
       {/* 커피 바(카페): 보이고 부딪히기만 하고 기능은 아직 없습니다. */}
       {branch.bar && (
