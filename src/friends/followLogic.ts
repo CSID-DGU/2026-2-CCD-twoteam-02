@@ -12,13 +12,14 @@ export const ARRIVE_WAIT_MS = 3000 // 도착한 장소에서 친구 위치를 �
 export const SUMMON_MS = 60 * 1000 // [부름] 줄이 유효한 시간. 지나면 "지난 부름" (오래된 부름으로 계속 따라가지 않게)
 
 type Box = { x: number; z: number; w: number; d: number }
-export type Places = { lobby: string; campus: string; campusPath: string; isBranch: (place: string) => boolean }
+// worlds: 광장 말고 바깥 월드의 접속 장소 → 주소 (캠퍼스, 해변)
+export type Places = { lobby: string; worlds: Record<string, string>; isBranch: (place: string) => boolean }
 
 // 접속 상태의 장소 → 갈 주소. 갈 수 없는 곳(회의실·일반 화면)이면 null
 export function routeOfPlace(place: string | undefined, p: Places): string | null {
   if (!place) return null
   if (place === p.lobby) return '/'
-  if (place === p.campus) return p.campusPath
+  if (p.worlds[place]) return p.worlds[place]
   if (p.isBranch(place)) return `/space?branch=${encodeURIComponent(place)}`
   return null
 }

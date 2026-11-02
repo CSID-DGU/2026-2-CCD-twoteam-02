@@ -1,13 +1,15 @@
-// 지점 배경 소리 켜기·끄기와 음량 (휴식방 물소리). 이 창이 떠 있는 동안 소리가 나고, 지점을 나가면 꺼집니다.
+// 배경 소리 켜기·끄기와 음량 (휴식방 물소리, 해변 파도). 이 창이 떠 있는 동안 소리가 나고, 그곳을 나가면 꺼집니다.
 // 소리 만드는 법은 ambience.ts 참고.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { loadAmbiencePref, saveAmbiencePref, startAmbience } from './ambience'
 import type { AmbienceHandle, AmbienceKind, AmbiencePref } from './ambience'
 
-const LABEL: Record<AmbienceKind, string> = { stream: '물소리' }
+const LABEL: Record<AmbienceKind, string> = { stream: '물소리', waves: '파도 소리' }
+const LEVEL_CHECK_MS = 400 // 위치에 따른 크기를 다시 읽는 간격
 
-export function AmbienceControl({ kind }: { kind: AmbienceKind }) {
+// levelOf: 지금 위치에서의 크기 0~1 (해변: 물과의 거리). 없으면 늘 그대로
+export function AmbienceControl({ kind, levelOf }: { kind: AmbienceKind; levelOf?: () => number }) {
   const [pref, setPref] = useState<AmbiencePref>(loadAmbiencePref)
   const handle = useRef<AmbienceHandle | null>(null)
   const volume = useRef(pref.volume) // 켤 때 쓸 지금 음량 (음량만 바꿀 때는 소리를 새로 만들지 않음)
@@ -27,6 +29,21 @@ export function AmbienceControl({ kind }: { kind: AmbienceKind }) {
       handle.current = null
     }
   }, [kind, pref.on])
+
+  const levelFn = useRef(levelOf)
+  useEffect(() => {
+    levelFn.current = levelOf
+  })
+  useEffect(() => {
+    if (!pref.on) return
+    const read = () => {
+      const f = levelFn.current
+      if (f) handle.current?.setLevel(f())
+    }
+    read()
+    const id = window.setInterval(read, LEVEL_CHECK_MS)
+    return () => window.clearInterval(id)
+  }, [pref.on])
 
   const change = (next: AmbiencePref) => {
     setPref(next)

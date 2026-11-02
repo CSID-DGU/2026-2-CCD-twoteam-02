@@ -29,6 +29,8 @@
 //   캠퍼스 가운데 등불 나무 광장의 빈백은 광장 벤치처럼 공부 자리입니다(courtyardSeats).
 import { campfireSeats, fireBox, stallBoxes } from './campfireLogic'
 import type { CampfireSpec } from './campfireLogic'
+import { beachObstacles } from './beachLogic'
+import type { BeachSpec } from './beachLogic'
 import type { Pitch } from './ballLogic'
 import type { Box, BranchLayout, Spot } from '../space/layout'
 
@@ -48,8 +50,8 @@ export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: n
 // sideWindow: 캠리단길 지점 안 옆벽 통창 (실내 기준 서쪽·동쪽 벽, cafeWindowLogic). 출입문 벽 통창은 파사드가 있으면 늘 있음
 
 // world.json 모양
-// 바깥 공간(월드) 이름. 광장(첫 화면)과 캠빛 대학교 캠퍼스
-export type WorldId = 'plaza' | 'campus'
+// 바깥 공간(월드) 이름. 광장(첫 화면), 캠빛 대학교 캠퍼스, 캠빛 해변
+export type WorldId = 'plaza' | 'campus' | 'beach'
 // 다른 월드로 가는 정문. x·z 문 가운데, w 문 폭(두 기둥 사이), facing 문 앞면(입장 쪽)이 보는 방향, label 현판 글자
 // fence: 양옆 철제 울타리 길이 (없으면 GATE_FENCE.len). 옆에 건물이 가까우면 줄입니다
 export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: Facing; label: string; fence?: number }
@@ -64,13 +66,14 @@ export type Walk = { w: number; points: number[][] } // JSON 이라 [x, z] 쌍�
 export type PlazaLayout = {
   size: { w: number; d: number } // 월드 전체 (가운데 0, 0)
   plaza: { w: number; d: number } // 가운데 바닥 (광장 돌바닥, 캠퍼스 쿼드)
-  ground?: 'stone' | 'lawn' // 가운데 바닥 모양. 없으면 돌바닥(광장), lawn 이면 잔디 쿼드(캠퍼스)
+  ground?: 'stone' | 'lawn' | 'sand' // 가운데 바닥 모양. 없으면 돌바닥(광장), lawn 이면 잔디 쿼드(캠퍼스), sand 면 모래(해변, BeachScenery 가 그림)
   title?: string // 이 월드의 이름 (안내·지도). 없으면 "광장" (지금 광장은 "캠리단길")
   spawn: { x: number; z: number; heading: number } // 주소로 바로 들어오면 서는 자리
   fountain?: { x: number; z: number; r: number } // 가운데 분수 (캠퍼스에는 없음)
   gates?: GateSpec[]
   rests?: RestSpec[]
   courtyard?: CourtyardSpec // 등불 나무 광장 (캠퍼스)
+  beach?: BeachSpec // 해변 (바다·비치체어·파라솔, beachLogic)
   campfire?: CampfireSpec // 캠프파이어 (캠리단길 광장 서쪽 잔디). 통나무 의자가 공부 자리 (campfireLogic)
   walks?: Walk[] // 굽은 산책로 (캠퍼스): 점을 이은 길, w 폭
   pitch?: Pitch // 축구장 (캠퍼스): 가운데·크기·골대 폭. 공은 ballLogic
@@ -298,6 +301,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.fences, ...g.back]),
     ...(plaza.board ? [boardBox(plaza.board)] : []),
     ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
+    ...(plaza.beach ? beachObstacles(plaza.beach, plaza.size) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
     ...(plaza.campfire ? [fireBox(plaza.campfire)] : []), // 불 둘레 돌 고리 (통나무는 안 막음)
     ...(plaza.campfire?.stall ? stallBoxes(plaza.campfire.stall) : []), // 마시멜로 가판대 카운터·판매원

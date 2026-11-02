@@ -136,3 +136,4 @@ export const channelName = (branchId: number) => `branch:${branchId}`
 // 로비는 방 하나를 모두 같이 쓴다. (#166)
 export const LOBBY_CHANNEL = 'lobby'
 export const CAMPUS_CHANNEL = 'campus' // 캠빛 대학교 캠퍼스 (광장과 따로)
+export const BEACH_CHANNEL = 'beach' // 캠빛 해변 (광장·캠퍼스와 따로)

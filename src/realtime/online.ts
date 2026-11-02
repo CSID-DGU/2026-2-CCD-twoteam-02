@@ -12,12 +12,14 @@ export const ONLINE_CHANNEL = 'online'
 // 지금 있는 곳: 'lobby', 지점 slug('byeol' 등), 회의 중('meeting:byeol', #45), 그 밖의 화면(기록·친구·프로필 페이지 등)
 export const LOBBY_PLACE = 'lobby'
 export const CAMPUS_PLACE = 'campus' // 캠빛 대학교 캠퍼스 (바깥 쿼드)
+export const BEACH_PLACE = 'beach' // 캠빛 해변
 export const ELSEWHERE = 'elsewhere'
 
 // 있는 곳을 사람이 읽는 이름으로
 export function placeLabel(place: string): string {
   if (place === LOBBY_PLACE) return '캠리단길' // 첫 화면(광장 월드). 이름만 캠리단길, 내부 이름은 lobby 그대로 (#315)
   if (place === CAMPUS_PLACE) return '캠빛 대학교'
+  if (place === BEACH_PLACE) return '캠빛 해변'
   if (place.startsWith(MEETING_PLACE_PREFIX)) {
     const name = BRANCH_LAYOUTS[place.slice(MEETING_PLACE_PREFIX.length)]?.name
     return name ? `${name} 회의 중` : '회의 중'
