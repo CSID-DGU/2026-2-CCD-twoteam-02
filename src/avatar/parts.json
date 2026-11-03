@@ -705,6 +705,11 @@
       "name": "체크 멜빵과 반팔티",
       "tint": "/models/Parts/top/check-overalls-tint.png",
       "file": "/models/Parts/top/check-overalls.png"
+    },
+    {
+      "id": "red-check-shirt",
+      "name": "빨간 체크 셔츠",
+      "file": "/models/Parts/top/red-check-shirt.png"
     }
   ],
   "bottom": [

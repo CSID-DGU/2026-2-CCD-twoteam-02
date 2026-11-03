@@ -43,6 +43,7 @@ const DRAWINGS = [
   { slot: 'top', id: 'stripe-sweater', name: '줄무늬 스웨터' },
   { slot: 'top', id: 'two-tone-top', name: '투톤 맨투맨' },
   { slot: 'top', id: 'check-overalls', name: '체크 멜빵과 반팔티' },
+  { slot: 'top', id: 'red-check-shirt', name: '빨간 체크 셔츠' },
   { slot: 'bottom', id: 'check-shorts', name: '체크 반바지' },
   { slot: 'bottom', id: 'dark-jeans', name: '찐청 긴바지' },
   { slot: 'bottom', id: 'light-jeans', name: '연청 긴바지' },
