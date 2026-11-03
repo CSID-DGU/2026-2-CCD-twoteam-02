@@ -74,6 +74,8 @@ export type RoundRoom = { r: number; color: string; fin: string; fins: number; g
 // 천장 천창: 천장(높이 h)에 반지름 R 로 뚫린 구멍에서 위로 depth 만큼 좁아지는 깔때기, 맨 위 반지름 r 은 빛나는 판
 export type Dome = { x: number; z: number; R: number; r: number; depth: number; color: string; glow: string }
 // 가운데 돌 수반 + 낮게 깔리는 안개
+// 원통 어항을 둘러싼 원형 바 (물결 라운지). barR: 바 상판 반지름
+export type Aquarium = { x: number; z: number; barR: number }
 export type Basin = { x: number; z: number; r: number; color: string; water: string }
 // 계단식 단 (강의실): 바닥보다 h 만큼 높은 판. 부딪힘 상자 — 단 위 자리는 뒤쪽 통로에서 E 로 앉음
 export type Riser = { x: number; z: number; w: number; d: number; h: number }
@@ -179,6 +181,7 @@ export type BranchTheme = {
   round?: RoundRoom // 둥근 방 (숨 라운지)
   dome?: Dome // 천장 천창 (있으면 평평한 천장에 구멍을 뚫음)
   basin?: Basin
+  aquarium?: Aquarium
   lounger?: { base: string; cushion: string; pillow: string } // 누워 쉬는 라운지 소파 색 (자리 chair 'lounger')
   risers?: Riser[] // 계단식 단 (캠빛 강의동)
   board?: Board // 칠판 (캠빛 강의동)
@@ -282,6 +285,7 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
   const pillars = (theme?.pillars ?? []).map((p) => ({ x: p.x, z: p.z, w: PILLAR.r * 2, d: PILLAR.r * 2 }))
   const bars = (theme?.bars ?? []).map((b) => ({ x: b.x, z: b.z, w: b.inner * 2, d: b.inner * 2 }))
   const basin = theme?.basin ? [{ x: theme.basin.x, z: theme.basin.z, w: theme.basin.r * 2, d: theme.basin.r * 2 }] : []
+  const aquarium = theme?.aquarium ? [{ x: theme.aquarium.x, z: theme.aquarium.z, w: theme.aquarium.barR * 2, d: theme.aquarium.barR * 2 }] : []
   const risers = (theme?.risers ?? []).map((r) => ({ x: r.x, z: r.z, w: r.w, d: r.d }))
   // Cam Study Cafe: 창가 바·책장은 벽에 붙은 상자, 큰 화분은 지름만큼 (바 자리 사이로 바 속에 들어가지 않게)
   const sc = theme?.studyCafe
@@ -291,7 +295,7 @@ export function decorBoxes(theme?: BranchTheme): { x: number; z: number; w: numb
     ...(sc?.pots ?? []).filter((p) => p.tree).map((p) => ({ x: p.x, z: p.z, w: STUDY_CAFE.potR * 2, d: STUDY_CAFE.potR * 2 })),
     ...(theme?.bookcases ?? []).map((b) => wallBoxOf(b.x, b.z, b.w, (WALL_THICKNESS / 2 + BOOKCASE.depth) * 2, b.face)), // 책장 (벽 반 두께 + 깊이)
   ]
-  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop), ...stackBoxes(theme?.stacks)]
+  return [...rings, ...tree, ...planters, ...water, ...pillars, ...bars, ...basin, ...aquarium, ...roundWallBoxes(theme?.round), ...risers, ...cafe, ...rooftopBoxes(theme?.rooftop), ...stackBoxes(theme?.stacks)]
 }
 
 // 루프탑에서 부딪히는 것: 앞 바 상판, 카운터, 퍼걸러 기둥 4개, 나무 화분, 둥근 화분, 전구줄 기둥

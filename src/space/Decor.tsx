@@ -14,6 +14,7 @@ import { CatmullRomCurve3, RepeatWrapping, TubeGeometry, Vector3 } from 'three'
 import { TILE, groundTextures, tiledPlane } from '../world/worldTextures'
 import { LABEL_PX, labelTexture } from './labelTexture'
 import { StudyCafeDecor } from './StudyCafeDecor'
+import { Aquarium } from './Aquarium'
 import { LibraryStacks } from './LibraryStacks'
 import { plasterTexture, stoneTileTexture, woodTexture } from './studyCafeTextures'
 import { POSTER_PX, brickTexture, checkerTexture, concreteTexture, marbleTexture, menuTexture, mosaicTexture, signTexture, tileTexture } from './patternTexture'
@@ -55,6 +56,7 @@ export function Decor({ theme, size, boardText }: { theme?: BranchTheme; size: S
       {theme.rugs?.map((r, i) => <RugMat key={i} rug={r} />)}
       {theme.planters?.map((pl, i) => <PlanterBox key={i} planter={pl} />)}
       {theme.water?.map((w, i) => <WaterChannel key={i} water={w} />)}
+      {theme.aquarium && <Aquarium spec={theme.aquarium} height={h} />}
       {theme.ceiling?.coves?.map((c, i) => <CoveRing key={i} cove={c} height={h} />)}
       {theme.bars?.map((bar, i) => <CurvedBar key={i} bar={bar} wood={theme.furniture?.chrome ?? '#5a3420'} marble={theme.booth?.marble ?? ['#2a1d18', '#c9a27a']} />)}
       {theme.backbar && <BackBarShelf backbar={theme.backbar} />}
