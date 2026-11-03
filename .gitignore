@@ -52,3 +52,6 @@ service-account*.json
 
 # Vercel CLI 가 만드는 프로젝트 연결 정보 (각자 컴퓨터에서만 씀)
 .vercel
+
+# Supabase CLI 가 만드는 프로젝트 연결 정보 (DB 접속 주소 포함, 각자 컴퓨터에서만 씀)
+supabase/.temp/
