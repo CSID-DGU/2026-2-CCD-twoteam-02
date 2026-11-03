@@ -6,6 +6,8 @@
 //   flowerBeds    자갈 띠 바로 바깥을 두르는 화단. 몇 m 마다 종류를 바꿔 무리 지어 심고, 잔디 곳곳에 들꽃
 // 자리는 정해진 난수로 골라 매번 같습니다(다른 사람 화면과도 같음).
 // 캠퍼스(잔디 쿼드)는 화단 띠 없이 풀 포기와 들꽃만. 굽은 길·축구장·등불나무 광장·쉬는 자리도 비움
+import { propFootprints } from './hallLogic'
+import { orbBoxes, walkPoints } from './walkLogic'
 import { GRAVEL_W, gravelStrips, placeGates } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout } from './worldLogic'
 import type { Box } from '../space/layout'
@@ -63,11 +65,18 @@ const WALK_STEP = 0.5
 function lawnKeepOut(plaza: PlazaLayout): Box[] {
   const out: Box[] = []
   const p = plaza.pitch
-  if (p) out.push({ x: p.x, z: p.z, w: p.w + 2, d: p.d + 2 * 1.4 + 2 })
+  if (p) {
+    const short = p.w + 2
+    const long = p.d + 2 * 1.4 + 2
+    out.push(p.across ? { x: p.x, z: p.z, w: long, d: short } : { x: p.x, z: p.z, w: short, d: long })
+  }
+  if (plaza.props) out.push(...propFootprints(plaza.props)) // 게시판·천막 등
+  if (plaza.court) out.push({ x: plaza.court.x, z: plaza.court.z, w: plaza.court.r * 2, d: plaza.court.r * 2 }) // 포장 중정
   for (const wk of plaza.walks ?? []) {
-    for (let i = 1; i < wk.points.length; i++) {
-      const [ax, az] = wk.points[i - 1]
-      const [bx, bz] = wk.points[i]
+    const points = walkPoints(wk) // 곡선 길은 곡선 그대로
+    for (let i = 1; i < points.length; i++) {
+      const [ax, az] = points[i - 1]
+      const [bx, bz] = points[i]
       const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / WALK_STEP))
       for (let k = 0; k <= n; k++) out.push({ x: ax + ((bx - ax) * k) / n, z: az + ((bz - az) * k) / n, w: wk.w + 0.5, d: wk.w + 0.5 })
     }
@@ -75,6 +84,7 @@ function lawnKeepOut(plaza: PlazaLayout): Box[] {
   const c = plaza.courtyard
   if (c) out.push({ x: c.x, z: c.z, w: c.r * 2 + 0.8, d: c.r * 2 + 0.8 }, ...c.bags.map((b) => ({ x: b.x, z: b.z, w: 1.6, d: 1.6 })))
   for (const r of plaza.rests ?? []) out.push({ x: r.x, z: r.z, w: 2, d: 2 })
+  out.push(...orbBoxes(plaza)) // 길가 둥근 조명
   return out
 }
 

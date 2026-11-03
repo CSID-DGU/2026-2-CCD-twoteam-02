@@ -63,9 +63,12 @@ export const MAT = {
 // 밤 빛남을 바꿉니다 (glow 0 낮 ~ 1 밤). 가로등·창문 재질은 모든 가로등·건물이 같이 쓰므로 한 번 바꾸면 전부 바뀝니다.
 // 매 프레임 불려도 값이 그대로면 재질을 건드리지 않습니다.
 let lastGlow = -1
+// 셰이더가 같이 읽는 밤 값 (캠퍼스 유리, hallGlass)
+export const NIGHT_UNIFORM = { value: 0 }
 export function setNightGlow(glow: number) {
   if (glow === lastGlow) return
   lastGlow = glow
+  NIGHT_UNIFORM.value = Math.max(0, glow)
   MAT.lampGlow.emissiveIntensity = GLOW.lampDay + (GLOW.lampNight - GLOW.lampDay) * glow
   MAT.window.emissiveIntensity = GLOW.window * glow
   for (const m of shopWindows.values()) m.emissiveIntensity = SHOP_GLOW.day + (SHOP_GLOW.night - SHOP_GLOW.day) * glow

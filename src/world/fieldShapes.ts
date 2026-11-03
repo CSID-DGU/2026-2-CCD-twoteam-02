@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { Pitch } from './ballLogic'
 import type { Walk } from './worldLogic'
-import { TILE } from './worldTextures'
+import { walkPoints } from './walkLogic'
 
 // 땅에 눕힌 판들(위치·크기·각)을 하나로 합침
 function flat(parts: THREE.BufferGeometry[]) {
@@ -20,9 +20,10 @@ function flat(parts: THREE.BufferGeometry[]) {
   return mergeGeometries(ready) ?? new THREE.BufferGeometry()
 }
 
+export const PAVER_TILE = 2 // 벽돌 그림 한 장이 덮는 크기(m). 벽돌이 늘어나지 않게 도서관 길과 같게
 export function walkGeometry(walk: Walk) {
   const parts: THREE.BufferGeometry[] = []
-  const pts = walk.points
+  const pts = walkPoints(walk) // 곡선 길은 잘게 나눈 점
   for (let i = 0; i < pts.length; i++) {
     const [x, z] = pts[i]
     const disc = new THREE.CircleGeometry(walk.w / 2, 20)
@@ -43,8 +44,8 @@ export function walkGeometry(walk: Walk) {
   const pos = g.attributes.position as THREE.BufferAttribute
   const uv = new Float32Array(pos.count * 2)
   for (let i = 0; i < pos.count; i++) {
-    uv[i * 2] = pos.getX(i) / TILE.concrete
-    uv[i * 2 + 1] = pos.getZ(i) / TILE.concrete
+    uv[i * 2] = pos.getX(i) / PAVER_TILE
+    uv[i * 2 + 1] = pos.getZ(i) / PAVER_TILE
   }
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   return g

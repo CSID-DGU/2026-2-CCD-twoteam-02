@@ -78,12 +78,17 @@ import { topic, toward } from '../lib/josa'
 import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
+import { CampusTrees } from './CampusTrees'
 import { NightFill, StringLights } from './StreetLights'
 import { ShopInteriors } from './ShopInteriors'
 import { SoccerPitch, Walks } from './CampusField'
 import { SoccerBall } from './SoccerBall'
 import { drumView, shopGlass } from './shopGlass'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
+import { CampusCourt } from './CampusCourt'
+import { MainGate } from './CampusHall'
+import { CampusProps, GardenOrbs } from './CampusProps'
+import { orbSpots } from './walkLogic'
 import { LanternCourtyard } from './LanternTree'
 import { Campfire } from './Campfire'
 import { MARSHMALLOW, eatLine, stallOrderSpot } from './campfireLogic'
@@ -500,11 +505,15 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 분수: 가까이 가면 물소리 (채팅 "소리 끔"이면 조용) */}
         {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} posRef={pos} muted={chat?.muted ?? false} />}
         {/* 나무·벤치: 캠리단길·캠퍼스 모두 풍성한 활엽수와 정원 벤치 (질감 있게) */}
-        {!PLAZA.beach && <LushTrees trees={PLAZA.trees} />}
+        {!PLAZA.beach && (PLAZA.ground === 'lawn' ? <CampusTrees trees={PLAZA.trees} /> : <LushTrees trees={PLAZA.trees} />)}
         <GardenBenches benches={PLAZA.benches} />
         <Lamps lamps={PLAZA.lamps} />
         {/* 캠퍼스: 굽은 산책로, 축구장과 같이 차는 축구공 */}
         {PLAZA.walks && <Walks walks={PLAZA.walks} />}
+        {PLAZA.court && <CampusCourt court={PLAZA.court} />}
+        {PLAZA.mainGate && <MainGate gate={PLAZA.mainGate} />}
+        {PLAZA.props && <CampusProps props={PLAZA.props} />}
+        {PLAZA.walks && <GardenOrbs orbs={orbSpots(PLAZA)} />}
         {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
         {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
@@ -519,7 +528,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           <Building key={b.slug} b={b} open={isOpen(b.slug)} near={near === b.no} glass={b.spec.shape === 'drum' ? drumView(b.slug).mat : world.id === 'plaza' && b.spec.facade ? shopGlass(b.slug, b.spec.facade) : undefined} />
         ))}
         {/* 캠퍼스 건물: 흰 코니스·담쟁이 (원통 도서관은 자기 코니스가 있어 제외, 시계탑도 같이 없어짐) */}
-        {world.id === 'campus' && PLACED.filter((b) => b.spec.shape !== 'drum').map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
+        {world.id === 'campus' && PLACED.filter((b) => !b.spec.shape).map((b) => <CampusBuildingTrim key={`trim-${b.slug}`} b={b} />)}
         {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
         {GATES.map((g) => (
           <group key={g.no}>
