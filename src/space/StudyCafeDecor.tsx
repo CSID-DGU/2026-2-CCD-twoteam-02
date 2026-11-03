@@ -3,7 +3,7 @@
 // 창가 바 뒤 통창은 진짜 창(CafeWindows, 실제 캠리단길이 보임)입니다.
 // 칸막이 책상은 수십 개라 InstancedMesh 로 재질마다 한 번에 그립니다 (studyCafeShapes).
 import { useLayoutEffect, useMemo, useRef } from 'react'
-import { AdditiveBlending, DoubleSide, ExtrudeGeometry, MeshBasicMaterial, MeshStandardMaterial, Object3D, Shape } from 'three'
+import { AdditiveBlending, Color, DoubleSide, ExtrudeGeometry, MeshBasicMaterial, MeshStandardMaterial, Object3D, Shape } from 'three'
 import type { BufferGeometry, InstancedMesh, Material } from 'three'
 import type { Box } from './layout'
 import { STUDY_CAFE, wallPose } from './theme'
@@ -368,9 +368,66 @@ function MottoSign({ motto }: { motto: Motto }) {
 
 // ── 계단 (두 층을 오가는 자리, box 는 지점 JSON 의 elevator 상자) ──
 // 벽을 따라 긴 쪽으로 오르는 원목 디딤판 계단. 방 쪽은 흰 옆판 + 유리 난간 + 원목 손잡이(앞에 서면 강조색).
-// up: 남쪽(+z) 끝에서 북쪽으로 올라 천장 구멍으로 이어짐. down: 바닥에 뚫린 계단 구멍(북쪽 끝이 입구) + 유리 난간.
+// up: 남쪽(+z) 끝에서 북쪽으로 올라 천장 구멍으로 이어짐. down: 바닥 아래로 내려가는 디딤판(북쪽 끝이 입구) + 유리 난간.
 const STAIR_STEPS = 15
 const RAIL_H = 0.95
+// 내려가는 계단: 올라가는 계단과 같은 원목 디딤판·흰 벽을 바닥 아래로 그립니다. 바닥을 도려내지 않고 그리는 순서로 구멍을 냅니다.
+//   1) 계단 속을 먼저 그림  2) 구멍 자리에 안 보이는 판(colorWrite 끔)으로 깊이만 기록  3) 나머지(바닥)를 그림
+// 바닥은 안 보이는 판보다 아래라 구멍 자리에서만 깊이 검사에 걸려 안 그려지고, 그 자리로 계단 속이 보입니다. 지점마다 바닥이 달라도 그대로 씁니다.
+const DOWN_STEP = 0.2 // 디딤판 하나 높이 (m)
+const WELL_ORDER = -2
+const HOLE_ORDER = -1
+const WELL_FADE = 0.55 // 맨 아래 디딤판 밝기
+function StairWell({ W, L }: { W: number; L: number }) {
+  const steps = useRef<InstancedMesh>(null)
+  const count = STAIR_STEPS
+  const tread = L / count
+  const depth = count * DOWN_STEP
+  useLayoutEffect(() => {
+    const m = steps.current
+    if (!m) return
+    const o = new Object3D()
+    const col = new Color()
+    for (let i = 0; i < count; i++) {
+      o.position.set(0, -(i + 1) * DOWN_STEP - 0.03, -L / 2 + (i + 0.5) * tread)
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+      const k = 1 - (i / count) * (1 - WELL_FADE)
+      m.setColorAt(i, col.setRGB(k, k, k))
+    }
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [L, tread, count])
+  const wall = (key: string, pos: [number, number, number], rotY: number, w: number) => (
+    <mesh key={key} position={pos} rotation-y={rotY} renderOrder={WELL_ORDER}>
+      <planeGeometry args={[w, depth + 0.1]} />
+      <primitive object={plaster('#efebe4')} attach="material" />
+    </mesh>
+  )
+  return (
+    <>
+      <instancedMesh ref={steps} args={[undefined, undefined, count]} renderOrder={WELL_ORDER} frustumCulled={false}>
+        <boxGeometry args={[W, 0.06, tread + 0.03]} />
+        <primitive object={oak()} attach="material" />
+      </instancedMesh>
+      {wall('l', [-W / 2, -depth / 2, 0], Math.PI / 2, L)}
+      {wall('r', [W / 2, -depth / 2, 0], -Math.PI / 2, L)}
+      {wall('n', [0, -depth / 2, -L / 2], 0, W)}
+      {wall('s', [0, -depth / 2, L / 2], Math.PI, W)}
+      {/* 맨 아래: 아래층으로 이어지는 어두운 판 */}
+      <mesh position-y={-depth - 0.05} rotation-x={-Math.PI / 2} renderOrder={WELL_ORDER}>
+        <planeGeometry args={[W, L]} />
+        <meshBasicMaterial color="#2a241e" />
+      </mesh>
+      {/* 구멍: 색 없이 깊이만. 바닥이 여기서 안 그려짐 */}
+      <mesh position-y={0.013} rotation-x={-Math.PI / 2} renderOrder={HOLE_ORDER}>
+        <planeGeometry args={[W, L]} />
+        <meshBasicMaterial colorWrite={false} />
+      </mesh>
+    </>
+  )
+}
+
 export function Staircase({ box, height, dir, near, nearColor }: { box: Box; height: number; dir: 'up' | 'down'; near: boolean; nearColor: string }) {
   const alongZ = box.d >= box.w
   const L = alongZ ? box.d : box.w // 오르는 길이
@@ -438,21 +495,7 @@ export function Staircase({ box, height, dir, near, nearColor }: { box: Box; hei
         </>
       ) : (
         <>
-          {/* 바닥 구멍: 북쪽(-z) 끝이 입구. 남쪽으로 갈수록 깊어져 어두운 디딤판.
-              루프탑 데크(y 0.01)가 바닥보다 살짝 높아서 그보다 위에 그림 (아래면 데크에 덮여 계단이 안 보였음) */}
-          <mesh position-y={0.013} rotation-x={-Math.PI / 2}>
-            <planeGeometry args={[W, L]} />
-            <meshBasicMaterial color="#201b16" />
-          </mesh>
-          {Array.from({ length: Math.ceil(STAIR_STEPS * 0.6) }, (_, i) => {
-            const k = 1 - i / (STAIR_STEPS * 0.6)
-            return (
-              <mesh key={i} position={[0, 0.016, -L / 2 + (i + 0.5) * tread]} rotation-x={-Math.PI / 2}>
-                <planeGeometry args={[W - 0.06, tread * 0.85]} />
-                <meshBasicMaterial map={woodTexture(OAK)} color={`rgb(${Math.round(210 * k)},${Math.round(180 * k)},${Math.round(140 * k)})`} />
-              </mesh>
-            )
-          })}
+          <StairWell W={W} L={L} />
           {/* 방 쪽과 남쪽 끝 유리 난간 + 원목 손잡이 */}
           {[
             { p: [sx, RAIL_H / 2, 0], len: L, r: Math.PI / 2 },
@@ -469,8 +512,6 @@ export function Staircase({ box, height, dir, near, nearColor }: { box: Box; hei
               </mesh>
             </group>
           ))}
-          {/* 구멍 아래로 보이는 1층 불빛 */}
-          <pointLight position={[0, -0.4, 0]} color={WARM} intensity={1.2} distance={3} />
         </>
       )}
     </group>
