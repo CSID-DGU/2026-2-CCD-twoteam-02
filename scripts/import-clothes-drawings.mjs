@@ -44,6 +44,10 @@ const DRAWINGS = [
   { slot: 'top', id: 'two-tone-top', name: '투톤 맨투맨' },
   { slot: 'top', id: 'check-overalls', name: '체크 멜빵과 반팔티' },
   { slot: 'bottom', id: 'check-shorts', name: '체크 반바지' },
+  { slot: 'bottom', id: 'dark-jeans', name: '찐청 긴바지' },
+  { slot: 'bottom', id: 'light-jeans', name: '연청 긴바지' },
+  { slot: 'bottom', id: 'light-denim-shorts', name: '연청 반바지' },
+  { slot: 'bottom', id: 'dark-denim-shorts', name: '찐청 반바지' },
   { slot: 'shoes', id: 'ribbon-boots', name: '리본 부츠' },
 ]
 
