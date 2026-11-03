@@ -717,6 +717,11 @@
       "id": "shorts",
       "name": "반바지",
       "tint": "/models/Parts/bottom/shorts-tint.png"
+    },
+    {
+      "id": "check-shorts",
+      "name": "체크 반바지",
+      "file": "/models/Parts/bottom/check-shorts.png"
     }
   ],
   "shoes": [
@@ -734,6 +739,12 @@
       "id": "boots",
       "name": "부츠",
       "tint": "/models/Parts/shoes/boots-tint.png"
+    },
+    {
+      "id": "ribbon-boots",
+      "name": "리본 부츠",
+      "tint": "/models/Parts/shoes/ribbon-boots-tint.png",
+      "file": "/models/Parts/shoes/ribbon-boots.png"
     }
   ]
 }
