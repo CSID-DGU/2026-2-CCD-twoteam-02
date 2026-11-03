@@ -11,6 +11,16 @@ export const SKYLINE = { inner: 230, outer: 370, count: 170, h: [12, 34], w: [12
 export const TALL = 60 // 이보다 높으면 창이 촘촘한 질감 (높은 빌딩)
 // 밤 빛남(0 낮 ~ 1 밤)이 from 부터 나타나기 시작해 to 에서 다 보임
 export const FADE = { from: 0.15, to: 0.6 }
+// 건물 아래쪽을 덮는 안개. 겹겹이 낀 안개처럼 세 층으로 나눠 천천히 옅어짐. 건물은 bottom(m)까지 내려가고 거기서 완전히 사라짐
+// layers: 층마다 top 에서 bottom 으로 내려가며 amount 만큼 투명해짐 (amount 합 1). 위 층은 살짝, 아래 층은 길게
+export const FOG = {
+  bottom: -70,
+  layers: [
+    { top: 20, bottom: 0, amount: 0.25 },
+    { top: 4, bottom: -30, amount: 0.35 },
+    { top: -20, bottom: -70, amount: 0.4 },
+  ],
+}
 
 // 밤 빛남 → 보이는 정도(0 안 보임 ~ 1 다 보임)
 export function skylineFade(glow: number): number {
@@ -26,6 +36,11 @@ function seeded(seed: number) {
     s = (s * 16807) % 2147483647
     return (s - 1) / 2147483646
   }
+}
+
+// 건물 높이 h 를 땅속 FOG.bottom 까지 늘린 상자의 가운데 높이와 전체 높이
+export function towerSpan(h: number): { y: number; height: number } {
+  return { y: (h + FOG.bottom) / 2, height: h - FOG.bottom }
 }
 
 // 두 각도 차이 (-π ~ π)
@@ -49,5 +64,6 @@ export function skylineTowers(center: Point): Tower[] {
       rot: rnd() * Math.PI,
     })
   }
-  return out
+  // 먼 건물부터 그리게 정렬. 카메라는 늘 월드 가운데 근처라, 안개로 비치는 앞 건물 너머로 뒤 건물이 제대로 보임
+  return out.sort((a, b) => Math.hypot(b.x - center.x, b.z - center.z) - Math.hypot(a.x - center.x, a.z - center.z))
 }

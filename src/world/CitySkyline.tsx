@@ -2,13 +2,14 @@
 //
 // 광장·캠퍼스(WorldScene), 카페 통창 너머 거리(CafeWindows), 루프탑(RooftopWorld)이 같은 것을 월드 가운데 둘레에 둡니다.
 // 낮에는 안 보이고 해 질 녘부터 서서히 나타납니다(skylineFade, 밤 빛남은 하늘 WorldSky 가 정함).
+// 아래쪽은 안개처럼 흐려져 사라집니다(addFog). 물체를 더 만들지 않고 건물 재질의 셰이더에서 투명도만 낮추므로 부담이 거의 없습니다.
 // 팀 조절판의 "먼 도시"로 내 화면에서만 숨길 수 있습니다(skyClock 의 skyline, 지울지 정하기 전 비교용).
 // 하늘 부품처럼 레이어 2(SKY_LAYER)에 두어 미니맵 카메라에는 안 그립니다.
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
-import { TALL, skylineFade, skylineTowers } from './skylineLogic'
+import { FOG, TALL, skylineFade, skylineTowers, towerSpan } from './skylineLogic'
 import { nightGlow } from './worldMaterials'
 import { useSkyline } from './skyClock'
 import { SKY_LAYER } from './skyLogic'
@@ -37,15 +38,51 @@ function windowMaps(rows: number, cols: number, seed: number) {
     }
     const t = new THREE.CanvasTexture(canvas)
     t.colorSpace = THREE.SRGBColorSpace
+    t.wrapT = THREE.RepeatWrapping // 땅 아래로 늘어난 부분에도 창이 이어지게 (addFog)
     return t
   }
   return { map: make(false), glow: make(true) }
 }
 
+// 안개 층들을 더한 셰이더 식 (1 다 보임 ~ 0 사라짐)
+const FOG_GLSL = FOG.layers.map((l) => `${l.amount.toFixed(2)} * smoothstep(${l.bottom.toFixed(1)}, ${l.top.toFixed(1)}, vTowerY)`).join(' + ')
+
+// 재질 셰이더에 안개를 더합니다. three.js 가 만든 셰이더 글자에 두 곳만 끼워 넣습니다(onBeforeCompile).
+//   꼭짓점: 높이를 조각으로 넘기고, 벽면의 창 질감은 건물 높이(0~꼭대기)에 맞춰 늘어나지 않게 함
+//   조각: 높이에 따라 투명도를 낮춰 뒤의 하늘이 비치게 함. 창 불빛은 먼저 잦아들도록 밝기도 같이 낮춤
+function addFog(m: THREE.MeshStandardMaterial) {
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = `varying float vTowerY;\n${shader.vertexShader}`.replace(
+      '#include <uv_vertex>',
+      `#include <uv_vertex>
+      vTowerY = (instanceMatrix * vec4(position, 1.0)).y;
+      if (abs(normal.y) < 0.5) {
+        float towerTop = instanceMatrix[3].y + 0.5 * length(instanceMatrix[1].xyz);
+        vMapUv.y = vTowerY / towerTop;
+        vEmissiveMapUv.y = vTowerY / towerTop;
+      }`,
+    )
+    shader.fragmentShader = `varying float vTowerY;\n${shader.fragmentShader}`
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        float towerFog = ${FOG_GLSL};
+        totalEmissiveRadiance *= towerFog;`,
+      )
+      .replace(
+        '#include <opaque_fragment>',
+        `diffuseColor.a *= towerFog;
+        #include <opaque_fragment>`,
+      )
+  }
+}
+
 // 높이에 따라 두 가지 빌딩 (창 촘촘함이 다름, [낮은, 높은]). 처음 쓸 때 한 번 만듦
 function towerMaterial(rows: number, cols: number, seed: number) {
   const { map, glow } = windowMaps(rows, cols, seed)
-  return new THREE.MeshStandardMaterial({ color: '#9aa3b0', map, emissive: '#ffcf8a', emissiveMap: glow, emissiveIntensity: 0, roughness: 1, transparent: true, opacity: 0 })
+  const m = new THREE.MeshStandardMaterial({ color: '#9aa3b0', map, emissive: '#ffcf8a', emissiveMap: glow, emissiveIntensity: 0, roughness: 1, transparent: true, opacity: 0 })
+  addFog(m)
+  return m
 }
 let towerMats: THREE.MeshStandardMaterial[] | null = null
 function towerMaterials() {
@@ -89,9 +126,10 @@ export function CitySkyline() {
             }}
           >
             <boxGeometry args={[1, 1, 1]} />
-            {list.map((t, k) => (
-              <Instance key={k} position={[t.x, t.h / 2, t.z]} scale={[t.w, t.h, t.d]} rotation-y={t.rot} />
-            ))}
+            {list.map((t, k) => {
+              const { y, height } = towerSpan(t.h)
+              return <Instance key={k} position={[t.x, y, t.z]} scale={[t.w, height, t.d]} rotation-y={t.rot} />
+            })}
           </Instances>
         ),
       )}
