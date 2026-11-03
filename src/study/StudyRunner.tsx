@@ -8,6 +8,7 @@ import { HOLD_LABEL, holdReason, shownStudyMs } from '../focus/focusLogic'
 import type { FocusInput, FocusStatus } from '../focus/focusLogic'
 import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
+import { steadyNow } from './steadyClock'
 import { SAVE_INTERVAL_MS, canCutChunk, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
 import { breakSegments, endSegments, pauseSegments, resumeSegments, startSegments, stepSegments, takeSegments } from './segmentLogic'
@@ -143,12 +144,12 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     if (!segments.current || !judging) return
     segments.current = stepSegments(segments.current, {
-      now: Date.now(), status: focus.status, studyMs: focus.studyMs, pendingMs: focus.pendingMs, hold,
+      now: steadyNow(), status: focus.status, studyMs: focus.studyMs, pendingMs: focus.pendingMs, hold,
     })
   }, [focus, hold, judging])
 
   useEffect(() => {
-    let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
+    let chunk: ChunkState = startChunk(steadyNow(), studyMs.current)
     // 공부하는 중에 설정에서 이 과목을 지우면 과목 번호가 없어져 저장이 외래 키 오류(23503)로 실패합니다.
     // 그때부터는 과목을 비워(null) 저장합니다. 공부 시간은 남고 내 기록에서 "(지운 과목)"으로 보입니다. (#369, 0050)
     let subjectId: number | null = choice.subject.id
@@ -176,7 +177,10 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
         subjectId = null
         ;({ error } = await supabase.from('study_logs').insert({ ...values, subject_id: null, condition }))
       }
-      if (!error) return
+      if (!error) {
+        setSaveError('') // 앞 조각이 실패했어도 저장이 다시 되면 문구를 지웁니다. (#444)
+        return
+      }
       console.error('공부 기록을 저장하지 못했습니다:', error.message)
       setSaveError('기록 저장 실패')
     }
@@ -205,7 +209,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     let due = false // 5분이 되어 자를 차례인데 보류가 끝나기를 기다리는 중
     const flush = () => {
       due = false
-      const now = Date.now()
+      const now = steadyNow()
       const { row, next } = takeChunk(chunk, studyMs.current, now)
       chunk = next
       if (row) void save(row)
@@ -219,12 +223,12 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
     const finish = () => {
       flush()
       if (!segments.current) return
-      const now = Date.now()
+      const now = steadyNow()
       void saveSegments(endSegments(segments.current, now))
       segments.current = startSegments(now, studyMs.current) // 창이 실제로 닫히지 않으면(뒤로 가기 캐시 등) 이어서 모읍니다.
     }
 
-    segments.current = startSegments(Date.now(), studyMs.current)
+    segments.current = startSegments(steadyNow(), studyMs.current)
 
     const cut = () => {
       if (due && canCutChunk(pendingNow.current, haltedNow.current)) flush()
@@ -253,7 +257,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
   useEffect(() => {
     if (lastMode.current === mode) return
     lastMode.current = mode
-    const at = Date.now()
+    const at = steadyNow()
     if (!segments.current) return
     if (mode === 'paused') segments.current = pauseSegments(segments.current, at)
     else if (mode === 'break') segments.current = breakSegments(segments.current, at)

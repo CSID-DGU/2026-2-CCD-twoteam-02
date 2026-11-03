@@ -50,7 +50,10 @@ export const startChunk = (now: number, studyMs = 0): ChunkState => ({ startedAt
 // (내림이면 마지막 조각에서 최대 1초가 항상 빠지지만, 반올림이면 오차가 ±0.5초 안에서 어느 쪽으로도 치우치지 않습니다.)
 export function takeChunk(state: ChunkState, studyMs: number, now: number): { row: ChunkRow | null; next: ChunkState } {
   if (now - state.startedAt < MIN_CHUNK_MS) return { row: null, next: state }
-  const focusedSeconds = Math.max(0, Math.round((studyMs - state.savedStudyMs) / 1000))
+  // 공부 시간이 조각 길이를 넘으면 DB 검사(0040)가 조각을 통째로 거절합니다. 시각은 뒤로 가지 않는 시계(steadyClock.ts)로 재서 보통은 넘지 않지만,
+  // 그래도 넘으면 길이만큼만 저장하고 나머지는 다음 조각으로 넘깁니다. (#444)
+  const chunkSeconds = Math.round((now - state.startedAt) / 1000)
+  const focusedSeconds = Math.min(Math.max(0, Math.round((studyMs - state.savedStudyMs) / 1000)), chunkSeconds)
   return {
     row: { startedAt: state.startedAt, endedAt: now, focusedSeconds },
     next: { startedAt: now, savedStudyMs: state.savedStudyMs + focusedSeconds * 1000 },
