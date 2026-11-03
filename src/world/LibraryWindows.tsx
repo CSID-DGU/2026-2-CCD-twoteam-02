@@ -15,6 +15,7 @@ import { ROUND_WINDOW, roundWindowHoles } from '../space/theme'
 import type { RoundRoom } from '../space/theme'
 import { StreetPeople } from './CafeWindows'
 import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
+import { PortalCamera } from './PortalCamera'
 import type { Portal } from './cafePortal'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
 import { SoccerPitch, Walks } from './CampusField'
@@ -25,7 +26,6 @@ import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { WorldSky } from './WorldSky'
 import { useWorldWeather } from './useWorldWeather'
 import { computedOf, worldOfBranch } from './worldConfig'
-import { SKY_LAYER } from './skyLogic'
 import { buildingOf } from './worldLogic'
 import { MAT } from './worldMaterials'
 import { TILE, tiledPlane } from './worldTextures'
@@ -47,6 +47,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
   const plaza = world.layout
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
+  const camera = useThree((s) => s.camera) // 화면 카메라 (포털 안 PortalCamera 에 넘김)
   const W = ROUND_WINDOW
   const paneR = round.r + W.reveal
   const holes = useMemo(() => roundWindowHoles(round), [round])
@@ -63,11 +64,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
   }, [holes, round.r, paneR])
   useEffect(() => resizePortal(portal, size.width * dpr, size.height * dpr), [portal, size, dpr])
   useEffect(() => () => disposePortal(portal), [portal])
-  useFrame(({ gl, camera }) => {
-    if ((camera as THREE.OrthographicCamera).isOrthographicCamera) return // 위에서 보기: 세로 유리가 화면에 안 보임. 1인칭으로 돌아오면 그 프레임에 화면보다 먼저 다시 그림
-    camera.layers.enable(SKY_LAYER) // 하늘은 레이어 2. 1인칭·위에서 보기로 카메라가 바뀌어도 창 밖 하늘이 빠지지 않게 매번 켬
-    renderPortal(gl, camera, portal)
-  }, -1) // 화면 그리기 전에
+  useFrame(({ gl, camera }) => renderPortal(gl, camera, portal), -1) // 화면 그리기 전에
 
   const geo = useMemo(() => {
     const pane = new ArcBuilder(1) // 유리 (안쪽을 봄)
@@ -96,6 +93,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
       {createPortal(
         // 캠퍼스 좌표 → 지점 좌표: 건물 출입문이 지점 출입문 자리에 오게 옮기고 돌림 (CafeWindows 와 같음)
         <group position={[doorX, 0, doorZ]} rotation-y={-b.angle}>
+          <PortalCamera camera={camera} />
           <group position={[-b.door.x, 0, -b.door.z]}>
             <WorldSky lamps={c.litLamps} weatherRef={weather} followRef={follow} />
             <CitySkyline />

@@ -10,6 +10,7 @@ import * as THREE from 'three'
 export const PORTAL_SCALE = 0.6
 
 // 창 판 재질: 렌더 타깃 그림을 화면 좌표로 읽음. 그림은 선형 색·톤매핑 전이라 여기서 화면처럼 바꿈
+// 투명도는 1 로 고정: 그림의 빈 곳이 투명하면 캔버스도 투명해져 페이지 배경(다크·라이트 모드 색)이 비침 (#450)
 export function portalMaterial(map: THREE.Texture) {
   return new THREE.ShaderMaterial({
     uniforms: { map: { value: map }, res: { value: new THREE.Vector2(1, 1) } },
@@ -18,7 +19,7 @@ export function portalMaterial(map: THREE.Texture) {
       uniform sampler2D map;
       uniform vec2 res;
       void main() {
-        gl_FragColor = texture2D(map, gl_FragCoord.xy / res);
+        gl_FragColor = vec4(texture2D(map, gl_FragCoord.xy / res).rgb, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -36,7 +37,9 @@ export type PortalView = { target: THREE.WebGLRenderTarget; mat: THREE.ShaderMat
 export type Portal = { scene: THREE.Scene; views: PortalView[] }
 
 // 거리 장면을 벽마다 렌더 타깃에 그림 (useFrame 에서 화면보다 먼저). 창이 화면에 보이는 벽만
+// 위에서 보기는 건너뜀: 세로 유리가 화면에 안 보임. 1인칭으로 돌아오면 그 프레임에 화면보다 먼저 다시 그림
 export function renderPortal(gl: THREE.WebGLRenderer, camera: THREE.Camera, p: Portal) {
+  if ((camera as THREE.OrthographicCamera).isOrthographicCamera) return
   camera.updateMatrixWorld()
   viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
   frustum.setFromProjectionMatrix(viewProj)
