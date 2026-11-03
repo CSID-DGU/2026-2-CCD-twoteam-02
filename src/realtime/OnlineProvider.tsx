@@ -25,6 +25,7 @@ import { ELSEWHERE, ONLINE_CHANNEL } from './online'
 import { claimSince, shouldYield } from './tabLogic'
 import type { TabMeta } from './tabLogic'
 import { OnlineContext } from './onlineContext'
+import { ConnectionNotice } from './ConnectionNotice'
 import type { OnlineEntry } from './onlineContext'
 
 type Meta = { place?: string; studying?: boolean; quiet?: boolean } & TabMeta
@@ -172,6 +173,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   return (
     <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver }}>
       {children}
+      <ConnectionNotice />
     </OnlineContext.Provider>
   )
 }
