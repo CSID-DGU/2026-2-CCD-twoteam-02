@@ -57,6 +57,7 @@
 //  소식이 STALE_MS 넘게 없는 사람은 평소처럼 지운다.
 //
 //  끊긴 동안은 아무것도 보내지 않는다. 안 그러면 channel.send 가 알아서 HTTP 로 바꿔 보내서 메시지가 샌다.
+//  끊긴 동안 화면 안내는 ConnectionNotice 가 띄운다(보기 전용 연결은 제외).
 //
 // ── 지연에 대해 ──────────────────────────────────────────────────────
 //
@@ -81,6 +82,7 @@ import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from
 import { changedEnough, pack } from './sendLogic'
 import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
 import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
+import { markDown, markUp } from './connectionStatus'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
@@ -110,6 +112,8 @@ export function useParticipants(
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
     const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
+    // 끊김 안내에 적을 표. 보기 전용 연결은 안내를 띄우지 않는다.
+    const noticeToken = client === supabase ? {} : null
 
     const members = new Map<string, number | undefined>() // presence 로 받은 "지금 여기 있는 사람"과 들어온 시각
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
@@ -316,6 +320,7 @@ export function useParticipants(
     function joined(ch: RealtimeChannel) {
       subscribed = true
       connectedAt = Date.now()
+      if (noticeToken) markUp(noticeToken)
       helloSaid = false
       if (port) {
         port.send = (to, data) => {
@@ -354,6 +359,7 @@ export function useParticipants(
       channel = null
       members.clear()
       closePorts()
+      if (noticeToken) markDown(noticeToken)
       if (snapshotTimer) clearTimeout(snapshotTimer)
       snapshotTimer = null
       void client.removeChannel(ch)
@@ -411,6 +417,7 @@ export function useParticipants(
       if (retryTimer) clearTimeout(retryTimer)
       stopProfileListen()
       closePorts()
+      if (noticeToken) markUp(noticeToken)
       void channel?.unsubscribe()
     }
   }, [room, me, isPrivate, signalRef, chatRef, client, flickRef])
