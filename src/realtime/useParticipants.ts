@@ -77,7 +77,7 @@ import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { onMyProfileChanged } from '../profile/characters'
-import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
+import { PROFILE_RETRY_MS, CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
 import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
@@ -119,24 +119,40 @@ export function useParticipants(
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
     const lastHeard = new Map<string, number>() // 마지막으로 소식을 들은 시각
 
-    // 아직 모르는 사람의 닉네임·캐릭터를 한 번에 읽어 온다.
-    async function fillProfiles(ids: string[]) {
-      const missing = ids.filter((id) => !profiles.current.has(id))
-      if (missing.length === 0) return
+    let profileLoad: Promise<void> | null = null // 지금 진행 중인 읽기. 위치가 올 때마다 새로 읽지 않고 이것을 기다린다.
+    let profileRetryAt = 0 // 읽기에 실패하면 이때까지 다시 읽지 않는다
+    const profileFailed = new Set<string>() // 못 읽은 사람. 이름 없이("…")라도 화면에 그린다.
+
+    async function loadProfiles(ids: string[]) {
       const { data, error } = await supabase
         .from('avatars')
         .select('id, nickname, avatar')
-        .in('id', missing)
-      if (error) {
-        console.error('참여자 정보를 불러오지 못했습니다:', error.message)
-        return
-      }
+        .in('id', ids)
+      if (error) console.error('참여자 정보를 불러오지 못했습니다:', error.message)
       for (const row of (data ?? []) as AvatarRow[]) {
         profiles.current.set(row.id, {
           nickname: row.nickname,
           model: avatarKey(avatarFromDb(row.avatar)), // 고른 차림 (#56). 예전 {model} 은 기본 차림
         })
       }
+      // 끊겼거나 행이 없으면 간격을 두고 다시 읽는다. 위치가 올 때마다 다시 읽으면 요청이 쏟아진다.
+      const failed = ids.filter((id) => !profiles.current.has(id))
+      for (const id of ids) profileFailed.delete(id)
+      for (const id of failed) profileFailed.add(id)
+      if (failed.length > 0) profileRetryAt = Date.now() + PROFILE_RETRY_MS
+    }
+
+    // 아직 모르는 사람의 닉네임·캐릭터를 한 번에 읽어 온다.
+    function fillProfiles(ids: string[]): Promise<void> {
+      if (profileLoad) return profileLoad
+      if (Date.now() < profileRetryAt) return Promise.resolve()
+      const missing = ids.filter((id) => !profiles.current.has(id))
+      if (missing.length === 0) return Promise.resolve()
+      profileLoad = loadProfiles(missing).finally(() => {
+        profileLoad = null
+        rebuild() // 읽는 동안 새로 온 사람이 있으면 이어서 읽는다
+      })
+      return profileLoad
     }
 
     // 위치를 받은 사람을 그린다.
@@ -152,8 +168,10 @@ export function useParticipants(
 
       void fillProfiles(ids).then(() => {
         if (!alive) return
+        // 기다리는 사이 나간 사람은 빼고, 아직 읽는 중인 사람은 기본 캐릭터로 잠깐 보이지 않게 뺀다.
+        const visible = ids.filter((id) => moves.has(id) && (profiles.current.has(id) || profileFailed.has(id)))
         setOthers(
-          ids.map((id) => {
+          visible.map((id) => {
             const p = profiles.current.get(id)
             return {
               ...(moves.get(id) as PresenceState),

@@ -137,6 +137,9 @@ export type ChatPort = {
 // 가만히 서 있어도 RESEND_IDLE_MS 마다 한 번은 보내므로, 그보다 넉넉히 잡는다.
 export const STALE_MS = 8000
 
+// 닉네임·캐릭터를 못 읽었을 때 이만큼 지나야 다시 읽는다. 끊긴 동안 요청이 쏟아지지 않게 한다.
+export const PROFILE_RETRY_MS = 5000
+
 // 지점마다 방을 따로 쓴다. 다른 지점 사람의 움직임을 받을 이유가 없다.
 export const channelName = (branchId: number) => `branch:${branchId}`
 
