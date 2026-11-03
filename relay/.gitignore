@@ -1,0 +1,8 @@
+node_modules
+.wrangler
+# 비밀값. 견본(.dev.vars.example)만 올린다
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+# wrangler types 가 만드는 파일
+worker-configuration.d.ts

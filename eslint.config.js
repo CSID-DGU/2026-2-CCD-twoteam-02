@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'relay']), // relay 는 Worker 라 타입 환경이 다르다. 자체 tsc 로 검사한다 (#451 시험 브랜치)
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

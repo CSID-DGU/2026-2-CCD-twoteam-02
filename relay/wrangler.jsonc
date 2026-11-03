@@ -1,0 +1,14 @@
+// 위치 중계 시험 서버 설정 (#451).
+// 비밀값과 Supabase 주소는 여기에 적지 않는다. 로컬은 .dev.vars, 배포는 wrangler secret put 으로 넣는다.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "twoteam-relay-trial",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "RelayRoom" }]
+  },
+  // 무료 플랜은 SQLite 기반 클래스만 쓸 수 있다
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }]
+}
