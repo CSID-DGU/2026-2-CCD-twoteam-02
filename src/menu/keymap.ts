@@ -5,7 +5,7 @@
 // 화면들은 누른 순간 getKeymap() 으로 지금 키를 읽고, 키 표시(키캡·안내 문구)는 useKeymap() 으로 바뀌면 다시 그립니다.
 import { useSyncExternalStore } from 'react'
 
-export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'flick' | 'recenter' | 'mic' | 'map' | 'bag' | 'eat'
+export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'flick' | 'recenter' | 'mic' | 'map' | 'bag' | 'eat' | 'sand'
 export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
@@ -25,6 +25,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'lobby', label: '캠리단길로' },
   { action: 'tracking', label: '트래킹 검증' },
   { action: 'mic', label: '마이크 켜기·끄기 (회의실)' },
+  { action: 'sand', label: '모래에 쓰기 (해변)' },
 ]
 
 export const DEFAULT_KEYMAP: Keymap = {
@@ -43,6 +44,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   map: 'KeyG', // 전체 지도 (#300). M 은 마이크가 써서 G
   bag: 'KeyB', // 가방: 스터디 플래너·메모장
   eat: 'KeyC', // 들고 있는 음료·빵·마시멜로 먹기
+  sand: 'KeyN', // 해변 모래에 글씨·그림
 }
 
 // 바꿀 수 없는 키: 이동(WASD·방향키), 달리기(Shift), 채팅(Enter), 창 닫기(Esc), 감정표현(1~8), 그 밖의 조작 키
