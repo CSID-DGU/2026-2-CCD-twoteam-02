@@ -5,7 +5,7 @@
 
 // ── 기준값 ───────────────────────────────────────────────────────────
 export const TICK_MS = 100 // 받은 변경을 이 간격으로 합쳐 내보낸다
-export const MAX_ROOM_CONNECTIONS = 100 // 방 정원(연결 수). ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다
+export const MAX_ROOM_CONNECTIONS = 100 // 방 정원(연결 수). ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다. 채널 정원은 화면 쪽에서 따로 정한다 (#442)
 export const MAX_CONNECTIONS_PER_USER = 3 // 한 사람이 한 방에 동시에 둘 수 있는 연결. 넘으면 가장 오래된 것을 닫는다
 export const MAX_MESSAGE_BYTES = 2048 // 메시지 하나의 크기 상한. 걷는 사람의 위치 메시지는 약 200바이트다
 export const SOFT_MESSAGES_PER_SEC = 10 // 연결당 초당 이만큼까지 처리한다. 넘은 메시지는 버린다 (앱은 초당 4회)

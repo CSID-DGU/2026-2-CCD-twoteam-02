@@ -1,11 +1,11 @@
-// 위치 중계 Worker 입구 (#451). 시험 전용.
+// 위치 중계 Worker 입구 (#451, #464).
 //
 // 주소: wss://{worker}/room/{방 이름}
 // 토큰은 WebSocket 부프로토콜 칸에 ['relay.v1', 토큰] 으로 받는다. 브라우저의 WebSocket 은 머리글을 적을 수 없고,
 // 주소에 넣으면 접속 기록에 토큰이 남기 때문이다.
 //
 // 토큰을 여기서 확인하고 통과한 연결만 방 객체로 넘긴다. 가짜 접속으로 객체가 깨어나 요금이 들지 않게 하려는 것이다.
-// 우회 설정은 두지 않는다. 측정 봇은 JWT_HS256_SECRET 으로 직접 서명한 토큰을 쓴다(값이 없으면 HS256 은 모두 거절).
+// 우회 설정은 두지 않는다. 측정 봇은 시험용 Worker 에서만 JWT_HS256_SECRET 으로 직접 서명한 토큰을 쓴다(값이 없으면 HS256 은 모두 거절, 정식 서버에는 넣지 않는다).
 import { verifyToken } from './auth'
 import { isAllowedRoom } from './relayLogic'
 import { EXPIRES_HEADER, RelayRoom, SUBPROTOCOL, USER_HEADER } from './room'
