@@ -118,6 +118,10 @@ import { useAim } from '../space/useAim'
 import { aimWins } from '../space/aimLogic'
 import type { AimTarget } from '../space/aimLogic'
 import { RankingBoard } from './RankingBoard'
+import { SandBar, SandCamera, SandMarks, SandPad } from './SandWriting'
+import { startBoard, useSandMarks } from './useSandMarks'
+import type { SandBoard } from './useSandMarks'
+import { canWrite } from './sandLogic'
 import { RankingPanel } from '../ranking/RankingPanel'
 import { PortraitStudio } from '../ranking/PortraitStudio'
 import { useRanking } from '../ranking/useRanking'
@@ -188,10 +192,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
+  const sand = useSandMarks(!!PLAZA.beach) // 해변 모래 글씨·그림 (모두에게 보임)
+  const [sandBoard, setSandBoard] = useState<SandBoard | null>(null) // 지금 쓰는 판 (쓰는 동안 움직이지 않음)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
   const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   const firstCharacter = avatarChosen === false // 캐릭터를 한 번도 고르지 않음 → 처음 고르는 창 (#146)
-  const overlay = fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
+  const overlay = sandBoard !== null || fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   // 들고 있는 것 (카페 음료·빵, 캠프파이어 마시멜로). 지점 화면과 같은 기억(heldItem)이라 카페에서 받은 것도 들고 나옴
   const [holding, setHoldingState] = useState(heldItem)
   const setHolding = (item: MenuItem | null) => {
@@ -412,6 +418,24 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
 
   const nearBuilding = PLACED.find((b) => b.no === near)
   const nearGate = GATES.find((g) => g.no === near)
+  // 해변에서 모래에 쓰기 시작. 서서 1인칭일 때 모래 위에서만
+  useEffect(() => {
+    if (!PLAZA.beach) return
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== getKeymap().sand || e.repeat || panelRef.current || seat !== null || view !== 'first' || !PLAZA.beach) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (!canWrite(pos.current, heading.current, PLAZA.beach, PLAZA.size)) {
+        setMessage('모래 위에서 바다·산책로가 아닌 쪽을 보고 쓸 수 있어요')
+        return
+      }
+      if (document.pointerLockElement) document.exitPointerLock()
+      setMessage('')
+      setSandBoard(startBoard(pos.current, heading.current))
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [PLAZA, seat, view])
+
   // 안내 문구에 보일 키 글자 (설정에서 바꾼 키를 따라감, #250)
   const keymap = useKeymap()
   const K = { view: keyLabel(keymap.view), interact: keyLabel(keymap.interact), emoteWheel: keyLabel(keymap.emoteWheel), recenter: keyLabel(keymap.recenter), flick: keyLabel(keymap.flick) }
@@ -424,7 +448,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 자리 앞에서 E 가 할 일이 있는지: 입장·정문·쉬는 자리, 게시판 열기, 벤치 자리 잡기(PC). 문 닫은 건물은 안내만이라 아님
   // 할 일이 있으면 조준한 사람·별자리보다 먼저 (#408, Player 와 같은 규칙)
   const placeReady = near !== null && acts(near)
-  const goal = PLAZA.beach ? '비치체어로 가세요' : '건물 입구로 가세요'
+  const goal = PLAZA.beach ? `비치체어로 가세요 · ${keyLabel(keymap.sand)} 모래에 쓰기` : '건물 입구로 가세요'
   const hint = panel || cafe.conflict
     ? ''
     : studyPaused
@@ -467,7 +491,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       <div ref={shakeBox} style={{ width: '100%', height: '100%' }}>
       {/* 폰은 화면 해상도를 낮춰 가볍게, 화면 끌기가 확대·스크롤로 새지 않게 (#377) */}
       <Canvas dpr={touch ? [1, TOUCH_DPR] : undefined} style={{ touchAction: 'none' }}>
-        {seatSpot ? (
+        {sandBoard ? (
+          <SandCamera board={sandBoard} />
+        ) : seatSpot ? (
           // 돗자리·빈백·벤치에 앉았으면 그 자리 시점 (빈백은 기대 누워 조금 위를 봄, spot 의 y·lie). 벤치는 지점 좌석과 같은 좌우 60도씩
           <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={() => {}} paused={panel !== null || overlay} />
         ) : view === 'first' ? (
@@ -492,6 +518,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             <BeachSeats beach={PLAZA.beach} />
             <BeachBridge />
             <BeachShells beach={PLAZA.beach} size={PLAZA.size} />
+            <SandMarks marks={sand.marks} />
+            {sandBoard && <SandPad board={sandBoard} write={sand.write} />}
             <SandSteps posRef={pos} size={PLAZA.size} muted={(chat?.muted ?? false) || seat !== null} />
             {PLAZA.beach.torches && <BeachLights torches={PLAZA.beach.torches} />}
           </>
@@ -640,6 +668,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람·별자리를 가리키고 E 를 누르면 프로필·운세 (#166, #321) */}
