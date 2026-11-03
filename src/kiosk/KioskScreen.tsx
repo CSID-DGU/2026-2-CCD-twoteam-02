@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
 import SeatMap from './SeatMap'
 import { formatMinutes } from './duration'
-import branch from '../space/branches/byeol.json'
+import type { BranchLayout } from '../space/layout'
 
 type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done' | 'extend'
 
@@ -29,11 +29,12 @@ const untilText = (iso: string) =>
 type Props = {
   // 누구 것으로 기록할지는 화면이 정하지 않는다. assign_seat 함수가 서버에서 auth.uid() 로 확인한다.
   branchId?: number
+  branch: BranchLayout // 지금 서 있는 층의 배치 (이름·좌석 수·배치도). 1층·2층 키오스크가 서로 다른 값을 받는다
   onClose: () => void
   onAssigned?: (seatNumber: number | null) => void // 반납하면 null 을 넘긴다
 }
 
-export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props) {
+export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned }: Props) {
   const [step, setStep] = useState<Step>('loading')
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [minutes, setMinutes] = useState(60)
@@ -211,7 +212,7 @@ export default function KioskScreen({ branchId = 1, onClose, onAssigned }: Props
                 현황 새로고침
               </button>
             </p>
-            <SeatMap occupied={occupied} selected={picked} onSelect={setPicked} />
+            <SeatMap branch={branch} occupied={occupied} selected={picked} onSelect={setPicked} />
             <div style={styles.legend}>
               <span style={{ color: '#4ade80' }}>■ 빈자리</span>
               <span style={{ color: '#6b7280' }}>■ 이용 중</span>

@@ -1,12 +1,13 @@
 // 키오스크 좌석 배치도.
 //
-// 좌표의 원본은 src/space/branches/byeol.json 이다. 지점 공간 화면과 같은 값을 쓰므로
+// 좌표는 지금 서 있는 층의 지점 데이터(branch)다. 1층·2층은 배치가 달라, 지점 공간 화면과 같은 값을 받아야
 // 여기서 고른 자리가 2D 공간의 그 자리와 정확히 맞는다.
 // 위에서 내려다본 그림이라 x 는 가로, z 는 세로로 그대로 쓴다.
-import branch from '../space/branches/byeol.json'
 import { SEAT } from '../space/layout'
+import type { BranchLayout } from '../space/layout'
 
 type Props = {
+  branch: BranchLayout
   occupied: Set<number> // 이용 중인 좌석 번호
   selected: number | null
   onSelect: (seatNumber: number) => void
@@ -22,7 +23,7 @@ const COLOR = {
   selected: '#f59e0b',
 }
 
-export default function SeatMap({ occupied, selected, onSelect }: Props) {
+export default function SeatMap({ branch, occupied, selected, onSelect }: Props) {
   const { w, d } = branch.size
   const meetingDoor = branch.meetingDoor // 회의실 문 (동쪽 벽, #45)
 
@@ -44,25 +45,30 @@ export default function SeatMap({ occupied, selected, onSelect }: Props) {
         />
       ))}
 
-      <g>
-        <rect
-          x={meetingDoor.x - meetingDoor.w / 2}
-          y={meetingDoor.z - meetingDoor.d / 2}
-          width={meetingDoor.w}
-          height={meetingDoor.d}
-          fill={COLOR.door}
-        />
-        <text x={meetingDoor.x - 0.4} y={meetingDoor.z} fontSize={0.6} fill="#2f6b43" textAnchor="end" dominantBaseline="middle">
-          회의실
-        </text>
-      </g>
+      {/* 회의실은 1층에만 있다 */}
+      {meetingDoor && (
+        <g>
+          <rect
+            x={meetingDoor.x - meetingDoor.w / 2}
+            y={meetingDoor.z - meetingDoor.d / 2}
+            width={meetingDoor.w}
+            height={meetingDoor.d}
+            fill={COLOR.door}
+          />
+          <text x={meetingDoor.x - 0.4} y={meetingDoor.z} fontSize={0.6} fill="#2f6b43" textAnchor="end" dominantBaseline="middle">
+            회의실
+          </text>
+        </g>
+      )}
 
-      <g>
-        <rect x={branch.kiosk.x - 0.4} y={branch.kiosk.z - 0.3} width={0.8} height={0.6} fill={COLOR.kiosk} />
-        <text x={branch.kiosk.x} y={branch.kiosk.z + 1.1} fontSize={0.6} fill="#2f6b43" textAnchor="middle">
-          키오스크
-        </text>
-      </g>
+      {branch.kiosk && (
+        <g>
+          <rect x={branch.kiosk.x - 0.4} y={branch.kiosk.z - 0.3} width={0.8} height={0.6} fill={COLOR.kiosk} />
+          <text x={branch.kiosk.x} y={branch.kiosk.z + 1.1} fontSize={0.6} fill="#2f6b43" textAnchor="middle">
+            키오스크
+          </text>
+        </g>
+      )}
 
       {branch.seats.map((s) => {
         const isOccupied = occupied.has(s.no)

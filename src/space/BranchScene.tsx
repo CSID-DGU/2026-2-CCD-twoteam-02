@@ -701,6 +701,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     {kioskOpen && (
       <KioskScreen
         branchId={BRANCH_ID}
+        branch={branch}
         onClose={() => setKioskOpen(false)}
         onAssigned={setMySeat}
       />
