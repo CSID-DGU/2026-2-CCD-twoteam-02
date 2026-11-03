@@ -699,6 +699,12 @@
       "name": "투톤 맨투맨",
       "tint": "/models/Parts/top/two-tone-top-tint.png",
       "file": "/models/Parts/top/two-tone-top.png"
+    },
+    {
+      "id": "check-overalls",
+      "name": "체크 멜빵과 반팔티",
+      "tint": "/models/Parts/top/check-overalls-tint.png",
+      "file": "/models/Parts/top/check-overalls.png"
     }
   ],
   "bottom": [
