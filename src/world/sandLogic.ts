@@ -3,6 +3,8 @@
 //   DB 에 저장하지 않고 실시간 전송만 씁니다. 메시지는 누구나 보낼 수 있으므로 받을 때 readMsg 로 다시 검사합니다.
 import { BANNED_WORDS, normalizeNickname } from '../auth/nicknameRules'
 import { onSand } from './beachLogic'
+import { handFontFromDb } from '../planner/handFonts'
+import type { HandFontId } from '../planner/handFonts'
 
 export const LIFE_MS = 60000 // 남긴 뒤 사라지기까지 1분
 const FADE_MS = 6000 // 마지막에 옅어지는 시간
@@ -12,7 +14,7 @@ const ID_MAX = 48
 const WORLD_MAX = 500 // 좌표가 이보다 크면 잘못된 메시지
 
 type P = { x: number; z: number }
-export type SandOp = { t: 'line'; p: number[] } | { t: 'text'; s: string; u: number; v: number }
+export type SandOp = { t: 'line'; p: number[] } | { t: 'text'; s: string; u: number; v: number; f: HandFontId } // f: 쓴 사람의 손글씨 글씨체
 export type SandMsg = { id: string; by: string; x: number; z: number; rot: number; age: number; op: SandOp }
 export type SandMark = { id: string; by: string; x: number; z: number; rot: number; at: number; ops: SandOp[] }
 
@@ -59,7 +61,7 @@ const coord = (n: unknown): n is number => typeof n === 'number' && Number.isFin
 const name = (s: unknown): s is string => typeof s === 'string' && s.length > 0 && s.length <= ID_MAX
 
 function readOp(o: unknown): SandOp | null {
-  const op = o as { t?: unknown; p?: unknown; s?: unknown; u?: unknown; v?: unknown } | null
+  const op = o as { t?: unknown; p?: unknown; s?: unknown; u?: unknown; v?: unknown; f?: unknown } | null
   if (!op || typeof op !== 'object') return null
   if (op.t === 'line') {
     const p = op.p
@@ -68,7 +70,7 @@ function readOp(o: unknown): SandOp | null {
   }
   if (op.t === 'text' && typeof op.s === 'string' && unit(op.u) && unit(op.v)) {
     const s = cleanText(op.s)
-    return s ? { t: 'text', s, u: op.u, v: op.v } : null
+    return s ? { t: 'text', s, u: op.u, v: op.v, f: handFontFromDb(op.f) } : null
   }
   return null
 }

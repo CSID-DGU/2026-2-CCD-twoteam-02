@@ -10,14 +10,23 @@ import * as THREE from 'three'
 import { BOARD, LIFE_MS, LIMIT, cleanText, markAlpha, toBoard } from './sandLogic'
 import type { SandMark, SandOp } from './sandLogic'
 import type { SandBoard } from './useSandMarks'
+import { HAND_FONTS } from '../planner/handFonts'
+import type { HandFontId } from '../planner/handFonts'
+import { useHandFont } from '../planner/useHandFont'
 
 const CANVAS_PX = 512
-const INK = { dark: 'rgba(96,68,40,0.78)', light: 'rgba(255,240,208,0.6)', line: 13, emboss: 2.5, font: 74 } // 파인 곳, 파인 가장자리 빛, 획 굵기(px), 빛 어긋남(px), 글자 크기(px)
+const INK = { dark: 'rgba(96,68,40,0.78)', light: 'rgba(255,240,208,0.6)', line: 13, emboss: 2.5, font: 88 } // 파인 곳, 파인 가장자리 빛, 획 굵기(px), 빛 어긋남(px), 글자 크기(px)
 const LOOK = { y: 3.5 } // 내려다보는 높이(m)
 const MARK_Y = 0.015 // 모래 위로 살짝
 const STEP_MIN = 0.008 // 획 점 사이 최소 거리(판 좌표). 점 수를 줄임
 
 // 파인 모래처럼: 어긋난 밝은 선 위에 어두운 선 (캔버스에 획 하나 더 그림)
+// 쓴 사람의 손글씨 글씨체 (플래너에서 고른 것). 크기는 글씨체별 배율을 따름
+function fontOf(id: HandFontId) {
+  const f = HAND_FONTS.find((x) => x.id === id) ?? HAND_FONTS[0]
+  return `400 ${Math.round(INK.font * f.scale)}px ${f.family}`
+}
+
 function drawOp(g: CanvasRenderingContext2D, op: SandOp) {
   const S = CANVAS_PX
   const paint = (dx: number, color: string) => {
@@ -33,7 +42,7 @@ function drawOp(g: CanvasRenderingContext2D, op: SandOp) {
       for (let i = 2; i < op.p.length; i += 2) g.lineTo(op.p[i] * S, op.p[i + 1] * S)
       g.stroke()
     } else {
-      g.font = `700 ${INK.font}px "Noto Sans KR", system-ui, sans-serif`
+      g.font = fontOf(op.f)
       g.textAlign = 'center'
       g.textBaseline = 'middle'
       g.fillText(op.s, op.u * S, op.v * S, S * 0.94)
@@ -44,18 +53,25 @@ function drawOp(g: CanvasRenderingContext2D, op: SandOp) {
   paint(0, INK.dark)
 }
 
-type Look = { g: CanvasRenderingContext2D; texture: THREE.CanvasTexture; material: THREE.MeshStandardMaterial }
+type Look = { g: CanvasRenderingContext2D; texture: THREE.CanvasTexture; material: THREE.MeshStandardMaterial; queue: Promise<unknown> }
 function makeLook(): Look {
   const c = document.createElement('canvas')
   c.width = c.height = CANVAS_PX
   const texture = new THREE.CanvasTexture(c)
   texture.colorSpace = THREE.SRGBColorSpace
   texture.anisotropy = 4
-  return { g: c.getContext('2d')!, texture, material: new THREE.MeshStandardMaterial({ map: texture, transparent: true, depthWrite: false, roughness: 1 }) }
+  return { g: c.getContext('2d')!, texture, material: new THREE.MeshStandardMaterial({ map: texture, transparent: true, depthWrite: false, roughness: 1 }), queue: Promise.resolve() }
 }
+// 글씨체 파일을 받은 뒤에 그림 (안 받은 채 그리면 다른 글꼴로 남음). 순서가 섞이지 않게 줄 세움. 못 받아도 그림
 function paintOps(look: Look, ops: SandOp[]) {
-  for (const op of ops) drawOp(look.g, op)
-  look.texture.needsUpdate = true
+  const fonts = ops.flatMap((op) => (op.t === 'text' ? [document.fonts.load(fontOf(op.f), op.s)] : []))
+  look.queue = look.queue
+    .then(() => Promise.all(fonts))
+    .catch(() => undefined)
+    .then(() => {
+      for (const op of ops) drawOp(look.g, op)
+      look.texture.needsUpdate = true
+    })
 }
 function freeLook(look: Look) {
   look.texture.dispose()
@@ -206,6 +222,8 @@ const TEXT_LINE = { first: 0.2, step: 0.17 }
 export function SandBar({ board, write, onClose }: { board: SandBoard; write: (b: SandBoard, op: SandOp) => void; onClose: () => void }) {
   const [text, setText] = useState('')
   const [note, setNote] = useState('')
+  const { font } = useHandFont()
+  const family = (HAND_FONTS.find((x) => x.id === font) ?? HAND_FONTS[0]).family
   const lines = useRef(0)
   const stamp = () => {
     if (!text.trim()) return
@@ -216,7 +234,7 @@ export function SandBar({ board, write, onClose }: { board: SandBoard; write: (b
     }
     const v = TEXT_LINE.first + (lines.current % 5) * TEXT_LINE.step
     lines.current++
-    write(board, { t: 'text', s, u: 0.5, v })
+    write(board, { t: 'text', s, u: 0.5, v, f: font })
     setText('')
     setNote('')
   }
@@ -231,7 +249,7 @@ export function SandBar({ board, write, onClose }: { board: SandBoard; write: (b
     <div style={bar} onPointerDown={(e) => e.stopPropagation()}>
       <span>마우스로 끌어 그리기</span>
       <input
-        style={inputStyle}
+        style={{ ...inputStyle, fontFamily: family, fontSize: 18 }}
         value={text}
         maxLength={LIMIT.text}
         placeholder="글자를 치고 Enter"
