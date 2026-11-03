@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 그리기 틀(2048×2048)에 그린 상의 그림을 스킨 부품으로 넣기 (#56)
+// 그리기 틀(2048×2048)에 그린 상의·하의·신발 그림을 스킨 부품으로 넣기 (#56)
 //
 // art/clothes-guide 의 틀을 밑그림으로 그려 투명 PNG 로 내보낸 그림을 받는다(art/README.md).
 // 틀은 몸의 면을 칸으로 펼쳐 놓은 격자판이다. 한 칸은 머리카락 그림 한 칸과 같은 크기이고, 캔버스 전체는 32×32칸이다.
@@ -7,7 +7,7 @@
 //   1) 작은 그림은 픽셀을 그대로 키워 2048 로 맞추고, 면마다 스킨(1024×1024)의 그 자리(src/avatar/uvFaces.json)에 옮긴다. 투명한 곳은 맨살이 보인다.
 //   2) 색을 나눈다. 흰색은 고른 상의 색을 입힐 그림(-tint), 나머지(회색·검정 포함)는 칠한 색 그대로인 색 고정 그림으로.
 //   3) 면 방향마다 밝기(SHADE)를 곱한다. 몸·다른 옷과 같은 느낌이 되고, 그릴 때 신경 쓰지 않아도 된다.
-//   4) 왼팔만 그리므로 오른팔은 좌우를 뒤집어 만든다(바깥쪽 무늬가 양팔 모두 바깥에 오게).
+//   4) 왼팔·왼다리만 그리므로 오른쪽은 좌우를 뒤집어 만든다(바깥쪽 무늬가 양쪽 모두 바깥에 오게).
 //   5) 틀에 없는 아랫면은 그 위 면의 아래 끝 줄을 이어 칠한다.
 //
 // 쓰는 법: node scripts/import-clothes-drawings.mjs [그림폴더] [내보낼폴더]
@@ -33,6 +33,9 @@ const SEEN = 8 / 255 // 이보다 투명한 픽셀은 없는 것으로 본다
 const cells = (set) => Object.fromEntries(Object.entries(set).map(([d, r]) => [d, r.map((v) => v * CELL)]))
 const TORSO = cells({ right: [2, 6, 6, 9], front: [8, 6, 8, 9], left: [16, 6, 6, 9], back: [22, 6, 8, 9], top: [8, 0, 8, 6] })
 const ARM = cells({ right: [2, 20, 4, 11], front: [6, 20, 4, 11], left: [10, 20, 4, 11], back: [14, 20, 4, 11], top: [6, 16, 4, 4] })
+// 하의·신발 틀은 다리 옆면 자리가 같고, 하의에는 다리 위 칸이, 신발에는 발바닥 칸이 있다
+const LEG_SIDES = cells({ right: [2, 4, 4, 10], front: [6, 4, 4, 10], left: [10, 4, 4, 10], back: [14, 4, 4, 10] })
+const LEG = { bottom: { ...LEG_SIDES, ...cells({ top: [6, 0, 4, 4] }) }, shoes: { ...LEG_SIDES, ...cells({ bottom: [6, 14, 4, 4] }) } }
 
 // 넣을 그림. 그림 파일은 그림폴더/칸/id.png
 const DRAWINGS = [
@@ -40,6 +43,8 @@ const DRAWINGS = [
   { slot: 'top', id: 'stripe-sweater', name: '줄무늬 스웨터' },
   { slot: 'top', id: 'two-tone-top', name: '투톤 맨투맨' },
   { slot: 'top', id: 'check-overalls', name: '체크 멜빵과 반팔티' },
+  { slot: 'bottom', id: 'check-shorts', name: '체크 반바지' },
+  { slot: 'shoes', id: 'ribbon-boots', name: '리본 부츠' },
 ]
 
 // 작은 그림의 픽셀을 그대로 키워 2048 로 맞춘다 (32·64·128 … 처럼 2048 을 나누어떨어지는 정사각형만)
@@ -89,8 +94,16 @@ function place(from, to, src, dest, shade, { flip = false, row = null } = {}) {
 }
 
 // 그림 한 벌 → 스킨 크기 그림 하나 (색을 입힐 부분 또는 색 고정 부분)
-function toSkin(from, faces) {
+function toSkin(from, faces, slot) {
   const out = Buffer.alloc(SKIN * SKIN * 4)
+  if (slot !== 'top') {
+    const set = LEG[slot]
+    for (const f of faces['leg-left']) if (set[f.dir]) place(from, out, set[f.dir], f, SHADE[f.dir])
+    // 오른다리: 왼다리를 좌우로 뒤집은 모습 (오른팔과 같음)
+    const mirror = { ...set, right: set.left, left: set.right }
+    for (const f of faces['leg-right']) if (mirror[f.dir]) place(from, out, mirror[f.dir], f, SHADE[f.dir], { flip: true })
+    return out
+  }
   for (const f of faces.torso) {
     if (f.dir === 'bottom') place(from, out, TORSO.front, f, SHADE.bottom, { row: 1 })
     else place(from, out, TORSO[f.dir], f, SHADE[f.dir])
@@ -124,7 +137,7 @@ for (const d of DRAWINGS) {
   if (!fs.existsSync(file)) throw new Error(`${file} 가 없음`)
   const { tint, fixed } = split(upscale(readPng(file), file))
   const item = { id: d.id, name: d.name }
-  const tintSkin = toSkin(tint, faces), fixedSkin = toSkin(fixed, faces)
+  const tintSkin = toSkin(tint, faces, d.slot), fixedSkin = toSkin(fixed, faces, d.slot)
   if (hasPixels(tintSkin)) {
     writePng(path.join(OUT, d.slot, `${d.id}-tint.png`), tintSkin, SKIN, SKIN)
     item.tint = `/models/Parts/${d.slot}/${d.id}-tint.png`
