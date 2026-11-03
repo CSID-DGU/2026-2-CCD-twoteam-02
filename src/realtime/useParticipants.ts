@@ -58,6 +58,7 @@
 //
 //  끊긴 동안은 아무것도 보내지 않는다. 안 그러면 channel.send 가 알아서 HTTP 로 바꿔 보내서 메시지가 샌다.
 //  끊긴 동안 화면 안내는 ConnectionNotice 가 띄운다(보기 전용 연결은 제외).
+//  브라우저의 offline·online 신호도 받아, 인터넷이 끊기면 안내를 바로 띄우고 돌아오면 바로 다시 붙는다.
 //
 // ── 지연에 대해 ──────────────────────────────────────────────────────
 //
@@ -391,6 +392,22 @@ export function useParticipants(
       if (flickPort) flickPort.send = null
     }
 
+    // 브라우저가 인터넷이 끊겼다고 알리면 안내를 바로 띄운다. 연결이 끊긴 것을 라이브러리가 아는 데는 최대 50초쯤 걸린다.
+    function wentOffline() {
+      if (noticeToken) markDown(noticeToken)
+    }
+    // 인터넷이 돌아오면 길어진 대기를 건너뛰고 첫 재시도 간격으로 다시 붙는다. 연결이 살아 있었으면 안내만 내린다.
+    function cameOnline() {
+      if (subscribed) {
+        if (noticeToken) markUp(noticeToken)
+      } else if (!channel && retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = setTimeout(connect, reconnectDelay(1, Math.random()))
+      }
+    }
+    window.addEventListener('offline', wentOffline)
+    window.addEventListener('online', cameOnline)
+
     connect()
 
     // 값이 충분히 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
@@ -428,6 +445,8 @@ export function useParticipants(
 
     return () => {
       alive = false
+      window.removeEventListener('offline', wentOffline)
+      window.removeEventListener('online', cameOnline)
       clearInterval(timer)
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
