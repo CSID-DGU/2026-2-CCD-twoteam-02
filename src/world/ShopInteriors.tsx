@@ -22,13 +22,6 @@ import { storiesOf } from './worldLogic'
 import type { PlacedBuilding } from './worldLogic'
 import type { WorldConfig } from './worldConfig'
 import { DRUM_GLASS, drumView, placeShop, renderShops, shopView } from './shopGlass'
-import { ArcBuilder } from '../space/arcGeometry'
-import { CofferCeiling } from '../space/Decor'
-import { LibraryStacks } from '../space/LibraryStacks'
-import { LIB_TILE, plasterBump, plasterFine } from '../space/libraryTextures'
-
-// 원통 도서관 위층 (밖에서 위쪽 창으로 들여다볼 때만): 실내 천장(4.4m)보다 창이 높아, 그 위로 서가가 있는 위층을 그립니다.
-const DRUM_UPPER = { y: 4.4, top: 8.2, grid: 8.0 }
 
 // 밖에서 볼 때의 도서관 실내: 네모 벽·출입문은 유리를 가리므로 빼고, 둥근 벽은 안쪽 면만 + 맞은편 창은 빛나는 판으로 (창 안에 창을 그리지 않음)
 // 지점마다 한 번만 만듦: 렌더마다 새 객체면 사람이 움직일 때마다 둥근 벽·위층 지오메트리를 다시 만들게 됨
@@ -58,32 +51,6 @@ function WhenNear({ door, children }: { door: { x: number; z: number }; children
     if (next !== inRange) setInRange(next)
   })
   return inRange ? <>{children}</> : null
-}
-
-// 위층: 곡면 벽 + 격자 천장 + 같은 서가 (InstancedMesh 라 그리기 호출 몇 번뿐)
-function DrumUpper({ layout }: { layout: BranchLayout }) {
-  const round = layout.theme?.round
-  const geo = useMemo(() => {
-    const g = new ArcBuilder(LIB_TILE.plaster)
-    if (round) g.band(round.r, 0, Math.PI * 2, DRUM_UPPER.y, DRUM_UPPER.top, true)
-    return g.build()
-  }, [round])
-  useEffect(() => () => geo.dispose(), [geo])
-  const grid = layout.theme?.ceiling?.grid
-  if (!round) return null
-  return (
-    <>
-      <mesh geometry={geo}>
-        <meshStandardMaterial color={round.color} map={plasterFine()} bumpMap={plasterBump()} roughness={0.95} />
-      </mesh>
-      {grid && <CofferCeiling grid={{ ...grid, y: DRUM_UPPER.grid }} size={layout.size} radius={round.r} />}
-      {layout.theme?.stacks && (
-        <group position-y={DRUM_UPPER.y}>
-          <LibraryStacks stacks={layout.theme.stacks} />
-        </group>
-      )}
-    </>
-  )
 }
 
 export function ShopInteriors({ world, placed, showPeople }: { world: WorldConfig; placed: PlacedBuilding[]; showPeople: boolean }) {
@@ -126,7 +93,6 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
                 elevatorLabel={b.floors.length > 1 && layout.elevator ? `${f.level}F` : null}
                 lights={f.level === 1} // 조명은 한 번만 (층마다 넣으면 겹쳐서 너무 밝음)
               />
-              {drum && <DrumUpper layout={layout} />}
               {/* 광장 가게는 전과 같이 늘 구독, 원통 도서관만 문 가까이에서 */}
               {showPeople && (drum ? <WhenNear door={b.door}><ShopPeople slug={f.slug} layout={layout} /></WhenNear> : <ShopPeople slug={f.slug} layout={layout} />)}
               {layout.barista && <BaristaNpc barista={layout.barista} />}
