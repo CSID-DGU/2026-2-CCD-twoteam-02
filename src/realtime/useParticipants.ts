@@ -20,11 +20,11 @@
 //  sendNow() 로 broadcast 전송  ───────────▶  on('broadcast') 가 받아
 //                                             moves 에 넣고 rebuild()
 //                                                    │
-//  subscribe 되면 track({userId}) 한 번             ▼
+//  subscribe 되면 track({userId, at}) 한 번         ▼
 //            │                              others 배열이 바뀌고
 //            ▼                              OtherParticipants 가 그린다
 //  on('presence' join) 으로 남이 들어온 걸 알면
-//  sendNow() 로 내 위치를 한 번 더 보낸다
+//  내가 대표일 때만 방 전체 위치를 한 번 보낸다
 //
 // ── 들어올 때 서로를 바로 보는 방법 ──────────────────────────────────
 //
@@ -32,14 +32,21 @@
 //  들어온 쪽이 "네 위치 좀 보내 줘" 하고 조르지 않아서, 남이 알아서 보내 줄 때까지
 //  기다려야 했기 때문이다. 가만히 선 사람은 RESEND_IDLE_MS(2초)마다만 보낸다.
 //
-//  그래서 들어오면서 HELLO_EVENT 를 한 번 보내고, 그걸 받은 사람들이 즉시
-//  자기 위치로 답하게 했다. 이러면 양쪽이 대칭이 된다.
+//  그래서 들어오면서 HELLO_EVENT 를 한 번 보내고, 방에 가장 오래 있던 한 명(대표)이
+//  아는 사람들의 위치를 한 메시지에 묶어 답한다(SNAPSHOT_EVENT, #441).
 //
-//    B 가 들어옴 ──hello──▶ A 가 받고 즉시 sendNow()
-//               ◀──위치───  B 가 바로 A 를 본다
+//    B 가 들어옴 ──hello──▶ 대표 A 가 받고 0.2초 묶어 스냅샷 전송
+//               ◀─A·C·D 위치─  B 가 바로 모두를 본다
+//
+//  예전에는 받은 사람 전원이 각자 답했다. 메시지가 입장 한 번에 (사람 수)² 건 나가서,
+//  30명이 차례로 들어오는 측정에서 29명이 끊겼다. "들어올 때 한 번씩이라 부담은 없다"고
+//  봤던 것이 틀렸다. 지금은 스냅샷 한 번에 (1 + 사람 수) 건이다.
+//
+//  대표는 뽑는 절차 없이 각자 계산한다(joinLogic.ts). 대표가 나가면 다음 사람이 저절로 대표가 된다.
+//  스냅샷이 유실되거나 대표의 탭이 느려도 RESEND_IDLE_MS(2초) 재전송이 받쳐 준다.
 //
 //  presence 의 join 에서도 같은 일을 한다. 둘 중 하나가 늦거나 유실돼도
-//  나머지가 받쳐 주도록 일부러 두 군데에 둔다. 들어올 때 한 번씩이라 부담은 없다.
+//  나머지가 받쳐 주도록 일부러 두 군데에 둔다.
 //
 // ── 지연에 대해 ──────────────────────────────────────────────────────
 //
@@ -59,9 +66,10 @@ import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { onMyProfileChanged } from '../profile/characters'
-import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, STALE_MS } from './participants'
+import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
 import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
+import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
@@ -92,7 +100,7 @@ export function useParticipants(
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
     const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
 
-    const members = new Set<string>() // presence 로 받은 "지금 여기 있는 사람"
+    const members = new Map<string, number | undefined>() // presence 로 받은 "지금 여기 있는 사람"과 들어온 시각
     const moves = new Map<string, PresenceState>() // broadcast 로 받은 위치
     const lastHeard = new Map<string, number>() // 마지막으로 소식을 들은 시각
 
@@ -144,8 +152,13 @@ export function useParticipants(
 
     function readMembers() {
       members.clear()
-      for (const list of Object.values(channel.presenceState<{ userId?: string }>()))
-        for (const s of list) if (s.userId) members.add(s.userId)
+      for (const list of Object.values(channel.presenceState<{ userId?: string; at?: number }>()))
+        for (const s of list) {
+          if (!s.userId) continue
+          // 같은 계정이 둘 이상이면 더 이른 시각을 쓴다.
+          const seen = members.get(s.userId)
+          members.set(s.userId, seen === undefined || (s.at ?? Infinity) < seen ? s.at : seen)
+        }
       rebuild()
     }
 
@@ -173,6 +186,9 @@ export function useParticipants(
     // 반올림 전 값을 들고 있어야 기준점이 칸 경계에 묶이지 않는다.
     let lastSent: PresenceState | null = null
     let lastSentAt = 0
+    let joinedAt = 0 // 이 방에 들어온 시각. presence 에 실어 대표를 정하는 데 쓴다.
+    let helloSaid = false
+    let snapshotTimer: ReturnType<typeof setTimeout> | null = null
 
     // 지금 내 상태를 한 번 보낸다. 값이 그대로여도 보낸다.
     function sendNow() {
@@ -183,29 +199,59 @@ export function useParticipants(
       void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: pack(state) })
     }
 
-    // 들어왔다고 알린다. 받은 사람들이 자기 위치로 답해 준다.
+    // 들어왔다고 알린다. 대표가 방 전체 위치로 답해 준다. 한 번만 보낸다.
     function sayHello() {
       const id = me.current?.userId
-      if (!subscribed || !id) return
+      if (!subscribed || !id || helloSaid) return
+      helloSaid = true
       void channel.send({ type: 'broadcast', event: HELLO_EVENT, payload: { userId: id } })
+    }
+
+    // 보기 전용 연결은 내 상태가 없어 대표가 되지 않는다.
+    function amRepresentative() {
+      const id = me.current?.userId
+      return subscribed && id !== undefined && isRepresentative(id, members)
+    }
+
+    // 누가 들어왔다. 내가 대표면 잠깐 묶어서 방 전체 위치를 한 번 보낸다. 대표가 아니면 답하지 않는다.
+    function replyToJoin() {
+      if (snapshotTimer || !amRepresentative()) return
+      snapshotTimer = setTimeout(() => {
+        snapshotTimer = null
+        const state = me.current
+        if (!state || !amRepresentative()) return // 기다리는 동안 대표가 바뀌었으면 그쪽이 답한다
+        const states = buildSnapshot(pack(state), moves, lastHeard, Date.now(), STALE_MS)
+        void channel.send({ type: 'broadcast', event: SNAPSHOT_EVENT, payload: { states } })
+      }, SNAPSHOT_WAIT_MS)
     }
 
     channel
       .on('presence', { event: 'sync' }, readMembers)
-      .on('presence', { event: 'join' }, () => {
+      .on('presence', { event: 'join' }, ({ newPresences }) => {
         readMembers()
-        // 새로 들어온 사람이 나를 바로 볼 수 있도록 지금 위치를 한 번 보낸다.
-        sendNow()
+        // 내가 들어온 알림이면 답할 일이 없다.
+        const mine = me.current?.userId
+        if ((newPresences as { userId?: string }[]).some((p) => p.userId && p.userId !== mine)) replyToJoin()
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         for (const p of leftPresences as { userId?: string }[]) dropGone(p.userId)
         readMembers()
       })
       .on('broadcast', { event: HELLO_EVENT }, ({ payload }) => {
-        // 누가 막 들어왔다. 기다리게 하지 않고 내 위치를 바로 알려 준다.
+        // 누가 막 들어왔다. 기다리게 하지 않고 대표가 방 전체 위치를 알려 준다.
         const who = (payload as { userId?: string })?.userId
         if (!who || who === me.current?.userId) return
-        sendNow()
+        replyToJoin()
+      })
+      .on('broadcast', { event: SNAPSHOT_EVENT }, ({ payload }) => {
+        const fresh = unknownStates(payload, me.current?.userId, moves)
+        if (fresh.length === 0) return
+        const now = Date.now()
+        for (const state of fresh) {
+          moves.set(state.userId, state)
+          lastHeard.set(state.userId, now)
+        }
+        rebuild()
       })
       .on('broadcast', { event: PROFILE_EVENT }, ({ payload }) => {
         // 누가 캐릭터·닉네임을 바꿨다. 들고 있던 값을 버리고 DB 에서 다시 읽는다.
@@ -262,8 +308,9 @@ export function useParticipants(
           }
         }
         const id = me.current?.userId
-        // presence 는 "누가 있는지"만 담는다. 들어올 때 한 번이면 된다.
-        if (id) void channel.track({ userId: id })
+        joinedAt = Date.now()
+        // presence 는 "누가 있는지"와 들어온 시각만 담는다. 들어올 때 한 번이면 된다.
+        if (id) void channel.track({ userId: id, at: joinedAt })
         sendNow()
         sayHello()
       })
@@ -282,10 +329,12 @@ export function useParticipants(
 
     // 구독이 끝난 뒤에야 내 상태(me.current)가 채워질 수 있다.
     // 그러면 위 subscribe 안의 track 이 건너뛰어지므로, 들어갈 때까지 다시 시도한다.
+    // 다시 시도하는 것은 track 뿐이다. hello 는 아직 못 보냈을 때 한 번만 보낸다(sayHello).
+    // 반복하면 그때마다 스냅샷이 나가 메시지가 는다.
     const joinTimer = setInterval(() => {
       const id = me.current?.userId
       if (!subscribed || !id || members.has(id)) return
-      void channel.track({ userId: id })
+      void channel.track({ userId: id, at: joinedAt })
       sayHello()
     }, SEND_INTERVAL_MS)
 
@@ -304,6 +353,7 @@ export function useParticipants(
       clearInterval(timer)
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
+      if (snapshotTimer) clearTimeout(snapshotTimer)
       stopProfileListen()
       if (port) port.send = null
       if (chatPort) chatPort.send = null
