@@ -73,6 +73,11 @@
 //  받은 사람마다 1건을 더 센다. 그래서 (사람 수)² × (초당 전송 횟수) 가 된다.
 //  SEND_INTERVAL_MS 를 줄일 때는 이걸 먼저 계산해야 한다.
 //  자세한 내용은 docs/실시간-동기화-방식-비교.md 참고.
+//
+// ── 연결 바꿔 끼우기 (#451, 시험) ────────────────────────────────────
+//
+//  VITE_RELAY_URL 이 있으면 공개 방의 연결만 중계 서버로 바꾼다(relayLink.ts). 없으면 위 설명 그대로 Supabase 다.
+//  회의(비공개 방)는 참석자 확인을 DB 정책이 하므로 값이 있어도 Supabase 에 남는다. 음성 신호·채팅은 회의에서만 쓰므로 같이 남는다.
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
@@ -86,6 +91,7 @@ import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
 import { markDown, markUp } from './connectionStatus'
 import { openSupabaseLink } from './roomLink'
 import type { Presence, RoomLink } from './roomLink'
+import { openRelayLink, relayUrl } from './relayLink'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
@@ -332,7 +338,8 @@ export function useParticipants(
           else if (isDownStatus(status)) disconnected(ch)
         },
       }
-      const ch = openSupabaseLink(client, room, isPrivate, events)
+      const relay = isPrivate ? undefined : relayUrl()
+      const ch = relay ? openRelayLink(relay, room, events) : openSupabaseLink(client, room, isPrivate, events)
       channel = ch
       ch.open()
     }
