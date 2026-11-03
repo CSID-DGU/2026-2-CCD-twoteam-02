@@ -11,6 +11,7 @@ import type { CafeWindow, CafeWindows as Windows, WindowWall } from './cafeWindo
 import { cafeWindowsOf, windowLayoutOf } from './cafeWindowsOf'
 import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
 import type { Portal } from './cafePortal'
+import { PortalCamera } from './PortalCamera'
 import { benchSeats, buildingOf, campfireStudySeats } from './worldLogic'
 import type { FacadeStyle } from './worldLogic'
 import { computedOf, worldOfBranch } from './worldConfig'
@@ -72,6 +73,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
   const plaza = world.layout
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
+  const camera = useThree((s) => s.camera) // 화면 카메라 (포털 안 PortalCamera 에 넘김)
   const { sill, top } = CAFE_WINDOW
   const buildingDepth = b.spec.d // 광장 건물 깊이 (실내보다 얕을 수 있음)
   const h = top - sill
@@ -116,6 +118,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
       {createPortal(
         // 거리 좌표 → 지점 좌표: 건물 출입문이 지점 출입문 자리에 오게 옮기고 돌림 (위층은 층 높이만큼 아래로)
         <group position={[doorX, -(windows.level - 1) * FLOOR_H, doorZ]} rotation-y={-b.angle}>
+          <PortalCamera camera={camera} />
           <group position={[-b.door.x, 0, -b.door.z]}>
             <WorldSky lamps={c.litLamps} weatherRef={weather} followRef={follow} />
             <CitySkyline />
