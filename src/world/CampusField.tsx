@@ -5,20 +5,31 @@ import type { Walk } from './worldLogic'
 import type { Pitch } from './ballLogic'
 import { BALL } from './ballLogic'
 import { netTexture, pitchLines, walkGeometry } from './fieldShapes'
-import { MAT } from './worldMaterials'
+import { groundTextures } from './worldTextures'
 
+const PAVER = '#c4b5a2' // 벽돌 길 색 (회갈색)
 const Y = { walk: 0.02, line: 0.016 } // 땅 위로 띄우는 높이 (잔디·줄무늬와 안 깜빡이게)
 const GOAL = { h: 2, post: 0.06 } // 골대 높이, 기둥 반지름
 const FLAG = { h: 1.2, color: '#f2c94c' }
 const white = new THREE.MeshStandardMaterial({ color: '#ffffff' })
 const lineMat = new THREE.MeshBasicMaterial({ color: '#f4f4ef' })
 
+// 산책로 벽돌 (사용자 참고 사진: 회갈색 벽돌을 깐 굽은 길). 다른 곳의 MAT.path 는 그대로
+let paver: THREE.MeshStandardMaterial | null = null
+function paverMat() {
+  if (!paver) {
+    const t = groundTextures().brick
+    paver = new THREE.MeshStandardMaterial({ color: PAVER, map: t.map, bumpMap: t.bump, bumpScale: 0.8, roughness: 0.9 })
+  }
+  return paver
+}
+
 export function Walks({ walks }: { walks: Walk[] }) {
   const geos = useMemo(() => walks.map(walkGeometry), [walks])
   return (
     <group position-y={Y.walk}>
       {geos.map((g, i) => (
-        <mesh key={i} geometry={g} material={MAT.path} />
+        <mesh key={i} geometry={g} material={paverMat()} />
       ))}
     </group>
   )
@@ -34,8 +45,10 @@ export function SoccerPitch({ pitch }: { pitch: Pitch }) {
   }, [])
   const half = pitch.goal / 2
   const depth = BALL.netDepth
+  // across: 축구장 가운데를 축으로 통째로 90도 돌림 (선·골대·그물 계산은 세로 기준 그대로)
   return (
-    <group>
+    <group position={[pitch.x, 0, pitch.z]} rotation-y={pitch.across ? Math.PI / 2 : 0}>
+    <group position={[-pitch.x, 0, -pitch.z]}>
       <mesh geometry={lines} material={lineMat} position-y={Y.line} />
       {[-1, 1].map((side) => {
         const z = pitch.z + (side * pitch.d) / 2
@@ -79,6 +92,7 @@ export function SoccerPitch({ pitch }: { pitch: Pitch }) {
           </group>
         )),
       )}
+    </group>
     </group>
   )
 }

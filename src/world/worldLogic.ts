@@ -27,10 +27,14 @@
 //   쉬는 자리(rests)는 캠퍼스 쿼드의 돗자리·빈백. 앉아도 기록 없이 쉬기만 합니다.
 //   Player 의 "앉는 자리" 번호가 건물 입구(1~)·정문(GATE_NO_BASE~)·쉬는 자리(REST_NO_BASE~)로 나뉩니다(spotKindOf).
 //   캠퍼스 가운데 등불 나무 광장의 빈백은 광장 벤치처럼 공부 자리입니다(courtyardSeats).
+import { orbBoxes } from './walkLogic'
+import { PORCH, porchColumns, propBoxes } from './hallLogic'
+import type { CampusProps } from './hallLogic'
 import { campfireSeats, fireBox, stallBoxes } from './campfireLogic'
 import type { CampfireSpec } from './campfireLogic'
 import { beachObstacles } from './beachLogic'
 import type { BeachSpec } from './beachLogic'
+import { pitchBox } from './ballLogic'
 import type { Pitch } from './ballLogic'
 import type { Box, BranchLayout, Spot } from '../space/layout'
 
@@ -44,8 +48,8 @@ export type Point = { x: number; z: number }
 export type FloorSpec = { slug: string; window?: string; roof?: boolean }
 // 앞면 모양 (캠리단길 파사드, Facades.tsx). 없으면 예전 모양(창 둘 + 초록 간판 + 색 문)
 export type FacadeStyle = 'classic' | 'diner' | 'garden' | 'modern' | 'woodbar' | 'moss'
-export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle; sideWindow?: 'west' | 'east'; wallTexture?: 'brick'; shape?: 'drum' }
-// shape: 'drum' 이면 네모 대신 둥근 원통 건물(캠퍼스 도서관, LibraryDrum). 바닥 사각형(rect)은 지도·문 자리용으로 그대로 두고, 부딪힘만 원둘레(drumBoxes)를 씀
+export type BuildingSpec = { slug: string; x: number; z: number; w: number; d: number; facing: Facing; wall: string; roof: string; floors?: FloorSpec[]; facade?: FacadeStyle; sideWindow?: 'west' | 'east'; wallTexture?: 'brick'; ends?: number[]; shape?: 'drum' | 'hall' }
+// shape: 'hall' 이면 유럽식 석조 건물(캠퍼스, CampusHall). 'drum' 이면 네모 대신 둥근 원통 건물(캠퍼스 도서관, LibraryDrum). 바닥 사각형(rect)은 지도·문 자리용으로 그대로 두고, 부딪힘만 원둘레(drumBoxes)를 씀
 // wallTexture: 벽 무늬 (brick 이면 벽돌, 캠퍼스 건물). 없으면 단색
 // sideWindow: 캠리단길 지점 안 옆벽 통창 (실내 기준 서쪽·동쪽 벽, cafeWindowLogic). 출입문 벽 통창은 파사드가 있으면 늘 있음
 
@@ -59,9 +63,13 @@ export type GateSpec = { to: WorldId; x: number; z: number; w: number; facing: F
 export type RestSpec = { x: number; z: number; rot: number; kind: 'mat' | 'beanbag' }
 // 등불 나무 광장 (캠퍼스 가운데): 둥근 원목 화단 속 큰 나무에 등불이 달리고, 둘레에 빈백이 불규칙하게 흩어져 놓임.
 // r: 화단(아래 앉는 단) 반지름, bags: 빈백 자리(rot 은 앉은 사람이 보는 쪽, 대개 나무 쪽). 빈백 하나가 공부 자리 하나
+// 본관 가운데 탑: 자리·폭·깊이, pass 는 아치 통로 폭(좌우 건물 칸 사이)
+// 중정: 포장 원의 가운데·반지름
+export type CourtSpec = { x: number; z: number; r: number }
+export type MainGateSpec = { x: number; z: number; w: number; d: number; pass: number }
 export type CourtyardSpec = { x: number; z: number; r: number; bags: { x: number; z: number; rot: number }[] }
 // 굽은 산책로: points 를 차례로 이은 길(점은 [x, z]), w 폭(m). 걷는 길일 뿐 부딪힘은 없음
-export type Walk = { w: number; points: number[][] } // JSON 이라 [x, z] 쌍을 number[] 로 읽음
+export type Walk = { w: number; points: number[][]; curve?: boolean } // JSON 이라 [x, z] 쌍을 number[] 로 읽음. curve: 점을 부드럽게 잇고 길가에 둥근 조명 (walkLogic)
 
 export type PlazaLayout = {
   size: { w: number; d: number } // 월드 전체 (가운데 0, 0)
@@ -73,13 +81,16 @@ export type PlazaLayout = {
   gates?: GateSpec[]
   rests?: RestSpec[]
   courtyard?: CourtyardSpec // 등불 나무 광장 (캠퍼스)
+  court?: CourtSpec // 포장 중정 (캠퍼스)
+  mainGate?: MainGateSpec // 본관 가운데 아치 탑 (캠퍼스, CampusHall)
+  props?: CampusProps // 깃대·현수막·게시판·거치대·천막 (캠퍼스, CampusProps)
   beach?: BeachSpec // 해변 (바다·비치체어·파라솔, beachLogic)
   campfire?: CampfireSpec // 캠프파이어 (캠리단길 광장 서쪽 잔디). 통나무 의자가 공부 자리 (campfireLogic)
   walks?: Walk[] // 굽은 산책로 (캠퍼스): 점을 이은 길, w 폭
   pitch?: Pitch // 축구장 (캠퍼스): 가운데·크기·골대 폭. 공은 ballLogic
   buildings: BuildingSpec[]
   paths: Box[] // 광장 → 건물 입구 돌길
-  trees: Point[]
+  trees: (Point & { kind?: 'cherry' | 'fresh' })[]
   benches: (Point & { facing: Facing })[] // facing: 앉은 사람이 보는 쪽
   lamps: (Point & { light?: boolean })[] // light: 밤에 둘레를 비추는 점광원을 단 가로등 (#316)
   strings?: { from: Point; to: Point }[] // 캠리단길 전구 줄: 두 가로등 사이에 거는 줄 조명 (끝은 가로등 자리)
@@ -298,6 +309,8 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...fence,
     ...placed.flatMap((b) => (b.spec.shape === 'drum' ? drumBoxes(b.rect) : [b.rect])),
     ...(f ? [{ x: f.x, z: f.z, w: f.r * 2, d: f.r * 2 }] : []),
+    ...placed.flatMap(hallColumnBoxes), // 캠퍼스 건물 현관 기둥
+    ...(plaza.props ? propBoxes(plaza.props) : []),
     ...plaza.trees.map((t) => ({ x: t.x, z: t.z, w: TRUNK, d: TRUNK })),
     ...plaza.lamps.map((l) => ({ x: l.x, z: l.z, w: LAMP_POST, d: LAMP_POST })),
     ...plaza.benches.map((b) =>
@@ -307,11 +320,23 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...(plaza.board ? [boardBox(plaza.board)] : []),
     ...(plaza.signposts ?? []).map((p) => ({ x: p.x, z: p.z, w: SIGN_POST, d: SIGN_POST })), // 길 안내 표지판 기둥
     ...(plaza.courtyard ? courtyardBoxes(plaza.courtyard) : []),
+    ...orbBoxes(plaza), // 길가 둥근 조명
     ...(plaza.beach ? beachObstacles(plaza.beach, plaza.size) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
     ...(plaza.campfire ? [fireBox(plaza.campfire)] : []), // 불 둘레 돌 고리 (통나무는 안 막음)
     ...(plaza.campfire?.stall ? stallBoxes(plaza.campfire.stall) : []), // 마시멜로 가판대 카운터·판매원
   ]
+}
+
+// 현관 기둥 부딪힘: 건물 안쪽 좌표를 세상 좌표로 돌림
+function hallColumnBoxes(b: PlacedBuilding): Box[] {
+  if (b.spec.shape !== 'hall') return []
+  const side = b.spec.facing === 'east' || b.spec.facing === 'west'
+  const doorX = rotate(b.door.x - b.spec.x, b.door.z - b.spec.z, -b.angle).x
+  return porchColumns(doorX, side ? b.door.d : b.door.w, side ? b.rect.w : b.rect.d).map((c) => {
+    const p = rotate(c.x, c.z, b.angle)
+    return { x: b.spec.x + p.x, z: b.spec.z + p.z, w: PORCH.r * 2, d: PORCH.r * 2 }
+  })
 }
 
 // 원통 건물의 부딪힘: 사각형 rect 에 꼭 맞는 원(반지름 = 짧은 변의 절반)의 둘레를 BOX_STEP 간격 작은 상자로 막음.
@@ -330,7 +355,7 @@ export function drumBoxes(rect: Box): Box[] {
 // 축구장 골대 기둥 (캐릭터가 부딪힘. 골망은 공만 부딪힘 → ballLogic.goalBoxes)
 export const GOAL_POST = 0.14
 export function goalPosts(p: Pitch): Box[] {
-  return [-1, 1].flatMap((side) => [-1, 1].map((sx) => ({ x: p.x + (sx * (p.goal / 2 + GOAL_POST / 2)), z: p.z + (side * p.d) / 2, w: GOAL_POST, d: GOAL_POST })))
+  return [-1, 1].flatMap((side) => [-1, 1].map((sx) => pitchBox(p, { x: sx * (p.goal / 2 + GOAL_POST / 2), z: (side * p.d) / 2, w: GOAL_POST, d: GOAL_POST })))
 }
 
 // 순위 게시판 부딪힘 상자

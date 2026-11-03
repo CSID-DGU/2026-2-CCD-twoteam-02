@@ -18,9 +18,14 @@ import { disposePortal, portalMaterial, renderPortal, resizePortal } from './caf
 import { PortalCamera } from './PortalCamera'
 import type { Portal } from './cafePortal'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
+import { CampusCourt } from './CampusCourt'
+import { MainGate } from './CampusHall'
+import { CampusProps, GardenOrbs } from './CampusProps'
+import { orbSpots } from './walkLogic'
 import { SoccerPitch, Walks } from './CampusField'
 import { CitySkyline } from './CitySkyline'
 import { Garden, GardenBenches, LushTrees } from './Garden'
+import { CampusTrees } from './CampusTrees'
 import { LanternCourtyard } from './LanternTree'
 import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { WorldSky } from './WorldSky'
@@ -102,10 +107,14 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
             <Ground plaza={plaza} buildings={others} />
             <Garden plaza={plaza} buildings={others} />
             <Fence plaza={plaza} />
-            <LushTrees trees={plaza.trees} />
+            <CampusTrees trees={plaza.trees} />
             <GardenBenches benches={plaza.benches} />
             <Lamps lamps={plaza.lamps} />
             {plaza.walks && <Walks walks={plaza.walks} />}
+            {plaza.court && <CampusCourt court={plaza.court} />}
+            {plaza.mainGate && <MainGate gate={plaza.mainGate} />}
+            {plaza.props && <CampusProps props={plaza.props} />}
+            {plaza.walks && <GardenOrbs orbs={orbSpots(plaza)} />}
             {plaza.pitch && <SoccerPitch pitch={plaza.pitch} />}
             {plaza.rests && <Mats rests={plaza.rests} />}
             {plaza.courtyard && <LanternCourtyard courtyard={plaza.courtyard} />}
@@ -113,7 +122,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
             {others.map((p) => (
               <group key={p.slug}>
                 <Building b={p} open near={false} />
-                <CampusBuildingTrim b={p} />
+                {!p.spec.shape && <CampusBuildingTrim b={p} />}
               </group>
             ))}
             {c.gates.map((g) => (

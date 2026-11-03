@@ -15,6 +15,7 @@ import { TILE, tiledPlane } from './worldTextures'
 import { Facade } from './Facades'
 import { RoofDeck } from './RoofDeck'
 import { LibraryDrum } from './LibraryDrum'
+import { CampusHall } from './CampusHall'
 
 // 크기·높이 (m)
 const BUILDING_H = STORY_H // 건물 한 층 벽 높이 (실내 천장보다 높게). 여러 층 건물은 층수만큼 쌓습니다
@@ -48,12 +49,13 @@ export function Ground({ plaza, buildings }: { plaza: PlazaLayout; buildings: Pl
         <mesh rotation-x={-Math.PI / 2} material={MAT.meadow} geometry={tiledPlane(plaza.size.w, plaza.size.d, TILE.grass)} />
       )}
       {lawn ? (
-        Array.from({ length: stripes }, (_, i) => {
-          const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
-          return (
-            <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={lawnMat(i % 2 ? LAWN.dark : LAWN.light)} geometry={tiledPlane(w, plaza.plaza.d, TILE.grass)} />
-          )
-        })
+        // 축구장 가운데에 맞춘 잔디 줄무늬. 가로 축구장이면 줄무늬도 같이 돌림
+        <group position={[plaza.pitch?.x ?? 0, 0, plaza.pitch?.z ?? 0]} rotation-y={plaza.pitch?.across ? Math.PI / 2 : 0}>
+          {Array.from({ length: stripes }, (_, i) => {
+            const w = Math.min(LAWN.stripe, plaza.plaza.w - i * LAWN.stripe)
+            return <mesh key={i} rotation-x={-Math.PI / 2} position={[-plaza.plaza.w / 2 + i * LAWN.stripe + w / 2, LAYER.plaza, 0]} material={lawnMat(i % 2 ? LAWN.dark : LAWN.light)} geometry={tiledPlane(w, plaza.plaza.d, TILE.grass)} />
+          })}
+        </group>
       ) : (
         <mesh rotation-x={-Math.PI / 2} position-y={LAYER.plaza} material={MAT.plaza} geometry={tiledPlane(plaza.plaza.w, plaza.plaza.d, TILE.cobble)} />
       )}
@@ -100,6 +102,7 @@ export function Fence({ plaza }: { plaza: PlazaLayout }) {
 type BuildingProps = { b: PlacedBuilding; open: boolean; near: boolean; glass?: THREE.Material; deck?: boolean }
 // 모양이 원통(shape 'drum', 캠퍼스 도서관)이면 LibraryDrum, 아니면 네모 건물. 카페 창·루프탑에서 바깥을 그릴 때도 같은 모양이 되도록 여기서 나눔
 export function Building(props: BuildingProps) {
+  if (props.b.spec.shape === 'hall') return <CampusHall b={props.b} open={props.open} near={props.near} />
   return props.b.spec.shape === 'drum' ? <LibraryDrum b={props.b} open={props.open} near={props.near} glass={props.glass} /> : <BoxBuilding {...props} />
 }
 

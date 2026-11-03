@@ -13,7 +13,8 @@
 export const BALL = { r: 0.22, friction: 0.9, stop: 0.08, bounce: 0.6, touch: 0.55, kickMin: 4, kickMul: 1.7, maxSpeed: 13, netDepth: 1.2, cooldown: 0.25, outMargin: 1, outReturnMs: 2000 }
 
 export type BallState = { x: number; z: number; vx: number; vz: number }
-export type Pitch = { x: number; z: number; w: number; d: number; goal: number } // goal: 골대 폭
+// goal: 골대 폭. w 는 골대 쪽 짧은 변, d 는 골대 사이 긴 변. across 면 긴 변이 동서(골대가 왼쪽·오른쪽 끝, 'north'=왼쪽 'south'=오른쪽)
+export type Pitch = { x: number; z: number; w: number; d: number; goal: number; across?: boolean }
 export type BallWorld = { half: { w: number; d: number }; boxes: { x: number; z: number; w: number; d: number }[]; pitch?: Pitch }
 export type Goal = 'north' | 'south'
 type P = { x: number; z: number }
@@ -23,12 +24,17 @@ export function goalBoxes(p: Pitch) {
   const t = 0.12
   const boxes = []
   for (const side of [-1, 1]) {
-    const line = p.z + (side * p.d) / 2
+    const line = (side * p.d) / 2
     const back = line + side * BALL.netDepth
-    boxes.push({ x: p.x, z: back + (side * t) / 2, w: p.goal + 2 * t, d: t }) // 뒤
-    for (const sx of [-1, 1]) boxes.push({ x: p.x + (sx * (p.goal / 2 + t / 2)), z: (line + back) / 2, w: t, d: BALL.netDepth }) // 옆
+    boxes.push(pitchBox(p, { x: 0, z: back + (side * t) / 2, w: p.goal + 2 * t, d: t })) // 뒤
+    for (const sx of [-1, 1]) boxes.push(pitchBox(p, { x: sx * (p.goal / 2 + t / 2), z: (line + back) / 2, w: t, d: BALL.netDepth })) // 옆
   }
   return boxes
+}
+
+// 축구장 가운데 기준 상자(z 가 긴 변)를 세상 좌표로. across 면 x·z 를 바꿈
+export function pitchBox(p: Pitch, b: { x: number; z: number; w: number; d: number }) {
+  return p.across ? { x: p.x + b.z, z: p.z + b.x, w: b.d, d: b.w } : { x: p.x + b.x, z: p.z + b.z, w: b.w, d: b.d }
 }
 
 // 원(공)이 상자에 박혔으면 덜 박힌 쪽으로 빼고 그 방향 속도를 뒤집음
@@ -55,10 +61,13 @@ export function stepBall(ball: BallState, dt: number, world: BallWorld): { ball:
   const p = world.pitch
   if (p) {
     for (const side of [-1, 1] as const) {
-      const line = p.z + (side * p.d) / 2
-      const before = (ball.z - line) * side
-      const after = (s.z - line) * side
-      if (before < 0 && after >= 0 && Math.abs(s.x - p.x) < p.goal / 2) goal = side < 0 ? 'north' : 'south'
+      const line = (side * p.d) / 2
+      // 긴 축 위치 (앞뒤), 짧은 축 위치 (골대 사이인지)
+      const long = (q: P) => (p.across ? q.x - p.x : q.z - p.z)
+      const short = (q: P) => (p.across ? q.z - p.z : q.x - p.x)
+      const before = (long(ball) - line) * side
+      const after = (long(s) - line) * side
+      if (before < 0 && after >= 0 && Math.abs(short(s)) < p.goal / 2) goal = side < 0 ? 'north' : 'south'
     }
     for (const b of goalBoxes(p)) s = bounceBox(s, b)
   }
@@ -101,8 +110,8 @@ export function nudgeBall(ball: BallState, me: P): BallState {
 }
 
 export function outOfPitch(ball: { x: number; z: number }, p: Pitch): boolean {
-  const dx = Math.abs(ball.x - p.x)
-  const dz = Math.abs(ball.z - p.z)
+  const dx = Math.abs(p.across ? ball.z - p.z : ball.x - p.x) // 짧은 축
+  const dz = Math.abs(p.across ? ball.x - p.x : ball.z - p.z) // 긴 축
   const inNet = dx < p.goal / 2 + 0.2 && dz <= p.d / 2 + BALL.netDepth + 0.2
   if (inNet) return false
   return dx > p.w / 2 + BALL.outMargin || dz > p.d / 2 + BALL.outMargin

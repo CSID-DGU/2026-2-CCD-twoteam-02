@@ -146,14 +146,14 @@ export function SoccerBall({ pitch, size, obstacles, posRef }: { pitch: Pitch; s
     }
   })
 
-  const goalZ = goal ? pitch.z + ((goal === 'north' ? -1 : 1) * pitch.d) / 2 : 0
+  const goalAt = goal ? ((goal === 'north' ? -1 : 1) * pitch.d) / 2 : 0 // 골이 난 끝 (축구장 가운데에서 긴 축으로)
   return (
     <>
       <mesh ref={mesh} material={material} castShadow position={[pitch.x, BALL.r, pitch.z]}>
         <sphereGeometry args={[BALL.r, 24, 16]} />
       </mesh>
       {goal && (
-        <Billboard position={[pitch.x, 3.2, goalZ]}>
+        <Billboard position={pitch.across ? [pitch.x + goalAt, 3.2, pitch.z] : [pitch.x, 3.2, pitch.z + goalAt]}>
           <mesh>
             <planeGeometry args={[2.4, (2.4 * LABEL_PX.h) / LABEL_PX.w]} />
             <meshBasicMaterial map={labelTexture('⚽ 골!', '#d9353a')} transparent />

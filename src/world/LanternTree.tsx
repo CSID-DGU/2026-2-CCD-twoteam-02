@@ -1,28 +1,34 @@
-// 캠퍼스 가운데 등불 나무 광장: 둥근 원목 화단(아래는 걸터앉는 단, 위는 흙을 담은 벽) 속 큰 나무에
-// 동그란 등불이 주렁주렁 달리고, 둘레에 보송보송한 빈백이 불규칙하게 흩어져 놓입니다.
+// 캠퍼스 가운데 등불 나무 광장 (사용자 참고 사진): 뿌리가 넓은 굵은 나무에서 줄 조명이 길게 늘어지고 끝에 유리 등이 달립니다.
+// 발밑과 빈백 자리는 잔디(낱장 풀잎)이고 줄기 둘레에 흰 꽃, 그 둘레에 보송보송한 빈백이 불규칙하게 흩어져 놓입니다.
 // 빈백은 공부 자리입니다(자리 계산은 worldLogic.courtyardSeats, 앉기·공부는 WorldScene 의 벤치 공부와 같음).
-// 다른 소품처럼 그림 파일 없이 코드로 그리고, 여럿인 것(잎 덩어리·등불)은 drei Instances 로 한 번에 그립니다(성능).
+// 나무 모양 계산은 lanternShape (Node 로 검사). 다른 소품처럼 그림 파일 없이 코드로 그립니다.
+// 가볍게: 줄기·가지는 한 도형으로 합치고, 잎·꽃·유리 등은 InstancedMesh, 전구 빛은 Points 로 각각 한 번에 그립니다.
+// 낮에는 은은하게, 밤에는 줄기가 따뜻하게 물들고 전구가 번져 빛납니다(nightGlow 를 매 프레임 읽음).
 // 빈백 천은 부클레(작은 고리 실)처럼 보이게: 캔버스로 그린 작은 점무늬를 울퉁불퉁한 결(bumpMap)로 쓰고,
 // 천 표면에 부드러운 빛 번짐(sheen)을 주는 재질(MeshPhysicalMaterial)을 씁니다.
-// 등불은 낮에도 은은하게, 밤에는 밝게 빛납니다(nightGlow 를 매 프레임 읽음).
-// 화단은 결이 보이는 원목 판자, 줄기·가지는 세로로 갈라진 나무껍질, 잎은 둥글고 얼룩진 덩어리로 보이게
-// 모두 캔버스로 그린 그림을 색(map)과 울퉁불퉁한 결(bumpMap)로 같이 씁니다.
-import { useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Instance, Instances } from '@react-three/drei'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { glowSprite } from '../space/libraryTextures'
+import { lanternTreeShape } from './lanternShape'
+import { barkTexture, limbTube } from './barkShapes'
 import { courtyardSeats } from './worldLogic'
 import type { CourtyardSpec, PlazaLayout } from './worldLogic'
-import { colorMat, nightGlow } from './worldMaterials'
+import { colorMat, nightGlow, plantMat } from './worldMaterials'
+import { groundTextures } from './worldTextures'
 
-// 화단: 아래 앉는 단(반지름 r, 높이 seatH), 위 흙 담는 벽(반지름 r - step, 높이 wallH), 세로 판자 줄 수
-const PLANTER = { seatH: 0.45, step: 0.6, wallH: 0.95, plank: 0.28, rim: 0.05, wood: '#c98d55', soil: '#3b2a1d' }
-// 나무: 줄기 높이·굵기, 큰 가지 수, 잎 덩어리 수, 등불 수 (많을수록 무거움)
-const TREE = { trunkH: 3.3, trunkR: 0.3, branches: 7, leaves: 46, lanterns: 44, bark: '#9a7a62', leaf: '#3c6b34', leafLight: '#5a8a45' }
-const LANTERN = { r: 0.24, squash: 0.78, color: '#fff1cf', dayGlow: 0.5, nightGlow: 2.2 }
-// 등불 재질 (모든 등불이 같이 씀). 세기는 LanternTree 가 매 프레임 밤낮에 맞춰 바꿈 (worldMaterials 의 가로등 재질과 같은 방식)
-const LANTERN_MAT = new THREE.MeshStandardMaterial({ color: LANTERN.color, emissive: LANTERN.color, emissiveIntensity: LANTERN.dayGlow })
-const LIGHT = { intensity: 6, distance: 11 } // 밤에 나무 둘레를 비추는 빛 (세 개)
+const BARK = { color: '#a87f5a', bump: 5, roughness: 0.95, glow: '#c96a24', nightGlow: 0.85 } // 나무껍질: 색, 결 세기, 밤에 물드는 색·세기
+const LEAF_TONES = ['#4f8a3a', '#6ea348', '#86b758', '#3e7434']
+const FLOWERS = { count: 170, size: [0.07, 0.13], colors: ['#fffdf4', '#fff4d6', '#ffffff', '#f7efd2'], y: 0.12, nightGlow: 0.28 }
+// 나무 밑·빈백 둘레 잔디: 넓이(반지름, 가장자리 울퉁불퉁), 풀잎 수, 풀잎 크기·색 (많을수록 무거움)
+const GRASS = { r: 6.8, wobble: 0.5, blades: 3800, h: [0.14, 0.34], w: 0.055, tones: ['#5f9440', '#6fa34a', '#7fb153', '#4f8537', '#8ab95c'], ground: '#88ab62', tile: 3, y: 0.05 }
+const BULB = { every: 0.14, size: 0.2, color: '#ffc778', day: 0.2, night: 1 } // 전구: 줄 위 간격, 번짐 크기, 색, 낮·밤 밝기
+const JAR = { r: 0.075, h: 0.17, halo: 0.75, cap: '#3a3226', day: 0.6, night: 2.4, color: '#ffe1a8' } // 유리 등
+const WIRE = { t: 0.008, color: '#3a3226' }
+// 유리 등 재질. 세기는 LanternTree 가 매 프레임 밤낮에 맞춰 바꿈 (worldMaterials 의 가로등 재질과 같은 방식)
+const JAR_MAT = new THREE.MeshStandardMaterial({ color: JAR.color, emissive: JAR.color, emissiveIntensity: JAR.day, roughness: 0.3 })
+const LIGHT = { intensity: 6, distance: 11, y: 4.2 } // 밤에 나무 둘레를 비추는 빛 (세 개)
 // 빈백 색 (크림·오트밀·세이지·먼지 분홍·하늘 — 부드러운 파스텔), 부클레 결 그림 반복 수
 const BAG_COLORS = ['#efe6d6', '#dccbb0', '#bfcbb0', '#e6c9c2', '#c3d4e2']
 const BAG_R = 0.55 // 빈백 반지름 (쿼드의 쉬는 빈백 CampusDecor BEANBAG_R 과 같음)
@@ -37,110 +43,32 @@ function seeded(seed: number) {
   }
 }
 
-// ── 캔버스 무늬 (한 번 그려 같이 씀) ────────────────────────────────
-const patterns = new Map<string, THREE.CanvasTexture>()
-function pattern(key: string, w: number, h: number, draw: (ctx: CanvasRenderingContext2D, rand: () => number) => void, repeat: [number, number]) {
-  const k = `${key}|${repeat.join(',')}`
-  let t = patterns.get(k)
-  if (!t) {
-    const c = document.createElement('canvas')
-    c.width = w
-    c.height = h
-    draw(c.getContext('2d')!, seeded(key.length * 97 + 13))
-    t = new THREE.CanvasTexture(c)
-    t.colorSpace = THREE.SRGBColorSpace
-    t.wrapS = t.wrapT = THREE.RepeatWrapping
-    t.repeat.set(repeat[0], repeat[1])
-    patterns.set(k, t)
+let barkMaterial: THREE.MeshStandardMaterial | null = null
+function barkMat() {
+  if (!barkMaterial) {
+    const t = barkTexture()
+    barkMaterial = new THREE.MeshStandardMaterial({ color: BARK.color, map: t, bumpMap: t, bumpScale: BARK.bump, roughness: BARK.roughness, emissive: BARK.glow, emissiveMap: t, emissiveIntensity: 0 })
   }
-  return t
+  return barkMaterial
 }
-const PLANK_PX = 64 // 판자 한 장 폭(픽셀). 그림 한 장에 판자 8장
-// 원목 판자: 판자마다 밝기를 조금씩 달리하고, 판자 사이 어두운 틈 + 물결치는 세로 나뭇결
-function drawPlanks(ctx: CanvasRenderingContext2D, rand: () => number) {
-  const { width: w, height: h } = ctx.canvas
-  for (let x = 0; x < w; x += PLANK_PX) {
-    const v = Math.round(215 + rand() * 40)
-    ctx.fillStyle = `rgb(${v},${v},${v})`
-    ctx.fillRect(x, 0, PLANK_PX, h)
-    ctx.strokeStyle = 'rgba(90,60,30,0.35)'
-    ctx.lineWidth = 1
-    for (let g = 0; g < 7; g++) {
-      const gx = x + 6 + rand() * (PLANK_PX - 12)
-      ctx.beginPath()
-      for (let y = 0; y <= h; y += 8) ctx.lineTo(gx + Math.sin(y / 18 + g) * 2.5, y)
-      ctx.stroke()
-    }
-    ctx.fillStyle = 'rgba(60,35,15,0.75)' // 판자 사이 틈
-    ctx.fillRect(x, 0, 2, h)
-  }
-}
-// 나무껍질: 세로로 길게 갈라진 밝고 어두운 줄
-function drawBark(ctx: CanvasRenderingContext2D, rand: () => number) {
-  const { width: w, height: h } = ctx.canvas
-  ctx.fillStyle = '#c8c8c8'
-  ctx.fillRect(0, 0, w, h)
-  for (let i = 0; i < 160; i++) {
-    const v = Math.round(110 + rand() * 120)
-    ctx.strokeStyle = `rgb(${v},${v},${v})`
-    ctx.lineWidth = 1 + rand() * 3
-    const x = rand() * w
-    const y = rand() * h
-    const len = 20 + rand() * 70
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.bezierCurveTo(x + (rand() - 0.5) * 6, y + len / 3, x + (rand() - 0.5) * 6, y + (len * 2) / 3, x + (rand() - 0.5) * 4, y + len)
-    ctx.stroke()
-  }
-}
-// 잎 덩어리: 밝은 잎·그늘진 잎이 얼룩진 무늬
-function drawLeaves(ctx: CanvasRenderingContext2D, rand: () => number) {
-  const { width: w, height: h } = ctx.canvas
-  ctx.fillStyle = '#c4c4c4'
-  ctx.fillRect(0, 0, w, h)
-  for (let i = 0; i < 900; i++) {
-    const v = Math.round(130 + rand() * 125)
-    ctx.fillStyle = `rgb(${v},${v},${v})`
-    ctx.beginPath()
-    ctx.ellipse(rand() * w, rand() * h, 3 + rand() * 5, 2 + rand() * 3, rand() * Math.PI, 0, Math.PI * 2)
-    ctx.fill()
-  }
-}
-const texMats = new Map<string, THREE.MeshStandardMaterial>()
-// 무늬를 색(map)과 결(bumpMap)로 같이 쓰는 재질 (key 마다 하나)
-function texMat(key: string, color: string, tex: THREE.Texture, bump: number, roughness: number) {
-  let m = texMats.get(key)
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color, map: tex, bumpMap: tex, bumpScale: bump, roughness })
-    texMats.set(key, m)
-  }
-  return m
-}
-// 원통 둘레 길이에 맞춰 판자가 PLANTER.plank 폭으로 보이게 반복 수를 정함
-const woodMat = (radius: number, height: number) =>
-  texMat(
-    `wood|${radius}|${height}`,
-    PLANTER.wood,
-    pattern('planks', PLANK_PX * 8, 256, drawPlanks, [(Math.PI * 2 * radius) / (PLANTER.plank * 8), height]),
-    1.5,
-    0.7,
-  )
-const barkMat = () => texMat('bark', TREE.bark, pattern('bark', 256, 256, drawBark, [2, 2]), 4, 0.95)
-const leafMat = (light: boolean) => texMat(`leaf|${light}`, light ? TREE.leafLight : TREE.leaf, pattern('leaves', 256, 256, drawLeaves, [2, 2]), 3, 0.9)
 
-// 두 점 사이를 잇는 원기둥(가지)의 위치·회전
-function between(a: THREE.Vector3, b: THREE.Vector3) {
-  const dir = b.clone().sub(a)
-  const len = dir.length()
-  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize())
-  return { mid: a.clone().add(b).multiplyScalar(0.5), q, len }
+// 낱장 잎 모양 (끝이 뾰족한 타원 판)
+function leafShape() {
+  const P = [[0, -0.5], [0.22, -0.18], [0.26, 0.08], [0.13, 0.32], [0, 0.5], [-0.13, 0.32], [-0.26, 0.08], [-0.22, -0.18]]
+  const g = new THREE.BufferGeometry()
+  const pos: number[] = []
+  for (let i = 1; i < P.length - 1; i++) pos.push(P[0][0], P[0][1], 0, P[i][0], P[i][1], 0, P[i + 1][0], P[i + 1][1], 0)
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.computeVertexNormals()
+  return g
 }
 
 export function LanternCourtyard({ courtyard }: { courtyard: CourtyardSpec }) {
   return (
     <group>
       <group position={[courtyard.x, 0, courtyard.z]}>
-        <Planter r={courtyard.r} />
+        <CourtGrass />
+        <FlowerRing r={courtyard.r} />
         <LanternTree seed={7} />
       </group>
       <FluffyBeanbags courtyard={courtyard} />
@@ -148,122 +76,211 @@ export function LanternCourtyard({ courtyard }: { courtyard: CourtyardSpec }) {
   )
 }
 
-// 둥근 원목 화단: 두 단 원통(결이 보이는 판자) + 위 모서리를 둥글게 감싼 테 + 흙
-function Planter({ r }: { r: number }) {
-  const P = PLANTER
-  const inner = r - P.step
+// 나무 밑과 빈백 자리의 잔디: 울퉁불퉁한 원에 잔디 그림 + 낱장 풀잎 (바람에 흔들림, 한 번에 그림)
+function CourtGrass() {
+  const G = GRASS
+  const ground = useMemo(() => {
+    const s = new THREE.Shape()
+    const n = 64
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2
+      const r = G.r + G.wobble * (Math.sin(a * 3 + 1) * 0.6 + Math.sin(a * 7) * 0.4)
+      if (i === 0) s.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+      else s.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    }
+    const g = new THREE.ShapeGeometry(s)
+    g.rotateX(-Math.PI / 2)
+    const uv = g.attributes.uv
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / G.tile, uv.getY(i) / G.tile)
+    return g
+  }, [G])
+  const groundMat = useMemo(() => {
+    const t = groundTextures().grass
+    return new THREE.MeshStandardMaterial({ color: G.ground, map: t.map, bumpMap: t.bump, bumpScale: 1, roughness: 1 })
+  }, [G])
+  // 풀잎: 아래가 어둡고 끝이 밝은 뾰족한 판 (풀 재질이 정점색을 곱함)
+  const blade = useMemo(() => {
+    const W = G.w
+    const pos = [-W, 0, 0, W, 0, 0, W * 0.6, 0.5, 0.04, -W * 0.6, 0.5, 0.04, 0, 1, 0.14]
+    const shade = [0.55, 0.55, 0.85, 0.85, 1.15]
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    g.setAttribute('color', new THREE.Float32BufferAttribute(shade.flatMap((v) => [v, v, v]), 3))
+    g.setIndex([0, 1, 2, 0, 2, 3, 3, 2, 4])
+    g.computeVertexNormals()
+    return g
+  }, [G])
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const m = ref.current
+    if (!m) return
+    const rand = seeded(53)
+    const o = new THREE.Object3D()
+    const col = new THREE.Color()
+    for (let i = 0; i < G.blades; i++) {
+      const a = rand() * Math.PI * 2
+      const d = 0.75 + Math.sqrt(rand()) * (G.r - G.wobble - 0.75)
+      const h = G.h[0] + rand() * (G.h[1] - G.h[0])
+      o.position.set(Math.sin(a) * d, G.y, Math.cos(a) * d)
+      o.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI * 2, (rand() - 0.5) * 0.5)
+      o.scale.set(h * 3, h, h * 3) // 폭은 높이에 맞춰
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+      m.setColorAt(i, col.set(G.tones[Math.floor(rand() * G.tones.length)]))
+    }
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [G])
   return (
     <group>
-      <mesh position-y={P.seatH / 2} material={woodMat(r, P.seatH)}>
-        <cylinderGeometry args={[r, r, P.seatH, 72]} />
-      </mesh>
-      <mesh position-y={P.wallH / 2} material={woodMat(inner, P.wallH)}>
-        <cylinderGeometry args={[inner, inner, P.wallH, 72]} />
-      </mesh>
-      {/* 모서리를 둥글게: 두 단 위 가장자리에 둥근 원목 테 */}
-      {[
-        [r, P.seatH],
-        [inner, P.wallH],
-      ].map(([rad, y]) => (
-        <mesh key={rad} position-y={y} rotation-x={Math.PI / 2} material={woodMat(rad, P.seatH)}>
-          <torusGeometry args={[rad - P.rim * 0.4, P.rim, 10, 96]} />
-        </mesh>
-      ))}
-      <mesh position-y={P.wallH + 0.001} rotation-x={-Math.PI / 2} material={colorMat(P.soil)}>
-        <circleGeometry args={[inner - 0.08, 48]} />
-      </mesh>
+      <mesh geometry={ground} position-y={G.y} material={groundMat} />
+      <instancedMesh ref={ref} args={[blade, plantMat('#ffffff'), G.blades]} frustumCulled={false} />
     </group>
   )
 }
 
-// 큰 나무 + 등불. 줄기 위에서 가지가 사방으로 뻗고, 가지 끝 둘레에 잎 덩어리, 가지 사이에 등불이 매달림
-function LanternTree({ seed }: { seed: number }) {
-  const T = TREE
-  const shape = useMemo(() => {
-    const rand = seeded(seed)
-    const base = new THREE.Vector3(0, PLANTER.wallH + T.trunkH, 0)
-    const limbs: { mid: THREE.Vector3; q: THREE.Quaternion; len: number; r: number }[] = []
-    const tips: THREE.Vector3[] = []
-    for (let i = 0; i < T.branches; i++) {
-      const a = (i / T.branches) * Math.PI * 2 + rand() * 0.5
-      const tip = new THREE.Vector3(Math.sin(a) * (2.8 + rand() * 1.2), base.y + 2.6 + rand() * 1.4, Math.cos(a) * (2.8 + rand() * 1.2))
-      limbs.push({ ...between(base, tip), r: 0.13 })
-      tips.push(tip)
-      // 끝에서 갈라지는 작은 가지 둘
-      for (const turn of [-0.5, 0.5]) {
-        const b = a + turn
-        const end = new THREE.Vector3(tip.x + Math.sin(b) * 1.3, tip.y + 0.8 + rand() * 0.6, tip.z + Math.cos(b) * 1.3)
-        limbs.push({ ...between(tip, end), r: 0.06 })
-        tips.push(end)
-      }
-    }
-    // 잎 덩어리: 가지 끝 둘레에 흩뿌림
-    const leaves = Array.from({ length: T.leaves }, (_, i) => {
-      const t = tips[i % tips.length]
-      return {
-        p: [t.x + (rand() - 0.5) * 2.2, t.y + (rand() - 0.2) * 1.2, t.z + (rand() - 0.5) * 2.2] as [number, number, number],
-        s: 0.9 + rand() * 0.7,
-        light: rand() < 0.35,
-      }
-    })
-    // 등불: 줄기에서 반지름 1.2~5.2, 높이 화단 위 2.6~6 사이 (줄기·가지와 너무 붙지 않게 바깥쪽)
-    const lanterns = Array.from({ length: T.lanterns }, () => {
+// 줄기 발밑의 흰 꽃 (잔디 위)
+let flowerMaterial: THREE.MeshStandardMaterial | null = null
+const flowerMat = () => (flowerMaterial ??= new THREE.MeshStandardMaterial({ roughness: 0.85, flatShading: true, emissive: '#fff2d0', emissiveIntensity: 0 }))
+function FlowerRing({ r }: { r: number }) {
+  const F = FLOWERS
+  const spots = useMemo(() => {
+    const rand = seeded(41)
+    return Array.from({ length: F.count }, () => {
       const a = rand() * Math.PI * 2
-      const d = 1.2 + rand() * 4
-      return [Math.sin(a) * d, PLANTER.wallH + 2.6 + rand() * 3.4, Math.cos(a) * d] as [number, number, number]
+      const d = (0.25 + Math.sqrt(rand()) * 0.75) * r * 0.9
+      return { x: Math.sin(a) * d, z: Math.cos(a) * d, y: F.y + rand() * 0.1, s: F.size[0] + rand() * (F.size[1] - F.size[0]), c: F.colors[Math.floor(rand() * F.colors.length)] }
     })
-    return { limbs, leaves, lanterns }
-  }, [seed, T.branches, T.leaves, T.lanterns, T.trunkH])
+  }, [r, F])
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const m = ref.current
+    if (!m) return
+    const o = new THREE.Object3D()
+    const col = new THREE.Color()
+    spots.forEach((f, i) => {
+      o.position.set(f.x, f.y, f.z)
+      o.rotation.set(f.x, f.z, f.y)
+      o.scale.setScalar(f.s)
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+      m.setColorAt(i, col.set(f.c))
+    })
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [spots])
+  useFrame(() => {
+    flowerMat().emissiveIntensity = F.nightGlow * nightGlow()
+  })
+  return (
+    <instancedMesh ref={ref} args={[undefined, flowerMat(), F.count]} frustumCulled={false}>
+      <icosahedronGeometry args={[1, 1]} />
+    </instancedMesh>
+  )
+}
 
-  // 등불은 낮에도 은은하게, 밤에는 밝게 (재질은 파일 위쪽 LANTERN_MAT 하나를 같이 씀). 빛 세 개도 같이
+const pointMat = (size: number) => new THREE.PointsMaterial({ map: glowSprite(), color: BULB.color, size, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: BULB.day })
+let bulbPoints: THREE.PointsMaterial | null = null
+const bulbMat = () => (bulbPoints ??= pointMat(BULB.size))
+let haloPoints: THREE.PointsMaterial | null = null
+const haloMat = () => (haloPoints ??= pointMat(JAR.halo))
+
+// 큰 나무 + 늘어진 줄 조명 + 유리 등 + 낱장 잎
+function LanternTree({ seed }: { seed: number }) {
+  const shape = useMemo(() => lanternTreeShape(seed), [seed])
+  const wood = useMemo(() => {
+    const parts = shape.limbs.map((l, i) => limbTube(l, i === 0 ? 22 : i < 3 ? 12 : 7, i === 0 ? 0.42 : 0))
+    return mergeGeometries(parts)!
+  }, [shape])
+  const leafGeo = useMemo(() => leafShape(), [])
+  const leafMaterial = useMemo(() => new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.55 }), [])
+  // 전구: 줄마다 일정 간격으로 찍은 빛 점 하나의 묶음
+  const bulbs = useMemo(() => {
+    const pos: number[] = []
+    for (const s of shape.strands) for (let y = s.bottom + JAR.h; y < s.top; y += BULB.every) pos.push(s.x, y, s.z)
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    return g
+  }, [shape])
+  const halos = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(shape.strands.flatMap((s) => [s.x, s.bottom, s.z]), 3))
+    return g
+  }, [shape])
+  useEffect(
+    () => () => {
+      wood.dispose()
+      leafGeo.dispose()
+      bulbs.dispose()
+      halos.dispose()
+    },
+    [wood, leafGeo, bulbs, halos],
+  )
+
+  const leaves = useRef<THREE.InstancedMesh>(null)
+  const jars = useRef<THREE.InstancedMesh>(null)
+  const caps = useRef<THREE.InstancedMesh>(null)
+  const wires = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D()
+    const col = new THREE.Color()
+    const L = leaves.current
+    if (L) {
+      shape.leaves.forEach((f, i) => {
+        o.position.set(f.x, f.y, f.z)
+        o.rotation.set(f.rx, f.ry, f.rz)
+        o.scale.setScalar(f.s)
+        o.updateMatrix()
+        L.setMatrixAt(i, o.matrix)
+        L.setColorAt(i, col.set(LEAF_TONES[f.tone]))
+      })
+      L.instanceMatrix.needsUpdate = true
+      if (L.instanceColor) L.instanceColor.needsUpdate = true
+    }
+    o.rotation.set(0, 0, 0)
+    shape.strands.forEach((s, i) => {
+      o.scale.set(1, 1, 1)
+      o.position.set(s.x, s.bottom, s.z)
+      o.updateMatrix()
+      jars.current?.setMatrixAt(i, o.matrix)
+      o.position.set(s.x, s.bottom + JAR.h / 2 + 0.015, s.z)
+      o.updateMatrix()
+      caps.current?.setMatrixAt(i, o.matrix)
+      o.position.set(s.x, (s.top + s.bottom) / 2, s.z)
+      o.scale.set(1, s.top - s.bottom, 1)
+      o.updateMatrix()
+      wires.current?.setMatrixAt(i, o.matrix)
+    })
+    for (const m of [jars.current, caps.current, wires.current]) if (m) m.instanceMatrix.needsUpdate = true
+  }, [shape])
+
+  // 낮에는 은은하게, 밤에는 밝게. 빛 세 개도 같이
   const lights = useRef<(THREE.PointLight | null)[]>([])
   useFrame(() => {
     const g = nightGlow()
-    LANTERN_MAT.emissiveIntensity = LANTERN.dayGlow + (LANTERN.nightGlow - LANTERN.dayGlow) * g
+    JAR_MAT.emissiveIntensity = JAR.day + (JAR.night - JAR.day) * g
+    barkMat().emissiveIntensity = BARK.nightGlow * g
+    bulbMat().opacity = BULB.day + (BULB.night - BULB.day) * g
+    haloMat().opacity = bulbMat().opacity
     for (const l of lights.current) if (l) l.intensity = LIGHT.intensity * g
   })
 
-  const bark = barkMat()
+  const count = shape.strands.length
   return (
     <group>
-      {/* 줄기 (아래가 굵음) + 기대어 받친 나무 버팀목 둘 */}
-      <mesh position-y={PLANTER.wallH + T.trunkH / 2} material={bark}>
-        <cylinderGeometry args={[T.trunkR * 0.75, T.trunkR, T.trunkH, 20]} />
-      </mesh>
-      {[-1, 1].map((sx) => (
-        <mesh key={sx} position={[sx * 0.45, PLANTER.wallH + 0.7, 0.15]} rotation-z={sx * 0.35} material={woodMat(0.1, 1.5)}>
-          <boxGeometry args={[0.08, 1.5, 0.08]} />
-        </mesh>
-      ))}
-      {shape.limbs.map((l, i) => (
-        <mesh key={i} position={l.mid} quaternion={l.q} material={bark}>
-          <cylinderGeometry args={[l.r * 0.7, l.r, l.len, 10]} />
-        </mesh>
-      ))}
-      {/* 잎 덩어리: 짙은 초록·밝은 초록 두 가지. 둥글게 보이게 잘게 나눈 공 + 얼룩진 잎 무늬 */}
-      {[false, true].map((light) => (
-        <Instances key={String(light)} limit={T.leaves} material={leafMat(light)}>
-          <sphereGeometry args={[1, 20, 14]} />
-          {shape.leaves
-            .filter((f) => f.light === light)
-            .map((f, i) => (
-              <Instance key={i} position={f.p} scale={[f.s, f.s * 0.7, f.s]} />
-            ))}
-        </Instances>
-      ))}
-      {/* 등불: 납작한 공 + 위로 가는 줄 */}
-      <Instances limit={T.lanterns} material={LANTERN_MAT}>
-        <sphereGeometry args={[LANTERN.r, 16, 12]} />
-        {shape.lanterns.map((p, i) => (
-          <Instance key={i} position={p} scale={[1, LANTERN.squash, 1]} />
-        ))}
-      </Instances>
-      <Instances limit={T.lanterns} material={colorMat('#2a2a2a')}>
-        <boxGeometry args={[0.01, 0.5, 0.01]} />
-        {shape.lanterns.map((p, i) => (
-          <Instance key={i} position={[p[0], p[1] + LANTERN.r + 0.22, p[2]]} />
-        ))}
-      </Instances>
+      <mesh geometry={wood} material={barkMat()} />
+      <instancedMesh ref={leaves} args={[leafGeo, leafMaterial, shape.leaves.length]} frustumCulled={false} />
+      <instancedMesh ref={wires} args={[undefined, colorMat(WIRE.color), count]} frustumCulled={false}>
+        <boxGeometry args={[WIRE.t, 1, WIRE.t]} />
+      </instancedMesh>
+      <instancedMesh ref={jars} args={[undefined, JAR_MAT, count]} frustumCulled={false}>
+        <cylinderGeometry args={[JAR.r, JAR.r * 0.88, JAR.h, 10]} />
+      </instancedMesh>
+      <instancedMesh ref={caps} args={[undefined, colorMat(JAR.cap), count]} frustumCulled={false}>
+        <cylinderGeometry args={[JAR.r * 0.8, JAR.r, 0.03, 10]} />
+      </instancedMesh>
+      <points geometry={bulbs} material={bulbMat()} frustumCulled={false} />
+      <points geometry={halos} material={haloMat()} frustumCulled={false} />
       {/* 밤에 나무 둘레를 비추는 따뜻한 빛 셋 (낮에는 0) */}
       {[0, 1, 2].map((i) => {
         const a = (i / 3) * Math.PI * 2
@@ -273,7 +290,7 @@ function LanternTree({ seed }: { seed: number }) {
             ref={(el) => {
               lights.current[i] = el
             }}
-            position={[Math.sin(a) * 2.5, PLANTER.wallH + 3.6, Math.cos(a) * 2.5]}
+            position={[Math.sin(a) * 2.5, LIGHT.y, Math.cos(a) * 2.5]}
             color="#ffd9a0"
             intensity={0}
             distance={LIGHT.distance}
