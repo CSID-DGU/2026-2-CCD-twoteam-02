@@ -48,6 +48,16 @@
 //  presence 의 join 에서도 같은 일을 한다. 둘 중 하나가 늦거나 유실돼도
 //  나머지가 받쳐 주도록 일부러 두 군데에 둔다.
 //
+// ── 끊겼을 때 ────────────────────────────────────────────────────────
+//
+//  방 연결은 한도 초과(서버가 방을 닫음), 인터넷 끊김, 시간 초과로 끊길 수 있다.
+//  라이브러리에 맡기면 서버가 닫은 방은 다시 안 붙고, 나머지는 전원이 같은 때에 다시 붙어
+//  한도에 또 걸린다. 그래서 끊기면 그 채널을 버리고, 무작위로 기다렸다가 새 채널로 입장 절차를
+//  처음부터 다시 한다(reconnectLogic.ts). 끊긴 동안 받은 위치(moves)는 들고 있고,
+//  소식이 STALE_MS 넘게 없는 사람은 평소처럼 지운다.
+//
+//  끊긴 동안은 아무것도 보내지 않는다. 안 그러면 channel.send 가 알아서 HTTP 로 바꿔 보내서 메시지가 샌다.
+//
 // ── 지연에 대해 ──────────────────────────────────────────────────────
 //
 //  메시지가 상대에게 닿는 데 약 100ms 가 걸린다. 이건 얼마나 자주 보내든 같다.
@@ -64,12 +74,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { onMyProfileChanged } from '../profile/characters'
 import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
 import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
+import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
@@ -95,7 +106,7 @@ export function useParticipants(
 
   useEffect(() => {
     let alive = true
-    const channel = client.channel(room, isPrivate ? { config: { private: true } } : undefined)
+    let channel: RealtimeChannel | null = null // 지금 쓰는 채널. 끊겨서 다시 붙을 때까지는 null
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
     const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
@@ -151,6 +162,7 @@ export function useParticipants(
     }
 
     function readMembers() {
+      if (!channel) return
       members.clear()
       for (const list of Object.values(channel.presenceState<{ userId?: string; at?: number }>()))
         for (const s of list) {
@@ -189,6 +201,9 @@ export function useParticipants(
     let joinedAt = 0 // 이 방에 들어온 시각. presence 에 실어 대표를 정하는 데 쓴다.
     let helloSaid = false
     let snapshotTimer: ReturnType<typeof setTimeout> | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let connectedAt = 0 // 연결된 시각. 끊겨 있으면 0
+    let failures = 0 // 연속으로 끊긴 횟수
 
     // 지금 내 상태를 한 번 보낸다. 값이 그대로여도 보낸다.
     function sendNow() {
@@ -196,7 +211,7 @@ export function useParticipants(
       if (!subscribed || !state) return
       lastSent = state
       lastSentAt = Date.now()
-      void channel.send({ type: 'broadcast', event: MOVE_EVENT, payload: pack(state) })
+      void channel?.send({ type: 'broadcast', event: MOVE_EVENT, payload: pack(state) })
     }
 
     // 들어왔다고 알린다. 대표가 방 전체 위치로 답해 준다. 한 번만 보낸다.
@@ -204,7 +219,7 @@ export function useParticipants(
       const id = me.current?.userId
       if (!subscribed || !id || helloSaid) return
       helloSaid = true
-      void channel.send({ type: 'broadcast', event: HELLO_EVENT, payload: { userId: id } })
+      void channel?.send({ type: 'broadcast', event: HELLO_EVENT, payload: { userId: id } })
     }
 
     // 보기 전용 연결은 내 상태가 없어 대표가 되지 않는다.
@@ -221,99 +236,138 @@ export function useParticipants(
         const state = me.current
         if (!state || !amRepresentative()) return // 기다리는 동안 대표가 바뀌었으면 그쪽이 답한다
         const states = buildSnapshot(pack(state), moves, lastHeard, Date.now(), STALE_MS)
-        void channel.send({ type: 'broadcast', event: SNAPSHOT_EVENT, payload: { states } })
+        void channel?.send({ type: 'broadcast', event: SNAPSHOT_EVENT, payload: { states } })
       }, SNAPSHOT_WAIT_MS)
     }
 
-    channel
-      .on('presence', { event: 'sync' }, readMembers)
-      .on('presence', { event: 'join' }, ({ newPresences }) => {
-        readMembers()
-        // 내가 들어온 알림이면 답할 일이 없다.
-        const mine = me.current?.userId
-        if ((newPresences as { userId?: string }[]).some((p) => p.userId && p.userId !== mine)) replyToJoin()
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        for (const p of leftPresences as { userId?: string }[]) dropGone(p.userId)
-        readMembers()
-      })
-      .on('broadcast', { event: HELLO_EVENT }, ({ payload }) => {
-        // 누가 막 들어왔다. 기다리게 하지 않고 대표가 방 전체 위치를 알려 준다.
-        const who = (payload as { userId?: string })?.userId
-        if (!who || who === me.current?.userId) return
-        replyToJoin()
-      })
-      .on('broadcast', { event: SNAPSHOT_EVENT }, ({ payload }) => {
-        const fresh = unknownStates(payload, me.current?.userId, moves)
-        if (fresh.length === 0) return
-        const now = Date.now()
-        for (const state of fresh) {
+    // 방에 들어간다. 끊기면 새 채널로 여기를 다시 부른다.
+    function connect() {
+      const ch = client.channel(room, isPrivate ? { config: { private: true } } : undefined)
+      channel = ch
+      ch
+        .on('presence', { event: 'sync' }, readMembers)
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          readMembers()
+          // 내가 들어온 알림이면 답할 일이 없다.
+          const mine = me.current?.userId
+          if ((newPresences as { userId?: string }[]).some((p) => p.userId && p.userId !== mine)) replyToJoin()
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+          readMembers()
+          // 다시 연결한 사람은 새 입장 뒤에 예전 연결의 leave 가 올 수 있다. 아직 목록에 있으면 나간 게 아니다.
+          for (const p of leftPresences as { userId?: string }[]) if (!p.userId || !members.has(p.userId)) dropGone(p.userId)
+        })
+        .on('broadcast', { event: HELLO_EVENT }, ({ payload }) => {
+          // 누가 막 들어왔다. 기다리게 하지 않고 대표가 방 전체 위치를 알려 준다.
+          const who = (payload as { userId?: string })?.userId
+          if (!who || who === me.current?.userId) return
+          replyToJoin()
+        })
+        .on('broadcast', { event: SNAPSHOT_EVENT }, ({ payload }) => {
+          const fresh = unknownStates(payload, me.current?.userId, moves)
+          if (fresh.length === 0) return
+          const now = Date.now()
+          for (const state of fresh) {
+            moves.set(state.userId, state)
+            lastHeard.set(state.userId, now)
+          }
+          rebuild()
+        })
+        .on('broadcast', { event: PROFILE_EVENT }, ({ payload }) => {
+          // 누가 캐릭터·닉네임을 바꿨다. 들고 있던 값을 버리고 DB 에서 다시 읽는다.
+          const who = (payload as { userId?: string })?.userId
+          if (!who || who === me.current?.userId) return
+          profiles.current.delete(who)
+          rebuild()
+        })
+        .on('broadcast', { event: SIGNAL_EVENT }, ({ payload }) => {
+          // 음성 연결 신호. 나에게 온 것만 넘긴다.
+          const p = payload as { from?: string; to?: string; data?: unknown } | null
+          if (!port || !p?.from || p.to !== me.current?.userId) return
+          port.receive(p.from, p.data)
+        })
+        .on('broadcast', { event: CHAT_EVENT }, ({ payload }) => {
+          // 회의 채팅. 받은 그대로 넘기고, 글자 확인은 채팅 쪽(ChatProvider)이 한다.
+          const from = (payload as { from?: unknown } | null)?.from
+          if (!chatPort || typeof from !== 'string' || from === me.current?.userId) return
+          chatPort.receive(from, payload)
+        })
+        .on('broadcast', { event: FLICK_EVENT }, ({ payload }) => {
+          // 딱밤. 누가 누구에게 보냈는지만 넘기고, 받아들일지는 딱밤 쪽(useFlick)이 확인한다.
+          const p = payload as { from?: unknown; to?: unknown } | null
+          if (!flickPort || typeof p?.from !== 'string' || typeof p?.to !== 'string' || p.from === me.current?.userId) return
+          flickPort.receive(p.from, p.to)
+        })
+        .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
+          const state = payload as PresenceState
+          if (!state?.userId || state.userId === me.current?.userId) return
           moves.set(state.userId, state)
-          lastHeard.set(state.userId, now)
+          lastHeard.set(state.userId, Date.now())
+          rebuild()
+        })
+        .subscribe((status) => {
+          if (!alive || ch !== channel) return // 정리했거나 이미 버린 채널의 알림
+          if (status === 'SUBSCRIBED') joined(ch)
+          else if (isDownStatus(status)) disconnected(ch)
+        })
+    }
+
+    // 방에 들어왔다. 처음과 다시 연결했을 때 모두 같은 입장 절차를 밟는다.
+    function joined(ch: RealtimeChannel) {
+      subscribed = true
+      connectedAt = Date.now()
+      helloSaid = false
+      if (port) {
+        port.send = (to, data) => {
+          const from = me.current?.userId
+          if (from) void ch.send({ type: 'broadcast', event: SIGNAL_EVENT, payload: { from, to, data } })
         }
-        rebuild()
-      })
-      .on('broadcast', { event: PROFILE_EVENT }, ({ payload }) => {
-        // 누가 캐릭터·닉네임을 바꿨다. 들고 있던 값을 버리고 DB 에서 다시 읽는다.
-        const who = (payload as { userId?: string })?.userId
-        if (!who || who === me.current?.userId) return
-        profiles.current.delete(who)
-        rebuild()
-      })
-      .on('broadcast', { event: SIGNAL_EVENT }, ({ payload }) => {
-        // 음성 연결 신호. 나에게 온 것만 넘긴다.
-        const p = payload as { from?: string; to?: string; data?: unknown } | null
-        if (!port || !p?.from || p.to !== me.current?.userId) return
-        port.receive(p.from, p.data)
-      })
-      .on('broadcast', { event: CHAT_EVENT }, ({ payload }) => {
-        // 회의 채팅. 받은 그대로 넘기고, 글자 확인은 채팅 쪽(ChatProvider)이 한다.
-        const from = (payload as { from?: unknown } | null)?.from
-        if (!chatPort || typeof from !== 'string' || from === me.current?.userId) return
-        chatPort.receive(from, payload)
-      })
-      .on('broadcast', { event: FLICK_EVENT }, ({ payload }) => {
-        // 딱밤. 누가 누구에게 보냈는지만 넘기고, 받아들일지는 딱밤 쪽(useFlick)이 확인한다.
-        const p = payload as { from?: unknown; to?: unknown } | null
-        if (!flickPort || typeof p?.from !== 'string' || typeof p?.to !== 'string' || p.from === me.current?.userId) return
-        flickPort.receive(p.from, p.to)
-      })
-      .on('broadcast', { event: MOVE_EVENT }, ({ payload }) => {
-        const state = payload as PresenceState
-        if (!state?.userId || state.userId === me.current?.userId) return
-        moves.set(state.userId, state)
-        lastHeard.set(state.userId, Date.now())
-        rebuild()
-      })
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') return
-        subscribed = true
-        if (port) {
-          port.send = (to, data) => {
-            const from = me.current?.userId
-            if (from) void channel.send({ type: 'broadcast', event: SIGNAL_EVENT, payload: { from, to, data } })
-          }
+      }
+      if (flickPort) {
+        flickPort.send = (to) => {
+          const from = me.current?.userId
+          if (from) void ch.send({ type: 'broadcast', event: FLICK_EVENT, payload: { from, to } })
         }
-        if (flickPort) {
-          flickPort.send = (to) => {
-            const from = me.current?.userId
-            if (from) void channel.send({ type: 'broadcast', event: FLICK_EVENT, payload: { from, to } })
-          }
+      }
+      if (chatPort) {
+        chatPort.send = async (text) => {
+          const from = me.current?.userId
+          if (!from) return false
+          return (await ch.send({ type: 'broadcast', event: CHAT_EVENT, payload: { from, text } })) === 'ok'
         }
-        if (chatPort) {
-          chatPort.send = async (text) => {
-            const from = me.current?.userId
-            if (!from) return false
-            return (await channel.send({ type: 'broadcast', event: CHAT_EVENT, payload: { from, text } })) === 'ok'
-          }
-        }
-        const id = me.current?.userId
-        joinedAt = Date.now()
-        // presence 는 "누가 있는지"와 들어온 시각만 담는다. 들어올 때 한 번이면 된다.
-        if (id) void channel.track({ userId: id, at: joinedAt })
-        sendNow()
-        sayHello()
-      })
+      }
+      const id = me.current?.userId
+      // 다시 연결하면 시각을 새로 잡는다. 끊긴 동안의 소식을 모르는 사람이 대표가 되지 않게 하려는 것이다.
+      joinedAt = Date.now()
+      // presence 는 "누가 있는지"와 들어온 시각만 담는다. 들어올 때 한 번이면 된다.
+      if (id) void ch.track({ userId: id, at: joinedAt })
+      sendNow()
+      sayHello()
+    }
+
+    // 끊겼다. 끊긴 동안은 보내지 않고, 간격을 두고 새 채널로 다시 들어간다.
+    // 쓰던 채널은 바로 버린다. 그냥 두면 라이브러리가 저 혼자 다시 붙어 무작위로 기다리는 의미가 없다.
+    function disconnected(ch: RealtimeChannel) {
+      failures = nextFailures(failures, connectedAt ? Date.now() - connectedAt : 0)
+      connectedAt = 0
+      subscribed = false
+      channel = null
+      members.clear()
+      closePorts()
+      if (snapshotTimer) clearTimeout(snapshotTimer)
+      snapshotTimer = null
+      void client.removeChannel(ch)
+      retryTimer = setTimeout(connect, reconnectDelay(failures, Math.random()))
+    }
+
+    // 끊겨 있는 동안 음성 신호·채팅·딱밤을 보내지 못하게 한다. 쓰는 쪽은 null 을 "아직 방에 없음"으로 안다.
+    function closePorts() {
+      if (port) port.send = null
+      if (chatPort) chatPort.send = null
+      if (flickPort) flickPort.send = null
+    }
+
+    connect()
 
     // 값이 충분히 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
     //
@@ -334,7 +388,7 @@ export function useParticipants(
     const joinTimer = setInterval(() => {
       const id = me.current?.userId
       if (!subscribed || !id || members.has(id)) return
-      void channel.track({ userId: id, at: joinedAt })
+      void channel?.track({ userId: id, at: joinedAt })
       sayHello()
     }, SEND_INTERVAL_MS)
 
@@ -345,7 +399,7 @@ export function useParticipants(
     const stopProfileListen = onMyProfileChanged(() => {
       const id = me.current?.userId
       if (!subscribed || !id) return
-      void channel.send({ type: 'broadcast', event: PROFILE_EVENT, payload: { userId: id } })
+      void channel?.send({ type: 'broadcast', event: PROFILE_EVENT, payload: { userId: id } })
     })
 
     return () => {
@@ -354,11 +408,10 @@ export function useParticipants(
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
       if (snapshotTimer) clearTimeout(snapshotTimer)
+      if (retryTimer) clearTimeout(retryTimer)
       stopProfileListen()
-      if (port) port.send = null
-      if (chatPort) chatPort.send = null
-      if (flickPort) flickPort.send = null
-      void channel.unsubscribe()
+      closePorts()
+      void channel?.unsubscribe()
     }
   }, [room, me, isPrivate, signalRef, chatRef, client, flickRef])
 
