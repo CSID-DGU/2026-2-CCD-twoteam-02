@@ -176,7 +176,10 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, paused
         subjectId = null
         ;({ error } = await supabase.from('study_logs').insert({ ...values, subject_id: null, condition }))
       }
-      if (!error) return
+      if (!error) {
+        setSaveError('') // 앞 조각이 실패했어도 저장이 다시 되면 문구를 지웁니다. (#444)
+        return
+      }
       console.error('공부 기록을 저장하지 못했습니다:', error.message)
       setSaveError('기록 저장 실패')
     }
