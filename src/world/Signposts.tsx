@@ -8,7 +8,9 @@ import { signArrows } from './worldLogic'
 import type { GateSpec, Signpost } from './worldLogic'
 
 const POST = { h: 2.7, r: 0.07 } // 기둥 높이·반지름
-const BOARD = { len: 1.7, h: 0.34, t: 0.05, tip: 0.24, gap: 0.42, top: 2.35 } // 화살표 판 (길이·높이·두께·뾰족한 끝·판 사이·맨 위 판 높이)
+const BOARD = { len: 1.9, h: 0.34, t: 0.05, tip: 0.24, gap: 0.42, top: 2.35 } // 화살표 판 (길이·높이·두께·뾰족한 끝·판 사이·맨 위 판 높이)
+// 글자 판은 기둥 바깥에서 시작 (기둥이 판보다 두꺼워 앞을 가리므로, 기둥 앞쪽 글자가 잘려 보였음)
+const TEXT_FROM = POST.r + 0.05
 const WOOD = '#c9a172'
 const INK = '#3a2412'
 
@@ -49,10 +51,18 @@ function labelTexture(label: string, sub: string | undefined, dist: number) {
     }
     ctx.fillStyle = INK
     ctx.textBaseline = 'middle'
-    ctx.font = '800 50px "Noto Sans KR", "Apple SD Gothic Neo", sans-serif'
+    // 거리를 오른쪽에 먼저 재 두고, 이름·영문은 남은 폭에 들어가게 글자 크기를 줄임 (긴 이름이 판 밖으로 잘리지 않게)
+    ctx.font = '700 30px "Noto Sans KR", sans-serif'
+    const room = 490 - ctx.measureText(`${dist}m`).width - 18 - 22
+    const fit = (text: string, weight: number, size: number) => {
+      ctx.font = `${weight} ${size}px "Noto Sans KR", "Apple SD Gothic Neo", sans-serif`
+      const w = ctx.measureText(text).width
+      if (w > room) ctx.font = `${weight} ${Math.floor((size * room) / w)}px "Noto Sans KR", "Apple SD Gothic Neo", sans-serif`
+    }
+    fit(label, 800, 50)
     ctx.fillText(label, 22, sub ? 44 : 58)
     if (sub) {
-      ctx.font = '600 22px "Noto Sans KR", sans-serif'
+      fit(sub, 600, 22)
       ctx.globalAlpha = 0.75
       ctx.fillText(sub, 24, 90)
       ctx.globalAlpha = 1
@@ -85,8 +95,8 @@ export function Signposts({ posts, gates }: { posts: Signpost[]; gates: GateSpec
           </mesh>
           {signArrows(p, gates).map((a, k) => {
             const tex = labelTexture(a.label, a.sub, a.dist)
-            const w = BOARD.len - BOARD.tip - 0.04 // 글자 판은 네모 부분에만
-            const cx = -0.12 + 0.02 + w / 2
+            const w = -0.12 + BOARD.len - BOARD.tip - 0.02 - TEXT_FROM // 글자 판은 기둥 바깥 ~ 네모 부분 끝
+            const cx = TEXT_FROM + w / 2
             return (
               // 판의 +x(뾰족한 끝)가 가리키는 쪽을 보게: y 축으로 (각도 - 90°) 돌림
               <group key={k} position-y={BOARD.top - k * BOARD.gap} rotation-y={a.angle - Math.PI / 2}>
