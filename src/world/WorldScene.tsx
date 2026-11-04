@@ -78,6 +78,8 @@ import { topic, toward } from '../lib/josa'
 import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
+import { CampusGateView } from './CampusGateView'
+import { CampusStadium } from './CampusStadium'
 import { CampusTrees } from './CampusTrees'
 import { NightFill, StringLights } from './StreetLights'
 import { ShopInteriors } from './ShopInteriors'
@@ -543,6 +545,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.props && <CampusProps props={PLAZA.props} />}
         {PLAZA.walks && <GardenOrbs orbs={orbSpots(PLAZA)} />}
         {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
+        {PLAZA.pitch && PLAZA.stadium && <CampusStadium pitch={PLAZA.pitch} stadium={PLAZA.stadium} />}
         {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
@@ -564,6 +567,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             {/* 문 너머 바닥은 옆 문 풍경과 겹치지 않는 데까지만 (겹치면 같은 높이라 깜빡임) */}
             {PLAZA.beach || g.spec.to === 'beach' ? (
               <BeachGateView gate={g} inland={!!PLAZA.beach} limit={gateViewSpan(GATES, g)} />
+            ) : g.spec.to === 'campus' ? (
+              <CampusGateView gate={g} limit={gateViewSpan(GATES, g)} />
             ) : (
               <GateBackdrop gate={g} limit={gateViewSpan(GATES, g)} />
             )}
