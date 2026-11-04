@@ -21,7 +21,6 @@ const C = {
   grass: '#4f9c46',
   signBg: '#1f3b2d',
   signText: '#f3e6b3',
-  clockFace: '#f7f3ea',
 }
 // 크기 (m)
 // 정문 큰 기둥 높이 단(m): 흰 돌 받침 위 끝, 흰 띠 아래 끝·두께, 흰 돌 머리 아래 끝, 위 끝
@@ -47,7 +46,6 @@ const MAT = {
   ivyDark: mat(C.ivyDark, { side: THREE.DoubleSide }),
   ivyLight: mat(C.ivyLight, { side: THREE.DoubleSide }),
   grass: colorMat(C.grass),
-  clockFace: colorMat(C.clockFace),
 }
 
 // 세 갈래 뾰족한 담쟁이 잎 (가운데가 길고 양옆이 짧음). 크기 1 기준, 잎자루가 (0,0)
@@ -315,7 +313,6 @@ export function GateBackdrop({ gate, limit = [-Infinity, Infinity] }: { gate: Pl
     for (let z = -4; z > -B.depth + 4; z -= B.treeStep) for (const sx of [-1, 1]) out.push([sx * B.treeX, z])
     return out
   }, [B.depth, B.treeStep, B.treeX])
-  const campus = gate.spec.to === 'campus'
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
       {/* 잔디 (월드 땅보다 살짝 아래라 겹쳐도 깜빡이지 않음) */}
@@ -346,43 +343,19 @@ export function GateBackdrop({ gate, limit = [-Infinity, Infinity] }: { gate: Pl
           </mesh>
         </group>
       ))}
-      {/* 멀리 보이는 행선지: 캠퍼스면 벽돌 건물들과 시계탑, 광장이면 낮은 건물 지붕들 */}
-      {campus ? (
-        <group position-z={-B.depth + 2}>
-          {[[-9, 9, 5], [0, 12, 6], [9, 9, 5]].map(([x, bw, bh], i) => (
-            <group key={i} position-x={x}>
-              <mesh position-y={bh / 2} material={MAT.brick}>
-                <boxGeometry args={[bw, bh, 6]} />
-              </mesh>
-              <mesh position-y={bh + 0.15} material={MAT.cap}>
-                <boxGeometry args={[bw + 0.2, 0.3, 6.2]} />
-              </mesh>
-            </group>
-          ))}
-          <mesh position-y={8} material={MAT.brick}>
-            <boxGeometry args={[3, 6, 3]} />
-          </mesh>
-          <mesh position-y={12.3} rotation-y={Math.PI / 4} material={colorMat('#5a5f66')}>
-            <coneGeometry args={[2.3, 2.6, 4]} />
-          </mesh>
-          <mesh position={[0, 9.2, 1.51]} material={MAT.clockFace}>
-            <circleGeometry args={[0.8, 24]} />
-          </mesh>
-        </group>
-      ) : (
-        <group position-z={-B.depth + 2}>
-          {[[-10, '#a0463c'], [-3, '#3f6e9e'], [4, '#6b8e3a'], [11, '#1f1f24']].map(([x, roof], i) => (
-            <group key={i} position-x={x as number}>
-              <mesh position-y={2} material={colorMat('#e8d9c4')}>
-                <boxGeometry args={[6, 4, 5]} />
-              </mesh>
-              <mesh position-y={4.2} material={roofMat(roof as string)}>
-                <boxGeometry args={[6.4, 0.4, 5.4]} />
-              </mesh>
-            </group>
-          ))}
-        </group>
-      )}
+      {/* 멀리 보이는 광장의 낮은 건물 지붕들 (캠퍼스 쪽 문 너머는 CampusGateView 가 실제 캠퍼스를 그림) */}
+      <group position-z={-B.depth + 2}>
+        {[[-10, '#a0463c'], [-3, '#3f6e9e'], [4, '#6b8e3a'], [11, '#1f1f24']].map(([x, roof], i) => (
+          <group key={i} position-x={x as number}>
+            <mesh position-y={2} material={colorMat('#e8d9c4')}>
+              <boxGeometry args={[6, 4, 5]} />
+            </mesh>
+            <mesh position-y={4.2} material={roofMat(roof as string)}>
+              <boxGeometry args={[6.4, 0.4, 5.4]} />
+            </mesh>
+          </group>
+        ))}
+      </group>
     </group>
   )
 }
