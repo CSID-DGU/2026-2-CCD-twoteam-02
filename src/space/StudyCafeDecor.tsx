@@ -1,10 +1,11 @@
 // Cam Study Cafe (별다방 자리) 실내: 스터디카페 사진처럼 둥근 원목 칸막이 책상(골유리·스탠드), 창가 바(펜던트 등·화분),
 // 붙박이 책장(칸마다 간접등), 큰 화분 나무, 노출 덕트·트랙 조명, 글자 간판, 계단. 모든 면에 질감(studyCafeTextures)을 씌웁니다.
 // 창가 바 뒤 통창은 진짜 창(CafeWindows, 실제 캠리단길이 보임)입니다.
-// 칸막이 책상은 수십 개라 InstancedMesh 로 재질마다 한 번에 그립니다 (studyCafeShapes).
-import { useLayoutEffect, useMemo, useRef } from 'react'
+// 칸막이 책상·의자는 수십 개라 InstancedMesh 로 재질마다 한 번에 그리고, 나머지 소품은 재질이 같은 것끼리 도형을 합쳐 그립니다 (staticBatch).
+import { memo, useLayoutEffect, useMemo, useRef } from 'react'
 import { AdditiveBlending, Color, DoubleSide, ExtrudeGeometry, MeshBasicMaterial, MeshStandardMaterial, Object3D, Shape } from 'three'
-import type { BufferGeometry, InstancedMesh, Material } from 'three'
+import type { BufferGeometry, Group, InstancedMesh, Material } from 'three'
+import { batchStatic } from './staticBatch'
 import type { Box } from './layout'
 import { STUDY_CAFE, wallPose } from './theme'
 import type { BookWall, CeilingRun, Motto, Pot, StudyCafeDecor as DecorSpec, WindowBar } from './theme'
@@ -37,23 +38,28 @@ const fabric = (color: string) => mat(`fabric|${color}`, () => new MeshStandardM
 const mesh = () => mat('mesh', () => new MeshStandardMaterial({ map: meshTexture(), roughness: 0.8 }))
 const plaster = (color: string) => mat(`plaster|${color}`, () => new MeshStandardMaterial({ map: plasterTexture(color, { x: 2, y: 2 }), roughness: 0.95 }))
 
-// ── 칸막이 책상: 자리마다 같은 도형을 위치·방향만 바꿔 찍습니다 ──
-function Instanced({ geometry, material, seats }: { geometry: BufferGeometry; material: Material; seats: { x: number; z: number; rot: number }[] }) {
+// ── 칸막이 책상·의자: 자리마다 같은 도형을 위치·방향만 바꿔 찍습니다. colors 를 주면 자리마다 색(의자 방석 강조색) ──
+type Placed = { x: number; z: number; rot: number; y?: number }
+const tint = new Color()
+function Instanced({ geometry, material, seats, colors }: { geometry: BufferGeometry; material: Material; seats: Placed[]; colors?: string[] }) {
   const ref = useRef<InstancedMesh>(null)
   useLayoutEffect(() => {
     const m = ref.current
     if (!m) return
     const o = new Object3D()
     seats.forEach((s, i) => {
-      o.position.set(s.x, 0, s.z)
+      o.position.set(s.x, s.y ?? 0, s.z)
       o.rotation.set(0, s.rot, 0)
       o.updateMatrix()
       m.setMatrixAt(i, o.matrix)
+      if (colors) m.setColorAt(i, tint.set(colors[i]))
     })
     m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
     m.computeBoundingSphere() // 화면 밖 판정이 첫 자리 하나 기준이 되지 않게
-  }, [seats])
-  return <instancedMesh ref={ref} args={[geometry, material, seats.length]} key={seats.length} />
+  }, [seats, colors])
+  // 색이 있고 없음은 그림 계산식이 달라서 key 에 넣어 새로 만듦
+  return <instancedMesh ref={ref} args={[geometry, material, seats.length]} key={`${seats.length}|${Boolean(colors)}`} />
 }
 
 export function Cubicles({ seats }: { seats: { x: number; z: number; rot: number }[] }) {
@@ -70,32 +76,51 @@ export function Cubicles({ seats }: { seats: { x: number; z: number; rot: number
   )
 }
 
-// ── 의자: 강조색(가까이·내 자리)이 자리마다 달라서 자리마다 그림 (조각을 합쳐 의자 하나 = 메시 2~3개) ──
-export function OfficeChair({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
+// ── 의자: 종류마다 한 번에 찍고, 강조색(가까이·내 자리)은 자리마다 방석 색으로 (예전엔 의자마다 메시 2~3개라 의자만 100번 넘게 그렸음) ──
+export type ChairSpot = Placed & { color: string }
+export function OfficeChairs({ chairs }: { chairs: ChairSpot[] }) {
   const g = officeChairGeometries()
-  return (
-    <group position={[x, 0, z]} rotation-y={rot}>
-      <mesh geometry={g.frame} material={black()} />
-      <mesh geometry={g.seat} material={fabric(color)} />
-      <mesh geometry={g.back} material={mesh()} />
-    </group>
-  )
-}
-
-export function ShellChair({ x, z, rot, color }: { x: number; z: number; rot: number; color: string }) {
-  const g = shellChairGeometries()
-  return (
-    <group position={[x, 0, z]} rotation-y={rot}>
-      <mesh geometry={g.body} material={fabric(color)} />
-      <mesh geometry={g.legs} material={oak()} />
-    </group>
-  )
-}
-
-// ── 방 소품 ──
-export function StudyCafeDecor({ decor, height }: { decor: DecorSpec; height: number }) {
+  const colors = useMemo(() => chairs.map((c) => c.color), [chairs])
+  if (!chairs.length) return null
   return (
     <group>
+      <Instanced geometry={g.frame} material={black()} seats={chairs} />
+      <Instanced geometry={g.seat} material={fabric('#ffffff')} seats={chairs} colors={colors} />
+      <Instanced geometry={g.back} material={mesh()} seats={chairs} />
+    </group>
+  )
+}
+export function ShellChairs({ chairs }: { chairs: ChairSpot[] }) {
+  const g = shellChairGeometries()
+  const colors = useMemo(() => chairs.map((c) => c.color), [chairs])
+  if (!chairs.length) return null
+  return (
+    <group>
+      <Instanced geometry={g.body} material={fabric('#ffffff')} seats={chairs} colors={colors} />
+      <Instanced geometry={g.legs} material={oak()} seats={chairs} />
+    </group>
+  )
+}
+
+// ── 방 소품: 움직이지 않으니 다 그린 뒤 재질이 같은 것끼리 합침 (batchStatic). 지점 화면이 다시 그려져도 다시 합치지 않게 memo ──
+export const StudyCafeDecor = memo(function StudyCafeDecor({ decor, height }: { decor: DecorSpec; height: number }) {
+  const root = useRef<Group>(null)
+  const merged = useRef<Group>(null)
+  useLayoutEffect(() => {
+    const r = root.current
+    const holder = merged.current
+    if (!r || !holder) return
+    const { group, dispose } = batchStatic(r)
+    holder.add(group)
+    return () => {
+      holder.remove(group)
+      dispose()
+    }
+  }, [decor, height])
+  return (
+    <>
+    <group ref={merged} />
+    <group ref={root}>
       {decor.windowBars?.map((b, i) => <WindowBarPiece key={i} bar={b} height={height} />)}
       {decor.bookWalls?.map((b, i) => <BookWallPiece key={i} wall={b} />)}
       {decor.pots?.map((p, i) => (p.tree ? <TreePot key={i} pot={p} /> : <SmallPot key={i} pot={p} />))}
@@ -104,8 +129,9 @@ export function StudyCafeDecor({ decor, height }: { decor: DecorSpec; height: nu
       {decor.aircons?.map((a, i) => <AirCon key={i} x={a.x} z={a.z} height={height} />)}
       {decor.mottos?.map((m, i) => <MottoSign key={i} motto={m} />)}
     </group>
+    </>
   )
-}
+})
 
 // 창가 바: 실제 통창(world.json sideWindow, CafeWindows 가 그림) 앞 벽에 붙인 원목 상판. 로컬 x 가 바 길이 방향
 function WindowBarPiece({ bar, height }: { bar: WindowBar; height: number }) {

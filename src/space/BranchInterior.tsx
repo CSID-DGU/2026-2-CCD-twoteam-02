@@ -12,7 +12,8 @@ import { MY_SEAT_COLOR } from "./MySeatMarker";
 import { cafeWallPieces } from "../world/cafeWindowsOf";
 import { CafeCounter } from "./CafeCounter";
 import { KioskStand } from "./KioskStand";
-import { Cubicles, OfficeChair, ShellChair, Staircase } from "./StudyCafeDecor";
+import { Cubicles, OfficeChairs, ShellChairs, Staircase } from "./StudyCafeDecor";
+import type { ChairSpot } from "./StudyCafeDecor";
 import { plasterTexture } from "./studyCafeTextures";
 import { CorkBoard } from "../board/CorkBoard";
 import { RooftopDeck } from "./RooftopDecor";
@@ -54,6 +55,14 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
   // 루프탑 (이끼 루프탑): 천장·벽·실내 조명 없이 난간과 소품만. 하늘·햇빛은 바깥(world/RooftopWorld 또는 광장)이 비춤.
   // lights 는 지점 화면에서만 켜므로(광장 지붕 위·가게 창 안에서는 끔) 루프탑 불빛(점광원)을 낼지로 씁니다.
   const longRows = useMemo(() => longDeskRows(branch.seats), [branch]); // 중앙도서관 긴 책상 줄 (없으면 빈 목록)
+  // Cam Study Cafe 의자 (한 번에 그림): 가까이·고른 자리는 주황, 내 자리는 파랑, 나머지는 기본색 (아래 자리별 의자와 같은 규칙)
+  const [officeChairs, shellChairs] = useMemo(() => {
+    const pick = (kind: string, base: string): ChairSpot[] =>
+      spotsOf(branch)
+        .filter((c) => c.chair === kind)
+        .map((c) => ({ x: c.x, z: c.z, rot: c.rot, y: c.rise, color: c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : base }));
+    return [pick("office", "#3a3b3e"), pick("shell", colors.chair)];
+  }, [branch, seat, near, mySeat, colors.chair]);
   const roof = branch.theme?.rooftop;
   if (roof) {
     return <RooftopDeck branch={branch} roof={roof} seat={seat} near={near} mySeat={mySeat} nearElevator={nearElevator} elevatorLabel={elevatorLabel} glow={lights} />;
@@ -121,15 +130,15 @@ export function BranchInterior({ branch, seat = null, near = null, mySeat = null
         return s.rise ? <group key={s.no} position-y={s.rise}>{deskEl}</group> : deskEl;
       })}
 
+      {/* Cam Study Cafe 의자(메시 사무용·패브릭 셸): 종류마다 한 번에 찍음. 강조색은 자리마다 방석 색 */}
+      <OfficeChairs chairs={officeChairs} />
+      <ShellChairs chairs={shellChairs} />
       {/* 의자: 가까이·내 자리 강조색은 테마와 무관하게 그대로, 기본색만 테마를 따릅니다 */}
       {spots.map((c) => {
+        if (c.chair === "office" || c.chair === "shell") return null; // 위에서 한 번에 그림
         const chairColor = c.no === seat || c.no === near ? "#f59e0b" : c.no === mySeat ? MY_SEAT_COLOR : colors.chair;
         const desk = branch.seats.find((s) => s.no === c.no); // 바 테이블 안인지는 의자가 아니라 책상 자리로 봅니다 (의자는 테이블 바깥쪽에 있음)
-        const chairEl = c.chair === "office" ? (
-          <OfficeChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : "#3a3b3e"} /> // 메시 사무용 의자 (칸막이 책상)
-        ) : c.chair === "shell" ? (
-          <ShellChair key={c.no} x={c.x} z={c.z} rot={c.rot} color={c.no === seat || c.no === near || c.no === mySeat ? chairColor : colors.chair} /> // 패브릭 셸 의자 (창가 바)
-        ) : c.chair === "lounger" ? (
+        const chairEl = c.chair === "lounger" ? (
           // 누워 쉬는 라운지 소파 (숨 라운지): 강조색은 쿠션 색으로
           <Lounger
             key={c.no}
