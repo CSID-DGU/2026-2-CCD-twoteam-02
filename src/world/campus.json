@@ -22,6 +22,18 @@
     "goal": 5,
     "across": true
   },
+  "stadium": {
+    "masts": [
+      { "x": 13.5, "z": 15.6 },
+      { "x": 26.5, "z": 15.6 },
+      { "x": 13.5, "z": 31.3 },
+      { "x": 26.5, "z": 31.3 }
+    ],
+    "dugouts": [
+      { "x": 17, "z": 15.9, "rot": 0, "color": "#1f5fa8" },
+      { "x": 23, "z": 15.9, "rot": 0, "color": "#b93a32" }
+    ]
+  },
   "buildings": [
     {
       "slug": "cambit-library",

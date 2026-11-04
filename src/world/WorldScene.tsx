@@ -79,6 +79,7 @@ import { Building, Fence, Ground, Lamps } from './WorldDecor'
 import { Fountain } from './Fountain'
 import { Garden, GardenBenches, LushTrees } from './Garden'
 import { CampusGateView } from './CampusGateView'
+import { CampusStadium } from './CampusStadium'
 import { CampusTrees } from './CampusTrees'
 import { NightFill, StringLights } from './StreetLights'
 import { ShopInteriors } from './ShopInteriors'
@@ -544,6 +545,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.props && <CampusProps props={PLAZA.props} />}
         {PLAZA.walks && <GardenOrbs orbs={orbSpots(PLAZA)} />}
         {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
+        {PLAZA.pitch && PLAZA.stadium && <CampusStadium pitch={PLAZA.pitch} stadium={PLAZA.stadium} />}
         {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}

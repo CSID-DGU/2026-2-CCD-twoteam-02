@@ -88,6 +88,7 @@ export type PlazaLayout = {
   campfire?: CampfireSpec // 캠프파이어 (캠리단길 광장 서쪽 잔디). 통나무 의자가 공부 자리 (campfireLogic)
   walks?: Walk[] // 굽은 산책로 (캠퍼스): 점을 이은 길, w 폭
   pitch?: Pitch // 축구장 (캠퍼스): 가운데·크기·골대 폭. 공은 ballLogic
+  stadium?: StadiumSpec // 축구장 조명탑·팀 벤치 (캠퍼스, CampusStadium)
   buildings: BuildingSpec[]
   paths: Box[] // 광장 → 건물 입구 돌길
   trees: (Point & { kind?: 'cherry' | 'fresh' })[]
@@ -130,6 +131,18 @@ export const TRUNK = 0.5 // 나무 줄기 부딪힘 상자 한 변
 export const LAMP_POST = 0.3 // 가로등 기둥 부딪힘 상자 한 변
 export const BENCH = { w: 1.6, d: 0.6 } // 벤치 부딪힘 상자 (남·북을 볼 때. 동·서를 보면 w·d 가 바뀜)
 export const GATE_POST = 1.2 // 정문 벽돌 기둥 한 변 (부딪힘)
+// 축구장 조명탑·팀 벤치. rot: 벤치가 보는 쪽(라디안, 0 이면 +Z), color: 좌석 색
+export type StadiumSpec = { masts: Point[]; dugouts: (Point & { rot: number; color: string })[] }
+export const MAST_BOX = 0.9 // 조명탑 받침 한 변 (m)
+export const DUGOUT = { w: 4.2, d: 2 } // 팀 벤치 폭·깊이 (m)
+export function stadiumBoxes(s: StadiumSpec): Box[] {
+  return [
+    ...s.masts.map((m) => ({ x: m.x, z: m.z, w: MAST_BOX, d: MAST_BOX })),
+    // 벤치는 축구장 긴 변을 따라 놓습니다 (rot 0 또는 180도라 가로·세로가 그대로)
+    ...s.dugouts.map((b) => ({ x: b.x, z: b.z, w: DUGOUT.w, d: DUGOUT.d })),
+  ]
+}
+
 export const GATE_FENCE = { len: 5, t: 0.2, endPost: 0.6 } // 정문 양옆 철제 울타리: 길이, 두께, 끝 작은 기둥 한 변
 export const GATE_NO_BASE = 50 // 정문 입장 자리 번호 시작 (건물 입구 번호와 겹치지 않게)
 export const REST_NO_BASE = 100 // 쉬는 자리 번호 시작
@@ -323,6 +336,7 @@ export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Bo
     ...orbBoxes(plaza), // 길가 둥근 조명
     ...(plaza.beach ? beachObstacles(plaza.beach, plaza.size) : []),
     ...(plaza.pitch ? goalPosts(plaza.pitch) : []),
+    ...(plaza.stadium ? stadiumBoxes(plaza.stadium) : []), // 조명탑·팀 벤치
     ...(plaza.campfire ? [fireBox(plaza.campfire)] : []), // 불 둘레 돌 고리 (통나무는 안 막음)
     ...(plaza.campfire?.stall ? stallBoxes(plaza.campfire.stall) : []), // 마시멜로 가판대 카운터·판매원
   ]
