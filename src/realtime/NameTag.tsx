@@ -15,6 +15,7 @@ const SCALE = 0.004 // 캔버스 픽셀 → 공간 크기
 const BORDER = 8 // 칭호 테두리 두께(픽셀)
 const ICON_GAP = 16 // 꽃 그림과 닉네임 사이(픽셀)
 const GOLD = ['#c8902c', '#f3d27a', '#c8902c'] // 꽃밭(마지막 단계) 금색 테두리
+const TAG_ORDER = 10 // 그리는 순서: 장면(0)과 하늘·구름보다 늦게
 
 const textures = new Map<string, { texture: CanvasTexture; w: number; h: number }>()
 
@@ -76,9 +77,10 @@ export function NameTag({ x, z, name, level }: { x: number; z: number; name: str
   return (
     // Billboard: 카메라가 어디서 보든 항상 정면을 향하게 돌려 줍니다.
     <Billboard position={[x, HEIGHT, z]}>
-      <mesh>
+      {/* 나무 잎·지붕 같은 앞 물체에 글자가 가려 잘리지 않게, 깊이 검사 없이 장면을 다 그린 뒤 맨 위에 그림 */}
+      <mesh renderOrder={TAG_ORDER}>
         <planeGeometry args={[w * SCALE, h * SCALE]} />
-        <meshBasicMaterial map={texture} transparent depthWrite={false} />
+        <meshBasicMaterial map={texture} transparent depthWrite={false} depthTest={false} />
       </mesh>
     </Billboard>
   )
