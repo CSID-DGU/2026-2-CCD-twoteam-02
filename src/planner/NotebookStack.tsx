@@ -5,16 +5,20 @@
 //   오른쪽 아래 모서리: 끌면 맨 위 장이 오른쪽 묶음으로 들려 나가며 전날(prev)이 드러남
 //   왼쪽 아래 모서리  : 끌면 다음 날(next) 장이 오른쪽에서 덮이듯 들어옴
 // 짧게 누르기만 해도 한 장 넘어갑니다(폰). 넘길지 되돌릴지는 notebookLogic.flipOutcome.
+// 책처럼 종이 양옆의 화살표(‹ ›)를 누르거나, 마우스를 플래너 위에 둔 채 ←·→ 키로도 넘깁니다.
 // 새 라이브러리 없이 CSS transform 으로 움직입니다.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { flipOutcome, visibleSheets } from './notebookLogic'
+import { isTyping } from '../menu/shortcuts'
 import { PAPER, PRINT, paperSurface } from './paperStyle'
 
 const EDGE_PX = 1.5 // 더미 한 장이 삐져나오는 거리 (8장이면 12px, 최대 14px 안)
 const TILT_DEG = [-1.2, 0.8, -0.5, 1.4, -1, 0.6, -1.5, 1.1] // 더미 장마다 정해진 기울기 (렌더마다 흔들리지 않게)
-const CORNER_PX = 28 // 모서리 잡는 자리 크기 (화면 px)
-const CORNER_OUT_PX = 12 // 그중 종이 바깥으로 빼는 만큼. 종이 안쪽은 16px 삼각형만 남아 시간표·메모 칸을 거의 덮지 않음
+const CORNER_PX = 60 // 모서리 잡는 자리 크기 (화면 px). 28px 일 때는 너무 작아 잘 안 잡혔음
+const CORNER_OUT_PX = 16 // 그중 종이 바깥으로 빼는 만큼. 종이 안쪽은 44px 삼각형만 남아 시간표·메모 칸을 조금만 덮음
+const FOLD_PX = { idle: 26, hover: 42 } // 접힌 모서리 그림 크기 (평소·올렸을 때)
+const ARROW_PX = 34 // 양옆 화살표 버튼 지름
 const DRAG_FULL = 0.5 // 종이 폭의 이만큼 끌면 진행률 1
 const FLIP_MS = 250 // 놓은 뒤 끝까지(또는 제자리로) 가는 시간
 
@@ -86,6 +90,41 @@ export function NotebookStack({ width, height, below, flipped, label, canBack, c
     }, FLIP_MS)
   }
 
+  // 화살표 버튼·키: 끌지 않고 한 장 넘김. 들린 모양(p 0)을 한 번 그린 뒤 다음 화면에서 끝(p 1)으로 보내 넘기는 효과가 보이게
+  const flipNow = (mode: Mode) => {
+    if (drag || (mode === 'back' ? !canBack : !canForward)) return
+    setDrag({ mode, p: 0, animating: false })
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        setDrag({ mode, p: 1, animating: true })
+        done.current = window.setTimeout(() => {
+          done.current = null
+          ;(mode === 'back' ? latest.current.onBack : latest.current.onForward)()
+          setDrag(null)
+        }, FLIP_MS)
+      }),
+    )
+  }
+  // ←·→ 키는 캐릭터 이동·시점 돌리기에도 쓰여서, 마우스가 플래너 위에 있을 때만 넘기고 그때는 캐릭터가 받지 않게 막음
+  // (window 의 capture 단계에서 막으면 Player·SeatCamera 가 단 window 리스너까지 가지 않음)
+  const [over, setOver] = useState(false)
+  const flipRef = useRef(flipNow)
+  useEffect(() => {
+    flipRef.current = flipNow
+  })
+  useEffect(() => {
+    if (!over) return
+    const key = (e: KeyboardEvent) => {
+      if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight') return
+      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+      e.stopPropagation()
+      e.preventDefault()
+      if (!e.repeat) flipRef.current(e.code === 'ArrowLeft' ? 'back' : 'forward')
+    }
+    window.addEventListener('keydown', key, true)
+    return () => window.removeEventListener('keydown', key, true)
+  }, [over])
+
   // 그래도 떼는 신호를 모서리가 못 받는 경우 대비: 끄는 동안은 화면 어디서 떼든 마무리
   const upRef = useRef(up)
   useEffect(() => {
@@ -126,7 +165,7 @@ export function NotebookStack({ width, height, below, flipped, label, canBack, c
   })
   // 접힌 모서리 그림: 잡는 자리(corner)는 삼각형으로 잘려 있어 그 안에 두면 가려지므로 종이 모서리에 따로 그림
   const fold = (mode: Mode): CSSProperties => {
-    const size = hover === mode || drag?.mode === mode ? 30 : 18
+    const size = hover === mode || drag?.mode === mode ? FOLD_PX.hover : FOLD_PX.idle
     return {
       position: 'absolute',
       bottom: 0,
@@ -141,9 +180,31 @@ export function NotebookStack({ width, height, below, flipped, label, canBack, c
     }
   }
 
+  // 종이 양옆 가운데의 화살표: 왼쪽 ‹ 지난날, 오른쪽 › 다음 날 (책 넘기는 방향)
+  const arrow = (mode: Mode, enabled: boolean): CSSProperties => ({
+    position: 'absolute',
+    top: height / 2 - ARROW_PX / 2,
+    [mode === 'back' ? 'left' : 'right']: -ARROW_PX / 2,
+    width: ARROW_PX,
+    height: ARROW_PX,
+    zIndex: 6,
+    borderRadius: ARROW_PX / 2,
+    border: 'none',
+    padding: 0,
+    background: 'rgba(63,93,115,0.85)',
+    color: '#fff',
+    fontSize: 22,
+    lineHeight: `${ARROW_PX}px`,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+    cursor: 'pointer',
+    opacity: enabled ? (over ? 1 : 0.55) : 0,
+    pointerEvents: enabled ? 'auto' : 'none',
+    transition: 'opacity 150ms',
+  })
+
   const p = drag?.p ?? 0
   return (
-    <div style={{ position: 'relative', width, height }}>
+    <div style={{ position: 'relative', width, height }} onPointerEnter={() => setOver(true)} onPointerLeave={() => setOver(false)}>
       {Array.from({ length: visibleSheets(below) }, (_, i) => visibleSheets(below) - 1 - i).map((i) => (
         <div key={`b${i}`} style={pileSheet(i, 'below')} />
       ))}
@@ -164,6 +225,8 @@ export function NotebookStack({ width, height, below, flipped, label, canBack, c
       </div>
       <div style={corner('forward', canForward)} onPointerDown={(e) => down('forward', e)} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onLostPointerCapture={up} onPointerEnter={() => setHover('forward')} onPointerLeave={() => setHover(null)} title="다음 날로 넘기기" aria-label="다음 날로 넘기기" role="button">
       </div>
+      <button style={arrow('back', canBack)} onPointerDown={(e) => e.stopPropagation()} onClick={() => flipNow('back')} title="지난날로 넘기기 (←)" aria-label="지난날로 넘기기">‹</button>
+      <button style={arrow('forward', canForward)} onPointerDown={(e) => e.stopPropagation()} onClick={() => flipNow('forward')} title="다음 날로 넘기기 (→)" aria-label="다음 날로 넘기기">›</button>
       {canBack && drag?.mode !== 'back' && <div style={fold('back')} />}
       {canForward && drag?.mode !== 'forward' && <div style={fold('forward')} />}
 
