@@ -75,7 +75,7 @@ grant update (severity) on public.reports to authenticated;
 
 - 위치: `supabase/functions/report-alert/` (`index.ts`, 순수 로직 `lib.ts`)
 - 인증: `usage-monitor`와 같이 `verify_jwt` 끔, `x-monitor-secret` 헤더가 `CRON_SECRET`과 같아야 실행
-- 비밀값: 기존 `SLACK_WEBHOOK_URL`, `CRON_SECRET`을 그대로 쓴다. 새 비밀값은 없다.
+- 비밀값: 새 `REPORT_SLACK_WEBHOOK_URL`과 기존 `CRON_SECRET`을 쓴다. 사용량 모니터의 `SLACK_WEBHOOK_URL`은 쓰지 않는다. 비밀값이 비어 있으면 전송하지 않고 오류로 끝나며, 신고는 안 보낸 상태로 남는다.
 
 ### 처리 순서
 
@@ -102,7 +102,7 @@ Slack 전송은 성공했는데 기록이 실패하거나 실행이 겹치면 �
 - 한 메시지에 최대 5건을 자세히 싣고, 나머지는 `외 N건`으로 적는다.
 - 설명은 200자까지 싣고 줄바꿈은 공백으로 바꾼다.
 - 시각은 한국 시간으로 적는다.
-- 멘션 없이 기존 웹훅 채널로 보낸다.
+- 신고 전용 Slack 채널로 멘션 없이 보낸다. 사용량 알림과 섞이지 않게 웹훅을 새로 만든다.
 
 ### 입력값 처리
 
@@ -143,22 +143,25 @@ $$);
 | `useReports.ts` | `setSeverity(id, severity)`. `setChecked`처럼 성공하면 목록을 자리에서 바꾼다 |
 | `ReportsPanel.tsx` | 심각도 필터, 목록 줄의 심각도 표시, 펼친 영역의 심각도 선택 |
 
-- 필터: 종류, 확인 옆에 심각도(전체, 미지정, 긴급, 보통, 낮음)를 둔다. 기본값은 전체이고, 기존 기본값인 미확인은 유지한다.
-- 목록 줄: 심각도를 색으로 구분해 표시한다. 미지정도 눈에 띄게 적어 아직 안 정한 신고를 찾게 한다.
+- 신호등 표시: 🔴 긴급, 🟡 보통, 🟢 낮음, ⚪ 미지정. 색만으로 구분하지 않도록 항상 글자와 함께 적는다.
+- 필터: 종류, 확인 옆에 심각도(전체, ⚪ 미지정, 🔴 긴급, 🟡 보통, 🟢 낮음)를 둔다. 기본값은 전체이고, 기존 기본값인 미확인은 유지한다.
+- 목록 줄: 신호등과 글자로 심각도를 표시한다. 미지정도 표시해 아직 안 정한 신고를 찾게 한다.
 - 지정: 신고를 펼친 영역의 "확인함" 버튼 옆에서 고른다. 내용을 읽고 정하는 흐름에 맞춘다. 미지정으로 되돌릴 수 있다.
 - 실패하면 기존 `rowError` 자리에 문구를 띄운다.
-- 정렬은 지금처럼 최신순이다. "확인함" 문구도 바꾸지 않는다.
+- 정렬은 지금처럼 최신순이다.
+- "확인함" 문구는 바꾸지 않는다. 팀이 이미 "해결함"의 뜻으로 이해하고 있다(2026-11-04 결정).
 - `useReports`는 `select('*')`로 읽어 조회 코드는 바꾸지 않아도 된다.
 
 ## 적용 순서
 
-1. 서비스 DB SQL Editor에서 마이그레이션 실행
-2. `supabase functions deploy report-alert --no-verify-jwt`
-3. SQL Editor에서 예약 작업 등록
-4. 시험 신고를 보내 Slack 도착 확인
-5. PR 머지 (화면 배포)
+1. Slack에 신고 전용 채널과 Incoming Webhook을 만들고, 주소를 Supabase 비밀값 `REPORT_SLACK_WEBHOOK_URL`로 등록
+2. 서비스 DB SQL Editor에서 마이그레이션 실행
+3. `supabase functions deploy report-alert --no-verify-jwt`
+4. SQL Editor에서 예약 작업 등록
+5. 시험 신고를 보내 신고 전용 채널에 도착하는지 확인
+6. PR 머지 (화면 배포)
 
-DB에 칸이 먼저 있어야 화면이 깨지지 않는다. 4번까지는 기존 화면에 영향이 없다.
+DB에 칸이 먼저 있어야 화면이 깨지지 않는다. 5번까지는 기존 화면에 영향이 없다.
 
 ## 검증
 
