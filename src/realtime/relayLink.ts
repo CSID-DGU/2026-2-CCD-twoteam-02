@@ -23,7 +23,8 @@ export function relayUrl(): string | undefined {
   return import.meta.env.VITE_RELAY_URL?.replace(/\/$/, '') || undefined
 }
 
-export function openRelayLink(url: string, room: string, events: RoomLinkEvents): RoomLink {
+// watch: 보기 전용 연결(통창). 서버가 정원과 따로 세고, 위치를 보내도 받지 않는다 (#442)
+export function openRelayLink(url: string, room: string, events: RoomLinkEvents, watch = false): RoomLink {
   let ws: WebSocket | null = null
   let ended = false // 끊김을 이미 알렸거나 정리했다
   let heardAt = 0
@@ -58,7 +59,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents)
     if (ended) return
     const token = data.session?.access_token
     if (!token) return end('CHANNEL_ERROR')
-    const socket = new WebSocket(`${url}/room/${encodeURIComponent(room)}`, [SUBPROTOCOL, token])
+    const socket = new WebSocket(`${url}/room/${encodeURIComponent(room)}${watch ? '?watch=1' : ''}`, [SUBPROTOCOL, token])
     ws = socket
     socket.onopen = () => {
       if (ended) return

@@ -5,8 +5,10 @@
 
 // ── 기준값 ───────────────────────────────────────────────────────────
 export const TICK_MS = 100 // 받은 변경을 이 간격으로 합쳐 내보낸다
-export const MAX_ROOM_CONNECTIONS = 100 // 방 정원(연결 수). ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다. 채널 정원은 화면 쪽에서 따로 정한다 (#442)
-export const MAX_CONNECTIONS_PER_USER = 3 // 한 사람이 한 방에 동시에 둘 수 있는 연결. 넘으면 가장 오래된 것을 닫는다
+export const CHANNEL_CAPACITY = 20 // 광장·캠퍼스·해변 채널 하나의 정원 (#442). FPS 측정 결과에 따라 조정한다
+export const MAX_ROOM_CONNECTIONS = 100 // 채널로 나누지 않는 방(지점)의 정원. ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다
+export const MAX_WATCH_CONNECTIONS = 100 // 방마다 보기 전용 연결의 상한. 정원과 따로 세어 창문을 보는 사람이 입장을 막지 않게 한다 (#442)
+export const MAX_CONNECTIONS_PER_USER = 3 // 한 사람이 한 방에 동시에 둘 수 있는 연결(종류별). 넘으면 가장 오래된 것을 닫는다
 export const MAX_MESSAGE_BYTES = 2048 // 메시지 하나의 크기 상한. 걷는 사람의 위치 메시지는 약 200바이트다
 export const SOFT_MESSAGES_PER_SEC = 10 // 연결당 초당 이만큼까지 처리한다. 넘은 메시지는 버린다 (앱은 초당 4회)
 export const HARD_MESSAGES_PER_SEC = 40 // 이만큼 넘게 보내면 연결을 끊는다
@@ -27,8 +29,19 @@ export const CLOSE_FULL = 4503
 
 // 중계할 수 있는 방. 회의(meeting:*)는 DB 정책이 참석자를 확인하는 비공개 방이라 여기로 오지 않는다.
 // 이름을 제한하지 않으면 로그인한 누구나 객체를 무한히 만들 수 있다.
-const ROOM_PATTERN = /^(branch:\d{1,6}|lobby|campus|beach)$/
+// 광장·캠퍼스·해변은 채널로 나뉜다. 1번 채널은 이름 그대로(lobby), 2번부터 lobby:2 처럼 쓴다 (#442).
+const ROOM_PATTERN = /^(branch:\d{1,6}|(lobby|campus|beach)(:([2-9]|[1-9]\d{1,2}))?)$/
 export const isAllowedRoom = (room: string) => ROOM_PATTERN.test(room)
+
+// 이 방의 정원. override 는 시험용 환경 변수 값이다.
+export function capacityOf(room: string, override?: string): number {
+  return Number(override) || (room.startsWith('branch:') ? MAX_ROOM_CONNECTIONS : CHANNEL_CAPACITY)
+}
+
+// 새 연결을 받을 자리가 있는지. 활동 연결과 보기 전용 연결은 서로의 자리를 차지하지 않는다.
+export function hasRoom(watch: boolean, active: number, watching: number, capacity: number): boolean {
+  return watch ? watching < MAX_WATCH_CONNECTIONS : active < capacity
+}
 
 export type RelayState = Record<string, unknown> & { userId: string; x: number; z: number }
 

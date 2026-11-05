@@ -339,7 +339,7 @@ export function useParticipants(
         },
       }
       const relay = isPrivate ? undefined : relayUrl()
-      const ch = relay ? openRelayLink(relay, room, events) : openSupabaseLink(client, room, isPrivate, events)
+      const ch = relay ? openRelayLink(relay, room, events, client !== supabase) : openSupabaseLink(client, room, isPrivate, events)
       channel = ch
       ch.open()
     }
