@@ -24,6 +24,7 @@
 - 캐릭터: GLB 모델(`public/models/character-a.glb`)을 drei `useGLTF`로 불러온다. 18종은 모양이 같고 스킨만 달라서 모델 하나에 맨몸(피부색)과 고른 부품(머리·상의·하의·신발, `public/models/Parts/`)을 겹치고 색을 입힌 스킨을 입힌다(#56). 눈·눈썹·입은 얼굴 앞에 붙인 판에 스티커처럼 얹어, 사용자가 위치·크기를 옮길 수 있다(#293). VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL, Realtime(Broadcast·Presence), 좌석 배정 DB 함수). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
+- 위치 중계: Cloudflare Workers·Durable Objects (`relay/`, #464). 광장·지점의 위치만 여기로 주고받는다. 로그인, DB, 회의실, 음성, 접속 상태는 Supabase에 둔다. `VITE_RELAY_URL`이 비어 있으면 위치도 Supabase Realtime으로 주고받는다.
 - 날씨: Open-Meteo 시간별 예보(키 없음, 브라우저에서 직접 받음, `src/world/useWorldWeather.ts`). 서울 고정 좌표만 보낸다.
 - 배포: Vercel. `develop`과 `experiment`가 각각 따로 배포된다(아래 "배포" 참고).
 
@@ -62,6 +63,7 @@ src/
   ranking/             공부 시간 순위 (광장 순위 게시판에서 E로 여는 창, DB 함수 study_ranking. rankingLogic.ts는 순수 로직)
   report/              오판·버그 신고 (메뉴 "신고하기", 최근 30초 판정 수치 첨부)와 팀용 신고 목록 (recentSamples.ts·reportLogic.ts는 순수 로직)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
+relay/                 위치 중계 Worker (Cloudflare. 자체 package.json과 tsc를 쓰고, 화면 빌드에 들어가지 않는다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
 public/models/         캐릭터 GLB와 텍스처
 art/                   캐릭터 눈·입 원본 그림(2048 얼굴 캔버스)과 그리기 밑그림. scripts/import-face-drawings.mjs 로 부품을 만든다
@@ -128,6 +130,7 @@ docs/                  제안서·주간발표 자료
   ./scripts/check-db.sh                                          # 서비스 DB
   ./scripts/check-db.sh .env.experiment.local origin/experiment  # 실험 DB
   ```
+- **위치 중계 Worker는 머지해도 자동 배포되지 않는다.** `relay/`를 바꿨으면 그 폴더에서 `npx wrangler deploy`를 실행한다. 옛 화면이 새 서버에 붙어도 되도록 Worker를 화면보다 먼저 올린다. 값은 `SUPABASE_URL` 하나만 `npx wrangler secret put`으로 넣고, `JWT_HS256_SECRET`은 정식 서버에 넣지 않는다. `experiment` 배포에는 `VITE_RELAY_URL`을 넣지 않는다.
 - **로컬 실행**: 서비스 DB는 `npm run dev`, 실험 DB는 `npm run dev -- --mode experiment`. Vite는 `--mode experiment`일 때 `.env.experiment.local`을 `.env.local`보다 먼저 읽는다. 두 파일의 값은 육심호에게 받는다(Publishable 키만, Secret 키는 쓰지 않는다).
 - **실험을 진행하는 기간에는 `experiment`에 머지하지 않는다.** 머지하는 순간 다시 배포돼 참가자마다 화면이 달라진다.
 - Vercel 설정 중 아래는 바꾸지 않는다. 바꾸면 한 브랜치가 다른 DB를 보는 화면으로 배포된다.
