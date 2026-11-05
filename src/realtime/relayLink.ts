@@ -16,6 +16,8 @@ import { FLICK_EVENT, MOVE_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './partic
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 
 const SUBPROTOCOL = 'relay.v1'
+const CLOSE_FULL = 4503 // 서버가 방이 찼다고 닫을 때 쓰는 번호 (relay/src/relayLogic.ts)
+export const ROOM_FULL_STATUS = 'ROOM_FULL'
 const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다
 const SILENCE_LIMIT_MS = 90000 // 이 시간 동안 아무 소식도 없으면 끊긴 것으로 본다
 
@@ -71,7 +73,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)
-    socket.onclose = () => end('CLOSED')
+    socket.onclose = (event) => end(event.code === CLOSE_FULL ? ROOM_FULL_STATUS : 'CLOSED')
   }
 
   return {

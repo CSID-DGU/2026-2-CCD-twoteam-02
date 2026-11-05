@@ -36,8 +36,8 @@ function roomFromPath(pathname: string): string | null {
 // 쿠키가 아니라 토큰으로 확인하므로 다른 주소에서 불러도 된다. 화면과 Worker 의 주소가 달라 꼭 필요하다.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET' }
 
-// GET /channels/{세계}?want=번호 → 들어갈 채널과 현황. 화면이 입장 전에, 채널 창을 열 때 부른다 (#442)
-async function channels(request: Request, env: RelayEnv, world: string, want: string | null): Promise<Response> {
+// GET /channels/{세계}?want=번호 → 들어갈 채널과 현황 (입장 전). ?peek=1 은 현황만 (채널 창을 열 때) (#442)
+async function channels(request: Request, env: RelayEnv, world: string, want: string | null, peek: boolean): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (!isChannelWorld(world)) return new Response('not found', { status: 404, headers: CORS })
   if (!env.SUPABASE_URL) return new Response('not configured', { status: 500, headers: CORS })
@@ -45,7 +45,7 @@ async function channels(request: Request, env: RelayEnv, world: string, want: st
   const who = token ? await verifyToken(token, { supabaseUrl: env.SUPABASE_URL.replace(/\/$/, ''), hs256Secret: env.JWT_HS256_SECRET }) : null
   if (!who) return new Response('unauthorized', { status: 401, headers: CORS })
   const stub = env.DIRECTORY.get(env.DIRECTORY.idFromName(DIRECTORY_NAME), { locationHint: 'apac' })
-  const body: AssignRequest = { world, want: want ? Number(want) : null, userId: who.userId }
+  const body: AssignRequest = { world, want: want ? Number(want) : null, userId: who.userId, peek }
   const res = await stub.fetch('https://relay.internal/assign', { method: 'POST', body: JSON.stringify(body) })
   return new Response(res.body, { status: res.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 }
@@ -55,7 +55,7 @@ export default {
     const { pathname, searchParams } = new URL(request.url)
     if (pathname === '/health') return new Response('ok')
     const channelsPath = /^\/channels\/([a-z]+)$/.exec(pathname)
-    if (channelsPath) return channels(request, env, channelsPath[1], searchParams.get('want'))
+    if (channelsPath) return channels(request, env, channelsPath[1], searchParams.get('want'), searchParams.get('peek') === '1')
 
     const room = roomFromPath(pathname)
     if (!room) return new Response('not found', { status: 404 })

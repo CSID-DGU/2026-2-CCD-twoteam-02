@@ -80,14 +80,13 @@ export function channelCounts(world: string, counts: Map<string, number>): { no:
 
 // 들어갈 채널을 고르고 자리를 맡는다. want 가 있으면 그 번호부터, 없으면 1번부터 빈자리를 찾는다.
 // 전체 상한이 찼으면 no 가 null 이다(입장 대기). 이미 자리를 맡은 사람은 다시 물어도 상한에 걸리지 않는다.
-export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, capacity = CHANNEL_CAPACITY, totalCapacity = TOTAL_CAPACITY) {
+export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, capacity = CHANNEL_CAPACITY, totalCapacity = TOTAL_CAPACITY): number | null {
   dropExpired(holds, now)
   const mine = holds.get(userId)
   holds.delete(userId) // 다시 물으면 예전 자리는 놓는다
-  const limits = { capacity, totalCapacity }
   if (totalCount(counts, holds, now) >= totalCapacity) {
     if (mine) holds.set(userId, mine)
-    return { no: null, ...limits }
+    return null
   }
   const taken = (room: string) => {
     let n = counts.get(room) ?? 0
@@ -101,10 +100,10 @@ export function assignChannel(world: string, want: number | null, userId: string
     const room = channelRoom(world, no)
     if (taken(room) < capacity) {
       holds.set(userId, { room, until: now + SEAT_HOLD_MS })
-      return { no, ...limits }
+      return no
     }
   }
-  return { no: null, ...limits }
+  return null
 }
 
 // 새 연결을 받을 자리가 있는지. 활동 연결과 보기 전용 연결은 서로의 자리를 차지하지 않는다.
