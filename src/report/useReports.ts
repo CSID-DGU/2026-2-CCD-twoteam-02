@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { LIST_LIMIT } from './reportLogic'
-import type { ReportRow } from './reportLogic'
+import type { ReportRow, Severity } from './reportLogic'
 
 type Person = { id: string; nickname: string }
 
@@ -68,5 +68,13 @@ export function useReports(enabled: boolean, myId: string) {
     [myId],
   )
 
-  return { rows, names, loading, error, setChecked, reload }
+  // 심각도 지정 (#471). null 이면 미지정으로 되돌립니다. 성공하면 null, 실패하면 한국어 문구.
+  const setSeverity = useCallback(async (id: string, severity: Severity | null): Promise<string | null> => {
+    const { error } = await supabase.from('reports').update({ severity }).eq('id', id)
+    if (error) return `심각도를 바꾸지 못했습니다: ${error.message}`
+    setRows((list) => list.map((r) => (r.id === id ? { ...r, severity } : r)))
+    return null
+  }, [])
+
+  return { rows, names, loading, error, setChecked, setSeverity, reload }
 }

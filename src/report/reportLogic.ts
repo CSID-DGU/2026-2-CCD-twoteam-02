@@ -23,6 +23,22 @@ export const DETAIL_LABEL: Record<JudgmentDetail, string> = {
   unsure: '모르겠음',
 }
 
+// 팀이 신고 목록에서 고르는 심각도 (#471). null 은 아직 안 정한 것
+export type Severity = 'critical' | 'normal' | 'low'
+
+export const SEVERITY_LABEL: Record<Severity, string> = {
+  critical: '긴급',
+  normal: '보통',
+  low: '낮음',
+}
+
+const SEVERITY_LIGHT: Record<Severity, string> = { critical: '🔴', normal: '🟡', low: '🟢' }
+
+// 색만으로 구분하지 않도록 신호등과 글자를 함께 적습니다
+export function severityBadge(s: Severity | null): string {
+  return s === null ? '⚪ 미지정' : `${SEVERITY_LIGHT[s]} ${SEVERITY_LABEL[s]}`
+}
+
 export type Draft = { kind: ReportKind | null; detail: JudgmentDetail | null; message: string }
 
 // 보내기 전 화면에서 막는 것. 오류 문구 또는 null (DB 의 check 제약과 같은 기준, 화면이 먼저 알려 줄 뿐)
@@ -84,16 +100,24 @@ export type ReportRow = {
   samples: Sample[]
   checked_at: string | null
   checked_by: string | null
+  severity: Severity | null
 }
 
-export type Filter = { kind: ReportKind | 'all'; checked: 'all' | 'unchecked' | 'checked' }
-export const DEFAULT_FILTER: Filter = { kind: 'all', checked: 'unchecked' }
+// severity 의 none 은 미지정(null)만 보기, all 은 걸러내지 않기
+export type Filter = {
+  kind: ReportKind | 'all'
+  checked: 'all' | 'unchecked' | 'checked'
+  severity: Severity | 'none' | 'all'
+}
+export const DEFAULT_FILTER: Filter = { kind: 'all', checked: 'unchecked', severity: 'all' }
 
 export function applyFilter(rows: ReportRow[], f: Filter): ReportRow[] {
   return rows.filter((r) => {
     if (f.kind !== 'all' && r.kind !== f.kind) return false
     if (f.checked === 'unchecked' && r.checked_at !== null) return false
     if (f.checked === 'checked' && r.checked_at === null) return false
+    if (f.severity === 'none' && r.severity !== null) return false
+    if (f.severity !== 'all' && f.severity !== 'none' && r.severity !== f.severity) return false
     return true
   })
 }
