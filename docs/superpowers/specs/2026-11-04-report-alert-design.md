@@ -69,6 +69,8 @@ grant update (severity) on public.reports to authenticated;
 | `severity` | `null`(미지정), `critical`(긴급), `normal`(보통), `low`(낮음) | 팀 (기존 update 정책 적용) |
 | `notified_at` | Slack으로 보낸 시각, `null`은 아직 안 보냄 | Edge Function(service role)만 |
 
+기존 update 정책은 수정 뒤 `checked_by`가 비었거나 본인이어야 통과해, 남이 확인한 신고의 심각도를 바꿀 수 없다. 그래서 `0065`에서 이 검사를 확인 칸이 바뀔 때만 도는 트리거로 옮긴다.
+
 권한은 칸 단위 grant로 나눈다. 사용자의 insert 권한은 정해진 칸(`0030`)에만 있어서 새 칸을 직접 넣을 수 없다. `notified_at`은 `authenticated`에 update 권한을 주지 않아, 팀 계정도 화면 API로 바꿀 수 없다.
 
 ## Edge Function `report-alert`
@@ -158,7 +160,7 @@ $$);
 ## 적용 순서
 
 1. Slack에 신고 전용 채널과 Incoming Webhook을 만들고, 주소를 Supabase 비밀값 `REPORT_SLACK_WEBHOOK_URL`로 등록
-2. 서비스 DB SQL Editor에서 마이그레이션 실행
+2. 서비스 DB SQL Editor에서 마이그레이션 실행 (`0064`, `0065` 순서)
 3. `supabase functions deploy report-alert --no-verify-jwt`
 4. SQL Editor에서 예약 작업 등록
 5. 시험 신고를 보내 신고 전용 채널에 도착하는지 확인
