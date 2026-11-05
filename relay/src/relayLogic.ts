@@ -6,6 +6,9 @@
 // ── 기준값 ───────────────────────────────────────────────────────────
 export const TICK_MS = 100 // 받은 변경을 이 간격으로 합쳐 내보낸다
 export const CHANNEL_CAPACITY = 20 // 광장·캠퍼스·해변 채널 하나의 정원 (#442). FPS 측정 결과에 따라 조정한다
+export const TOTAL_CAPACITY = 50 // 서비스 전체 활동 인원 상한 (#442). 접속 표시가 Supabase 에 있는 동안의 값으로, #473 뒤에 다시 잰다
+export const SEAT_HOLD_MS = 15000 // 채널을 안내받은 사람의 자리를 입장할 때까지 맡아 두는 시간
+export const MAX_CHANNEL_NO = 999
 export const MAX_ROOM_CONNECTIONS = 100 // 채널로 나누지 않는 방(지점)의 정원. ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다
 export const MAX_WATCH_CONNECTIONS = 100 // 방마다 보기 전용 연결의 상한. 정원과 따로 세어 창문을 보는 사람이 입장을 막지 않게 한다 (#442)
 export const MAX_CONNECTIONS_PER_USER = 3 // 한 사람이 한 방에 동시에 둘 수 있는 연결(종류별). 넘으면 가장 오래된 것을 닫는다
@@ -36,6 +39,72 @@ export const isAllowedRoom = (room: string) => ROOM_PATTERN.test(room)
 // 이 방의 정원. override 는 시험용 환경 변수 값이다.
 export function capacityOf(room: string, override?: string): number {
   return Number(override) || (room.startsWith('branch:') ? MAX_ROOM_CONNECTIONS : CHANNEL_CAPACITY)
+}
+
+// ── 채널 배정 (#442) ─────────────────────────────────────────────────
+
+export const CHANNEL_WORLDS = ['lobby', 'campus', 'beach']
+export const isChannelWorld = (world: string) => CHANNEL_WORLDS.includes(world)
+export const channelRoom = (world: string, no: number) => (no === 1 ? world : `${world}:${no}`)
+
+// 방 이름에서 채널 번호. 이 세계의 채널이 아니면 null
+function channelNoOf(world: string, room: string): number | null {
+  if (room === world) return 1
+  if (!room.startsWith(`${world}:`)) return null
+  const no = Number(room.slice(world.length + 1))
+  return Number.isInteger(no) && no > 1 ? no : null
+}
+
+export type Holds = Map<string, { room: string; until: number }> // 사람별 맡아 둔 자리
+
+function dropExpired(holds: Holds, now: number) {
+  for (const [id, hold] of holds) if (hold.until <= now) holds.delete(id)
+}
+
+export function totalCount(counts: Map<string, number>, holds: Holds, now: number): number {
+  dropExpired(holds, now)
+  let total = holds.size
+  for (const count of counts.values()) total += count
+  return total
+}
+
+// 사람이 있는 채널만 번호순으로. 화면의 채널 목록에 쓴다.
+export function channelCounts(world: string, counts: Map<string, number>): { no: number; count: number }[] {
+  const list: { no: number; count: number }[] = []
+  for (const [room, count] of counts) {
+    const no = channelNoOf(world, room)
+    if (no !== null) list.push({ no, count })
+  }
+  return list.sort((a, b) => a.no - b.no)
+}
+
+// 들어갈 채널을 고르고 자리를 맡는다. want 가 있으면 그 번호부터, 없으면 1번부터 빈자리를 찾는다.
+// 전체 상한이 찼으면 no 가 null 이다(입장 대기). 이미 자리를 맡은 사람은 다시 물어도 상한에 걸리지 않는다.
+export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, capacity = CHANNEL_CAPACITY, totalCapacity = TOTAL_CAPACITY) {
+  dropExpired(holds, now)
+  const mine = holds.get(userId)
+  holds.delete(userId) // 다시 물으면 예전 자리는 놓는다
+  const limits = { capacity, totalCapacity }
+  if (totalCount(counts, holds, now) >= totalCapacity) {
+    if (mine) holds.set(userId, mine)
+    return { no: null, ...limits }
+  }
+  const taken = (room: string) => {
+    let n = counts.get(room) ?? 0
+    for (const hold of holds.values()) if (hold.room === room) n++
+    return n
+  }
+  const first = want !== null && Number.isInteger(want) && want >= 1 && want <= MAX_CHANNEL_NO ? want : 1
+  // 원하는 번호부터 끝까지 찾고, 없으면 앞 번호로 돌아온다
+  for (let i = 0; i < MAX_CHANNEL_NO; i++) {
+    const no = ((first - 1 + i) % MAX_CHANNEL_NO) + 1
+    const room = channelRoom(world, no)
+    if (taken(room) < capacity) {
+      holds.set(userId, { room, until: now + SEAT_HOLD_MS })
+      return { no, ...limits }
+    }
+  }
+  return { no: null, ...limits }
 }
 
 // 새 연결을 받을 자리가 있는지. 활동 연결과 보기 전용 연결은 서로의 자리를 차지하지 않는다.
