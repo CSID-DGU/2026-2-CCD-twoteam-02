@@ -1,14 +1,16 @@
 // 팀용 신고 목록 창 (#121). 오른쪽 위 메뉴 "신고 목록"(팀에게만 보임)으로 InfoPanel 안에 뜹니다.
-// 종류·확인 여부로 걸러 보고, 한 건을 누르면 설명·화면 정보·최근 30초 수치가 펼쳐집니다. "확인함"으로 처리 표시를 합니다.
+// 종류·확인 여부·심각도로 걸러 보고, 한 건을 누르면 설명·화면 정보·최근 30초 수치가 펼쳐집니다.
+// 펼친 영역에서 심각도(#471)를 정하고 "확인함"으로 처리 표시를 합니다.
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { DEFAULT_FILTER, DETAIL_LABEL, KIND_LABEL, applyFilter } from './reportLogic'
-import type { Filter, ReportKind, ReportRow } from './reportLogic'
+import { DEFAULT_FILTER, DETAIL_LABEL, KIND_LABEL, SEVERITY_LABEL, applyFilter, severityBadge } from './reportLogic'
+import type { Filter, ReportKind, ReportRow, Severity } from './reportLogic'
 import { SampleTable } from './SampleTable'
 import { useIsTeam } from './useIsTeam'
 import { useReports } from './useReports'
 
 const KINDS = Object.keys(KIND_LABEL) as ReportKind[]
+const SEVERITIES = Object.keys(SEVERITY_LABEL) as Severity[]
 const CHECKED_LABEL: Record<Filter['checked'], string> = { all: '전체', unchecked: '미확인', checked: '확인함' }
 const PREVIEW_CHARS = 40 // 목록 줄에 보이는 설명 글자 수
 
@@ -16,7 +18,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { dateStyle:
 
 export function ReportsPanel({ myId }: { myId: string }) {
   const team = useIsTeam(myId)
-  const { rows, names, loading, error, setChecked } = useReports(team, myId)
+  const { rows, names, loading, error, setChecked, setSeverity } = useReports(team, myId)
   const [filter, setFilter] = useState<Filter>(DEFAULT_FILTER)
   const [openId, setOpenId] = useState<string | null>(null)
   const [rowError, setRowError] = useState('')
@@ -29,6 +31,13 @@ export function ReportsPanel({ myId }: { myId: string }) {
   const toggleChecked = async (r: ReportRow) => {
     setRowError('')
     const problem = await setChecked(r.id, r.checked_at === null)
+    if (problem) setRowError(problem)
+  }
+
+  // 고른 값이 빈 문자열이면 미지정(null)으로 되돌립니다
+  const changeSeverity = async (r: ReportRow, value: string) => {
+    setRowError('')
+    const problem = await setSeverity(r.id, value === '' ? null : (value as Severity))
     if (problem) setRowError(problem)
   }
 
@@ -52,6 +61,16 @@ export function ReportsPanel({ myId }: { myId: string }) {
             ))}
           </select>
         </label>
+        <label style={styles.filterLabel}>
+          심각도
+          <select style={styles.select} value={filter.severity} onChange={(e) => setFilter((f) => ({ ...f, severity: e.target.value as Filter['severity'] }))}>
+            <option value="all">전체</option>
+            <option value="none">{severityBadge(null)}</option>
+            {SEVERITIES.map((s) => (
+              <option key={s} value={s}>{severityBadge(s)}</option>
+            ))}
+          </select>
+        </label>
         <span style={styles.count}>{shown.length}건</span>
       </div>
 
@@ -67,6 +86,7 @@ export function ReportsPanel({ myId }: { myId: string }) {
             <button type="button" style={styles.rowButton} onClick={() => setOpenId(open ? null : r.id)}>
               <span style={styles.meta}>{when(r.created_at)}</span>
               <span style={styles.name}>{nameOf(r)}</span>
+              <span style={styles.severity}>{severityBadge(r.severity)}</span>
               <span style={styles.kind}>
                 {KIND_LABEL[r.kind]}
                 {r.detail ? ` · ${DETAIL_LABEL[r.detail]}` : ''}
@@ -90,6 +110,15 @@ export function ReportsPanel({ myId }: { myId: string }) {
                 </div>
                 <SampleTable samples={r.samples} reportedAt={Date.parse(r.created_at)} />
                 <div style={styles.actions}>
+                  <label style={styles.filterLabel}>
+                    심각도
+                    <select style={styles.select} value={r.severity ?? ''} onChange={(e) => void changeSeverity(r, e.target.value)}>
+                      <option value="">{severityBadge(null)}</option>
+                      {SEVERITIES.map((s) => (
+                        <option key={s} value={s}>{severityBadge(s)}</option>
+                      ))}
+                    </select>
+                  </label>
                   <button type="button" style={styles.ghost} onClick={() => void toggleChecked(r)}>
                     {r.checked_at ? '확인 취소' : '확인함'}
                   </button>
@@ -118,6 +147,7 @@ const styles: Record<string, CSSProperties> = {
   },
   meta: { color: '#aab0bb', fontSize: 12, whiteSpace: 'nowrap' },
   name: { fontWeight: 600 },
+  severity: { fontSize: 13, whiteSpace: 'nowrap' },
   kind: { fontSize: 13 },
   preview: { flex: 1, minWidth: 120, color: '#d1d5db', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   checkOn: { color: '#4ade80', fontSize: 12, whiteSpace: 'nowrap' },
@@ -128,7 +158,7 @@ const styles: Record<string, CSSProperties> = {
   infoRow: { display: 'flex', gap: 8 },
   infoKey: { color: '#aab0bb', minWidth: 130 },
   infoValue: { wordBreak: 'break-all' },
-  actions: { display: 'flex', justifyContent: 'flex-end' },
+  actions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   ghost: {
     padding: '4px 10px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent',
     color: '#fff', cursor: 'pointer', font: 'inherit', fontSize: 13,
