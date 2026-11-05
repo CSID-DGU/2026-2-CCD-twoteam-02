@@ -122,7 +122,10 @@ Slack 전송은 성공했는데 기록이 실패하거나 실행이 겹치면 �
 select cron.schedule('report-alert', '* * * * *', $$
   select net.http_post(
     url := 'https://lkvsbdbssrictnrxmdig.supabase.co/functions/v1/report-alert',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-monitor-secret', '<CRON_SECRET>'),
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-monitor-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'usage_monitor_secret')
+    ),
     body := '{}'::jsonb,
     timeout_milliseconds := 15000
   )
@@ -131,7 +134,7 @@ $$);
 ```
 
 - 안 보낸 신고가 있을 때만 함수를 부른다. 평소에는 인덱스로 확인하는 쿼리 하나만 돈다.
-- 비밀값이 들어가므로 이 SQL은 저장소에 올리지 않고 SQL Editor에서 직접 실행한다. `usage-monitor`와 같은 방식이다.
+- 비밀값은 `usage-monitor-check`처럼 Vault의 `usage_monitor_secret`에서 읽어 SQL에 직접 적지 않는다. 예약 작업은 마이그레이션이 아니라 SQL Editor에서 직접 등록한다.
 
 ## 화면
 
