@@ -5,6 +5,9 @@
 //
 // 갈 장소는 사이트 전체 접속 상태(OnlineProvider)에 보이는 그 사람의 장소로 정합니다(메시지에 적힌 값을 믿지 않음).
 // 회의실 안·일반 화면(내 기록 등)에 있으면 갈 수 없습니다.
+//
+// 채널 (#442): 광장·캠퍼스·해변은 20명씩 채널로 나뉩니다. 친구가 다른 채널에 있으면 옮길지 묻고(ask),
+// 옮기기로 했으면 내 채널이 그 번호로 바뀔 때까지 기다렸다가(wait) 친구를 찾습니다(look).
 
 export const BESIDE = { near: 1.2, far: 2, ring: 12 } // 옆에 설 거리(m)와 둘레를 몇 방향으로 살필지
 export const BODY_R = 0.3 // 캐릭터 충돌 반경 (Player 와 같음)
@@ -48,6 +51,15 @@ export function besideSpot(
     }
   }
   return null
+}
+
+export type ChannelStep = 'look' | 'ask' | 'wait'
+
+// theirs: 친구의 채널, mine: 내 채널(채널이 없는 곳이면 null), target: 옮기기로 한 채널(아직 안 정했으면 null)
+export function channelStep(theirs: number | null, mine: number | null, target: number | null): ChannelStep {
+  if (target !== null) return mine === target ? 'look' : 'wait'
+  if (theirs === null || mine === null || theirs === mine) return 'look'
+  return 'ask'
 }
 
 // [부름] 줄이 아직 유효한지

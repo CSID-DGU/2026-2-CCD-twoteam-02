@@ -76,6 +76,22 @@ export function ChannelWaiting({ total, totalCapacity }: { total: number; totalC
   )
 }
 
+// 따라가거나 부름을 받은 친구가 다른 채널에 있을 때 옮길지 묻습니다 (#442).
+export function ChannelFollowAsk({ no, reason, onYes, onNo }: { no: number; reason: 'follow' | 'summon'; onYes: () => void; onNo: () => void }) {
+  return (
+    <div style={waitingBack} role="dialog" aria-label="채널 옮기기">
+      <div style={waitingBox}>
+        <strong style={{ fontSize: 16 }}>{reason === 'summon' ? '부른 친구' : '친구'}가 {no}채널에 있어요</strong>
+        <p style={{ margin: '10px 0 0', lineHeight: 1.5 }}>{no}채널로 옮겨서 친구 옆으로 갈까요?</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14 }}>
+          <button type="button" style={askYes} onClick={onYes}>{no}채널로 옮기기</button>
+          <button type="button" style={askNo} onClick={onNo}>여기 있기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const panel: React.CSSProperties = { background: 'rgba(32,35,42,.85)', color: '#fff', font: '13px system-ui, sans-serif', fontVariantNumeric: 'tabular-nums' }
 const box: React.CSSProperties = { position: 'fixed', top: 52, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }
 const button: React.CSSProperties = { ...panel, border: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6 }
@@ -87,3 +103,5 @@ const barBack: React.CSSProperties = { display: 'inline-block', width: BAR_WIDTH
 const barFill: React.CSSProperties = { display: 'block', height: '100%' }
 const waitingBack: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(10,12,16,.6)' }
 const waitingBox: React.CSSProperties = { ...panel, font: '14px system-ui, sans-serif', padding: '20px 24px', borderRadius: 14, textAlign: 'center', maxWidth: 360 }
+const askYes: React.CSSProperties = { font: 'inherit', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', background: '#4ade80', color: '#0b1a10', fontWeight: 600 }
+const askNo: React.CSSProperties = { font: 'inherit', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', background: 'rgba(255,255,255,.16)', color: '#fff' }

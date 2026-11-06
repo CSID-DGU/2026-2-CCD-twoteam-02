@@ -28,7 +28,7 @@ import { OnlineContext } from './onlineContext'
 import { ConnectionNotice } from './ConnectionNotice'
 import type { OnlineEntry } from './onlineContext'
 
-type Meta = { place?: string; studying?: boolean; quiet?: boolean } & TabMeta
+type Meta = { place?: string; studying?: boolean; quiet?: boolean; channel?: number } & TabMeta
 
 const RETRY_MS = 2000 // 연결 오류 뒤 다시 들어가기까지
 const WATCH_MS = 10000 // 방 상태를 확인하는 간격
@@ -51,6 +51,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   const [place, setPlace] = useState(ELSEWHERE)
   const [studying, setStudying] = useState(false)
   const [quiet, setQuiet] = useState(false)
+  const [chan, setChannel] = useState<number | null>(null) // 광장·캠퍼스·해변에서 들어간 채널 (#442)
   const [tab] = useState(() => Math.random().toString(36).slice(2, 10)) // 이 탭의 번호 (#347)
   const since = useRef(0) // 이 탭이 장면에 들어온 순서 (#347)
   const reclaimOnSync = useRef(false) // 명단을 받기 전에 장면에 들어와 순서를 어림으로 잡았으면, 명단을 받은 뒤 다시 잡음
@@ -88,8 +89,10 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       const people = new Map<string, OnlineEntry>()
       for (const [id, metas] of Object.entries(channel.presenceState<Meta>())) {
         // 같은 계정으로 탭을 여러 개 열었으면 로비·지점에 있는 탭을 우선합니다. (탭 순서는 정해져 있지 않음)
+        const inScene = metas.find((m) => m.place && m.place !== ELSEWHERE)
         people.set(id, {
-          place: metas.find((m) => m.place && m.place !== ELSEWHERE)?.place ?? ELSEWHERE,
+          place: inScene?.place ?? ELSEWHERE,
+          channel: inScene?.channel ?? null,
           studying: metas.some((m) => m.studying), // 어느 탭에서든 공부 중이면 공부 중
           quiet: metas.some((m) => m.quiet), // 어느 탭에서든 방해금지면 방해금지
         })
@@ -153,7 +156,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     }
   }, [myId, joinCount, tab])
 
-  // 있는 곳, 공부 중·방해금지 여부가 바뀌면 상태를 한 번 바꿉니다.
+  // 있는 곳, 채널, 공부 중·방해금지 여부가 바뀌면 상태를 한 번 바꿉니다.
   // 장면 밖에서 장면으로 들어오면 순서를 잡습니다 (#347). 명단을 아직 못 받았으면 지금 시각으로 어림하고 받은 뒤 다시 잡습니다.
   useEffect(() => {
     const scene = place !== ELSEWHERE
@@ -163,15 +166,15 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       since.current = claimSince(Date.now(), others)
       reclaimOnSync.current = !subscribed.current
     }
-    mine.current = { place, studying, quiet, tab, since: since.current, scene }
+    mine.current = { place, studying, quiet, tab, since: since.current, scene, ...(chan === null ? {} : { channel: chan }) }
     if (subscribed.current) void channelRef.current?.track(mine.current).then((r) => dbg('내 상태 보냄', JSON.stringify(mine.current), r))
-  }, [place, studying, quiet, tab, myId])
+  }, [place, studying, quiet, chan, tab, myId])
 
   const people = result && result.myId === myId ? result.people : EMPTY
   // 여기서 계속하기 (#347): 양보를 풀면 App 이 장면을 다시 열고, 장면에 들어오며 이 탭이 순서를 새로 잡아 다른 탭이 양보합니다.
   const takeOver = useCallback(() => setYielded(false), [])
   return (
-    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver }}>
+    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, setChannel, yielded: Boolean(myId) && yielded, takeOver }}>
       {children}
       <ConnectionNotice />
     </OnlineContext.Provider>

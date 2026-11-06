@@ -101,17 +101,19 @@ export function useChannel(base: string) {
   const changeTo = useCallback((next: number) => setRequest((r) => ({ want: next, seq: r.seq + 1 })), [])
 
   // 채널 창을 열 때만 현황을 받는다. 인원이 바뀔 때마다 받으면 200명 기준 하루 무료 한도를 넘는다. peek 은 자리를 맡지 않고 방도 바꾸지 않는다.
+  // 받은 현황을 돌려준다 (못 받으면 null)
   const refresh = useCallback(async () => {
-    if (!split || !relay) return
+    if (!split || !relay) return null
     try {
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
-      if (!token) return
+      if (!token) return null
       const res = await fetch(`${relay.replace(/^ws/, 'http')}/channels/${base}?peek=1`, { headers: { Authorization: `Bearer ${token}` } })
       const reply = res.ok ? parseReply(await res.json()) : null
       if (reply) setState((s) => ({ ...s, channels: reply.channels, capacity: reply.capacity, total: reply.total, totalCapacity: reply.totalCapacity }))
+      return reply
     } catch {
-      // 현황을 못 받아도 지금 방은 그대로다
+      return null // 현황을 못 받아도 지금 방은 그대로다
     }
   }, [base, split, relay])
 

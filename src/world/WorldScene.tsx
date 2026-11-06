@@ -63,13 +63,13 @@ import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
 import { useChannel } from '../realtime/useChannel'
-import { ChannelBadge, ChannelWaiting } from '../realtime/ChannelBadge'
+import { ChannelBadge, ChannelFollowAsk, ChannelWaiting } from '../realtime/ChannelBadge'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import type { FlickPort, PresenceState } from '../realtime/participants'
 import { useFlick, useFlickShake } from '../friends/useFlick'
 import { getFlickReceiving } from '../menu/flickSetting'
 import { currentCondition } from '../study/condition'
-import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
+import { useOnline, useOnlineChannel, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
@@ -114,8 +114,8 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
-import { useFollowArrival } from '../friends/useFollow'
-import type { Teleport } from '../friends/useFollow'
+import { followInChannel, useFollowArrival } from '../friends/useFollow'
+import type { FollowReason, Teleport } from '../friends/useFollow'
 import { useChat } from '../chat/chatContext'
 import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
@@ -279,8 +279,22 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null)
   const chat = useChat()
+  // 따라가거나 부름을 받은 친구가 다른 채널에 있을 때 옮길지 묻는 창 (#442)
+  const [channelAsk, setChannelAsk] = useState<{ friendId: string; reason: FollowReason; no: number } | null>(null)
+  const moveToFriendChannel = async (ask: { friendId: string; reason: FollowReason; no: number }) => {
+    setChannelAsk(null)
+    // 그 채널에 자리가 있는지 먼저 확인 (가득 차면 서버가 다른 번호를 줘서 친구와 엇갈림)
+    const latest = await channel.refresh()
+    const target = latest?.channels.find((c) => c.no === ask.no)
+    if (latest && target && target.count >= latest.capacity) {
+      chat?.note(`${ask.no}채널이 가득 차서 따라갈 수 없어요. 친구에게 [부르기]를 해 보세요.`)
+      return
+    }
+    followInChannel(ask.friendId, ask.reason, ask.no)
+    channel.changeTo(ask.no)
+  }
   useFollowArrival({
-    place: world.place,
+    place: channel.split ? `${world.place}#${channel.no}` : world.place, // 채널을 옮기면 친구를 기다리는 시간을 새로 셈
     others,
     spots: sitSpots,
     obstacles: OBSTACLES,
@@ -294,7 +308,16 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       chat?.note(`${nickname ?? '친구'} 님 옆으로 왔어요.`)
       chat?.tellArrived(friendId, reason)
     },
+    channel: channel.split && channel.room ? {
+      mine: channel.no,
+      onOtherChannel: (friendId, reason, no) => {
+        // 자리는 채널별로 잡혀 있어 앉은 채로는 옮기지 않습니다 (채널 표시도 앉으면 숨김)
+        if (seat !== null) chat?.note(`친구는 ${no}채널에 있어요. 자리에서 일어난 뒤 다시 따라가 주세요.`)
+        else setChannelAsk({ friendId, reason, no })
+      },
+    } : undefined,
   })
+  useOnlineChannel(channel.split && channel.room ? channel.no : null) // 친구가 나를 따라올 때 내 채널을 알 수 있게
   // 캐릭터 숨김 모드(실험 B 조건)면 광장에서도 다른 참여자를 그리지 않습니다.
   const [condition] = useState(() => currentCondition(location.search))
   // 사이트 전체 접속 상태에 "광장에 있음"(내부 이름은 lobby 그대로)으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
@@ -549,7 +572,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.walks && <GardenOrbs orbs={orbSpots(PLAZA)} />}
         {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
         {PLAZA.pitch && PLAZA.stadium && <CampusStadium pitch={PLAZA.pitch} stadium={PLAZA.stadium} />}
-        {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} />}
+        {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} channelNo={channel.no} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
         {PLAZA.ground !== 'lawn' && <NightFill />}
@@ -681,6 +704,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         <ChannelBadge no={channel.no} count={others.length + 1} capacity={channel.capacity} channels={channel.channels} onOpen={() => void channel.refresh()} onChange={channel.changeTo} />
       )}
       {channel.waiting && <ChannelWaiting total={channel.total} totalCapacity={channel.totalCapacity} />}
+      {channelAsk && <ChannelFollowAsk no={channelAsk.no} reason={channelAsk.reason} onYes={() => void moveToFriendChannel(channelAsk)} onNo={() => setChannelAsk(null)} />}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
