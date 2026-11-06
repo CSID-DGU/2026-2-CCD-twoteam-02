@@ -4,7 +4,8 @@
 //   채널이 나뉘면(#442) 채널마다 공이 따로 있습니다. 1번은 예전 방 이름 그대로, 2번부터 뒤에 :번호를 붙입니다.
 //   마지막에 찬 사람이 공의 "주인"입니다. 주인은 공이 구르는 동안 SEND_MS 마다, 멈출 때 한 번 공 상태를 보냅니다.
 //   다른 사람은 받은 상태로 바꾸고 그다음은 같은 물리로 굴립니다(그 사이도 부드럽게). 골도 주인이 정해 같이 보냅니다.
-//   새로 들어온 사람은 "공 어디 있어요?"(need)를 보내고, 공 상태를 아는 사람이 답합니다. 아무도 없으면 가운데 점에서 시작.
+//   새로 들어온 사람은 "공 어디 있어요?"(need)를 보내고, 주인이 바로 답합니다. 주인이 없으면 공 상태를 아는 사람 중
+//   가장 먼저 기다림이 끝난 한 명이 주인이 되어 답하고 나머지는 취소합니다(needReplyDelay, #473). 아무도 없으면 가운데 점에서 시작.
 //   거의 동시에 둘이 차면 나중에 보낸 쪽으로 맞춰집니다.
 // 골이 나면 골대 위에 "골!"을 GOAL_SHOW_MS 동안 띄우고, 주인이 공을 가운데 점으로 돌려놓습니다.
 // 축구장 밖으로 나가 BALL.outReturnMs 동안 있으면 주인이 가운데 점으로 돌려놓습니다. 주인이 떠났으면 그 두 배 뒤에 아무나.
@@ -14,7 +15,7 @@ import { useFrame } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import { supabase } from '../lib/supabase'
-import { BALL, kickBall, nudgeBall, outOfPitch, stepBall } from './ballLogic'
+import { BALL, kickBall, needReplyDelay, nudgeBall, outOfPitch, stepBall } from './ballLogic'
 import type { BallState, BallWorld, Goal, Pitch } from './ballLogic'
 import { ballTexture } from './fieldShapes'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
@@ -76,27 +77,36 @@ export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitc
     known.current = false
     owner.current = null
     ball.current = { x: pitch.x, z: pitch.z, vx: 0, vz: 0 }
+    let reply: number | undefined
     const ch = supabase.channel(ballRoom(channelNo), { config: { broadcast: { self: false } } })
     ch.on('broadcast', { event: 'ball' }, ({ payload }) => {
       const m = payload as Msg
       if (typeof m?.x !== 'number' || typeof m.vx !== 'number') return
+      window.clearTimeout(reply) // 다른 사람이 먼저 답함
       ball.current = { x: m.x, z: m.z, vx: m.vx, vz: m.vz }
       owner.current = m.owner
       known.current = true
       if (m.goal) showGoalRef.current(m.goal, false)
     })
       .on('broadcast', { event: 'need' }, () => {
-        if (known.current) sendRef.current()
+        if (!known.current) return
+        window.clearTimeout(reply)
+        // 주인이 아닌데 기다림이 끝났으면 주인은 떠난 것으로 보고 내가 주인이 됩니다. 다음 입장부터는 내가 바로 답해 1번이 됩니다.
+        reply = window.setTimeout(() => {
+          owner.current = me
+          sendRef.current()
+        }, needReplyDelay(owner.current === me, Math.random()))
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') void ch.send({ type: 'broadcast', event: 'need', payload: {} })
       })
     channel.current = ch
     return () => {
+      window.clearTimeout(reply)
       channel.current = null
       void supabase.removeChannel(ch)
     }
-  }, [channelNo, pitch.x, pitch.z])
+  }, [channelNo, pitch.x, pitch.z, me])
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05)
