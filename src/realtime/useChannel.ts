@@ -40,17 +40,20 @@ export type ChannelState = {
   split: boolean // 채널이 나뉘는 공간인지
   channels: ChannelInfo[]
   capacity: number
+  autoFill: number
   total: number
   totalCapacity: number
+  rejected: { no: number; seq: number } | null // 직접 고르거나 따라간 채널이 가득 차 못 옮김. seq 는 같은 번호가 다시 거절돼도 알 수 있게
 }
 
 export function useChannel(base: string) {
   const relay = relayUrl()
   const split = !!relay && isChannelBase(base)
   const [state, setState] = useState<ChannelState>({
-    room: split ? null : base, no: 1, waiting: false, split, channels: [], capacity: 0, total: 0, totalCapacity: 0,
+    room: split ? null : base, no: 1, waiting: false, split, channels: [], capacity: 0, autoFill: 0, total: 0, totalCapacity: 0, rejected: null,
   })
-  const [request, setRequest] = useState({ want: readMyChannel(), seq: 0 })
+  // pick: 목록에서 고르기·친구 따라가기·부르기. 자동 배정 기준이 아니라 정원까지 들어가고, 가득 차면 지금 방에 그대로 있는다
+  const [request, setRequest] = useState({ want: readMyChannel(), seq: 0, pick: false })
 
   useEffect(() => {
     if (!split || !relay) return
@@ -63,19 +66,24 @@ export function useChannel(base: string) {
         const { data } = await supabase.auth.getSession()
         const token = data.session?.access_token
         if (!token) throw new Error('no session')
-        const query = request.want ? `?want=${request.want}` : ''
+        const query = request.want ? `?want=${request.want}${request.pick ? '&pick=1' : ''}` : ''
         const res = await fetch(`${http}/channels/${base}${query}`, { headers: { Authorization: `Bearer ${token}` } })
         const reply = res.ok ? parseReply(await res.json()) : null
         if (!reply) throw new Error('bad reply')
         if (!alive) return
-        const { assigned, channels, capacity, total, totalCapacity } = reply
+        const { assigned, channels, capacity, autoFill, total, totalCapacity } = reply
+        if (reply.full) {
+          // 고른 채널이 그사이 가득 찼다. 방은 바꾸지 않고 알린다
+          setState((s) => ({ ...s, channels, capacity, autoFill, total, totalCapacity, rejected: { no: request.want ?? 0, seq: request.seq } }))
+          return
+        }
         if (assigned === null) {
-          setState((s) => ({ ...s, room: null, waiting: true, channels, capacity, total, totalCapacity }))
+          setState((s) => ({ ...s, room: null, waiting: true, channels, capacity, autoFill, total, totalCapacity }))
           timer = setTimeout(() => void ask(), WAIT_RETRY_MS + Math.random() * WAIT_JITTER_MS)
           return
         }
         saveMyChannel(assigned)
-        setState((s) => ({ ...s, room: channelRoom(base, assigned), no: assigned, waiting: false, channels, capacity, total, totalCapacity }))
+        setState((s) => ({ ...s, room: channelRoom(base, assigned), no: assigned, waiting: false, channels, capacity, autoFill, total, totalCapacity }))
       } catch {
         // 안내를 못 받아도 공간에는 들어갑니다. 정원은 방이 다시 확인하고, 차 있으면 onFull 로 다시 묻습니다.
         if (!alive) return
@@ -90,15 +98,15 @@ export function useChannel(base: string) {
     }
   }, [base, split, relay, request])
 
-  // 방이 가득 차 거절당했다. 안내와 입장 사이에 다른 사람이 먼저 들어온 경우다. 다음 번호부터 다시 묻는다.
+  // 방이 가득 차 거절당했다. 안내와 입장 사이에 다른 사람이 먼저 들어온 경우다. 자동 배정으로 다시 묻는다.
   const no = state.no
   const fullRef = useRef<(() => void) | null>(null)
   useEffect(() => {
-    fullRef.current = () => setRequest((r) => ({ want: no + 1, seq: r.seq + 1 }))
+    fullRef.current = () => setRequest((r) => ({ want: no + 1, seq: r.seq + 1, pick: false }))
   }, [no])
 
-  // 다른 채널로 옮긴다
-  const changeTo = useCallback((next: number) => setRequest((r) => ({ want: next, seq: r.seq + 1 })), [])
+  // 다른 채널로 옮긴다 (목록에서 고르기, 친구 따라가기·부르기)
+  const changeTo = useCallback((next: number) => setRequest((r) => ({ want: next, seq: r.seq + 1, pick: true })), [])
 
   // 채널 창을 열 때만 현황을 받는다. 인원이 바뀔 때마다 받으면 200명 기준 하루 무료 한도를 넘는다. peek 은 자리를 맡지 않고 방도 바꾸지 않는다.
   // 받은 현황을 돌려준다 (못 받으면 null)
@@ -110,7 +118,7 @@ export function useChannel(base: string) {
       if (!token) return null
       const res = await fetch(`${relay.replace(/^ws/, 'http')}/channels/${base}?peek=1`, { headers: { Authorization: `Bearer ${token}` } })
       const reply = res.ok ? parseReply(await res.json()) : null
-      if (reply) setState((s) => ({ ...s, channels: reply.channels, capacity: reply.capacity, total: reply.total, totalCapacity: reply.totalCapacity }))
+      if (reply) setState((s) => ({ ...s, channels: reply.channels, capacity: reply.capacity, autoFill: reply.autoFill, total: reply.total, totalCapacity: reply.totalCapacity }))
       return reply
     } catch {
       return null // 현황을 못 받아도 지금 방은 그대로다

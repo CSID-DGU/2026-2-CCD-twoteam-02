@@ -114,7 +114,7 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
-import { followInChannel, useFollowArrival } from '../friends/useFollow'
+import { dropFollowTo, followInChannel, useFollowArrival } from '../friends/useFollow'
 import type { FollowReason, Teleport } from '../friends/useFollow'
 import { useChat } from '../chat/chatContext'
 import { SkyTimePanel } from './SkyTimePanel'
@@ -281,20 +281,25 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const chat = useChat()
   // 따라가거나 부름을 받은 친구가 다른 채널에 있을 때 옮길지 묻는 창 (#442)
   const [channelAsk, setChannelAsk] = useState<{ friendId: string; reason: FollowReason; no: number } | null>(null)
-  const moveToFriendChannel = async (ask: { friendId: string; reason: FollowReason; no: number }) => {
+  // 가득 찼는지는 서버가 정합니다(정원 20명). 가득 차면 방을 바꾸지 않고 channel.rejected 로 알려 줍니다
+  const moveToFriendChannel = (ask: { friendId: string; reason: FollowReason; no: number }) => {
     setChannelAsk(null)
-    // 그 채널에 자리가 있는지 먼저 확인 (가득 차면 서버가 다른 번호를 줘서 친구와 엇갈림)
-    const latest = await channel.refresh()
-    const target = latest?.channels.find((c) => c.no === ask.no)
-    if (latest && target && target.count >= latest.capacity) {
-      chat?.note(`${ask.no}채널이 가득 차서 따라갈 수 없어요. 친구에게 [부르기]를 해 보세요.`)
-      return
-    }
     followInChannel(ask.friendId, ask.reason, ask.no)
     channel.changeTo(ask.no)
   }
+  // 고른 채널이 가득 차 못 옮겼을 때 (목록에서 고르기, 친구 따라가기·부르기)
+  const shownRejection = useRef<number | null>(null)
+  useEffect(() => {
+    const r = channel.rejected
+    if (!r || shownRejection.current === r.seq) return
+    shownRejection.current = r.seq
+    if (dropFollowTo(r.no)) chat?.note(`${r.no}채널이 가득 차서 따라갈 수 없어요. 친구에게 [부르기]를 해 보세요.`)
+    else chat?.note(`${r.no}채널이 가득 찼어요. 다른 채널을 골라 주세요.`)
+  }, [channel.rejected, chat])
   useFollowArrival({
-    place: channel.split ? `${world.place}#${channel.no}` : world.place, // 채널을 옮기면 친구를 기다리는 시간을 새로 셈
+    // 채널이 나뉘면 방 이름이 장소. 채널을 옮기거나 배정이 끝나면 친구를 기다리는 시간을 새로 셈
+    place: channel.split ? channel.room ?? `${world.place}#배정중` : world.place,
+    ready: !channel.split || channel.room !== null,
     others,
     spots: sitSpots,
     obstacles: OBSTACLES,
@@ -701,10 +706,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 앉아 있는 동안은 채널을 바꾸지 못하게 숨깁니다. 자리는 채널별로 잡혀 있습니다 */}
       {condition === 'visible' && channel.split && channel.room && seat === null && (
-        <ChannelBadge no={channel.no} count={others.length + 1} capacity={channel.capacity} channels={channel.channels} onOpen={() => void channel.refresh()} onChange={channel.changeTo} />
+        <ChannelBadge no={channel.no} count={others.length + 1} capacity={channel.capacity} autoFill={channel.autoFill} channels={channel.channels} onOpen={() => void channel.refresh()} onChange={channel.changeTo} />
       )}
       {channel.waiting && <ChannelWaiting total={channel.total} totalCapacity={channel.totalCapacity} />}
-      {channelAsk && <ChannelFollowAsk no={channelAsk.no} reason={channelAsk.reason} onYes={() => void moveToFriendChannel(channelAsk)} onNo={() => setChannelAsk(null)} />}
+      {channelAsk && <ChannelFollowAsk no={channelAsk.no} reason={channelAsk.reason} onYes={() => moveToFriendChannel(channelAsk)} onNo={() => setChannelAsk(null)} />}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}

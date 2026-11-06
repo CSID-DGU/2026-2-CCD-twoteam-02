@@ -11,23 +11,24 @@ type Props = {
   no: number
   count: number // 내 채널 인원 (나 포함)
   capacity: number
+  autoFill: number
   channels: ChannelInfo[]
   onOpen: () => void // 창을 열 때 현황을 다시 받는다
   onChange: (no: number) => void
 }
 
-function Bar({ count, capacity }: { count: number; capacity: number }) {
+function Bar({ count, autoFill, capacity }: { count: number; autoFill: number; capacity: number }) {
   const ratio = capacity > 0 ? Math.min(1, count / capacity) : 0
   return (
     <span style={barBack}>
-      <span style={{ ...barFill, width: BAR_WIDTH * ratio, background: CROWD_COLOR[crowdOf(count, capacity)] }} />
+      <span style={{ ...barFill, width: BAR_WIDTH * ratio, background: CROWD_COLOR[crowdOf(count, autoFill, capacity)] }} />
     </span>
   )
 }
 
-export function ChannelBadge({ no, count, capacity, channels, onOpen, onChange }: Props) {
+export function ChannelBadge({ no, count, capacity, autoFill, channels, onOpen, onChange }: Props) {
   const [open, setOpen] = useState(false)
-  const others = channels.filter((c) => c.no !== no)
+  const others = channels.filter((c) => c.no !== no && c.count > 0)
   if (no === 1 && others.length === 0 && !open) {
     // 번호는 숨기되, 다른 채널이 생겼는지 알 수 있게 작은 단추만 둡니다.
     return (
@@ -39,7 +40,7 @@ export function ChannelBadge({ no, count, capacity, channels, onOpen, onChange }
   return (
     <div style={box}>
       <button type="button" style={button} onClick={() => { if (!open) onOpen(); setOpen(!open) }} aria-expanded={open}>
-        {no}채널 <Bar count={count} capacity={capacity} /> {count}/{capacity}
+        {no}채널 <Bar count={count} autoFill={autoFill} capacity={capacity} /> {count}/{capacity}
       </button>
       {open && (
         <div style={list}>
@@ -51,7 +52,7 @@ export function ChannelBadge({ no, count, capacity, channels, onOpen, onChange }
               disabled={c.no === no || c.count >= capacity}
               onClick={() => { setOpen(false); onChange(c.no) }}
             >
-              {c.no}채널 <Bar count={c.count} capacity={capacity} /> {c.count >= capacity ? '가득 참' : `${c.count}/${capacity}`}
+              {c.no}채널 <Bar count={c.count} autoFill={autoFill} capacity={capacity} /> {c.count >= capacity ? '가득 참' : `${c.count}/${capacity}`}
             </button>
           ))}
           <button type="button" style={row} onClick={() => { setOpen(false); onChange(firstEmptyChannel(channels, no)) }}>
