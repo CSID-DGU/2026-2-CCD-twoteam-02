@@ -9,13 +9,13 @@
 // 인원은 저장소에도 적는다. 객체가 메모리에서 내려갔다 올라와도 현황을 잃지 않게 하려는 것이다.
 // 위치처럼 초당 여러 번 바뀌는 값이 아니라 입장·퇴장 때만 쓰므로 쓰기 양이 적다.
 import { DurableObject } from 'cloudflare:workers'
-import { assignChannel, CHANNEL_CAPACITY, channelCounts, TOTAL_CAPACITY, totalCount, type Holds } from './relayLogic'
+import { assignChannel, AUTO_FILL, CHANNEL_CAPACITY, channelCounts, TOTAL_CAPACITY, totalCount, type AssignMode, type Holds } from './relayLogic'
 import type { RelayEnv } from './index'
 
 export const DIRECTORY_NAME = 'global'
 
 export type RoomReport = { room: string; count: number; joined?: string } // joined: 방금 들어온 사람. 그 사람의 자리 맡기를 푼다
-export type AssignRequest = { world: string; want: number | null; userId: string; peek: boolean } // peek: 현황만 본다. 자리를 맡지 않는다
+export type AssignRequest = { world: string; want: number | null; userId: string; peek: boolean; mode: AssignMode } // peek: 현황만 본다. 자리를 맡지 않는다
 
 export class ChannelDirectory extends DurableObject<RelayEnv> {
   private counts = new Map<string, number>()
@@ -46,14 +46,16 @@ export class ChannelDirectory extends DurableObject<RelayEnv> {
     return new Response(null, { status: 204 })
   }
 
-  private assign({ world, want, userId, peek }: AssignRequest): Response {
+  private assign({ world, want, userId, peek, mode }: AssignRequest): Response {
     const now = Date.now()
-    const assigned = peek ? null : assignChannel(world, want, userId, this.counts, this.holds, now)
+    const result = peek ? null : assignChannel(world, want, userId, this.counts, this.holds, now, mode)
     return Response.json({
-      assigned,
+      assigned: result && 'no' in result ? result.no : null, // null: 입장 대기 (또는 peek)
+      full: result !== null && 'full' in result, // 고른 채널이 가득 참. 지금 방에 그대로 있는다
       total: totalCount(this.counts, this.holds, now),
-      channels: channelCounts(world, this.counts),
+      channels: channelCounts(world, this.counts, this.holds),
       capacity: CHANNEL_CAPACITY,
+      autoFill: AUTO_FILL,
       totalCapacity: TOTAL_CAPACITY,
     })
   }

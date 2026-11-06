@@ -7,7 +7,6 @@
 export const CHANNEL_BASES = ['lobby', 'campus', 'beach']
 export const WAIT_RETRY_MS = 10000 // 전체 상한으로 기다릴 때 다시 물어보는 간격
 export const WAIT_JITTER_MS = 5000 // 기다리던 사람들이 한꺼번에 묻지 않게 흩뿌리는 범위
-export const CROWDED_RATIO = 0.8 // 정원의 이 비율을 넘으면 혼잡으로 표시
 
 export const isChannelBase = (room: string) => CHANNEL_BASES.includes(room)
 
@@ -16,10 +15,12 @@ export const channelRoom = (base: string, no: number) => (no === 1 ? base : `${b
 
 export type ChannelInfo = { no: number; count: number }
 export type ChannelReply = {
-  assigned: number | null // 들어갈 채널. null 이면 전체 상한이라 기다립니다
+  assigned: number | null // 들어갈 채널. null 이면 전체 상한이라 기다리거나(full 이 아니면), 고른 채널이 가득 찬 것(full)
+  full: boolean // 목록에서 고르거나 친구를 따라간 채널이 가득 참. 지금 방에 그대로 있습니다
   total: number
-  channels: ChannelInfo[]
-  capacity: number
+  channels: ChannelInfo[] // 서버가 정한 채널 목록 (1~6번은 늘, 다 차면 다음 번호를 더 엶)
+  capacity: number // 직접 고르거나 따라갈 때 들어갈 수 있는 인원
+  autoFill: number // 자동 배정이 채우는 인원. 넘으면 다음 채널로 배정합니다
   totalCapacity: number
 }
 
@@ -29,27 +30,29 @@ export function parseReply(raw: unknown): ChannelReply | null {
   if (!r || typeof r !== 'object') return null
   const assignedOk = r.assigned === null || (Number.isInteger(r.assigned) && (r.assigned as number) >= 1)
   if (!assignedOk || !Number.isFinite(r.capacity) || !Number.isFinite(r.totalCapacity) || !Number.isFinite(r.total) || !Array.isArray(r.channels)) return null
-  return r as ChannelReply
+  // 예전 서버(full·autoFill 없음)와 섞여도 동작하게 기본값을 채웁니다
+  return { ...(r as ChannelReply), full: r.full === true, autoFill: Number.isFinite(r.autoFill) ? (r.autoFill as number) : (r.capacity as number) }
 }
 
-// 채널 목록: 사람이 있는 채널과 내 채널을 번호순으로. 빈 번호는 빼서 목록이 길어지지 않게 합니다.
+// 채널 목록: 서버가 준 목록에 내 채널은 지금 방 인원으로 덮어씁니다(서버 현황은 창을 열 때 받은 값이라 늦을 수 있음).
 export function channelList(channels: ChannelInfo[], mine: number, myRoomCount: number): ChannelInfo[] {
   const list = channels.filter((c) => c.no !== mine)
   list.push({ no: mine, count: myRoomCount })
   return list.sort((a, b) => a.no - b.no)
 }
 
-// 비어 있는 다음 번호. "새 채널로 옮기기"에 씁니다.
+// 비어 있는 첫 번호. "빈 채널로 옮기기"에 씁니다.
 export function firstEmptyChannel(channels: ChannelInfo[], mine: number): number {
-  const used = new Set(channels.map((c) => c.no))
+  const used = new Set(channels.filter((c) => c.count > 0).map((c) => c.no))
   used.add(mine)
   let no = 1
   while (used.has(no)) no++
   return no
 }
 
+// 혼잡도: 자동 배정 인원 전이면 여유, 그 뒤 정원 전이면 혼잡(직접 고르면 들어갈 수 있음), 정원이면 가득 참
 export type Crowd = 'quiet' | 'busy' | 'full'
-export function crowdOf(count: number, capacity: number): Crowd {
+export function crowdOf(count: number, autoFill: number, capacity: number): Crowd {
   if (count >= capacity) return 'full'
-  return count >= capacity * CROWDED_RATIO ? 'busy' : 'quiet'
+  return count >= autoFill ? 'busy' : 'quiet'
 }

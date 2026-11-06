@@ -11,7 +11,7 @@
 
 export const BESIDE = { near: 1.2, far: 2, ring: 12 } // 옆에 설 거리(m)와 둘레를 몇 방향으로 살필지
 export const BODY_R = 0.3 // 캐릭터 충돌 반경 (Player 와 같음)
-export const ARRIVE_WAIT_MS = 3000 // 도착한 장소에서 친구 위치를 기다리는 시간. 넘으면 그 장소 입구에 섬
+export const ARRIVE_WAIT_MS = 6000 // 도착한 장소의 방에 들어간 뒤 친구 위치를 기다리는 시간. 넘으면 그 장소 입구에 섬 (Supabase 방은 명단을 받는 데 몇 초 걸려 넉넉히)
 export const SUMMON_MS = 60 * 1000 // [부름] 줄이 유효한 시간. 지나면 "지난 부름" (오래된 부름으로 계속 따라가지 않게)
 
 type Box = { x: number; z: number; w: number; d: number }
