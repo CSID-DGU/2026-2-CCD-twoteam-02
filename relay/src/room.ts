@@ -8,11 +8,13 @@
 //   받는 것  {t:'m', s:위치}             내 위치
 //            {t:'e', e:이름, p:내용}     딱밤·프로필 알림
 //            {t:'q'}                     측정용 계수 요청
+//            {t:'p', e, p, to?}          축구공·모래 글씨 (playLogic.ts, #473)
 //            'ping'                      살아 있음 (런타임이 객체를 깨우지 않고 'pong' 으로 답한다)
 //   보내는 것 {t:'s', u:나, s:[위치...]}  입장 스냅샷. 들어온 사람에게만
 //            {t:'b', s:[위치...], g:[나간 사람...]}  틱마다 묶은 변경
 //            {t:'e', e:이름, p:내용}     딱밤·프로필 알림
 //            {t:'r', ...}                측정용 계수
+//            {t:'p', e, p} / {t:'p', e, r}  축구공·모래 글씨, 서버가 넘긴 need (r: 답할 연결)
 //
 // ── Hibernation (잠들기) ─────────────────────────────────────────────
 //
@@ -33,6 +35,7 @@ import {
   countMessage, flushDelay, hasRoom, sanitizeEvent, sanitizeState,
 } from './relayLogic'
 import type { RateWindow, RelayState } from './relayLogic'
+import { PLAY_HARD_PER_SEC, PLAY_MAX_BYTES, PLAY_REPLY_MAX_BYTES, PLAY_SOFT_PER_SEC, pickResponder, routeOf, sanitizePlay } from './playLogic'
 import type { RelayEnv } from './index'
 
 export const SUBPROTOCOL = 'relay.v1'
@@ -51,6 +54,7 @@ type Attachment = {
   state: RelayState | null // 이 연결이 마지막으로 보낸 위치. 보기 전용 연결은 null
   watch: boolean // 보기 전용 연결. 위치와 알림을 보내지 못하고 정원에 들어가지 않는다 (#442)
   room: string // 방 이름
+  joinedAt?: number // 들어온 시각. 축구공·모래 글씨 need 를 가장 오래 있던 사람에게 넘길 때 쓴다 (#473)
 }
 
 export class RelayRoom extends DurableObject<RelayEnv> {
@@ -58,6 +62,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
   private pending = new Map<string, RelayState>() // 이번 틱에 바뀐 위치
   private gone = new Set<string>() // 이번 틱에 나간 사람
   private rates = new Map<string, RateWindow>() // 연결별 초당 메시지. 잠들면 사라져도 상관없다
+  private playRates = new Map<string, RateWindow>() // 축구공·모래 글씨는 위치와 따로 센다 (공을 찬 사람은 위치 초당 4번 + 공 초당 약 7번)
   private timer: ReturnType<typeof setTimeout> | null = null
   private timerArmedAt = 0
   private lastFlushAt = 0
@@ -119,7 +124,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     }
 
     const now = Date.now()
-    const attachment: Attachment = { conn: crypto.randomUUID(), userId, expiresAt, heardAt: now, state: null, watch, room }
+    const attachment: Attachment = { conn: crypto.randomUUID(), userId, expiresAt, heardAt: now, state: null, watch, room, joinedAt: now }
     server.serializeAttachment(attachment)
     // 들어온 사람에게만 전체 상태를 준다. 예전처럼 대표가 답할 일이 없다.
     server.send(JSON.stringify({ t: 's', u: userId, s: [...this.latest.values()] }))
@@ -130,13 +135,16 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     const a = this.attachmentOf(ws)
     if (!a) return
     if (typeof message !== 'string') return ws.close(CLOSE_NOT_TEXT, 'text only')
-    if (message.length > MAX_MESSAGE_BYTES) return ws.close(CLOSE_TOO_BIG, 'too big')
+    // 축구공·모래 글씨는 위치와 따로 세고, 한 사람에게 가는 답(모래 판)은 크게 받는다. 화면은 t 를 맨 앞에 적는다(JSON.stringify 순서)
+    const isPlay = message.startsWith('{"t":"p"')
+    if (message.length > (isPlay ? PLAY_REPLY_MAX_BYTES : MAX_MESSAGE_BYTES)) return ws.close(CLOSE_TOO_BIG, 'too big')
     const now = Date.now()
     if (a.expiresAt <= now) return ws.close(CLOSE_TOKEN_EXPIRED, 'token expired')
 
-    const rate = this.rates.get(a.conn) ?? { startedAt: now, count: 0 }
-    this.rates.set(a.conn, rate)
-    const verdict = countMessage(rate, now)
+    const rates = isPlay ? this.playRates : this.rates
+    const rate = rates.get(a.conn) ?? { startedAt: now, count: 0 }
+    rates.set(a.conn, rate)
+    const verdict = isPlay ? countMessage(rate, now, PLAY_SOFT_PER_SEC, PLAY_HARD_PER_SEC) : countMessage(rate, now)
     if (verdict === 'close') return ws.close(CLOSE_TOO_FAST, 'too fast')
     this.stats.received++
     if (verdict === 'drop') {
@@ -144,7 +152,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
       return
     }
 
-    let parsed: { t?: unknown; s?: unknown; e?: unknown; p?: unknown; id?: unknown }
+    let parsed: { t?: unknown; s?: unknown; e?: unknown; p?: unknown; id?: unknown; to?: unknown }
     try {
       const value: unknown = JSON.parse(message)
       if (typeof value !== 'object' || value === null) return
@@ -155,6 +163,9 @@ export class RelayRoom extends DurableObject<RelayEnv> {
 
     // 보기 전용 연결은 받기만 한다. 정원 밖 연결이 방에 위치를 넣지 못하게 서버에서 막는다.
     if (a.watch && parsed.t !== 'q') return
+    if (isPlay !== (parsed.t === 'p')) return // 앞머리로 크기·횟수를 따로 센 것과 실제 종류가 다르면 버린다
+
+    if (parsed.t === 'p') return this.play(a, parsed, message.length)
 
     if (parsed.t === 'm') {
       const state = sanitizeState(a.userId, parsed.s)
@@ -215,6 +226,37 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     this.sendAll(JSON.stringify(batch))
   }
 
+  // 축구공·모래 글씨 (#473). need 는 가장 오래 있던 한 사람에게, 답은 물어본 연결에만, 나머지는 방 전원(보낸 연결·보기 전용 제외)에게
+  private play(a: Attachment, parsed: { e?: unknown; p?: unknown; to?: unknown }, size: number) {
+    const msg = sanitizePlay(parsed.e, parsed.p)
+    if (!msg) return
+    const route = routeOf(msg.e, typeof parsed.to === 'string')
+    if (route !== 'reply' && size > PLAY_MAX_BYTES) return
+    const players: { ws: WebSocket; conn: string; joinedAt: number }[] = []
+    for (const ws of this.ctx.getWebSockets()) {
+      const b = this.attachmentOf(ws)
+      if (b && !b.watch) players.push({ ws, conn: b.conn, joinedAt: b.joinedAt ?? 0 })
+    }
+    if (route === 'need') {
+      const responder = pickResponder(players, a.conn)
+      try {
+        responder?.ws.send(JSON.stringify({ t: 'p', e: msg.e, r: a.conn }))
+      } catch {
+        // 막 닫힌 연결이다. 물어본 사람은 공을 가운데에서 시작한다
+      }
+      return
+    }
+    const out = JSON.stringify({ t: 'p', e: msg.e, p: msg.p })
+    for (const player of players) {
+      if (player.conn === a.conn || (route === 'reply' && player.conn !== parsed.to)) continue
+      try {
+        player.ws.send(out)
+      } catch {
+        // 막 닫힌 연결이다
+      }
+    }
+  }
+
   private sendAll(data: string) {
     for (const ws of this.ctx.getWebSockets()) {
       try {
@@ -254,6 +296,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     if (!a) return
     ws.serializeAttachment(null) // 두 번 지워도 나간 알림이 두 번 가지 않게 한다
     this.rates.delete(a.conn)
+    this.playRates.delete(a.conn)
     const holder = this.ctx.getWebSockets().map((other) => this.attachmentOf(other)).find((o) => o?.userId === a.userId && o.state)
     if (holder?.state) {
       this.latest.set(a.userId, holder.state)
