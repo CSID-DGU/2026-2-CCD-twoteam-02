@@ -4,6 +4,7 @@
 //   kickBall   내 캐릭터가 공 쪽으로 걸어가 닿으면 찬 방향·세기 (뛰면 더 세게)
 //   nudgeBall  서 있는 캐릭터에 닿아 있으면 겹치지 않게 살짝 밀어냄
 //   outOfPitch 축구장 밖으로 나갔는지 (골망 안은 골이라 밖 아님) → Ball.tsx 가 잠시 뒤 가운데로 돌려놓음
+//   needReplyDelay  새로 온 사람의 "공 어디 있어요?"(need)에 답하기까지 기다릴 시간 (#473)
 // 공은 땅 위를 구르기만 합니다(높이 없음). 여러 사람이 같이 보는 것은 Ball.tsx 가 실시간으로 맞춥니다.
 
 // r: 반지름(m), friction: 1초에 속도가 줄어드는 정도(지수), stop: 이보다 느리면 멈춤, bounce: 튕길 때 남는 속도 비율,
@@ -13,6 +14,14 @@
 export const BALL = { r: 0.22, friction: 0.9, stop: 0.08, bounce: 0.6, touch: 0.55, kickMin: 4, kickMul: 1.7, maxSpeed: 13, netDepth: 1.2, cooldown: 0.25, outMargin: 1, outReturnMs: 2000 }
 
 export type BallState = { x: number; z: number; vx: number; vz: number }
+
+// 입장 응답 (#473): 예전에는 공 상태를 아는 사람이 모두 바로 답해 입장 1번에 N명 응답 × N명 수신이 나갔습니다.
+// 공 주인(마지막에 찬 사람)은 바로 답하고, 나머지는 minMs~minMs+rangeMs 사이 제각각 기다렸다가
+// 그사이 누가 먼저 답하면(공 상태를 받으면) 취소합니다. 주인이 있으면 응답은 1번입니다. 주인이 떠났으면 먼저 답한 사람이
+// 주인이 되어(가끔 둘셋이 겹침) 다음 입장부터 다시 1번이 됩니다.
+// minMs 는 주인의 답이 다른 사람에게 닿을 만큼(실측 지연 약 0.1~0.2초) 넉넉히 둡니다.
+export const NEED_REPLY = { minMs: 400, rangeMs: 800 }
+export const needReplyDelay = (isOwner: boolean, rand: number) => (isOwner ? 0 : NEED_REPLY.minMs + rand * NEED_REPLY.rangeMs)
 // goal: 골대 폭. w 는 골대 쪽 짧은 변, d 는 골대 사이 긴 변. across 면 긴 변이 동서(골대가 왼쪽·오른쪽 끝, 'north'=왼쪽 'south'=오른쪽)
 export type Pitch = { x: number; z: number; w: number; d: number; goal: number; across?: boolean }
 export type BallWorld = { half: { w: number; d: number }; boxes: { x: number; z: number; w: number; d: number }[]; pitch?: Pitch }
