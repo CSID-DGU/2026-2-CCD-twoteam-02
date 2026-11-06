@@ -62,6 +62,8 @@ import { FirstCharacterDialog } from '../profile/FirstCharacterDialog'
 import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
+import { useChannel } from '../realtime/useChannel'
+import { ChannelBadge, ChannelWaiting } from '../realtime/ChannelBadge'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import type { FlickPort, PresenceState } from '../realtime/participants'
 import { useFlick, useFlickShake } from '../friends/useFlick'
@@ -165,7 +167,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const { info: plazaInfo } = useBranchInfo(world.study.slug) // 0038(광장)·0043(캠퍼스) 실행 전이면 null (앉을 수 없음)
   const plazaId = plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
   const { mySeat, sessionId, setMySeat } = useMySeat(plazaId ?? -1)
-  const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch') // 이 월드의 공부 자리만 정리 (다른 기기의 카페 자리는 그대로)
+  const channel = useChannel(world.channel) // 이 공간의 어느 채널에 들어갈지 (#442)
+  const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch', channel.no) // 이 월드의 공부 자리만 정리 (다른 기기의 카페 자리는 그대로)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>('idle') // 벤치에 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false) // 공부 시작 창이 떠 있는지 (중지 중 포함)
   const [studyPaused, setStudyPaused] = useState(false) // 공부 중지 중 (#236)
@@ -268,7 +271,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
-  const others = useParticipants(world.channel, me, false, undefined, undefined, undefined, flickPort)
+  const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef)
   // 딱밤 (#304): 벤치에서 빨간불인 친구 바로 옆에서 조준하고 Q. 조준이 켜져 있을 때만(서 있고 1인칭, 창 없음)
   const flick = useFlick({ myId: session?.user.id, others, spots: sitSpots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn })
   const shakeBox = useFlickShake(flick.hit?.at ?? null)
@@ -673,6 +676,11 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      {/* 앉아 있는 동안은 채널을 바꾸지 못하게 숨깁니다. 자리는 채널별로 잡혀 있습니다 */}
+      {condition === 'visible' && channel.split && channel.room && seat === null && (
+        <ChannelBadge no={channel.no} count={others.length + 1} capacity={channel.capacity} channels={channel.channels} onOpen={() => void channel.refresh()} onChange={channel.changeTo} />
+      )}
+      {channel.waiting && <ChannelWaiting total={channel.total} totalCapacity={channel.totalCapacity} />}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
