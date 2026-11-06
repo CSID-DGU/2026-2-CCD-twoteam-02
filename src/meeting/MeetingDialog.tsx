@@ -9,6 +9,13 @@ import { supabase } from '../lib/supabase'
 import { MEETING_CAPACITIES } from './meetingLogic'
 import { useIsGuest } from '../auth/useIsGuest'
 import { GuestOnly } from '../auth/GuestOnly'
+import { readMyChannel } from '../realtime/myChannel'
+
+// 내 채널 인자 (#481). 1채널(또는 채널이 없는 실험 배포)이면 넘기지 않아 0067 전 DB 와도 맞음
+const channelArg = () => {
+  const no = readMyChannel()
+  return no !== null && no > 1 ? { p_channel: no } : {}
+}
 
 const PASSWORD = /^[0-9]{4}$/ // 비공개 회의 비밀번호: 숫자 4자리 (0023 과 같은 규칙)
 const NEED_PASSWORD = 'DT003' // join_meeting 이 "비밀번호를 입력해 주세요" 로 거절할 때의 코드
@@ -63,7 +70,8 @@ function MeetingList({ branchId, onEnter, onClose }: Props) {
 
   useEffect(() => {
     let alive = true
-    void supabase.rpc('list_meetings', { p_branch_id: branchId }).then(({ data, error }) => {
+    // 회의도 채널마다 따로다 (#481). 내 채널의 회의만 보이고, 만들면 내 채널 회의가 된다. 1채널은 예전 호출 그대로
+    void supabase.rpc('list_meetings', { p_branch_id: branchId, ...channelArg() }).then(({ data, error }) => {
       if (!alive) return
       if (error) setError(`회의 목록을 불러오지 못했어요: ${error.message}`)
       setRows((data ?? []) as MeetingRow[])
@@ -112,6 +120,7 @@ function MeetingList({ branchId, onEnter, onClose }: Props) {
       p_private: isPrivate,
       p_capacity: capacity,
       p_password: isPrivate ? newPassword : null,
+      ...channelArg(),
     })
     setBusy(false)
     if (error || typeof data !== 'number') {

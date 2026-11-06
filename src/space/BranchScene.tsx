@@ -47,7 +47,8 @@ import type { PanelView } from "../menu/panelTypes";
 import { panelKey } from "../menu/panelTypes";
 import { useMenuShortcuts } from "../menu/useMenuShortcuts";
 import { getKeymap, keyLabel, useKeymap } from "../menu/keymap";
-import { channelName } from "../realtime/participants";
+import { useChannel } from "../realtime/useChannel";
+import { useChannelUi } from "../realtime/useChannelUi";
 import type { FlickPort, PresenceState } from "../realtime/participants";
 import { headAngles, nextEyesClosed } from "../tracking/faceSync";
 import { characterArms } from "../tracking/armLogic";
@@ -246,7 +247,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const heading = useRef(arrival); // 1인칭에서 바라보는 방향
   const bodyHeading = useRef(arrival); // 몸이 바라보는 방향 (위에서 보기에서도 맞음). 나갈 때 로비로 넘깁니다.
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
-  const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID); // 키오스크에서 배정받은 내 자리
+  const channel = useChannel(`branch:${BRANCH_ID}`); // 이 지점의 어느 채널에 들어갈지. 채널은 광장과 이어지는 세계 (#481)
+  const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID, channel.no); // 키오스크에서 배정받은 내 자리 (지금 채널의 것)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지 (중지 중 포함: 캐릭터·시점·단축키를 막음)
   const [studyPaused, setStudyPaused] = useState(false); // 공부 중지 중 (#236). 안내 문구와 메뉴의 나가기 버튼에 씀
@@ -274,13 +276,19 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const emote = useRef(newEmoteState());
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }); // 딱밤 신호 통로 (#304)
-  const others = useParticipants(channelName(BRANCH_ID), me, false, undefined, undefined, undefined, flickPort); // 같은 지점의 다른 참여자 (실시간)
+  const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef); // 같은 지점·같은 채널의 다른 참여자 (실시간)
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null);
   const chat = useChat();
+  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
+  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
+  const { search } = useLocation();
+  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
+  // 채널 표시·입장 대기·친구 채널 창과 따라가기 설정 (#481. 광장 화면과 같이 씀)
+  const channelUi = useChannelUi({ channel, place: branch.id, seated: seat !== null, count: others.length + 1, showBadge: condition === "visible" });
   useFollowArrival({
-    place: branch.id,
+    ...channelUi.arrival,
     others,
     spots,
     obstacles,
@@ -295,10 +303,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       chat?.tellArrived(friendId, reason);
     },
   });
-  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
-  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
-  const { search } = useLocation();
-  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
   useEffect(() => {
     console.info(`[실험 조건] ${condition === "hidden" ? "hidden (캐릭터 숨김 모드)" : "visible (캐릭터 보임)"}`);
   }, [condition]);
@@ -366,7 +370,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   };
 
   // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44, useCafeSeat) ──
-  const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat);
+  const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat, "all", channel.no);
   const { conflict, message: cafeMessage } = cafe;
 
   const handleSeat = (no: number | null) => {
@@ -662,6 +666,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     </div>
     {/* 배경 소리 (휴식방 물소리). 지점 JSON 의 ambience 가 있는 곳에서만, 나가면 꺼짐 */}
     {branch.ambience && <AmbienceControl kind={branch.ambience} />}
+    {channelUi.overlay}
     <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
     {/* 감정표현: 숫자키 1~8, X 바퀴 (#162). 창이 떠 있거나 앉아 있으면 쓰지 않습니다. */}
     <EmoteControls
@@ -704,6 +709,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         branch={branch}
         onClose={() => setKioskOpen(false)}
         onAssigned={setMySeat}
+        channel={channel.no}
       />
     )}
     {/* 폰 조작: 조이스틱·끌어서 둘러보기·[E]·점프·시점 (#377). 창이 떠 있으면 숨김 */}
