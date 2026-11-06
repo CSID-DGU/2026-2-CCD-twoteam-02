@@ -1,6 +1,7 @@
 // 위치 중계 Worker 입구 (#451, #464).
 //
 // 주소: wss://{worker}/room/{방 이름}, 보기 전용 연결은 뒤에 ?watch=1 (#442)
+//       wss://{worker}/online  사이트 전체 접속 표시 (#473)
 // 토큰은 WebSocket 부프로토콜 칸에 ['relay.v1', 토큰] 으로 받는다. 브라우저의 WebSocket 은 머리글을 적을 수 없고,
 // 주소에 넣으면 접속 기록에 토큰이 남기 때문이다.
 //
@@ -8,15 +9,18 @@
 // 우회 설정은 두지 않는다. 측정 봇은 시험용 Worker 에서만 JWT_HS256_SECRET 으로 직접 서명한 토큰을 쓴다(값이 없으면 HS256 은 모두 거절, 정식 서버에는 넣지 않는다).
 import { verifyToken } from './auth'
 import { ChannelDirectory, DIRECTORY_NAME } from './directory'
+import { OnlineRoom } from './online'
+import { ONLINE_NAME } from './onlineLogic'
 import type { AssignRequest } from './directory'
 import { capacityOf, isAllowedRoom, isChannelWorld } from './relayLogic'
 import { CAPACITY_HEADER, EXPIRES_HEADER, RelayRoom, ROOM_HEADER, SUBPROTOCOL, USER_HEADER, WATCH_HEADER } from './room'
 
-export { ChannelDirectory, RelayRoom }
+export { ChannelDirectory, OnlineRoom, RelayRoom }
 
 export type RelayEnv = {
   ROOM: DurableObjectNamespace<RelayRoom>
   DIRECTORY: DurableObjectNamespace<ChannelDirectory>
+  ONLINE: DurableObjectNamespace<OnlineRoom>
   SUPABASE_URL?: string // 토큰 발급처. https://{프로젝트}.supabase.co
   JWT_HS256_SECRET?: string // 선택. 넣을 때만 HS256 토큰을 받는다
   ROOM_MAX_CONNECTIONS?: string // 선택. 방 정원을 시험 때만 바꾼다
@@ -58,8 +62,9 @@ export default {
     const channelsPath = /^\/channels\/([a-z]+)$/.exec(pathname)
     if (channelsPath) return channels(request, env, channelsPath[1], searchParams.get('want'), searchParams.get('peek') === '1', searchParams.get('pick') === '1')
 
-    const room = roomFromPath(pathname)
-    if (!room) return new Response('not found', { status: 404 })
+    const online = pathname === '/online' // 사이트 전체 접속 표시 방 (#473)
+    const room = online ? null : roomFromPath(pathname)
+    if (!online && !room) return new Response('not found', { status: 404 })
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('websocket only', { status: 426 })
     if (!env.SUPABASE_URL) return new Response('not configured', { status: 500 }) // 설정이 빠지면 열어 두지 않고 닫는다
 
@@ -68,6 +73,13 @@ export default {
     if (!protocols.includes(SUBPROTOCOL) || !token) return new Response('unauthorized', { status: 401 })
     const who = await verifyToken(token, { supabaseUrl: env.SUPABASE_URL.replace(/\/$/, ''), hs256Secret: env.JWT_HS256_SECRET })
     if (!who) return new Response('unauthorized', { status: 401 })
+
+    if (online) {
+      const headers = new Headers({ Upgrade: 'websocket', [USER_HEADER]: who.userId, [EXPIRES_HEADER]: String(who.expiresAt) })
+      const stub = env.ONLINE.get(env.ONLINE.idFromName(ONLINE_NAME), { locationHint: 'apac' })
+      return stub.fetch('https://relay.internal/online', { headers })
+    }
+    if (!room) return new Response('not found', { status: 404 })
 
     // 머리글은 새로 만든다. 클라이언트가 보낸 x-relay-* 값은 넘어가지 않는다.
     const headers = new Headers({

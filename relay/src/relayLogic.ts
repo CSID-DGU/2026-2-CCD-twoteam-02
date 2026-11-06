@@ -191,6 +191,6 @@ export function countMessage(window: RateWindow, now: number): RateVerdict {
 
 // 이번에 내보낼 때까지 기다릴 시간. 0 이면 바로 내보낸다.
 // 틱이 이미 지났으면 타이머 없이 바로 보낸다. 대기 중인 타이머가 있으면 객체가 잠들지 못해 그 시간만큼 요금(duration)이 든다.
-export function flushDelay(lastFlushAt: number, now: number): number {
-  return Math.max(0, TICK_MS - (now - lastFlushAt))
+export function flushDelay(lastFlushAt: number, now: number, tick = TICK_MS): number {
+  return Math.max(0, tick - (now - lastFlushAt))
 }
