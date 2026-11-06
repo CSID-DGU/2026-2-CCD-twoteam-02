@@ -12,6 +12,9 @@
 //            {t:'d', p:[...], g:[연결...]}        1초마다 묶은 변경과 나간 연결
 //
 // 잠들기·요금은 위치 방(room.ts)과 같다. 상태는 들어올 때와 바뀔 때만 오므로 객체는 대부분 잠들어 있다.
+//
+// 채널 배정 (#481): 채널은 장소를 모두 포함한 세계라 인원을 채널 전체로 센다. 탭마다 올린 채널 번호를 가진 곳이
+// 여기뿐이라 배정도 여기서 한다(POST /assign, index.ts 의 GET /channels 가 넘겨줌).
 // 상태를 올리지 않은 연결은 명단에 넣지 않는다(화면은 연결하자마자 올린다).
 import { DurableObject } from 'cloudflare:workers'
 import {
@@ -19,6 +22,8 @@ import {
   MAX_MESSAGE_BYTES, STALE_CONNECTION_MS, SWEEP_INTERVAL_MS, countMessage, flushDelay,
 } from './relayLogic'
 import type { RateWindow } from './relayLogic'
+import { assignChannel, AUTO_FILL, CHANNEL_CAPACITY, channelCounts, channelTally, TOTAL_CAPACITY, totalCount } from './relayLogic'
+import type { AssignMode, Holds, Members } from './relayLogic'
 import { ONLINE_MAX_CONNECTIONS, ONLINE_MAX_PER_USER, ONLINE_TICK_MS, sameMeta, sanitizeMeta } from './onlineLogic'
 import type { OnlineEntry, OnlineMeta } from './onlineLogic'
 import { EXPIRES_HEADER, SUBPROTOCOL, USER_HEADER } from './room'
@@ -39,6 +44,7 @@ export class OnlineRoom extends DurableObject<RelayEnv> {
   private timer: ReturnType<typeof setTimeout> | null = null
   private lastFlushAt = 0
   private lastSweepAt = 0
+  private holds: Holds = new Map() // 채널을 안내받고 아직 들어오지 않은 사람. 잠들면 사라져도 15초짜리라 상관없다
 
   constructor(ctx: DurableObjectState, env: RelayEnv) {
     super(ctx, env)
@@ -58,7 +64,38 @@ export class OnlineRoom extends DurableObject<RelayEnv> {
     return list
   }
 
+  // 사람마다 지금 채널. 탭이 여럿이면 장면 안에서 가장 나중에 들어온 탭(#347 에서 쓰는 탭)의 채널, 없으면 가장 나중 탭의 채널
+  private members(): Members {
+    const best = new Map<string, { channel: number; scene: boolean; since: number }>()
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = this.attachmentOf(ws)
+      const channel = a?.meta?.channel
+      if (!a?.meta || channel === undefined) continue
+      const cur = best.get(a.userId)
+      const better = !cur || (a.meta.scene && !cur.scene) || (a.meta.scene === cur.scene && a.meta.since > cur.since)
+      if (better) best.set(a.userId, { channel, scene: a.meta.scene, since: a.meta.since })
+    }
+    return new Map([...best].map(([id, b]) => [id, b.channel]))
+  }
+
+  // 채널 배정·현황 (index.ts 가 토큰을 확인한 뒤에만 부른다)
+  private assign(body: { want: number | null; mode: AssignMode; userId: string; peek: boolean }): Response {
+    const now = Date.now()
+    const members = this.members()
+    const result = body.peek ? null : assignChannel(body.want, body.mode, body.userId, members, this.holds, now)
+    return Response.json({
+      assigned: result && 'no' in result ? result.no : null, // null: 입장 대기 (또는 peek)
+      full: result !== null && 'full' in result, // 고른 채널이 가득 참. 지금 채널에 그대로 있는다
+      total: totalCount(members, this.holds, now),
+      channels: channelCounts(channelTally(members, this.holds)),
+      capacity: CHANNEL_CAPACITY,
+      autoFill: AUTO_FILL,
+      totalCapacity: TOTAL_CAPACITY,
+    })
+  }
+
   async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname === '/assign') return this.assign(await request.json())
     const userId = request.headers.get(USER_HEADER)
     const expiresAt = Number(request.headers.get(EXPIRES_HEADER))
     if (!userId || !expiresAt) return new Response('bad request', { status: 400 })

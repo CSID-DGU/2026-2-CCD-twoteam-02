@@ -8,10 +8,9 @@
 // 토큰을 여기서 확인하고 통과한 연결만 방 객체로 넘긴다. 가짜 접속으로 객체가 깨어나 요금이 들지 않게 하려는 것이다.
 // 우회 설정은 두지 않는다. 측정 봇은 시험용 Worker 에서만 JWT_HS256_SECRET 으로 직접 서명한 토큰을 쓴다(값이 없으면 HS256 은 모두 거절, 정식 서버에는 넣지 않는다).
 import { verifyToken } from './auth'
-import { ChannelDirectory, DIRECTORY_NAME } from './directory'
+import { ChannelDirectory } from './directory'
 import { OnlineRoom } from './online'
 import { ONLINE_NAME } from './onlineLogic'
-import type { AssignRequest } from './directory'
 import { capacityOf, isAllowedRoom, isChannelWorld } from './relayLogic'
 import { CAPACITY_HEADER, EXPIRES_HEADER, RelayRoom, ROOM_HEADER, SUBPROTOCOL, USER_HEADER, WATCH_HEADER } from './room'
 
@@ -40,8 +39,9 @@ function roomFromPath(pathname: string): string | null {
 // 쿠키가 아니라 토큰으로 확인하므로 다른 주소에서 불러도 된다. 화면과 Worker 의 주소가 달라 꼭 필요하다.
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET' }
 
-// GET /channels/{세계}?want=번호 → 들어갈 채널과 현황 (입장 전). ?peek=1 은 현황만 (채널 창을 열 때) (#442)
-// &pick=1 은 목록에서 고르거나 친구를 따라갈 때. 자동 배정 기준(AUTO_FILL)이 아니라 정원까지 들어가고, 가득 차면 다른 채널로 보내지 않는다
+// GET /channels/{공간}?want=번호 → 들어갈 채널과 현황 (입장 전). ?peek=1 은 현황만 (채널 창을 열 때) (#442)
+// want 만 있으면 기억한 채널을 지키고(keep), &pick=1 이면 목록에서 고르거나 친구를 따라갈 때(pick), want 가 없으면 처음 입장(auto)
+// 채널은 장소를 모두 포함한 세계라(#481) 공간 이름은 확인만 하고, 배정은 접속 표시 방이 한다
 async function channels(request: Request, env: RelayEnv, world: string, want: string | null, peek: boolean, pick: boolean): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (!isChannelWorld(world)) return new Response('not found', { status: 404, headers: CORS })
@@ -49,8 +49,8 @@ async function channels(request: Request, env: RelayEnv, world: string, want: st
   const token = /^Bearer (.+)$/.exec(request.headers.get('Authorization') ?? '')?.[1]
   const who = token ? await verifyToken(token, { supabaseUrl: env.SUPABASE_URL.replace(/\/$/, ''), hs256Secret: env.JWT_HS256_SECRET }) : null
   if (!who) return new Response('unauthorized', { status: 401, headers: CORS })
-  const stub = env.DIRECTORY.get(env.DIRECTORY.idFromName(DIRECTORY_NAME), { locationHint: 'apac' })
-  const body: AssignRequest = { world, want: want ? Number(want) : null, userId: who.userId, peek, mode: pick ? 'pick' : 'auto' }
+  const stub = env.ONLINE.get(env.ONLINE.idFromName(ONLINE_NAME), { locationHint: 'apac' })
+  const body = { want: want ? Number(want) : null, userId: who.userId, peek, mode: pick ? 'pick' : want ? 'keep' : 'auto' }
   const res = await stub.fetch('https://relay.internal/assign', { method: 'POST', body: JSON.stringify(body) })
   return new Response(res.body, { status: res.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 }

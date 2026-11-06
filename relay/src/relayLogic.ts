@@ -5,10 +5,10 @@
 
 // ── 기준값 ───────────────────────────────────────────────────────────
 export const TICK_MS = 100 // 받은 변경을 이 간격으로 합쳐 내보낸다
-export const CHANNEL_CAPACITY = 20 // 광장·캠퍼스·해변 채널 하나의 정원 (#442). 직접 고르거나 친구를 따라갈 때는 여기까지 들어간다. FPS 측정 결과에 따라 조정한다
-export const AUTO_FILL = 15 // 자동 배정(처음 입장, 장소 이동)은 채널마다 여기까지만 채운다. 남은 자리는 친구끼리 모일 여유분이다
+export const CHANNEL_CAPACITY = 20 // 채널(세계) 하나의 정원 (#442, #481). 광장·카페·캠퍼스·해변·일반 페이지에 있는 사람을 모두 합쳐 센다. 직접 고르거나 친구를 따라갈 때는 여기까지 들어간다
+export const AUTO_FILL = 15 // 처음 들어올 때 자동 배정은 채널마다 여기까지만 채운다. 남은 자리는 친구끼리 모일 여유분이다
 export const BASE_CHANNELS = 6 // 채널 목록에 늘 보이는 채널 수. 마지막 채널까지 AUTO_FILL 만큼 차면 하나씩 더 연다
-export const TOTAL_CAPACITY = 50 // 서비스 전체 활동 인원 상한 (#442). 접속 표시가 Supabase 에 있는 동안의 값으로, #473 뒤에 다시 잰다
+export const TOTAL_CAPACITY = 100 // 서비스 전체 인원 상한 (#442). 채팅이 Supabase 에 남아 접속자마다 연결이 하나씩 열려, Free 동시 연결 200개의 절반으로 둔다 (#473 접속 표시 이전 뒤 50 → 100)
 export const SEAT_HOLD_MS = 15000 // 채널을 안내받은 사람의 자리를 입장할 때까지 맡아 두는 시간
 export const MAX_CHANNEL_NO = 999
 export const MAX_ROOM_CONNECTIONS = 100 // 채널로 나누지 않는 방(지점)의 정원. ROOM_MAX_CONNECTIONS 환경 변수로 시험 때만 바꾼다
@@ -35,7 +35,8 @@ export const CLOSE_FULL = 4503
 // 중계할 수 있는 방. 회의(meeting:*)는 DB 정책이 참석자를 확인하는 비공개 방이라 여기로 오지 않는다.
 // 이름을 제한하지 않으면 로그인한 누구나 객체를 무한히 만들 수 있다.
 // 광장·캠퍼스·해변은 채널로 나뉜다. 1번 채널은 이름 그대로(lobby), 2번부터 lobby:2 처럼 쓴다 (#442).
-const ROOM_PATTERN = /^(branch:\d{1,6}|(lobby|campus|beach)(:([2-9]|[1-9]\d{1,2}))?)$/
+// 지점도 채널마다 따로다 (#481). 1번은 branch:5, 2번부터 branch:5:2
+const ROOM_PATTERN = /^(branch:\d{1,6}|lobby|campus|beach)(:([2-9]|[1-9]\d{1,2}))?$/
 export const isAllowedRoom = (room: string) => ROOM_PATTERN.test(room)
 
 // 이 방의 정원. override 는 시험용 환경 변수 값이다.
@@ -43,88 +44,82 @@ export function capacityOf(room: string, override?: string): number {
   return Number(override) || (room.startsWith('branch:') ? MAX_ROOM_CONNECTIONS : CHANNEL_CAPACITY)
 }
 
-// ── 채널 배정 (#442) ─────────────────────────────────────────────────
+// ── 채널 배정 (#442, #481) ───────────────────────────────────────────
+//
+// 채널은 하나의 세계다. 1채널 사람은 광장·카페·캠퍼스·해변·회의실 어디에 있든 1채널 사람만 본다.
+// 그래서 정원은 장소가 아니라 채널 전체로 센다. 사람마다의 채널은 접속 표시 방(online.ts)이 탭마다 받은 값으로 안다.
+// 일반 페이지(내 기록·친구·프로필)에 있는 사람도 마지막으로 있던 채널의 인원이다.
 
-export const CHANNEL_WORLDS = ['lobby', 'campus', 'beach']
+export const CHANNEL_WORLDS = ['lobby', 'campus', 'beach', 'branch']
 export const isChannelWorld = (world: string) => CHANNEL_WORLDS.includes(world)
 export const channelRoom = (world: string, no: number) => (no === 1 ? world : `${world}:${no}`)
 
-// 방 이름에서 채널 번호. 이 세계의 채널이 아니면 null
-function channelNoOf(world: string, room: string): number | null {
-  if (room === world) return 1
-  if (!room.startsWith(`${world}:`)) return null
-  const no = Number(room.slice(world.length + 1))
-  return Number.isInteger(no) && no > 1 ? no : null
-}
-
-export type Holds = Map<string, { room: string; until: number }> // 사람별 맡아 둔 자리
+export type Holds = Map<string, { no: number; until: number }> // 사람별 맡아 둔 채널 (안내받고 들어가기 전까지)
+export type Members = Map<string, number> // 계정 번호 → 지금 채널
 
 function dropExpired(holds: Holds, now: number) {
   for (const [id, hold] of holds) if (hold.until <= now) holds.delete(id)
 }
 
-export function totalCount(counts: Map<string, number>, holds: Holds, now: number): number {
+// 채널별 인원. 맡아 둔 자리도 센다(이미 그 채널에 있는 사람의 것은 빼서 두 번 세지 않는다). except 는 빼고 센다
+export function channelTally(members: Members, holds: Holds, except?: string): Map<number, number> {
+  const tally = new Map<number, number>()
+  for (const [id, no] of members) if (id !== except) tally.set(no, (tally.get(no) ?? 0) + 1)
+  for (const [id, hold] of holds) if (id !== except && members.get(id) !== hold.no) tally.set(hold.no, (tally.get(hold.no) ?? 0) + 1)
+  return tally
+}
+
+export function totalCount(members: Members, holds: Holds, now: number): number {
   dropExpired(holds, now)
-  let total = holds.size
-  for (const count of counts.values()) total += count
+  let total = members.size
+  for (const id of holds.keys()) if (!members.has(id)) total++
   return total
 }
 
 // 채널 목록. 1번부터 BASE_CHANNELS 개는 늘 보이고, 마지막 채널까지 AUTO_FILL 만큼 차면 다음 번호를 연다.
-// 그 뒤 번호라도 사람이 있으면(직접 골라 들어간 경우) 목록에 넣는다. 화면마다 목록이 달라 보이지 않게 서버가 정한다.
-export function channelCounts(world: string, counts: Map<string, number>, holds: Holds = new Map()): { no: number; count: number }[] {
-  const taken = new Map<number, number>()
-  for (const [room, count] of counts) {
-    const no = channelNoOf(world, room)
-    if (no !== null) taken.set(no, (taken.get(no) ?? 0) + count)
-  }
-  for (const hold of holds.values()) {
-    const no = channelNoOf(world, hold.room)
-    if (no !== null) taken.set(no, (taken.get(no) ?? 0) + 1)
-  }
+// 그 뒤 번호라도 사람이 있으면 목록에 넣는다. 화면마다 목록이 달라 보이지 않게 서버가 정한다.
+export function channelCounts(tally: Map<number, number>): { no: number; count: number }[] {
   let open = BASE_CHANNELS
-  const filled = (n: number) => (taken.get(n) ?? 0) >= AUTO_FILL
+  const filled = (n: number) => (tally.get(n) ?? 0) >= AUTO_FILL
   while (open < MAX_CHANNEL_NO && Array.from({ length: open }, (_, i) => i + 1).every(filled)) open++
   const list: { no: number; count: number }[] = []
-  for (let no = 1; no <= open; no++) list.push({ no, count: taken.get(no) ?? 0 })
-  for (const [no, count] of taken) if (no > open && count > 0) list.push({ no, count })
+  for (let no = 1; no <= open; no++) list.push({ no, count: tally.get(no) ?? 0 })
+  for (const [no, count] of tally) if (no > open && count > 0) list.push({ no, count })
   return list.sort((a, b) => a.no - b.no)
 }
 
-// 배정 방식. auto: 처음 입장·장소 이동(AUTO_FILL 까지), pick: 목록에서 고르기·친구 따라가기·부르기(정원까지)
-export type AssignMode = 'auto' | 'pick'
-// 배정 결과. no: 들어갈 채널, wait: 전체 상한이라 입장 대기, full: 고른 채널이 가득 참(pick 만, 지금 방에 그대로 둠)
+// 배정 방식
+//   auto: 처음 들어올 때. 1번부터 AUTO_FILL 미만인 첫 채널
+//   keep: 장소를 옮기거나 새로고침할 때 기억한 채널. 내가 이미 그 채널 인원이면 그대로, 아니면 정원 미만일 때 그대로, 가득 찼으면 auto
+//   pick: 목록에서 고르기·친구 따라가기·부르기. 정원 미만이면 그 채널, 아니면 full (다른 채널로 몰래 보내지 않는다)
+export type AssignMode = 'auto' | 'keep' | 'pick'
+// 배정 결과. no: 들어갈 채널, wait: 전체 상한이라 입장 대기, full: 고른 채널이 가득 참(pick 만, 지금 채널에 그대로 둠)
 export type AssignResult = { no: number } | { wait: true } | { full: true }
 
-// 들어갈 채널을 고르고 자리를 맡는다.
-//   auto: want 채널이 AUTO_FILL 미만이면 거기, 아니면 1번부터 AUTO_FILL 미만인 첫 채널
-//   pick: want 채널이 정원 미만이면 거기, 아니면 full (다른 채널로 몰래 보내지 않는다)
-// 이미 자리를 맡은 사람은 다시 물어도 전체 상한에 걸리지 않는다.
-export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, mode: AssignMode = 'auto', totalCapacity = TOTAL_CAPACITY): AssignResult {
+// 이미 채널이 있는 사람(일반 페이지에 있다 돌아온 사람 포함)은 전체 상한에 걸리지 않는다.
+export function assignChannel(want: number | null, mode: AssignMode, userId: string, members: Members, holds: Holds, now: number, totalCapacity = TOTAL_CAPACITY): AssignResult {
   dropExpired(holds, now)
-  const mine = holds.get(userId)
-  holds.delete(userId) // 다시 물으면 예전 자리는 놓는다
-  if (totalCount(counts, holds, now) >= totalCapacity) {
-    if (mine) holds.set(userId, mine)
+  const held = holds.get(userId)
+  holds.delete(userId) // 다시 물으면 예전 맡기는 놓는다
+  const mine = members.get(userId)
+  if (mine === undefined && totalCount(members, holds, now) >= totalCapacity) {
+    if (held) holds.set(userId, held)
     return { wait: true }
   }
-  const taken = (room: string) => {
-    let n = counts.get(room) ?? 0
-    for (const hold of holds.values()) if (hold.room === room) n++
-    return n
-  }
+  const tally = channelTally(members, holds, userId)
+  const count = (no: number) => tally.get(no) ?? 0
   const hold = (no: number): AssignResult => {
-    holds.set(userId, { room: channelRoom(world, no), until: now + SEAT_HOLD_MS })
+    holds.set(userId, { no, until: now + SEAT_HOLD_MS })
     return { no }
   }
   const wanted = want !== null && Number.isInteger(want) && want >= 1 && want <= MAX_CHANNEL_NO ? want : null
   if (mode === 'pick') {
-    if (wanted !== null && taken(channelRoom(world, wanted)) < CHANNEL_CAPACITY) return hold(wanted)
-    if (mine) holds.set(userId, mine)
+    if (wanted !== null && count(wanted) < CHANNEL_CAPACITY) return hold(wanted)
+    if (held) holds.set(userId, held)
     return { full: true }
   }
-  if (wanted !== null && taken(channelRoom(world, wanted)) < AUTO_FILL) return hold(wanted)
-  for (let no = 1; no <= MAX_CHANNEL_NO; no++) if (taken(channelRoom(world, no)) < AUTO_FILL) return hold(no)
+  if (mode === 'keep' && wanted !== null && (mine === wanted || count(wanted) < CHANNEL_CAPACITY)) return hold(wanted)
+  for (let no = 1; no <= MAX_CHANNEL_NO; no++) if (count(no) < AUTO_FILL) return hold(no)
   return { wait: true }
 }
 
