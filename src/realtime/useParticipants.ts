@@ -91,31 +91,34 @@ import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
 import { markDown, markUp } from './connectionStatus'
 import { openSupabaseLink } from './roomLink'
 import type { Presence, RoomLink } from './roomLink'
-import { openRelayLink, relayUrl } from './relayLink'
+import { openRelayLink, relayUrl, ROOM_FULL_STATUS } from './relayLink'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
 type Profile = { nickname: string; model: string }
 
-// room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45)
+// room: 실시간 방 이름. 지점은 channelName(지점 번호), 로비는 LOBBY_CHANNEL (#166), 회의는 meeting:회의번호 (#45). null 이면 아직 들어가지 않는다 (채널을 기다리는 중, #442)
 // isPrivate: 비공개 방. 들어올 수 있는 사람을 DB 정책이 정합니다(회의는 그 회의 참석자만, 0021).
 // signalRef: 같은 방으로 음성 연결 신호도 주고받을 때 (회의실 음성, #46)
 // chatRef: 같은 방으로 채팅도 주고받을 때 (회의 채팅, #298)
 // client: 실시간 연결. 기본은 supabase, 지점 통창에서 광장을 보기만 할 때는 watchSupabase (닉네임·캐릭터는 늘 supabase 로 읽음)
 export function useParticipants(
-  room: string,
+  room: string | null,
   me: RefObject<PresenceState | null>,
   isPrivate = false,
   signalRef?: RefObject<SignalPort>,
   chatRef?: RefObject<ChatPort>,
   client: SupabaseClient = supabase,
   flickRef?: RefObject<FlickPort>, // 딱밤 통로 (지점·광장, #304)
+  fullRef?: RefObject<(() => void) | null>, // 방이 가득 차 거절당했을 때 알릴 곳 (채널 배정, #442)
 ) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
 
   useEffect(() => {
+    if (!room) return
+    const roomName = room // 아래 함수들 안에서도 null 이 아닌 값으로 쓴다
     let alive = true
     let channel: RoomLink | null = null // 지금 쓰는 채널. 끊겨서 다시 붙을 때까지는 null
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
@@ -335,11 +338,14 @@ export function useParticipants(
         onStatus(status: string) {
           if (!alive || ch !== channel) return // 정리했거나 이미 버린 채널의 알림
           if (status === 'SUBSCRIBED') joined(ch)
-          else if (isDownStatus(status)) disconnected(ch)
+          else if (status === ROOM_FULL_STATUS) {
+            disconnected(ch) // 알릴 곳이 없는 연결(통창)은 간격을 두고 같은 방에 다시 시도한다
+            fullRef?.current?.()
+          } else if (isDownStatus(status)) disconnected(ch)
         },
       }
       const relay = isPrivate ? undefined : relayUrl()
-      const ch = relay ? openRelayLink(relay, room, events) : openSupabaseLink(client, room, isPrivate, events)
+      const ch = relay ? openRelayLink(relay, roomName, events, client !== supabase) : openSupabaseLink(client, roomName, isPrivate, events)
       channel = ch
       ch.open()
     }
@@ -465,8 +471,9 @@ export function useParticipants(
       closePorts()
       if (noticeToken) markUp(noticeToken)
       channel?.leave()
+      setOthers([]) // 다른 채널로 옮기면 예전 방 사람이 남지 않게 한다
     }
-  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef])
+  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef, fullRef])
 
   return others
 }

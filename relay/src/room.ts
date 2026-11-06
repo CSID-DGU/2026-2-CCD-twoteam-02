@@ -29,15 +29,20 @@
 import { DurableObject } from 'cloudflare:workers'
 import {
   CLOSE_FULL, CLOSE_NOT_TEXT, CLOSE_REPLACED, CLOSE_STALE, CLOSE_TOKEN_EXPIRED, CLOSE_TOO_BIG, CLOSE_TOO_FAST,
-  MAX_CONNECTIONS_PER_USER, MAX_MESSAGE_BYTES, MAX_ROOM_CONNECTIONS, STALE_CONNECTION_MS, SWEEP_INTERVAL_MS,
-  countMessage, flushDelay, sanitizeEvent, sanitizeState,
+  MAX_CONNECTIONS_PER_USER, MAX_MESSAGE_BYTES, STALE_CONNECTION_MS, SWEEP_INTERVAL_MS,
+  countMessage, flushDelay, hasRoom, sanitizeEvent, sanitizeState,
 } from './relayLogic'
+import { DIRECTORY_NAME } from './directory'
+import type { RoomReport } from './directory'
 import type { RateWindow, RelayState } from './relayLogic'
 import type { RelayEnv } from './index'
 
 export const SUBPROTOCOL = 'relay.v1'
 export const USER_HEADER = 'x-relay-user'
 export const EXPIRES_HEADER = 'x-relay-expires'
+export const CAPACITY_HEADER = 'x-relay-capacity'
+export const WATCH_HEADER = 'x-relay-watch'
+export const ROOM_HEADER = 'x-relay-room'
 
 // 연결마다 붙여 두는 값. 잠들었다 깨어도 남는다.
 type Attachment = {
@@ -46,6 +51,8 @@ type Attachment = {
   expiresAt: number // 토큰 만료 시각(밀리초)
   heardAt: number // 마지막으로 메시지를 받은 시각
   state: RelayState | null // 이 연결이 마지막으로 보낸 위치. 보기 전용 연결은 null
+  watch: boolean // 보기 전용 연결. 위치와 알림을 보내지 못하고 정원에 들어가지 않는다 (#442)
+  room: string // 방 이름. 채널 안내 객체에 인원을 알릴 때 쓴다
 }
 
 export class RelayRoom extends DurableObject<RelayEnv> {
@@ -83,7 +90,10 @@ export class RelayRoom extends DurableObject<RelayEnv> {
   async fetch(request: Request): Promise<Response> {
     const userId = request.headers.get(USER_HEADER)
     const expiresAt = Number(request.headers.get(EXPIRES_HEADER))
-    if (!userId || !expiresAt) return new Response('bad request', { status: 400 })
+    const capacity = Number(request.headers.get(CAPACITY_HEADER))
+    const watch = request.headers.get(WATCH_HEADER) === '1'
+    const room = request.headers.get(ROOM_HEADER)
+    if (!userId || !expiresAt || !capacity || !room) return new Response('bad request', { status: 400 })
 
     const { 0: client, 1: server } = new WebSocketPair()
     const respond = () => new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': SUBPROTOCOL } })
@@ -91,8 +101,8 @@ export class RelayRoom extends DurableObject<RelayEnv> {
 
     // 정원 초과는 HTTP 로 거절하지 않고 받은 뒤 닫는다. 브라우저는 HTTP 거절 이유를 코드에서 읽을 수 없다.
     // 잠들기 연결로 받지 않는다. 곧 닫을 연결이라 방 인원에 잡히면 안 된다.
-    const limit = Number(this.env.ROOM_MAX_CONNECTIONS) || MAX_ROOM_CONNECTIONS
-    if (sockets.length >= limit) {
+    const watching = sockets.filter((ws) => this.attachmentOf(ws)?.watch).length
+    if (!hasRoom(watch, sockets.length - watching, watching, capacity)) {
       server.accept()
       server.close(CLOSE_FULL, 'room full')
       return respond()
@@ -101,18 +111,34 @@ export class RelayRoom extends DurableObject<RelayEnv> {
 
     // 다시 연결한 사람의 예전 연결이 남아 있을 수 있다. 너무 많으면 소식이 가장 오래 없는 것부터 닫는다.
     // getWebSockets 의 순서는 정해져 있지 않아 시각으로 고른다.
-    const mine = sockets.filter((ws) => this.attachmentOf(ws)?.userId === userId)
+    const mine = sockets.filter((ws) => {
+      const a = this.attachmentOf(ws)
+      return a?.userId === userId && a.watch === watch
+    })
     if (mine.length >= MAX_CONNECTIONS_PER_USER) {
       const heardAt = (ws: WebSocket) => this.attachmentOf(ws)?.heardAt ?? 0
       this.closeAndForget(mine.reduce((old, ws) => (heardAt(ws) < heardAt(old) ? ws : old)), CLOSE_REPLACED, 'replaced')
     }
 
     const now = Date.now()
-    const attachment: Attachment = { conn: crypto.randomUUID(), userId, expiresAt, heardAt: now, state: null }
+    const attachment: Attachment = { conn: crypto.randomUUID(), userId, expiresAt, heardAt: now, state: null, watch, room }
     server.serializeAttachment(attachment)
     // 들어온 사람에게만 전체 상태를 준다. 예전처럼 대표가 답할 일이 없다.
     server.send(JSON.stringify({ t: 's', u: userId, s: [...this.latest.values()] }))
+    if (!watch) this.reportCount(room, userId)
     return respond()
+  }
+
+  // 활동 인원이 바뀌면 채널 안내 객체에 알린다. 응답을 기다리지 않아 입장·퇴장이 느려지지 않는다.
+  private reportCount(room: string, joined?: string) {
+    const count = new Set(this.ctx.getWebSockets().map((ws) => this.attachmentOf(ws)).filter((a) => a && !a.watch).map((a) => a?.userId)).size
+    const stub = this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName(DIRECTORY_NAME), { locationHint: 'apac' })
+    this.ctx.waitUntil(
+      stub.fetch('https://relay.internal/report', { method: 'POST', body: JSON.stringify({ room, count, joined } satisfies RoomReport) }).then(
+        () => undefined,
+        () => undefined, // 못 알려도 다음 입장·퇴장 때 맞춰진다
+      ),
+    )
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -141,6 +167,9 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     } catch {
       return // 잘못된 JSON 은 버린다. 보낸 사람이 초당 상한을 넘기면 위에서 끊긴다
     }
+
+    // 보기 전용 연결은 받기만 한다. 정원 밖 연결이 방에 위치를 넣지 못하게 서버에서 막는다.
+    if (a.watch && parsed.t !== 'q') return
 
     if (parsed.t === 'm') {
       const state = sanitizeState(a.userId, parsed.s)
@@ -240,6 +269,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     if (!a) return
     ws.serializeAttachment(null) // 두 번 지워도 나간 알림이 두 번 가지 않게 한다
     this.rates.delete(a.conn)
+    if (!a.watch) this.reportCount(a.room)
     const holder = this.ctx.getWebSockets().map((other) => this.attachmentOf(other)).find((o) => o?.userId === a.userId && o.state)
     if (holder?.state) {
       this.latest.set(a.userId, holder.state)

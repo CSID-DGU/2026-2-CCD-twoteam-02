@@ -28,6 +28,7 @@ export function useCafeSeat(
   seated: boolean,
   onMySeat: (seatNo: number | null) => void,
   cleanup: 'all' | 'thisBranch' = 'all',
+  channel = 1, // 채널로 나뉜 공간의 내 채널 번호 (#442). 채널이 다르면 같은 번호에 앉을 수 있다
 ) {
   const sitRequest = useRef<number | null>(null) // Player 에게 앉으라고 알릴 자리 번호
   const [message, setMessage] = useState('') // 잠깐 보여 줄 안내 (다른 사람이 먼저 앉음 등)
@@ -40,7 +41,7 @@ export function useCafeSeat(
 
   const claim = async (seatNo: number, spotNo: number = seatNo) => {
     if (branchId === null) return
-    const { error } = await inOrder(() => supabase.rpc('sit_cafe_seat', { p_branch_id: branchId, p_seat_number: seatNo }))
+    const { error } = await inOrder(() => supabase.rpc('sit_cafe_seat', { p_branch_id: branchId, p_seat_number: seatNo, ...(channel > 1 ? { p_channel: channel } : {}) }))
     if (error) {
       // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
       if (error.code === 'DT001') setConflict({ message: error.message, seatNo, spotNo })

@@ -1,6 +1,7 @@
 // 캠퍼스 축구공: 내 캐릭터가 공 쪽으로 걸어가 닿으면 참(뛰면 더 세게). 굴리기·튕기기·골은 ballLogic.ts (순수 로직).
 //
 // 여러 사람이 같이 보기 (실시간 방 BALL_CHANNEL, DB 없음):
+//   채널이 나뉘면(#442) 채널마다 공이 따로 있습니다. 1번은 예전 방 이름 그대로, 2번부터 뒤에 :번호를 붙입니다.
 //   마지막에 찬 사람이 공의 "주인"입니다. 주인은 공이 구르는 동안 SEND_MS 마다, 멈출 때 한 번 공 상태를 보냅니다.
 //   다른 사람은 받은 상태로 바꾸고 그다음은 같은 물리로 굴립니다(그 사이도 부드럽게). 골도 주인이 정해 같이 보냅니다.
 //   새로 들어온 사람은 "공 어디 있어요?"(need)를 보내고, 공 상태를 아는 사람이 답합니다. 아무도 없으면 가운데 점에서 시작.
@@ -26,7 +27,10 @@ const VEL_SMOOTH = 0.3 // 내 걷는 속도를 매 프레임 얼마나 새 값 �
 
 type Msg = BallState & { owner: string; goal?: Goal }
 
-export function SoccerBall({ pitch, size, obstacles, posRef }: { pitch: Pitch; size: { w: number; d: number }; obstacles: Box[]; posRef: RefObject<{ x: number; z: number }> }) {
+// 같은 채널 사람들끼리만 공을 같이 봅니다. 다른 채널 사람이 찬 공이 저절로 굴러가 보이지 않게 (#442)
+const ballRoom = (channelNo: number) => (channelNo > 1 ? `${BALL_CHANNEL}:${channelNo}` : BALL_CHANNEL)
+
+export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitch: Pitch; size: { w: number; d: number }; obstacles: Box[]; posRef: RefObject<{ x: number; z: number }>; channelNo: number }) {
   const [me] = useState(() => Math.random().toString(36).slice(2)) // 이 탭 구분 (주인 표시용)
   const world = useMemo<BallWorld>(() => ({ half: { w: size.w / 2 - 0.3, d: size.d / 2 - 0.3 }, boxes: obstacles, pitch }), [size, obstacles, pitch])
   const ball = useRef<BallState>({ x: pitch.x, z: pitch.z, vx: 0, vz: 0 })
@@ -68,7 +72,11 @@ export function SoccerBall({ pitch, size, obstacles, posRef }: { pitch: Pitch; s
   })
 
   useEffect(() => {
-    const ch = supabase.channel(BALL_CHANNEL, { config: { broadcast: { self: false } } })
+    // 채널을 옮기면 이전 채널의 공 상태는 버리고 새 채널에 다시 물어봄
+    known.current = false
+    owner.current = null
+    ball.current = { x: pitch.x, z: pitch.z, vx: 0, vz: 0 }
+    const ch = supabase.channel(ballRoom(channelNo), { config: { broadcast: { self: false } } })
     ch.on('broadcast', { event: 'ball' }, ({ payload }) => {
       const m = payload as Msg
       if (typeof m?.x !== 'number' || typeof m.vx !== 'number') return
@@ -88,7 +96,7 @@ export function SoccerBall({ pitch, size, obstacles, posRef }: { pitch: Pitch; s
       channel.current = null
       void supabase.removeChannel(ch)
     }
-  }, [])
+  }, [channelNo, pitch.x, pitch.z])
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05)

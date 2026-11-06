@@ -10,6 +10,7 @@ export type OnlineEntry = {
   place: string // 지금 있는 곳 (로비·지점 slug·그 밖의 화면)
   studying: boolean // 공부 세션이 도는 중인지 (친구 탭 표시, #49)
   quiet: boolean // 귓속말 방해금지 중인지 (보낼 때 "알림 없이 전달돼요" 안내용, #216)
+  channel: number | null // 광장·캠퍼스·해변에서 들어간 채널 번호 (친구 따라가기용, #442). 채널이 없는 곳이면 null
 }
 
 export type OnlineValue = {
@@ -18,6 +19,7 @@ export type OnlineValue = {
   setPlace: (place: string) => void // 내가 지금 있는 곳을 바꿉니다
   setStudying: (studying: boolean) => void // 내 공부 중 여부를 바꿉니다
   setQuiet: (quiet: boolean) => void // 내 방해금지 여부를 바꿉니다
+  setChannel: (channel: number | null) => void // 내가 들어간 채널 번호를 바꿉니다 (#442)
   yielded: boolean // 같은 계정의 다른 탭(기기)에 장면을 양보했는지 (#347)
   takeOver: () => void // 여기서 계속하기: 이 탭이 다시 장면을 씀
 }
@@ -28,6 +30,7 @@ export const OnlineContext = createContext<OnlineValue>({
   setPlace: () => {},
   setStudying: () => {},
   setQuiet: () => {},
+  setChannel: () => {},
   yielded: false,
   takeOver: () => {},
 })
@@ -55,6 +58,15 @@ export function useOnlinePlace(place: string) {
     setPlace(place)
     return () => setPlace(ELSEWHERE)
   }, [place, setPlace])
+}
+
+// 이 화면에 있는 동안 내가 들어간 채널 번호를 표시합니다. 화면을 떠나면 지웁니다. (#442)
+export function useOnlineChannel(channel: number | null) {
+  const { setChannel } = useContext(OnlineContext)
+  useEffect(() => {
+    setChannel(channel)
+    return () => setChannel(null)
+  }, [channel, setChannel])
 }
 
 // 공부 세션이 도는 동안 "공부 중"으로 표시합니다. 끝나거나 화면을 떠나면 풉니다. (#49)

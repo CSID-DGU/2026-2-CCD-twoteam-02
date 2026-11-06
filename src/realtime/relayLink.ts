@@ -16,6 +16,8 @@ import { FLICK_EVENT, MOVE_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './partic
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 
 const SUBPROTOCOL = 'relay.v1'
+const CLOSE_FULL = 4503 // 서버가 방이 찼다고 닫을 때 쓰는 번호 (relay/src/relayLogic.ts)
+export const ROOM_FULL_STATUS = 'ROOM_FULL'
 const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다
 const SILENCE_LIMIT_MS = 90000 // 이 시간 동안 아무 소식도 없으면 끊긴 것으로 본다
 
@@ -23,7 +25,8 @@ export function relayUrl(): string | undefined {
   return import.meta.env.VITE_RELAY_URL?.replace(/\/$/, '') || undefined
 }
 
-export function openRelayLink(url: string, room: string, events: RoomLinkEvents): RoomLink {
+// watch: 보기 전용 연결(통창). 서버가 정원과 따로 세고, 위치를 보내도 받지 않는다 (#442)
+export function openRelayLink(url: string, room: string, events: RoomLinkEvents, watch = false): RoomLink {
   let ws: WebSocket | null = null
   let ended = false // 끊김을 이미 알렸거나 정리했다
   let heardAt = 0
@@ -58,7 +61,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents)
     if (ended) return
     const token = data.session?.access_token
     if (!token) return end('CHANNEL_ERROR')
-    const socket = new WebSocket(`${url}/room/${encodeURIComponent(room)}`, [SUBPROTOCOL, token])
+    const socket = new WebSocket(`${url}/room/${encodeURIComponent(room)}${watch ? '?watch=1' : ''}`, [SUBPROTOCOL, token])
     ws = socket
     socket.onopen = () => {
       if (ended) return
@@ -70,7 +73,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents)
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)
-    socket.onclose = () => end('CLOSED')
+    socket.onclose = (event) => end(event.code === CLOSE_FULL ? ROOM_FULL_STATUS : 'CLOSED')
   }
 
   return {

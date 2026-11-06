@@ -2,7 +2,7 @@
 // 지점 화면 안에 거리를 따로 된 장면으로 같이 두고(createPortal), 창 판이 그 장면을 비춥니다 (방법은 cafePortal.ts).
 // 위층(캠리 스퀘어 2~4층)은 그 층 높이에서 내려다봄. 창틀은 그 건물 앞면(파사드)과 같은 모양·색.
 // 광장을 걷는 사람들도 보입니다(광장 실시간 방을 보기만 함). 순위 게시판은 없고, 하늘·날씨·밤 불빛은 광장과 같습니다. 벽 구멍은 BranchScene 이 cafeWallPieces 로 냄.
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { BranchLayout } from '../space/layout'
@@ -27,6 +27,7 @@ import { useWorldWeather } from './useWorldWeather'
 import type { WorldConfig } from './worldConfig'
 import { useParticipants } from '../realtime/useParticipants'
 import { watchSupabase } from '../lib/supabase'
+import { watchRoomOf } from '../realtime/useChannel'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import type { PresenceState } from '../realtime/participants'
 
@@ -175,7 +176,8 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
 // 루프탑(RooftopWorld)에서 내려다보는 거리에도 씁니다
 export function StreetPeople({ world }: { world: WorldConfig }) {
   const me = useRef<PresenceState | null>(null)
-  const others = useParticipants(world.channel, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
+  const [room] = useState(() => watchRoomOf(world.channel)) // 내가 있던 채널의 거리를 본다 (#442)
+  const others = useParticipants(room, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
   const spots = useMemo(() => [...computedOf(world).rests, ...(world.id === 'plaza' ? [...benchSeats(world.layout), ...campfireStudySeats(world.layout)] : [])], [world]) // 앉은 사람 자세
   return <OtherParticipants others={others} spots={spots} />
 }
