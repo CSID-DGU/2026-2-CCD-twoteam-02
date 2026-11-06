@@ -63,13 +63,13 @@ import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
 import { useChannel } from '../realtime/useChannel'
-import { ChannelBadge, ChannelFollowAsk, ChannelWaiting } from '../realtime/ChannelBadge'
+import { useChannelUi } from '../realtime/useChannelUi'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import type { FlickPort, PresenceState } from '../realtime/participants'
 import { useFlick, useFlickShake } from '../friends/useFlick'
 import { getFlickReceiving } from '../menu/flickSetting'
 import { currentCondition } from '../study/condition'
-import { useOnline, useOnlineChannel, useOnlinePlace } from '../realtime/onlineContext'
+import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
@@ -114,8 +114,8 @@ import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
 import { useWorldWeather } from './useWorldWeather'
-import { dropFollowTo, followInChannel, useFollowArrival } from '../friends/useFollow'
-import type { FollowReason, Teleport } from '../friends/useFollow'
+import { useFollowArrival } from '../friends/useFollow'
+import type { Teleport } from '../friends/useFollow'
 import { useChat } from '../chat/chatContext'
 import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
@@ -166,8 +166,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const benchSeated = seat !== null && spotKindOf(seat) === 'bench'
   const { info: plazaInfo } = useBranchInfo(world.study.slug) // 0038(광장)·0043(캠퍼스) 실행 전이면 null (앉을 수 없음)
   const plazaId = plazaInfo?.kind === 'cafe' ? plazaInfo.id : null
-  const { mySeat, sessionId, setMySeat } = useMySeat(plazaId ?? -1)
-  const channel = useChannel(world.channel) // 이 공간의 어느 채널에 들어갈지 (#442)
+  const channel = useChannel(world.channel) // 이 공간의 어느 채널에 들어갈지. 채널은 카페까지 이어지는 세계 (#442, #481)
+  const { mySeat, sessionId, setMySeat } = useMySeat(plazaId ?? -1, channel.no)
   const cafe = useCafeSeat(plazaId, benchSeated, setMySeat, 'thisBranch', channel.no) // 이 월드의 공부 자리만 정리 (다른 기기의 카페 자리는 그대로)
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>('idle') // 벤치에 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false) // 공부 시작 창이 떠 있는지 (중지 중 포함)
@@ -197,7 +197,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
-  const sand = useSandMarks(!!PLAZA.beach) // 해변 모래 글씨·그림 (모두에게 보임)
+  const sand = useSandMarks(!!PLAZA.beach, channel.no) // 해변 모래 글씨·그림 (같은 채널 사람에게 보임, #481)
   const [sandBoard, setSandBoard] = useState<SandBoard | null>(null) // 지금 쓰는 판 (쓰는 동안 움직이지 않음)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
   const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
@@ -279,27 +279,11 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null)
   const chat = useChat()
-  // 따라가거나 부름을 받은 친구가 다른 채널에 있을 때 옮길지 묻는 창 (#442)
-  const [channelAsk, setChannelAsk] = useState<{ friendId: string; reason: FollowReason; no: number } | null>(null)
-  // 가득 찼는지는 서버가 정합니다(정원 20명). 가득 차면 방을 바꾸지 않고 channel.rejected 로 알려 줍니다
-  const moveToFriendChannel = (ask: { friendId: string; reason: FollowReason; no: number }) => {
-    setChannelAsk(null)
-    followInChannel(ask.friendId, ask.reason, ask.no)
-    channel.changeTo(ask.no)
-  }
-  // 고른 채널이 가득 차 못 옮겼을 때 (목록에서 고르기, 친구 따라가기·부르기)
-  const shownRejection = useRef<number | null>(null)
-  useEffect(() => {
-    const r = channel.rejected
-    if (!r || shownRejection.current === r.seq) return
-    shownRejection.current = r.seq
-    if (dropFollowTo(r.no)) chat?.note(`${r.no}채널이 가득 차서 따라갈 수 없어요. 친구에게 [부르기]를 해 보세요.`)
-    else chat?.note(`${r.no}채널이 가득 찼어요. 다른 채널을 골라 주세요.`)
-  }, [channel.rejected, chat])
+  const [condition] = useState(() => currentCondition(location.search))
+  // 채널 표시·입장 대기·친구 채널 창과 따라가기 설정 (#442, #481. 카페 화면과 같이 씀)
+  const channelUi = useChannelUi({ channel, place: world.place, seated: seat !== null, count: others.length + 1, showBadge: condition === 'visible' })
   useFollowArrival({
-    // 채널이 나뉘면 방 이름이 장소. 채널을 옮기거나 배정이 끝나면 친구를 기다리는 시간을 새로 셈
-    place: channel.split ? channel.room ?? `${world.place}#배정중` : world.place,
-    ready: !channel.split || channel.room !== null,
+    ...channelUi.arrival,
     others,
     spots: sitSpots,
     obstacles: OBSTACLES,
@@ -313,18 +297,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       chat?.note(`${nickname ?? '친구'} 님 옆으로 왔어요.`)
       chat?.tellArrived(friendId, reason)
     },
-    channel: channel.split && channel.room ? {
-      mine: channel.no,
-      onOtherChannel: (friendId, reason, no) => {
-        // 자리는 채널별로 잡혀 있어 앉은 채로는 옮기지 않습니다 (채널 표시도 앉으면 숨김)
-        if (seat !== null) chat?.note(`친구는 ${no}채널에 있어요. 자리에서 일어난 뒤 다시 따라가 주세요.`)
-        else setChannelAsk({ friendId, reason, no })
-      },
-    } : undefined,
   })
-  useOnlineChannel(channel.split && channel.room ? channel.no : null) // 친구가 나를 따라올 때 내 채널을 알 수 있게
-  // 캐릭터 숨김 모드(실험 B 조건)면 광장에서도 다른 참여자를 그리지 않습니다.
-  const [condition] = useState(() => currentCondition(location.search))
+  // 캐릭터 숨김 모드(실험 B 조건)면 광장에서도 다른 참여자를 그리지 않습니다. (condition 은 위 채널 화면에서 먼저 정함)
   // 사이트 전체 접속 상태에 "광장에 있음"(내부 이름은 lobby 그대로)으로 표시하고, 전체 접속자 수를 읽습니다. (#176)
   useOnlinePlace(world.place)
   const onlineCount = useOnline().size
@@ -705,11 +679,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 앉아 있는 동안은 채널을 바꾸지 못하게 숨깁니다. 자리는 채널별로 잡혀 있습니다 */}
-      {condition === 'visible' && channel.split && channel.room && seat === null && (
-        <ChannelBadge no={channel.no} count={others.length + 1} capacity={channel.capacity} autoFill={channel.autoFill} channels={channel.channels} onOpen={() => void channel.refresh()} onChange={channel.changeTo} />
-      )}
-      {channel.waiting && <ChannelWaiting total={channel.total} totalCapacity={channel.totalCapacity} />}
-      {channelAsk && <ChannelFollowAsk no={channelAsk.no} reason={channelAsk.reason} onYes={() => moveToFriendChannel(channelAsk)} onNo={() => setChannelAsk(null)} />}
+      {channelUi.overlay}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}

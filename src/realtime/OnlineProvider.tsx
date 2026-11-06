@@ -29,6 +29,7 @@ import { OnlineContext } from './onlineContext'
 import { ConnectionNotice } from './ConnectionNotice'
 import { relayUrl } from './relayLink'
 import { openOnlineLink, REPLACED_STATUS } from './onlineLink'
+import { useMyChannel } from './myChannel'
 import type { OnlineEntry } from './onlineContext'
 
 type Meta = { place?: string; studying?: boolean; quiet?: boolean; channel?: number } & TabMeta
@@ -57,7 +58,9 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   const [place, setPlace] = useState(ELSEWHERE)
   const [studying, setStudying] = useState(false)
   const [quiet, setQuiet] = useState(false)
-  const [chan, setChannel] = useState<number | null>(null) // 광장·캠퍼스·해변에서 들어간 채널 (#442)
+  // 내 채널 (#442, #481). 일반 페이지에 있어도 마지막 채널을 올려, 그 채널 인원으로 세고 친구가 따라올 수 있게 합니다. 실험 배포는 채널이 없음
+  const stored = useMyChannel()
+  const chan = relayUrl() ? stored : null
   const [tab] = useState(() => Math.random().toString(36).slice(2, 10)) // 이 탭의 번호 (#347)
   const since = useRef(0) // 이 탭이 장면에 들어온 순서 (#347)
   const reclaimOnSync = useRef(false) // 명단을 받기 전에 장면에 들어와 순서를 어림으로 잡았으면, 명단을 받은 뒤 다시 잡음
@@ -212,7 +215,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   // 여기서 계속하기 (#347): 양보를 풀면 App 이 장면을 다시 열고, 장면에 들어오며 이 탭이 순서를 새로 잡아 다른 탭이 양보합니다.
   const takeOver = useCallback(() => setYielded(false), [])
   return (
-    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, setChannel, yielded: Boolean(myId) && yielded, takeOver }}>
+    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver }}>
       {children}
       <ConnectionNotice />
     </OnlineContext.Provider>

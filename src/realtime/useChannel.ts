@@ -1,36 +1,28 @@
-// 어느 채널로 들어갈지 정합니다 (#442).
+// 어느 채널로 들어갈지 정합니다 (#442, #481).
 //
 // 중계 서버를 쓸 때만 채널이 나뉩니다. VITE_RELAY_URL 이 없으면(실험 배포, 로컬) 예전 방 이름 그대로입니다.
-// 내 번호는 탭마다 기억해 장소를 옮겨도 같은 번호로 갑니다. 가득 찼으면 서버가 다음 번호를 줍니다.
+// 채널은 장소를 모두 포함한 세계라, 내 번호(myChannel)를 지키며 장소를 옮깁니다(서버의 keep).
+// 번호가 없는 새 탭이면 DB 에 남은 내 자리의 채널부터 봅니다(다른 탭에서 앉아 둔 자리로 돌아오게). 그것도 없으면 처음 입장(auto)입니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { channelRoom, isChannelBase, parseReply, WAIT_JITTER_MS, WAIT_RETRY_MS } from './channelLogic'
+import { channelRoom, channelWorldOf, isChannelBase, parseReply, WAIT_JITTER_MS, WAIT_RETRY_MS } from './channelLogic'
 import type { ChannelInfo } from './channelLogic'
+import { readMyChannel, saveMyChannel, useMyChannel } from './myChannel'
 import { relayUrl } from './relayLink'
 
-const STORAGE_KEY = 'twoteam-channel'
-
-function readMyChannel(): number | null {
-  try {
-    const no = Number(sessionStorage.getItem(STORAGE_KEY))
-    return Number.isInteger(no) && no >= 1 ? no : null
-  } catch {
-    return null // 저장소를 못 쓰는 환경. 서버가 1번부터 찾아 줍니다
-  }
-}
-
-function saveMyChannel(no: number) {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, String(no))
-  } catch {
-    // 못 적어도 이번 화면에서는 동작합니다
-  }
+// DB 에 남은 내 자리의 채널 (my_current_place, 0067). 자리가 없거나 못 읽으면 null
+async function seatChannel(): Promise<number | null> {
+  const { data } = await supabase.rpc('my_current_place')
+  const row = (Array.isArray(data) ? data[0] : data) as { channel?: number } | null
+  return typeof row?.channel === 'number' ? row.channel : null
 }
 
 // 통창처럼 보기만 하는 연결이 쓸 방. 내 채널을 물을 필요 없이 기억한 번호를 씁니다.
-export function watchRoomOf(base: string): string {
+// 카페 안에서 채널을 바꾸면 창밖·가게 안도 그 채널로 바뀝니다 (#481)
+export function useWatchRoom(base: string): string {
+  const no = useMyChannel()
   if (!relayUrl() || !isChannelBase(base)) return base
-  return channelRoom(base, readMyChannel() ?? 1)
+  return channelRoom(base, no ?? 1)
 }
 
 export type ChannelState = {
@@ -66,8 +58,10 @@ export function useChannel(base: string) {
         const { data } = await supabase.auth.getSession()
         const token = data.session?.access_token
         if (!token) throw new Error('no session')
-        const query = request.want ? `?want=${request.want}${request.pick ? '&pick=1' : ''}` : ''
-        const res = await fetch(`${http}/channels/${base}${query}`, { headers: { Authorization: `Bearer ${token}` } })
+        const want = request.want ?? (request.seq === 0 ? await seatChannel().catch(() => null) : null)
+        if (!alive) return
+        const query = want ? `?want=${want}${request.pick ? '&pick=1' : ''}` : ''
+        const res = await fetch(`${http}/channels/${channelWorldOf(base)}${query}`, { headers: { Authorization: `Bearer ${token}` } })
         const reply = res.ok ? parseReply(await res.json()) : null
         if (!reply) throw new Error('bad reply')
         if (!alive) return
@@ -116,7 +110,7 @@ export function useChannel(base: string) {
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
       if (!token) return null
-      const res = await fetch(`${relay.replace(/^ws/, 'http')}/channels/${base}?peek=1`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`${relay.replace(/^ws/, 'http')}/channels/${channelWorldOf(base)}?peek=1`, { headers: { Authorization: `Bearer ${token}` } })
       const reply = res.ok ? parseReply(await res.json()) : null
       if (reply) setState((s) => ({ ...s, channels: reply.channels, capacity: reply.capacity, autoFill: reply.autoFill, total: reply.total, totalCapacity: reply.totalCapacity }))
       return reply

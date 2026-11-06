@@ -6,13 +6,15 @@ import { LIMIT, addOp, boardAt, pruneMarks, readMsg } from './sandLogic'
 import type { SandMark, SandMsg, SandOp } from './sandLogic'
 
 const CHANNEL = 'beach-sand'
+// 채널마다 해변이 따로다 (#481). 1채널은 예전 방 이름 그대로, 2번부터 뒤에 :번호
+const sandRoom = (channelNo: number) => (channelNo > 1 ? `${CHANNEL}:${channelNo}` : CHANNEL)
 const SYNC = { min: 150, range: 1000, marks: 12 } // need 에 답하기까지 기다리는 시간(ms), 다시 보내는 판 수
 
 export type SandBoard = { id: string; x: number; z: number; rot: number }
 const newId = () => Math.random().toString(36).slice(2, 12)
 
 // 모래 글씨 상태와 실시간 전송. 해변이 아니면(enabled false) 아무 일도 하지 않음
-export function useSandMarks(enabled: boolean) {
+export function useSandMarks(enabled: boolean, channelNo = 1) {
   const [marks, setMarks] = useState<SandMark[]>([])
   const marksRef = useRef(marks)
   useEffect(() => {
@@ -24,7 +26,7 @@ export function useSandMarks(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     let reply: number | undefined
-    const ch = supabase.channel(CHANNEL, { config: { broadcast: { self: false } } })
+    const ch = supabase.channel(sandRoom(channelNo), { config: { broadcast: { self: false } } })
     const take = (payload: unknown) => {
       const m = readMsg(payload)
       if (m) setMarks((list) => addOp(list, m, Date.now()))
@@ -56,8 +58,9 @@ export function useSandMarks(enabled: boolean) {
       window.clearTimeout(reply)
       channel.current = null
       void supabase.removeChannel(ch)
+      setMarks([]) // 채널을 옮기면 이전 채널 글씨는 지우고 새 채널에 다시 물어봄
     }
-  }, [enabled])
+  }, [enabled, channelNo])
 
   // 1분 지난 판 지우기
   useEffect(() => {
