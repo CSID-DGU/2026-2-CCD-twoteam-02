@@ -8,7 +8,10 @@ export const CHANNEL_BASES = ['lobby', 'campus', 'beach']
 export const WAIT_RETRY_MS = 10000 // 전체 상한으로 기다릴 때 다시 물어보는 간격
 export const WAIT_JITTER_MS = 5000 // 기다리던 사람들이 한꺼번에 묻지 않게 흩뿌리는 범위
 
-export const isChannelBase = (room: string) => CHANNEL_BASES.includes(room)
+// 채널로 나뉘는 방: 광장·캠퍼스·해변, 그리고 지점(branch:번호, #481)
+export const isChannelBase = (room: string) => CHANNEL_BASES.includes(room) || /^branch:\d+$/.test(room)
+// 채널 안내 주소에 쓰는 공간 이름 (branch:5 → branch)
+export const channelWorldOf = (base: string) => base.split(':')[0]
 
 // 1번 채널은 예전 방 이름 그대로, 2번부터 lobby:2 처럼 씁니다.
 export const channelRoom = (base: string, no: number) => (no === 1 ? base : `${base}:${no}`)

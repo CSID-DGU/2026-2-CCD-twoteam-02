@@ -14,6 +14,7 @@ import { useBranchInfo } from '../space/useBranchInfo'
 import { useParticipants } from '../realtime/useParticipants'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import { channelName } from '../realtime/participants'
+import { useWatchRoom } from '../realtime/useChannel'
 import type { PresenceState } from '../realtime/participants'
 import { watchSupabase } from '../lib/supabase'
 import { FLOOR_H } from './cafeWindowLogic'
@@ -131,7 +132,8 @@ function ShopPeople({ slug, layout }: { slug: string; layout: BranchLayout }) {
 }
 function ShopPeopleIn({ id, layout }: { id: number; layout: BranchLayout }) {
   const me = useRef<PresenceState | null>(null)
-  const others = useParticipants(channelName(id), me, false, undefined, undefined, watchSupabase)
+  const room = useWatchRoom(channelName(id)) // 내 채널의 가게 안을 본다 (#481)
+  const others = useParticipants(room, me, false, undefined, undefined, watchSupabase)
   const spots = useMemo(() => spotsOf(layout), [layout]) // 앉은 사람 자세
   return <OtherParticipants others={others} spots={spots} showStatus={false} />
 }

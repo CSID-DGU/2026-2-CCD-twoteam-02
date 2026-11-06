@@ -4,12 +4,13 @@
 // seat_sessions 는 RLS 로 본인 기록만 보이므로 user_id 로 거르지 않아도 됩니다.
 // 키오스크에서 배정·반납하면 setMySeat 으로 좌석 번호를 바로 반영하고,
 // 이용 기록 번호(공부 기록 저장에 필요)는 DB에서 다시 읽어 옵니다.
+// 채널이 다르면 다른 세계라(#481) 지금 채널의 자리만 내 자리로 봅니다. 다른 채널 자리는 앉을 때 반납할지 묻습니다(useCafeSeat).
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type SeatRow = { seat_number: number }
 
-export function useMySeat(branchId: number) {
+export function useMySeat(branchId: number, channel = 1) {
   const [mySeat, setSeat] = useState<number | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null) // seat_sessions.id
   const [loading, setLoading] = useState(true)
@@ -24,6 +25,7 @@ export function useMySeat(branchId: number) {
       .is('ended_at', null)
       // 시간이 지나도 자리는 유지됩니다(#38). 끝났는지(ended_at)로만 판단합니다.
       .eq('seats.branch_id', branchId)
+      .eq('channel', channel)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return
@@ -37,7 +39,7 @@ export function useMySeat(branchId: number) {
     return () => {
       cancelled = true
     }
-  }, [branchId, version])
+  }, [branchId, channel, version])
 
   // 키오스크에서 배정(번호)·반납(null)했을 때 부릅니다.
   const setMySeat = useCallback((no: number | null) => {

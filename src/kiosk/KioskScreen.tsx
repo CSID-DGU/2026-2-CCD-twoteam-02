@@ -20,7 +20,7 @@ import type { BranchLayout } from '../space/layout'
 type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done' | 'extend'
 
 // my_current_place() 가 돌려주는 한 행
-type MyPlace = { kind: string; number: number; expires_at: string; expired: boolean }
+type MyPlace = { kind: string; number: number; expires_at: string; expired: boolean; channel?: number } // channel: 0067 부터 (#480)
 
 // '14:30 까지' 처럼 보여 준다.
 const untilText = (iso: string) =>
@@ -32,9 +32,10 @@ type Props = {
   branch: BranchLayout // 지금 서 있는 층의 배치 (이름·좌석 수·배치도). 1층·2층 키오스크가 서로 다른 값을 받는다
   onClose: () => void
   onAssigned?: (seatNumber: number | null) => void // 반납하면 null 을 넘긴다
+  channel?: number // 지금 채널 (#481). 채널마다 좌석이 따로라 배치도와 배정이 이 채널 기준이다
 }
 
-export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned }: Props) {
+export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned, channel = 1 }: Props) {
   const [step, setStep] = useState<Step>('loading')
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [minutes, setMinutes] = useState(60)
@@ -46,13 +47,13 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned 
 
   // 점유 현황은 좌석 번호만 돌려주는 함수로 받는다. 누가 앉았는지는 받지 않는다.
   const loadOccupied = useCallback(async () => {
-    const { data, error } = await supabase.rpc('occupied_seat_numbers', { p_branch_id: branchId })
+    const { data, error } = await supabase.rpc('occupied_seat_numbers', { p_branch_id: branchId, ...(channel > 1 ? { p_channel: channel } : {}) }) // 1채널은 예전 호출 그대로
     if (error) {
       setError(`좌석 현황을 불러오지 못했습니다: ${error.message}`)
       return
     }
     setOccupied(new Set((data ?? []) as number[]))
-  }, [branchId])
+  }, [branchId, channel])
 
   // 화면이 열릴 때 지금 쓰고 있는 자리가 있는지 먼저 확인한다.
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned 
     const { error } = await supabase.rpc('assign_seat', {
       p_branch_id: branchId,
       p_seat_number: seatNumber,
+      ...(channel > 1 ? { p_channel: channel } : {}),
       p_duration_minutes: minutes,
     })
     setBusy(false)
@@ -150,7 +152,7 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned 
         {step === 'current' && mine && (
           <>
             <p style={styles.title}>
-              이미 {mine.kind === 'room' ? '회의실' : ''} {mine.number}번{' '}
+              이미 {mine.channel && mine.channel > 1 ? `${mine.channel}채널 ` : ''}{mine.kind === 'room' ? '회의실' : ''} {mine.number}번{' '}
               {mine.kind === 'room' ? '을' : '자리를'} 이용 중입니다
             </p>
             {mine.expired ? (
