@@ -14,7 +14,7 @@
 //
 // seatNo 는 DB 좌석 번호, spotNo 는 Player 의 자리 번호입니다. 지점은 둘이 같고, 광장 벤치는 다릅니다(BENCH_SEAT_BASE).
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 import { serialQueue } from './serialQueue'
 
 const MESSAGE_MS = 4000 // 안내를 보여 주는 시간
@@ -101,7 +101,7 @@ export function useCafeSeat(
       })
     // 창을 닫을 때는 앞 요청을 기다릴 틈이 없으므로 바로 보냅니다.
     const leaveOnPageHide = () => {
-      if (seatedRef.current) void supabase.rpc('leave_cafe_seat')
+      if (seatedRef.current) sendNow(supabase.rpc('leave_cafe_seat'), '카페 자리를 반납하지 못했습니다')
     }
     window.addEventListener('pagehide', leaveOnPageHide)
     return () => {

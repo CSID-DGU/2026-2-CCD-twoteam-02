@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 import { useSession } from '../auth/useSession'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from '../space/branches'
@@ -252,7 +252,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
   }
 
   const handleSeat = (no: number | null) => {
-    if (no === null) void supabase.rpc('stand_meeting_seat') // 일어나면 의자를 놓습니다.
+    if (no === null) sendNow(supabase.rpc('stand_meeting_seat'), '회의 의자를 놓지 못했습니다') // 일어나면 의자를 놓습니다.
     setSeat(no)
   }
 

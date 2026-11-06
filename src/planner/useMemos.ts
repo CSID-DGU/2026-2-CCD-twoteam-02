@@ -1,7 +1,7 @@
 // 뜯어 쓰는 메모 (memo_notes, 0048). RLS 로 내 것만.
 // 글·자리를 바꾸면 바로 화면에 보이고, 서버에는 메모마다 SAVE_DELAY_MS 뒤 한 번에 저장합니다.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 
 const SAVE_DELAY_MS = 700
 export const MEMO_COLORS = ['yellow', 'pink', 'blue', 'green'] as const
@@ -30,7 +30,7 @@ export function useMemos() {
       // 닫을 때 쓰던 것 저장
       for (const [id, p] of waiting) {
         window.clearTimeout(p.timer)
-        void supabase.from('memo_notes').update({ ...p.patch, updated_at: new Date().toISOString() }).eq('id', id)
+        sendNow(supabase.from('memo_notes').update({ ...p.patch, updated_at: new Date().toISOString() }).eq('id', id), '메모를 저장하지 못했습니다')
       }
       waiting.clear()
     }
