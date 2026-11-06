@@ -9,7 +9,7 @@
 //
 // 들어가 있던 회의를 다시 읽었는데 더는 들어 있지 않으면(방장이 회의를 끝냄, 오래 끊겨 내보내짐) 'ended' 로 알립니다.
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 
 const HEARTBEAT_MS = 60_000 // 접속 신호 주기. 5분 넘게 없으면 DB 가 회의에서 내보냅니다(0021).
 const REFRESH_MS = 30_000 // 실시간 방 소식을 놓쳤을 때를 대비해 참석자 목록을 다시 읽는 주기
@@ -34,7 +34,7 @@ export function useMeeting(meetingId: number, myId: string, presentKey: string):
 
   // 접속 신호와 주기적으로 다시 읽기
   useEffect(() => {
-    const beat = () => void supabase.rpc('meeting_heartbeat')
+    const beat = () => sendNow(supabase.rpc('meeting_heartbeat'), '회의 접속 신호를 보내지 못했습니다')
     beat()
     const heartbeat = setInterval(beat, HEARTBEAT_MS)
     const refresh = setInterval(() => setTick((t) => t + 1), REFRESH_MS)

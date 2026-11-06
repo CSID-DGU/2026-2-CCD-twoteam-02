@@ -3,7 +3,7 @@
 //
 // 같은 화면에 이 훅을 쓰는 곳이 여럿일 수 있어, 한 곳에서 바꾸면 changed() 로 알려 나머지도 다시 읽게 합니다(useSubjects 와 같은 방식).
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 import { activeLoans, loanErrorText } from './libraryLogic'
 import type { Loan } from './libraryLogic'
 
@@ -63,7 +63,7 @@ export function useLoans() {
     return () => {
       for (const [id, p] of waiting) {
         window.clearTimeout(p.timer)
-        void supabase.from('book_loans').update({ position: p.position }).eq('id', id)
+        sendNow(supabase.from('book_loans').update({ position: p.position }).eq('id', id), '책 위치를 저장하지 못했습니다')
       }
       waiting.clear()
     }
