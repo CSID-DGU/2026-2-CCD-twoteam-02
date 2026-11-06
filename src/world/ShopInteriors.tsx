@@ -37,17 +37,19 @@ function peekLayout(l: BranchLayout): BranchLayout {
 
 // 원통 도서관 안 사람들: 캠퍼스 어디에 있든 실시간 방을 붙들지 않게 문 가까이 있을 때만 구독 (m, 드나듦 경계에서 깜빡이지 않게 둘을 다르게). 거리 확인은 초 단위
 const PEOPLE_RANGE = { enter: 35, leave: 45, checkEvery: 1 }
+// 광장 가게: 건물이 가까이 모여 있어 도서관 값이면 어디서나 전부 구독한다. 분수대(문에서 약 12m)에서는 구독하지 않고 문 쪽으로 다가가면 구독한다 (#442). 값은 화면을 보고 조정한다
+const SHOP_PEOPLE_RANGE = { enter: 10, leave: 14, checkEvery: 1 }
 const camAt = new THREE.Vector3()
-function WhenNear({ door, children }: { door: { x: number; z: number }; children: ReactNode }) {
+function WhenNear({ door, range = PEOPLE_RANGE, children }: { door: { x: number; z: number }; range?: typeof PEOPLE_RANGE; children: ReactNode }) {
   const [inRange, setInRange] = useState(false)
-  const waited = useRef(PEOPLE_RANGE.checkEvery) // 처음 프레임에 바로 한 번 확인
+  const waited = useRef(range.checkEvery) // 처음 프레임에 바로 한 번 확인
   useFrame(({ camera }, delta) => {
     waited.current += delta
-    if (waited.current < PEOPLE_RANGE.checkEvery) return
+    if (waited.current < range.checkEvery) return
     waited.current = 0
     camera.getWorldPosition(camAt)
     const d = Math.hypot(camAt.x - door.x, camAt.z - door.z) // 수평 거리 (위에서 보기 카메라 높이는 빼고)
-    const next = d <= (inRange ? PEOPLE_RANGE.leave : PEOPLE_RANGE.enter)
+    const next = d <= (inRange ? range.leave : range.enter)
     if (next !== inRange) setInRange(next)
   })
   return inRange ? <>{children}</> : null
@@ -93,8 +95,8 @@ function ShopScene({ b, world, showPeople }: { b: PlacedBuilding; world: WorldCo
                 elevatorLabel={b.floors.length > 1 && layout.elevator ? `${f.level}F` : null}
                 lights={f.level === 1} // 조명은 한 번만 (층마다 넣으면 겹쳐서 너무 밝음)
               />
-              {/* 광장 가게는 전과 같이 늘 구독, 원통 도서관만 문 가까이에서 */}
-              {showPeople && (drum ? <WhenNear door={b.door}><ShopPeople slug={f.slug} layout={layout} /></WhenNear> : <ShopPeople slug={f.slug} layout={layout} />)}
+              {/* 문 가까이 있을 때만 구독. 도서관과 광장 가게는 거리가 다르다 */}
+              {showPeople && <WhenNear door={b.door} range={drum ? PEOPLE_RANGE : SHOP_PEOPLE_RANGE}><ShopPeople slug={f.slug} layout={layout} /></WhenNear>}
               {layout.barista && <BaristaNpc barista={layout.barista} />}
             </group>
           </group>
