@@ -37,7 +37,8 @@ function roomFromPath(pathname: string): string | null {
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET' }
 
 // GET /channels/{세계}?want=번호 → 들어갈 채널과 현황 (입장 전). ?peek=1 은 현황만 (채널 창을 열 때) (#442)
-async function channels(request: Request, env: RelayEnv, world: string, want: string | null, peek: boolean): Promise<Response> {
+// &pick=1 은 목록에서 고르거나 친구를 따라갈 때. 자동 배정 기준(AUTO_FILL)이 아니라 정원까지 들어가고, 가득 차면 다른 채널로 보내지 않는다
+async function channels(request: Request, env: RelayEnv, world: string, want: string | null, peek: boolean, pick: boolean): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (!isChannelWorld(world)) return new Response('not found', { status: 404, headers: CORS })
   if (!env.SUPABASE_URL) return new Response('not configured', { status: 500, headers: CORS })
@@ -45,7 +46,7 @@ async function channels(request: Request, env: RelayEnv, world: string, want: st
   const who = token ? await verifyToken(token, { supabaseUrl: env.SUPABASE_URL.replace(/\/$/, ''), hs256Secret: env.JWT_HS256_SECRET }) : null
   if (!who) return new Response('unauthorized', { status: 401, headers: CORS })
   const stub = env.DIRECTORY.get(env.DIRECTORY.idFromName(DIRECTORY_NAME), { locationHint: 'apac' })
-  const body: AssignRequest = { world, want: want ? Number(want) : null, userId: who.userId, peek }
+  const body: AssignRequest = { world, want: want ? Number(want) : null, userId: who.userId, peek, mode: pick ? 'pick' : 'auto' }
   const res = await stub.fetch('https://relay.internal/assign', { method: 'POST', body: JSON.stringify(body) })
   return new Response(res.body, { status: res.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 }
@@ -55,7 +56,7 @@ export default {
     const { pathname, searchParams } = new URL(request.url)
     if (pathname === '/health') return new Response('ok')
     const channelsPath = /^\/channels\/([a-z]+)$/.exec(pathname)
-    if (channelsPath) return channels(request, env, channelsPath[1], searchParams.get('want'), searchParams.get('peek') === '1')
+    if (channelsPath) return channels(request, env, channelsPath[1], searchParams.get('want'), searchParams.get('peek') === '1', searchParams.get('pick') === '1')
 
     const room = roomFromPath(pathname)
     if (!room) return new Response('not found', { status: 404 })

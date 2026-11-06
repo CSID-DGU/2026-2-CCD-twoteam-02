@@ -5,7 +5,9 @@
 
 // ── 기준값 ───────────────────────────────────────────────────────────
 export const TICK_MS = 100 // 받은 변경을 이 간격으로 합쳐 내보낸다
-export const CHANNEL_CAPACITY = 20 // 광장·캠퍼스·해변 채널 하나의 정원 (#442). FPS 측정 결과에 따라 조정한다
+export const CHANNEL_CAPACITY = 20 // 광장·캠퍼스·해변 채널 하나의 정원 (#442). 직접 고르거나 친구를 따라갈 때는 여기까지 들어간다. FPS 측정 결과에 따라 조정한다
+export const AUTO_FILL = 15 // 자동 배정(처음 입장, 장소 이동)은 채널마다 여기까지만 채운다. 남은 자리는 친구끼리 모일 여유분이다
+export const BASE_CHANNELS = 6 // 채널 목록에 늘 보이는 채널 수. 마지막 채널까지 AUTO_FILL 만큼 차면 하나씩 더 연다
 export const TOTAL_CAPACITY = 50 // 서비스 전체 활동 인원 상한 (#442). 접속 표시가 Supabase 에 있는 동안의 값으로, #473 뒤에 다시 잰다
 export const SEAT_HOLD_MS = 15000 // 채널을 안내받은 사람의 자리를 입장할 때까지 맡아 두는 시간
 export const MAX_CHANNEL_NO = 999
@@ -68,42 +70,62 @@ export function totalCount(counts: Map<string, number>, holds: Holds, now: numbe
   return total
 }
 
-// 사람이 있는 채널만 번호순으로. 화면의 채널 목록에 쓴다.
-export function channelCounts(world: string, counts: Map<string, number>): { no: number; count: number }[] {
-  const list: { no: number; count: number }[] = []
+// 채널 목록. 1번부터 BASE_CHANNELS 개는 늘 보이고, 마지막 채널까지 AUTO_FILL 만큼 차면 다음 번호를 연다.
+// 그 뒤 번호라도 사람이 있으면(직접 골라 들어간 경우) 목록에 넣는다. 화면마다 목록이 달라 보이지 않게 서버가 정한다.
+export function channelCounts(world: string, counts: Map<string, number>, holds: Holds = new Map()): { no: number; count: number }[] {
+  const taken = new Map<number, number>()
   for (const [room, count] of counts) {
     const no = channelNoOf(world, room)
-    if (no !== null) list.push({ no, count })
+    if (no !== null) taken.set(no, (taken.get(no) ?? 0) + count)
   }
+  for (const hold of holds.values()) {
+    const no = channelNoOf(world, hold.room)
+    if (no !== null) taken.set(no, (taken.get(no) ?? 0) + 1)
+  }
+  let open = BASE_CHANNELS
+  const filled = (n: number) => (taken.get(n) ?? 0) >= AUTO_FILL
+  while (open < MAX_CHANNEL_NO && Array.from({ length: open }, (_, i) => i + 1).every(filled)) open++
+  const list: { no: number; count: number }[] = []
+  for (let no = 1; no <= open; no++) list.push({ no, count: taken.get(no) ?? 0 })
+  for (const [no, count] of taken) if (no > open && count > 0) list.push({ no, count })
   return list.sort((a, b) => a.no - b.no)
 }
 
-// 들어갈 채널을 고르고 자리를 맡는다. want 가 있으면 그 번호부터, 없으면 1번부터 빈자리를 찾는다.
-// 전체 상한이 찼으면 no 가 null 이다(입장 대기). 이미 자리를 맡은 사람은 다시 물어도 상한에 걸리지 않는다.
-export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, capacity = CHANNEL_CAPACITY, totalCapacity = TOTAL_CAPACITY): number | null {
+// 배정 방식. auto: 처음 입장·장소 이동(AUTO_FILL 까지), pick: 목록에서 고르기·친구 따라가기·부르기(정원까지)
+export type AssignMode = 'auto' | 'pick'
+// 배정 결과. no: 들어갈 채널, wait: 전체 상한이라 입장 대기, full: 고른 채널이 가득 참(pick 만, 지금 방에 그대로 둠)
+export type AssignResult = { no: number } | { wait: true } | { full: true }
+
+// 들어갈 채널을 고르고 자리를 맡는다.
+//   auto: want 채널이 AUTO_FILL 미만이면 거기, 아니면 1번부터 AUTO_FILL 미만인 첫 채널
+//   pick: want 채널이 정원 미만이면 거기, 아니면 full (다른 채널로 몰래 보내지 않는다)
+// 이미 자리를 맡은 사람은 다시 물어도 전체 상한에 걸리지 않는다.
+export function assignChannel(world: string, want: number | null, userId: string, counts: Map<string, number>, holds: Holds, now: number, mode: AssignMode = 'auto', totalCapacity = TOTAL_CAPACITY): AssignResult {
   dropExpired(holds, now)
   const mine = holds.get(userId)
   holds.delete(userId) // 다시 물으면 예전 자리는 놓는다
   if (totalCount(counts, holds, now) >= totalCapacity) {
     if (mine) holds.set(userId, mine)
-    return null
+    return { wait: true }
   }
   const taken = (room: string) => {
     let n = counts.get(room) ?? 0
     for (const hold of holds.values()) if (hold.room === room) n++
     return n
   }
-  const first = want !== null && Number.isInteger(want) && want >= 1 && want <= MAX_CHANNEL_NO ? want : 1
-  // 원하는 번호부터 끝까지 찾고, 없으면 앞 번호로 돌아온다
-  for (let i = 0; i < MAX_CHANNEL_NO; i++) {
-    const no = ((first - 1 + i) % MAX_CHANNEL_NO) + 1
-    const room = channelRoom(world, no)
-    if (taken(room) < capacity) {
-      holds.set(userId, { room, until: now + SEAT_HOLD_MS })
-      return no
-    }
+  const hold = (no: number): AssignResult => {
+    holds.set(userId, { room: channelRoom(world, no), until: now + SEAT_HOLD_MS })
+    return { no }
   }
-  return null
+  const wanted = want !== null && Number.isInteger(want) && want >= 1 && want <= MAX_CHANNEL_NO ? want : null
+  if (mode === 'pick') {
+    if (wanted !== null && taken(channelRoom(world, wanted)) < CHANNEL_CAPACITY) return hold(wanted)
+    if (mine) holds.set(userId, mine)
+    return { full: true }
+  }
+  if (wanted !== null && taken(channelRoom(world, wanted)) < AUTO_FILL) return hold(wanted)
+  for (let no = 1; no <= MAX_CHANNEL_NO; no++) if (taken(channelRoom(world, no)) < AUTO_FILL) return hold(no)
+  return { wait: true }
 }
 
 // 새 연결을 받을 자리가 있는지. 활동 연결과 보기 전용 연결은 서로의 자리를 차지하지 않는다.
