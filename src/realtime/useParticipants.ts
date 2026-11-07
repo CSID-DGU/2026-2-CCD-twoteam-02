@@ -83,8 +83,8 @@ import type { RefObject } from 'react'
 import { supabase } from '../lib/supabase'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { onMyProfileChanged } from '../profile/characters'
-import { PROFILE_RETRY_MS, CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
-import type { ChatPort, FlickPort, Participant, PresenceState, SignalPort } from './participants'
+import { PROFILE_RETRY_MS, CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, RESEND_IDLE_MS, SEND_INTERVAL_MS, SIGNAL_EVENT, SNAPSHOT_EVENT, SNAPSHOT_WAIT_MS, STALE_MS } from './participants'
+import type { ChatPort, FlickPort, Participant, PlayMsg, PlayPort, PresenceState, SignalPort } from './participants'
 import { changedEnough, pack } from './sendLogic'
 import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
 import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
@@ -111,6 +111,7 @@ export function useParticipants(
   client: SupabaseClient = supabase,
   flickRef?: RefObject<FlickPort>, // 딱밤 통로 (지점·광장, #304)
   fullRef?: RefObject<(() => void) | null>, // 방이 가득 차 거절당했을 때 알릴 곳 (채널 배정, #442)
+  playRef?: RefObject<PlayPort>, // 축구공·모래 글씨 통로 (중계 서버를 쓸 때 캠퍼스·해변, #473)
 ) {
   const [others, setOthers] = useState<Participant[]>([])
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
@@ -124,6 +125,7 @@ export function useParticipants(
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
     const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
+    const playPort = playRef?.current // 축구공·모래 글씨 통로 (#473)
     // 끊김 안내에 적을 표. 보기 전용 연결은 안내를 띄우지 않는다.
     const noticeToken = client === supabase ? {} : null
 
@@ -310,6 +312,9 @@ export function useParticipants(
         const p = payload as { from?: unknown; to?: unknown } | null
         if (!flickPort || typeof p?.from !== 'string' || typeof p?.to !== 'string' || p.from === me.current?.userId) return
         flickPort.receive(p.from, p.to)
+      } else if (event === PLAY_EVENT) {
+        // 축구공·모래 글씨. 값 확인은 서버와 받는 쪽(SoccerBall, useSandMarks)이 한다.
+        playPort?.listeners.forEach((l) => l.receive(payload as PlayMsg))
       } else if (event === MOVE_EVENT) {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
@@ -368,6 +373,10 @@ export function useParticipants(
           if (from) void ch.send(FLICK_EVENT, { from, to })
         }
       }
+      if (playPort) {
+        playPort.send = (e, p, to) => void ch.send(PLAY_EVENT, { e, p, to })
+        playPort.listeners.forEach((l) => l.ready())
+      }
       if (chatPort) {
         chatPort.send = async (text) => {
           const from = me.current?.userId
@@ -405,6 +414,7 @@ export function useParticipants(
       if (port) port.send = null
       if (chatPort) chatPort.send = null
       if (flickPort) flickPort.send = null
+      if (playPort) playPort.send = null
     }
 
     // 브라우저가 인터넷이 끊겼다고 알리면 안내를 바로 띄운다. 연결이 끊긴 것을 라이브러리가 아는 데는 최대 50초쯤 걸린다.
@@ -473,7 +483,7 @@ export function useParticipants(
       channel?.leave()
       setOthers([]) // 다른 채널로 옮기면 예전 방 사람이 남지 않게 한다
     }
-  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef, fullRef])
+  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef, fullRef, playRef])
 
   return others
 }

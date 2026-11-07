@@ -24,7 +24,7 @@
 - 캐릭터: GLB 모델(`public/models/character-a.glb`)을 drei `useGLTF`로 불러온다. 18종은 모양이 같고 스킨만 달라서 모델 하나에 맨몸(피부색)과 고른 부품(머리·상의·하의·신발, `public/models/Parts/`)을 겹치고 색을 입힌 스킨을 입힌다(#56). 눈·눈썹·입은 얼굴 앞에 붙인 판에 스티커처럼 얹어, 사용자가 위치·크기를 옮길 수 있다(#293). VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL, Realtime(Broadcast·Presence), 좌석 배정 DB 함수). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
-- 위치 중계: Cloudflare Workers·Durable Objects (`relay/`, #464). 광장·지점의 위치와 사이트 전체 접속 상태(#473, `/online`)를 여기로 주고받는다. 로그인, DB, 회의실, 음성, 채팅, 축구공은 Supabase에 둔다. `VITE_RELAY_URL`이 비어 있으면 위치와 접속 상태도 Supabase Realtime으로 주고받는다.
+- 위치 중계: Cloudflare Workers·Durable Objects (`relay/`, #464). 광장·지점의 위치와 사이트 전체 접속 상태(#473, `/online`)를 여기로 주고받는다. 채팅·알림(귓속말, 그룹, 회의 초대, 부르기)은 접속 표시 방이 보낸 사람의 친구·그룹을 DB에서 확인해 전달하고, 축구공·모래 글씨는 위치 방으로 주고받는다(#473). 로그인, DB, 회의실, 음성은 Supabase에 둔다. `VITE_RELAY_URL`이 비어 있으면 위치, 접속 상태, 채팅, 축구공, 모래 글씨도 Supabase Realtime으로 주고받는다.
   - 채널 (#442, #481): 채널 하나가 광장·카페·캠퍼스·해변·회의실을 모두 포함한 세계다. 방 이름 1번은 그대로(`lobby`, `branch:5`), 2번부터 `lobby:2`, `branch:5:2`. 정원은 채널 전체 20명(처음 입장 자동 배정은 15명), 일반 페이지에 있는 사람도 마지막 채널 인원으로 센다. 배정은 접속 표시 방(`relay/src/online.ts`)이 하고, 장소를 옮겨도 채널을 지킨다. 서비스 전체 100명을 넘으면 입장 대기. 값은 `relay/src/relayLogic.ts`의 상수다.
   - 유리창 너머 보기(가게 안 사람, 카페 통창 밖 거리)는 보기 전용 연결(`?watch=1`)로 따로 세어 정원을 차지하지 않는다. 가게는 문 10m 안에 2초 머물 때만 연결한다.
 - 날씨: Open-Meteo 시간별 예보(키 없음, 브라우저에서 직접 받음, `src/world/useWorldWeather.ts`). 서울 고정 좌표만 보낸다.
@@ -132,7 +132,7 @@ docs/                  제안서·주간발표 자료
   ./scripts/check-db.sh                                          # 서비스 DB
   ./scripts/check-db.sh .env.experiment.local origin/experiment  # 실험 DB
   ```
-- **위치 중계 Worker는 머지해도 자동 배포되지 않는다.** `relay/`를 바꿨으면 그 폴더에서 `npx wrangler deploy`를 실행한다. 기본은 옛 화면이 새 서버에 붙어도 되도록 Worker를 화면보다 먼저 올린다. 정원이 줄어드는 변경처럼 옛 화면이 새 서버에서 막히면 반대로 화면을 먼저 머지하고 Worker를 바로 뒤에 올린다(#442 채널: 새 화면은 옛 서버에서 채널 안내를 못 받으면 1번 방으로 들어간다. #481 은 새 화면이 옛 서버에 없는 지점 채널 방을 써서 다시 Worker 먼저). 어느 순서인지 PR 설명에 적는다. 값은 `SUPABASE_URL` 하나만 `npx wrangler secret put`으로 넣고, `JWT_HS256_SECRET`은 정식 서버에 넣지 않는다. `experiment` 배포에는 `VITE_RELAY_URL`을 넣지 않는다.
+- **위치 중계 Worker는 머지해도 자동 배포되지 않는다.** `relay/`를 바꿨으면 그 폴더에서 `npx wrangler deploy`를 실행한다. 기본은 옛 화면이 새 서버에 붙어도 되도록 Worker를 화면보다 먼저 올린다. 정원이 줄어드는 변경처럼 옛 화면이 새 서버에서 막히면 반대로 화면을 먼저 머지하고 Worker를 바로 뒤에 올린다(#442 채널: 새 화면은 옛 서버에서 채널 안내를 못 받으면 1번 방으로 들어간다. #481 은 새 화면이 옛 서버에 없는 지점 채널 방을 써서 다시 Worker 먼저). 어느 순서인지 PR 설명에 적는다. 값은 `SUPABASE_URL`과 `SUPABASE_PUBLISHABLE_KEY`(채팅 전달 때 보낸 사람의 친구·그룹을 읽는 데 씀, 서비스 Publishable 키) 두 개만 `npx wrangler secret put`으로 넣고, `JWT_HS256_SECRET`은 정식 서버에 넣지 않는다. `experiment` 배포에는 `VITE_RELAY_URL`을 넣지 않는다.
 - **로컬 실행**: 서비스 DB는 `npm run dev`, 실험 DB는 `npm run dev -- --mode experiment`. Vite는 `--mode experiment`일 때 `.env.experiment.local`을 `.env.local`보다 먼저 읽는다. 두 파일의 값은 육심호에게 받는다(Publishable 키만, Secret 키는 쓰지 않는다).
 - **실험을 진행하는 기간에는 `experiment`에 머지하지 않는다.** 머지하는 순간 다시 배포돼 참가자마다 화면이 달라진다.
 - Vercel 설정 중 아래는 바꾸지 않는다. 바꾸면 한 브랜치가 다른 DB를 보는 화면으로 배포된다.

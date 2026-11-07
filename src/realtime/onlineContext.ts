@@ -13,6 +13,17 @@ export type OnlineEntry = {
   channel: number | null // 그 사람의 채널 번호 (친구 따라가기용, #442, #481). 채널이 없는 실험 배포면 null
 }
 
+// 채팅 통로 (#473). 중계 서버(VITE_RELAY_URL)를 쓰면 접속 표시 연결로 채팅·알림도 주고받습니다.
+// 서버가 보낸 사람의 친구·그룹을 DB 에서 확인해 친구·멤버에게만 전달합니다. Supabase 를 쓰는 실험 배포는 null 이고
+// 예전처럼 친구마다 Supabase 비공개 방을 씁니다(ChatProvider).
+export type ChatTarget = { u: string } | { g: number } // 친구 한 명 또는 내 그룹
+export type ChatIncoming = { from: string; group: number | null; event: string; payload: Record<string, unknown> }
+export type ChatPort = {
+  send: (to: ChatTarget, event: string, payload: Record<string, unknown>) => Promise<boolean> // 서버가 전달했는지
+  refresh: () => void // 친구·그룹이 바뀌었으니 서버가 DB 에서 다시 읽게 합니다
+  listen: (fn: (m: ChatIncoming) => void) => () => void
+}
+
 export type OnlineValue = {
   people: Map<string, OnlineEntry> // 접속 중인 계정 번호 → 상태
   studying: boolean // 내가 공부 중인지
@@ -21,6 +32,7 @@ export type OnlineValue = {
   setQuiet: (quiet: boolean) => void // 내 방해금지 여부를 바꿉니다
   yielded: boolean // 같은 계정의 다른 탭(기기)에 장면을 양보했는지 (#347)
   takeOver: () => void // 여기서 계속하기: 이 탭이 다시 장면을 씀
+  chat: ChatPort | null // 채팅 통로 (#473). 실험 배포는 null
 }
 
 export const OnlineContext = createContext<OnlineValue>({
@@ -31,12 +43,18 @@ export const OnlineContext = createContext<OnlineValue>({
   setQuiet: () => {},
   yielded: false,
   takeOver: () => {},
+  chat: null,
 })
 
 // 같은 계정은 한 번에 한 탭만 쓰기 (#347): 이 탭이 양보했는지와 다시 쓰기
 export function useTabGate() {
   const { yielded, takeOver } = useContext(OnlineContext)
   return { yielded, takeOver }
+}
+
+// 채팅 통로 (#473). null 이면 Supabase 방으로 주고받습니다
+export function useChatPort() {
+  return useContext(OnlineContext).chat
 }
 
 // 접속 중인 사람들

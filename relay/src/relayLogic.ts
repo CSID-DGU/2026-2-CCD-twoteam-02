@@ -174,14 +174,14 @@ export type RateWindow = { startedAt: number; count: number }
 
 export type RateVerdict = 'ok' | 'drop' | 'close'
 
-export function countMessage(window: RateWindow, now: number): RateVerdict {
+export function countMessage(window: RateWindow, now: number, soft = SOFT_MESSAGES_PER_SEC, hard = HARD_MESSAGES_PER_SEC): RateVerdict {
   if (now - window.startedAt >= 1000) {
     window.startedAt = now
     window.count = 0
   }
   window.count++
-  if (window.count > HARD_MESSAGES_PER_SEC) return 'close'
-  return window.count > SOFT_MESSAGES_PER_SEC ? 'drop' : 'ok'
+  if (window.count > hard) return 'close'
+  return window.count > soft ? 'drop' : 'ok'
 }
 
 // 이번에 내보낼 때까지 기다릴 시간. 0 이면 바로 내보낸다.

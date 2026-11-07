@@ -65,7 +65,8 @@ import { useParticipants } from '../realtime/useParticipants'
 import { useChannel } from '../realtime/useChannel'
 import { useChannelUi } from '../realtime/useChannelUi'
 import { OtherParticipants } from '../realtime/OtherParticipants'
-import type { FlickPort, PresenceState } from '../realtime/participants'
+import type { FlickPort, PlayPort, PresenceState } from '../realtime/participants'
+import { relayUrl } from '../realtime/relayLink'
 import { useFlick, useFlickShake } from '../friends/useFlick'
 import { getFlickReceiving } from '../menu/flickSetting'
 import { currentCondition } from '../study/condition'
@@ -197,7 +198,10 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const [fortune, setFortune] = useState<string | null>(null)
   // 공부 시간 순위 창 (#59): 게시판 앞에서 E
   const [rankingOpen, setRankingOpen] = useState(false)
-  const sand = useSandMarks(!!PLAZA.beach, channel.no) // 해변 모래 글씨·그림 (같은 채널 사람에게 보임, #481)
+  // 축구공·모래 글씨 통로 (#473). 중계 서버를 쓰면 위치 방으로 주고받고, 아니면(실험 배포) 각자 Supabase 방
+  const playPort = useRef<PlayPort>({ send: null, listeners: new Set() })
+  const playRef = relayUrl() ? playPort : undefined
+  const sand = useSandMarks(!!PLAZA.beach, channel.no, playRef) // 해변 모래 글씨·그림 (같은 채널 사람에게 보임, #481)
   const [sandBoard, setSandBoard] = useState<SandBoard | null>(null) // 지금 쓰는 판 (쓰는 동안 움직이지 않음)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
   const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
@@ -271,7 +275,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
-  const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef)
+  const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
   // 딱밤 (#304): 벤치에서 빨간불인 친구 바로 옆에서 조준하고 Q. 조준이 켜져 있을 때만(서 있고 1인칭, 창 없음)
   const flick = useFlick({ myId: session?.user.id, others, spots: sitSpots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn })
   const shakeBox = useFlickShake(flick.hit?.at ?? null)
@@ -551,7 +555,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {PLAZA.walks && <GardenOrbs orbs={orbSpots(PLAZA)} />}
         {PLAZA.pitch && <SoccerPitch pitch={PLAZA.pitch} />}
         {PLAZA.pitch && PLAZA.stadium && <CampusStadium pitch={PLAZA.pitch} stadium={PLAZA.stadium} />}
-        {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} channelNo={channel.no} />}
+        {PLAZA.pitch && <SoccerBall pitch={PLAZA.pitch} size={PLAZA.size} obstacles={OBSTACLES} posRef={pos} channelNo={channel.no} playPort={playRef} />}
         {/* 캠리단길 밤: 가로등 사이 전구 줄, 거리 전체 따뜻한 채움광 */}
         {PLAZA.ground !== 'lawn' && <StringLights plaza={PLAZA} />}
         {PLAZA.ground !== 'lawn' && <NightFill />}

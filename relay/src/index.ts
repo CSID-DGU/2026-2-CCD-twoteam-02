@@ -9,7 +9,7 @@
 // 우회 설정은 두지 않는다. 측정 봇은 시험용 Worker 에서만 JWT_HS256_SECRET 으로 직접 서명한 토큰을 쓴다(값이 없으면 HS256 은 모두 거절, 정식 서버에는 넣지 않는다).
 import { verifyToken } from './auth'
 import { ChannelDirectory } from './directory'
-import { OnlineRoom } from './online'
+import { OnlineRoom, TOKEN_HEADER } from './online'
 import { ONLINE_NAME } from './onlineLogic'
 import { capacityOf, isAllowedRoom, isChannelWorld } from './relayLogic'
 import { CAPACITY_HEADER, EXPIRES_HEADER, RelayRoom, ROOM_HEADER, SUBPROTOCOL, USER_HEADER, WATCH_HEADER } from './room'
@@ -21,6 +21,7 @@ export type RelayEnv = {
   DIRECTORY: DurableObjectNamespace<ChannelDirectory>
   ONLINE: DurableObjectNamespace<OnlineRoom>
   SUPABASE_URL?: string // 토큰 발급처. https://{프로젝트}.supabase.co
+  SUPABASE_PUBLISHABLE_KEY?: string // 채팅 상대 확인용 DB 읽기에 쓰는 공개 키(#473). 화면의 VITE_SUPABASE_PUBLISHABLE_KEY 와 같은 값. 없으면 채팅을 전달하지 않는다
   JWT_HS256_SECRET?: string // 선택. 넣을 때만 HS256 토큰을 받는다
   ROOM_MAX_CONNECTIONS?: string // 선택. 방 정원을 시험 때만 바꾼다
 }
@@ -75,7 +76,8 @@ export default {
     if (!who) return new Response('unauthorized', { status: 401 })
 
     if (online) {
-      const headers = new Headers({ Upgrade: 'websocket', [USER_HEADER]: who.userId, [EXPIRES_HEADER]: String(who.expiresAt) })
+      // 토큰은 접속 표시 방이 친구·그룹을 읽을 때만 쓴다 (#473 채팅)
+      const headers = new Headers({ Upgrade: 'websocket', [USER_HEADER]: who.userId, [EXPIRES_HEADER]: String(who.expiresAt), [TOKEN_HEADER]: token })
       const stub = env.ONLINE.get(env.ONLINE.idFromName(ONLINE_NAME), { locationHint: 'apac' })
       return stub.fetch('https://relay.internal/online', { headers })
     }
