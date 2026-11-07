@@ -103,19 +103,16 @@ export function ShellChairs({ chairs }: { chairs: ChairSpot[] }) {
 }
 
 // ── 방 소품: 움직이지 않으니 다 그린 뒤 재질이 같은 것끼리 합침 (batchStatic). 지점 화면이 다시 그려져도 다시 합치지 않게 memo ──
+// 천장에 매단 것(덕트·트랙 조명·에어컨)은 따로 합칩니다. 앉아서 3인칭으로 볼 때(#436) 카메라가 천장 위에서 내려다보므로
+// 이것들이 나를 가리면 좌석 카메라(SeatCamera)가 숨기는데, 방 소품과 한 덩어리면 책장·화분까지 같이 사라지기 때문입니다.
 export const StudyCafeDecor = memo(function StudyCafeDecor({ decor, height }: { decor: DecorSpec; height: number }) {
   const root = useRef<Group>(null)
   const merged = useRef<Group>(null)
+  const ceilingRoot = useRef<Group>(null)
+  const ceilingMerged = useRef<Group>(null)
   useLayoutEffect(() => {
-    const r = root.current
-    const holder = merged.current
-    if (!r || !holder) return
-    const { group, dispose } = batchStatic(r)
-    holder.add(group)
-    return () => {
-      holder.remove(group)
-      dispose()
-    }
+    const undo = [batchInto(root.current, merged.current, false), batchInto(ceilingRoot.current, ceilingMerged.current, true)]
+    return () => undo.forEach((u) => u?.())
   }, [decor, height])
   return (
     <>
@@ -124,14 +121,30 @@ export const StudyCafeDecor = memo(function StudyCafeDecor({ decor, height }: { 
       {decor.windowBars?.map((b, i) => <WindowBarPiece key={i} bar={b} height={height} />)}
       {decor.bookWalls?.map((b, i) => <BookWallPiece key={i} wall={b} />)}
       {decor.pots?.map((p, i) => (p.tree ? <TreePot key={i} pot={p} /> : <SmallPot key={i} pot={p} />))}
+      {decor.mottos?.map((m, i) => <MottoSign key={i} motto={m} />)}
+    </group>
+    <group ref={ceilingMerged} />
+    <group ref={ceilingRoot}>
       {decor.ducts?.map((d, i) => <Duct key={i} run={d} height={height} />)}
       {decor.tracks?.map((t, i) => <Track key={i} run={t} height={height} />)}
       {decor.aircons?.map((a, i) => <AirCon key={i} x={a.x} z={a.z} height={height} />)}
-      {decor.mottos?.map((m, i) => <MottoSign key={i} motto={m} />)}
     </group>
     </>
   )
 })
+
+// root 안의 메시를 합쳐 holder 에 붙이고, 되돌리는 함수를 돌려줍니다.
+// hideable: 합친 메시를 좌석 3인칭 카메라가 숨겨도 되는지 (천장에 매단 것만. staticBatch 는 기본으로 숨기지 않게 표시함)
+function batchInto(root: Group | null, holder: Group | null, hideable: boolean) {
+  if (!root || !holder) return null
+  const { group, dispose } = batchStatic(root)
+  if (hideable) group.traverse((o) => (o.userData.merged = false))
+  holder.add(group)
+  return () => {
+    holder.remove(group)
+    dispose()
+  }
+}
 
 // 창가 바: 실제 통창(world.json sideWindow, CafeWindows 가 그림) 앞 벽에 붙인 원목 상판. 로컬 x 가 바 길이 방향
 function WindowBarPiece({ bar, height }: { bar: WindowBar; height: number }) {
