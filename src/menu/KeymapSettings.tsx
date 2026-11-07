@@ -81,7 +81,7 @@ export function KeymapSettings() {
         </div>
       ))}
       <span style={styles.help}>
-        {message || '이동(WASD·방향키), 달리기(Shift), 채팅(Enter), 감정표현(1~8)은 바꿀 수 없어요. 이 브라우저에 기억돼요.'}
+        {message || '이동(WASD), 둘러보기(방향키), 달리기(Shift), 채팅(Enter), 감정표현(1~8)은 바꿀 수 없어요. 이 브라우저에 기억돼요.'}
       </span>
     </div>
   )

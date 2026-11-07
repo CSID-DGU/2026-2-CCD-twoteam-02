@@ -47,7 +47,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   sand: 'KeyN', // 해변 모래에 글씨·그림
 }
 
-// 바꿀 수 없는 키: 이동(WASD·방향키), 달리기(Shift), 채팅(Enter), 창 닫기(Esc), 감정표현(1~8), 그 밖의 조작 키
+// 바꿀 수 없는 키: 이동(WASD), 둘러보기(방향키. 위에서 볼 때는 이동), 달리기(Shift), 채팅(Enter), 창 닫기(Esc), 감정표현(1~8), 그 밖의 조작 키
 const RESERVED = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
   'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight',
