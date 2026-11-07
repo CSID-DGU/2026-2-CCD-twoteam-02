@@ -21,6 +21,7 @@ import { drawPartThumb } from '../avatar/composeSkin'
 const SCALE = 0.6 // 지점과 같은 크기 (키 약 1.6)
 const THUMB = 56 // 부품 그림 칸 크기(px)
 const COLOR_DELAY_MS = 150 // 색상표를 끄는 동안에는 이 시간만큼 멈췄을 때 미리보기를 바꿈(매번 스킨을 새로 만들지 않게)
+const UNDO_GROUP_MS = 800 // 같은 막대·같은 색을 이 시간 안에 이어서 바꾸면 되돌리기 한 단계로 묶음 (끌기 한 번 = 한 단계)
 const SELECTED = '#3b82f6'
 
 type ColorKey = 'skin' | 'eyeColor' | 'hairColor' | 'topColor' | 'bottomColor' | 'shoesColor'
@@ -63,8 +64,27 @@ export function CharacterPicker({ value, onChange }: Props) {
   const [talking, setTalking] = useState(false) // 미리보기에 벌린 입을 보여 줄지: 마지막으로 누른 것이 벌린 입이면 켬
   const [blink, setBlink] = useState(false) // 미리보기에 감은 눈을 보여 줄지: 마지막으로 누른 것이 감은 눈이면 켬
   const tab = TABS.find((t) => t.key === tabKey)!
+  // 되돌리기 (#438): 바로 전 한 단계의 차림만 기억합니다. 🎲 를 잘못 눌러도 돌아올 수 있게.
+  // 막대·색은 끄는 동안 값이 계속 바뀌므로, 같은 것을 UNDO_GROUP_MS 안에 이어서 바꾸면 끌기 전 차림을 그대로 둡니다.
+  const [before, setBefore] = useState<Avatar | null>(null)
+  const lastChange = useRef<{ what: string; at: number } | null>(null)
+  // what: 무엇을 바꿨는지(막대·색은 이름, 부품 고르기·🎲 등은 null 이라 매번 새 단계)
+  const change = (next: Avatar, what: string | null = null) => {
+    if (!value) return
+    const now = Date.now()
+    const last = lastChange.current
+    if (!(what && last?.what === what && now - last.at < UNDO_GROUP_MS)) setBefore(value)
+    lastChange.current = what ? { what, at: now } : null
+    onChange(next)
+  }
+  const undo = () => {
+    if (!before) return
+    onChange(before)
+    setBefore(null)
+    lastChange.current = null
+  }
   // 부품을 바꿔 눈과 입이 겹치게 되면 겹치지 않게 위치를 맞춥니다(fitLayout)
-  const pick = (patch: Partial<Avatar>) => value && onChange(fitLayout({ ...value, ...patch }))
+  const pick = (patch: Partial<Avatar>, what: string | null = null) => value && change(fitLayout({ ...value, ...patch }), what)
 
   return (
     <div style={styles.wrap}>
@@ -94,8 +114,17 @@ export function CharacterPicker({ value, onChange }: Props) {
               {t.label}
             </button>
           ))}
-          <button type="button" style={styles.tab} onClick={() => onChange(fitLayout(randomAvatar()))} disabled={!value} title="무작위로 꾸미기">
+          <button type="button" style={styles.tab} onClick={() => change(fitLayout(randomAvatar()))} disabled={!value} title="무작위로 꾸미기">
             🎲
+          </button>
+          <button
+            type="button"
+            style={{ ...styles.tab, ...(before ? null : styles.tabOff) }}
+            onClick={undo}
+            disabled={!before}
+            title="바로 전 차림으로 되돌리기"
+          >
+            ↶ 되돌리기
           </button>
         </div>
 
@@ -106,7 +135,7 @@ export function CharacterPicker({ value, onChange }: Props) {
             label={tab.color.label}
             value={value[tab.color.key]}
             presets={tab.color.key === 'skin' ? SKIN_PRESETS : undefined}
-            onChange={(c) => pick({ [tab.color!.key]: c })}
+            onChange={(c) => pick({ [tab.color!.key]: c }, `color:${tab.color!.key}`)}
           />
         )}
 
@@ -124,7 +153,7 @@ export function CharacterPicker({ value, onChange }: Props) {
                   step={1}
                   value={value[field]}
                   // 겹치면 이웃 부품을 밀어 자리를 만들고(눈을 키우면 눈썹은 위로·입은 아래로), 얼굴 끝에 닿으면 멈춥니다(moveLayout, #380)
-                  onChange={(e) => onChange(moveLayout(value, field, Number(e.target.value)))}
+                  onChange={(e) => change(moveLayout(value, field, Number(e.target.value)), `layout:${field}`)}
                   style={{ ...styles.slider, background: trackOf(field, value[field], layoutRange(value, field)) }}
                 />
                 <span style={styles.sliderEnd}>{high}</span>
@@ -133,7 +162,7 @@ export function CharacterPicker({ value, onChange }: Props) {
             <button
               type="button"
               style={{ ...styles.tab, alignSelf: 'flex-start' }}
-              onClick={() => onChange(fitLayout(Object.assign({ ...value }, ...tab.layout!.map(([f]) => ({ [f]: 0 })))))}
+              onClick={() => change(fitLayout(Object.assign({ ...value }, ...tab.layout!.map(([f]) => ({ [f]: 0 })))))}
             >
               기본 자리로
             </button>
@@ -267,6 +296,7 @@ const styles: Record<string, CSSProperties> = {
     font: 'inherit', fontSize: 13, cursor: 'pointer',
   },
   tabOn: { background: '#374151', color: '#fff', fontWeight: 700 },
+  tabOff: { opacity: 0.4, cursor: 'default' }, // 되돌릴 것이 없을 때
   section: { display: 'flex', flexDirection: 'column', gap: 6 },
   label: { color: '#cbd5e1', fontSize: 13 },
   grid: { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${THUMB + 12}px, 1fr))`, gap: 6 },
