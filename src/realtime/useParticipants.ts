@@ -88,6 +88,7 @@ import type { ChatPort, FlickPort, Participant, PlayMsg, PlayPort, PresenceState
 import { changedEnough, pack } from './sendLogic'
 import { buildSnapshot, isRepresentative, unknownStates } from './joinLogic'
 import { isDownStatus, nextFailures, reconnectDelay } from './reconnectLogic'
+import { workerInterval } from '../lib/workerInterval'
 import { markDown, markUp } from './connectionStatus'
 import { openSupabaseLink } from './roomLink'
 import type { Presence, RoomLink } from './roomLink'
@@ -440,12 +441,15 @@ export function useParticipants(
     // "값이 그대로면 안 보낸다" 가 트래픽을 아끼는 대신, 가만히 선 사람이
     // 남에게 늦게 보이는 원인이 된다. RESEND_IDLE_MS 가 그 최대 지연이다.
     // 기준값보다 작게 움직이고 멈춘 경우도 이 재전송으로 따라잡는다.
-    const timer = setInterval(() => {
+    //
+    // 반복은 워커 타이머로 돈다(집중 판정과 같음). setInterval 은 다른 탭에 가 있으면 브라우저가
+    // 1초 1회, 5분 뒤에는 1분 1회로 늦춰, 남의 화면에서 STALE_MS 동안 소식이 끊겨 캐릭터가 지워졌다 다시 나타났다.
+    const stopSend = workerInterval(SEND_INTERVAL_MS, () => {
       const state = me.current
       if (!subscribed || !state) return
       if (!changedEnough(lastSent, state) && Date.now() - lastSentAt < RESEND_IDLE_MS) return
       sendNow()
-    }, SEND_INTERVAL_MS)
+    })
 
     // 구독이 끝난 뒤에야 내 상태(me.current)가 채워질 수 있다.
     // 그러면 위 subscribe 안의 track 이 건너뛰어지므로, 들어갈 때까지 다시 시도한다.
@@ -472,7 +476,7 @@ export function useParticipants(
       alive = false
       window.removeEventListener('offline', wentOffline)
       window.removeEventListener('online', cameOnline)
-      clearInterval(timer)
+      stopSend()
       clearInterval(joinTimer)
       clearInterval(sweepTimer)
       if (snapshotTimer) clearTimeout(snapshotTimer)
