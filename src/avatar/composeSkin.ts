@@ -31,6 +31,11 @@ function loadImage(url: string) {
       img.onerror = () => reject(new Error(`부품 그림을 불러오지 못했습니다: ${url}`))
       img.src = url
     })
+    // 못 받은 그림은 기억하지 않습니다. 남겨 두면 잠깐의 네트워크 오류 한 번에 새로고침 전까지 스킨을 계속 못 만듭니다(#422).
+    const mine = p
+    mine.catch(() => {
+      if (images.get(url) === mine) images.delete(url)
+    })
     images.set(url, p)
   }
   return p

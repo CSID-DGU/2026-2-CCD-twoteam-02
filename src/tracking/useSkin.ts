@@ -7,9 +7,12 @@
 // 모든 캐릭터는 같은 3D 모델 하나를 쓰고, 스킨만 고른 부품을 겹쳐 만든 그림으로 바꿉니다.
 // 눈·눈썹·입은 스킨이 아니라 얼굴 앞 판(useFace)에 그립니다(#293).
 // 스킨을 만드는 동안(처음 한 번, 아주 잠깐)은 캐릭터를 숨겨 기본 캐릭터가 비쳐 보이지 않게 합니다.
+// 부품 그림을 못 받아 스킨을 못 만들면 모델의 기본 스킨(맨몸)으로 보이고, 잠시 뒤 다시 만들어 봅니다(#422).
 import { useEffect } from "react";
 import * as THREE from "three";
 import { avatarSkin } from "../avatar/composeSkin";
+
+const RETRY_MS = [2000, 5000, 15000, 30000]; // 스킨을 못 만들었을 때 다시 해 보기까지 기다리는 시간 (차례대로)
 
 // 받은 3D 객체를 바꾸는 일은 컴포넌트·훅 밖에서 합니다(React 규칙 검사가 넘겨받은 값을 바꾸는 것을 막기 때문).
 function setVisible(o: THREE.Object3D, visible: boolean) {
@@ -46,20 +49,28 @@ export function useSkin(root: THREE.Object3D, model: string) {
     const material = [...own.values()][0] as THREE.MeshBasicMaterial | undefined;
     const original = material?.map ?? null;
     let alive = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const apply = (attempt: number) => {
+      avatarSkin(model)
+        .then((tex) => {
+          if (!alive || !material) return;
+          matchTexture(tex, original);
+          material.map = tex;
+        })
+        .catch((e: Error) => {
+          console.error("캐릭터 스킨을 만들지 못했습니다:", e.message); // 그동안은 기본 스킨(맨몸) 그대로
+          if (alive && attempt < RETRY_MS.length) retry = setTimeout(() => apply(attempt + 1), RETRY_MS[attempt]);
+        })
+        .finally(() => {
+          if (alive) setVisible(root, true);
+        });
+    };
     setVisible(root, false);
-    avatarSkin(model)
-      .then((tex) => {
-        if (!alive || !material) return;
-        matchTexture(tex, original);
-        material.map = tex;
-      })
-      .catch((e: Error) => console.error("캐릭터 스킨을 만들지 못했습니다:", e.message)) // 못 만들면 기본 스킨 그대로
-      .finally(() => {
-        if (alive) setVisible(root, true);
-      });
+    apply(0);
 
     return () => {
       alive = false;
+      clearTimeout(retry);
       setVisible(root, true);
       for (const [mesh, original] of originals) mesh.material = original;
       for (const copy of own.values()) copy.dispose(); // 스킨 그림은 다른 캐릭터와 같이 쓰므로 버리지 않음

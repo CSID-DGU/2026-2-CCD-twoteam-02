@@ -1,7 +1,8 @@
 // 캐릭터 3D 모델과 내 캐릭터가 바뀌었다는 알림 (React와 무관한 순수 모듈)
 //
-// 캐릭터 18종(public/models/character-a~r.glb)은 3D 모양·관절·동작이 모두 같고 스킨 그림만 다릅니다.
-// 그래서 모든 캐릭터가 모델 하나(a)를 쓰고, 스킨은 고른 부품을 겹쳐 만든 그림으로 입힙니다(캐릭터 꾸미기, #56, src/avatar/).
+// 모든 캐릭터가 3D 모델 하나(public/models/character-a.glb)를 쓰고, 스킨은 고른 부품을 겹쳐 만든 그림으로 입힙니다(캐릭터 꾸미기, #56, src/avatar/).
+// 모델에 들어 있는 기본 스킨(Textures/texture-a.png)은 맨몸(기본 피부색)입니다. 스킨을 못 만들었을 때만 보입니다(#422).
+// 예전에는 스킨만 다른 캐릭터 18종(character-a~r.glb)이 있었고, 지금은 지웠습니다.
 // 화면 부품들은 캐릭터를 "아바타 키" 글자로 주고받습니다(avatarLogic.avatarKey).
 
 export const BASE_MODEL_URL = '/models/character-a.glb'
