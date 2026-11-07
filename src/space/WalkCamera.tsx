@@ -5,6 +5,7 @@
 // 잠금이 풀린 뒤에는 클릭하거나 걷기 키(WASD·방향키)를 누르면 다시 잠깁니다(#205). 창을 닫고 걷기 시작하면 바로 둘러볼 수 있게.
 // 바라보는 좌우 방향(headingRef)은 Player 와 같이 써서, W 를 누르면 보는 쪽으로 걷습니다.
 // 위아래(pitch)는 카메라만 기울입니다. 걷는 방향에는 영향이 없습니다.
+// 방향키: ←→ 는 좌우로 돌기(Player), ↑↓ 는 위아래 보기(여기). 마우스를 잠그지 않아도 방향키만으로 둘러볼 수 있습니다.
 //
 // 감정표현(#162) 중에는 오버워치처럼 카메라가 앞으로 빠져 돌아서서 내 캐릭터를 비추고, 끝나면 돌아옵니다.
 // 감정표현 바퀴를 고르는 동안에는 마우스로 시점이 돌지 않습니다(바퀴 고르기에 마우스를 씀).
@@ -26,6 +27,7 @@ const WALK_FOV = 70 // 걸을 때는 앉았을 때보다 조금 넓게 봅니다
 const MOUSE_SPEED = 0.0025 // 마우스를 1픽셀 움직일 때 도는 각도(라디안). 설정 창의 마우스 감도(배율)를 곱합니다(#222).
 const TOUCH_SPEED = 0.006 // 폰에서 화면을 1픽셀 끌 때 도는 각도(라디안, #377). 감도 배율을 같이 곱함
 const PITCH_LIMIT = Math.PI / 3 // 위아래 각 60도까지
+const KEY_PITCH_SPEED = 1.4 // 방향키 ↑↓ 로 위아래를 보는 빠르기(초당 라디안)
 const EMOTE_DISTANCE = 2.6 // 감정표현 때 카메라가 내 캐릭터 앞으로 빠지는 거리
 const EMOTE_LIFT = 0.15 // 그때 눈높이에서 조금 올림
 const EMOTE_PITCH = -0.18 // 그때 살짝 내려다봄
@@ -46,6 +48,7 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
   const pitch = useRef(0) // 위(+)·아래(-)로 기울인 각도
   const swing = useRef(0) // 0: 1인칭, 1: 감정표현 때 앞에서 나를 비춤
   const pausedRef = useRef(paused)
+  const tilt = useRef({ up: false, down: false }) // 방향키 ↑↓ 를 누르고 있는지
   const canvas = useThree((s) => s.gl.domElement)
 
   useEffect(() => {
@@ -65,7 +68,10 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
     // 채팅·입력칸에 글을 쓰는 중이거나 Ctrl 등과 함께 누른 키는 무시합니다.
     const keyDown = (e: KeyboardEvent) => {
       if (MOVE_KEYS.has(e.code) && isShortcut(e)) lock()
+      if (isShortcut(e)) setTilt(tilt.current, e.code, true)
     }
+    const keyUp = (e: KeyboardEvent) => setTilt(tilt.current, e.code, false)
+    const clearTilt = () => setTilt(tilt.current, null, false)
     const lockChange = () => {
       // 창이 뜨는 순간과 잠금이 겹치면 바로 다시 풉니다.
       if (isLocked() && pausedRef.current) document.exitPointerLock()
@@ -79,11 +85,15 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
     }
     canvas.addEventListener('click', lock)
     window.addEventListener('keydown', keyDown)
+    window.addEventListener('keyup', keyUp)
+    window.addEventListener('blur', clearTilt)
     document.addEventListener('pointerlockchange', lockChange)
     document.addEventListener('mousemove', move)
     return () => {
       canvas.removeEventListener('click', lock)
       window.removeEventListener('keydown', keyDown)
+      window.removeEventListener('keyup', keyUp)
+      window.removeEventListener('blur', clearTilt)
       document.removeEventListener('pointerlockchange', lockChange)
       document.removeEventListener('mousemove', move)
       // 앉거나 위에서 보기로 바꾸면 커서를 돌려줍니다.
@@ -100,6 +110,11 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
       headingRef.current -= look.dx * speed
       pitch.current = MathUtils.clamp(pitch.current - look.dy * speed, -PITCH_LIMIT, PITCH_LIMIT)
     }
+    // 방향키 ↑ = 위 보기, ↓ = 아래 보기. 창이 떠 있거나 감정표현 바퀴를 고르는 동안은 멈춤
+    const t = +tilt.current.up - +tilt.current.down
+    if (t && !pausedRef.current && !suspendLookRef?.current) {
+      pitch.current = MathUtils.clamp(pitch.current + t * KEY_PITCH_SPEED * Math.min(delta, 0.05), -PITCH_LIMIT, PITCH_LIMIT)
+    }
     const { x, z } = posRef.current
     const h = headingRef.current
     // 감정표현 중이면 앞으로 빠져 돌아서고(swing → 1), 끝나면 돌아옵니다(→ 0).
@@ -115,4 +130,11 @@ export function WalkCamera({ posRef, headingRef, paused = false, onLockChange, e
   })
 
   return <PerspectiveCamera ref={cam} makeDefault fov={WALK_FOV} near={0.05} />
+}
+
+// 방향키 ↑↓ 누름 상태를 바꿉니다. code 가 null 이면 둘 다 뗌(창을 벗어났을 때).
+// 받은 객체를 바꾸는 일이라 컴포넌트 밖에 둡니다(React 규칙 검사).
+function setTilt(t: { up: boolean; down: boolean }, code: string | null, pressed: boolean) {
+  if (code === null || code === 'ArrowUp') t.up = code === null ? false : pressed
+  if (code === null || code === 'ArrowDown') t.down = code === null ? false : pressed
 }

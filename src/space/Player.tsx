@@ -324,8 +324,9 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
       const h = headingRef.current
       g.rotation.y = h
       // 앞뒤·옆걸음: 키보드가 눌려 있으면 키보드, 아니면 조이스틱(덜 밀면 천천히)
+      // 1인칭에서 방향키 ↑↓ 는 걷기가 아니라 위아래 보기입니다(WalkCamera). 앞뒤는 W·S 로만 걷습니다.
       const { f, r, scale } = combineMove(
-        +(k.has('KeyW') || k.has('ArrowUp')) - +(k.has('KeyS') || k.has('ArrowDown')),
+        +k.has('KeyW') - +k.has('KeyS'),
         +k.has('KeyD') - +k.has('KeyA'),
         stick,
       )
