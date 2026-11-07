@@ -7,6 +7,8 @@
 //   새로 들어온 사람은 "공 어디 있어요?"(need)를 보내고, 주인이 바로 답합니다. 주인이 없으면 공 상태를 아는 사람 중
 //   가장 먼저 기다림이 끝난 한 명이 주인이 되어 답하고 나머지는 취소합니다(needReplyDelay, #473). 아무도 없으면 가운데 점에서 시작.
 //   거의 동시에 둘이 차면 나중에 보낸 쪽으로 맞춰집니다.
+// 중계 서버를 쓰면(#473) 따로 방을 열지 않고 캠퍼스 위치 방(playPort)으로 주고받습니다. need 는 서버가 가장 오래 있던
+//   한 사람에게만 넘기고(r: 물어본 연결), 그 사람이 물어본 사람에게만 바로 답합니다. 실험 배포는 위처럼 Supabase 방을 씁니다.
 // 골이 나면 골대 위에 "골!"을 GOAL_SHOW_MS 동안 띄우고, 주인이 공을 가운데 점으로 돌려놓습니다.
 // 축구장 밖으로 나가 BALL.outReturnMs 동안 있으면 주인이 가운데 점으로 돌려놓습니다. 주인이 떠났으면 그 두 배 뒤에 아무나.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -20,6 +22,7 @@ import type { BallState, BallWorld, Goal, Pitch } from './ballLogic'
 import { ballTexture } from './fieldShapes'
 import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import type { Box } from '../space/layout'
+import type { PlayListener, PlayPort } from '../realtime/participants'
 
 const BALL_CHANNEL = 'campus-ball'
 const SEND_MS = 150
@@ -31,7 +34,8 @@ type Msg = BallState & { owner: string; goal?: Goal }
 // 같은 채널 사람들끼리만 공을 같이 봅니다. 다른 채널 사람이 찬 공이 저절로 굴러가 보이지 않게 (#442)
 const ballRoom = (channelNo: number) => (channelNo > 1 ? `${BALL_CHANNEL}:${channelNo}` : BALL_CHANNEL)
 
-export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitch: Pitch; size: { w: number; d: number }; obstacles: Box[]; posRef: RefObject<{ x: number; z: number }>; channelNo: number }) {
+// playPort: 중계 서버 위치 방 통로 (#473). 없으면 Supabase 방
+export function SoccerBall({ pitch, size, obstacles, posRef, channelNo, playPort }: { pitch: Pitch; size: { w: number; d: number }; obstacles: Box[]; posRef: RefObject<{ x: number; z: number }>; channelNo: number; playPort?: RefObject<PlayPort> }) {
   const [me] = useState(() => Math.random().toString(36).slice(2)) // 이 탭 구분 (주인 표시용)
   const world = useMemo<BallWorld>(() => ({ half: { w: size.w / 2 - 0.3, d: size.d / 2 - 0.3 }, boxes: obstacles, pitch }), [size, obstacles, pitch])
   const ball = useRef<BallState>({ x: pitch.x, z: pitch.z, vx: 0, vz: 0 })
@@ -42,14 +46,14 @@ export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitc
   const prevPos = useRef<{ x: number; z: number } | null>(null)
   const vel = useRef({ x: 0, z: 0 })
   const mesh = useRef<THREE.Mesh>(null)
-  const channel = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const channel = useRef<((payload: Msg, to?: string) => void) | null>(null) // 공 상태 보내기 (to: need 에 답할 연결)
   const [goal, setGoal] = useState<Goal | null>(null)
   const outSince = useRef<number | null>(null) // 축구장 밖으로 나간 시각
   const material = useMemo(() => new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.6 }), [])
 
-  const send = (extra: Partial<Msg> = {}) => {
+  const send = (extra: Partial<Msg> = {}, to?: string) => {
     lastSent.current = performance.now()
-    void channel.current?.send({ type: 'broadcast', event: 'ball', payload: { ...ball.current, owner: owner.current ?? me, ...extra } })
+    channel.current?.({ ...ball.current, owner: owner.current ?? me, ...extra }, to)
   }
   const sendRef = useRef(send)
   useEffect(() => {
@@ -77,9 +81,7 @@ export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitc
     known.current = false
     owner.current = null
     ball.current = { x: pitch.x, z: pitch.z, vx: 0, vz: 0 }
-    let reply: number | undefined
-    const ch = supabase.channel(ballRoom(channelNo), { config: { broadcast: { self: false } } })
-    ch.on('broadcast', { event: 'ball' }, ({ payload }) => {
+    const take = (payload: unknown) => {
       const m = payload as Msg
       if (typeof m?.x !== 'number' || typeof m.vx !== 'number') return
       window.clearTimeout(reply) // 다른 사람이 먼저 답함
@@ -87,7 +89,31 @@ export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitc
       owner.current = m.owner
       known.current = true
       if (m.goal) showGoalRef.current(m.goal, false)
-    })
+    }
+    let reply: number | undefined
+
+    // 중계 서버: 위치 방으로. need 는 서버가 이미 한 사람만 골랐으므로 기다리지 않고 바로 답합니다
+    const port = playPort?.current
+    if (port) {
+      const ask = () => port.send?.('ball-need', {})
+      const listener: PlayListener = {
+        receive: (m) => {
+          if (m.e === 'ball') take(m.p)
+          else if (m.e === 'ball-need' && m.r && known.current) sendRef.current({}, m.r)
+        },
+        ready: ask,
+      }
+      port.listeners.add(listener)
+      channel.current = (payload, to) => port.send?.('ball', payload, to)
+      ask() // 이미 방에 있으면 바로 묻고, 아직이면 들어간 뒤 ready 가 묻습니다
+      return () => {
+        port.listeners.delete(listener)
+        channel.current = null
+      }
+    }
+
+    const ch = supabase.channel(ballRoom(channelNo), { config: { broadcast: { self: false } } })
+    ch.on('broadcast', { event: 'ball' }, ({ payload }) => take(payload))
       .on('broadcast', { event: 'need' }, () => {
         if (!known.current) return
         window.clearTimeout(reply)
@@ -100,13 +126,13 @@ export function SoccerBall({ pitch, size, obstacles, posRef, channelNo }: { pitc
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') void ch.send({ type: 'broadcast', event: 'need', payload: {} })
       })
-    channel.current = ch
+    channel.current = (payload) => void ch.send({ type: 'broadcast', event: 'ball', payload })
     return () => {
       window.clearTimeout(reply)
       channel.current = null
       void supabase.removeChannel(ch)
     }
-  }, [channelNo, pitch.x, pitch.z, me])
+  }, [channelNo, pitch.x, pitch.z, me, playPort])
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05)

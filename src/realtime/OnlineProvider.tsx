@@ -17,7 +17,7 @@
 //   - 연결 오류·시간 초과·끊김이 오면
 //   - 명단을 기다리는 상태가 STUCK_MS 넘게 이어지면 (WATCH_MS 마다 확인)
 //   - 창이 HIDDEN_REJOIN_MS 넘게 가려져 있다가 다시 보이거나, 인터넷이 다시 연결되면
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -29,8 +29,9 @@ import { OnlineContext } from './onlineContext'
 import { ConnectionNotice } from './ConnectionNotice'
 import { relayUrl } from './relayLink'
 import { openOnlineLink, REPLACED_STATUS } from './onlineLink'
+import type { OnlineLink } from './onlineLink'
 import { useMyChannel } from './myChannel'
-import type { OnlineEntry } from './onlineContext'
+import type { ChatIncoming, ChatPort, OnlineEntry } from './onlineContext'
 
 type Meta = { place?: string; studying?: boolean; quiet?: boolean; channel?: number } & TabMeta
 
@@ -69,6 +70,23 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<Link | null>(null)
   const subscribed = useRef(false)
   const [joinCount, setJoinCount] = useState(0) // 올리면 방에 새로 들어갑니다
+  // 채팅 통로 (#473): 다시 들어가며 연결이 바뀌어도 같은 통로를 쓰게, 지금 연결과 받는 곳을 ref 에 둡니다
+  const relayRef = useRef<OnlineLink<Meta> | null>(null)
+  const chatListeners = useRef(new Set<(m: ChatIncoming) => void>())
+  const chat = useMemo<ChatPort | null>(
+    () =>
+      relayUrl()
+        ? {
+            send: (to, event, payload) => relayRef.current?.chat(to, event, payload) ?? Promise.resolve(false),
+            refresh: () => relayRef.current?.refreshPeers(),
+            listen: (fn) => {
+              chatListeners.current.add(fn)
+              return () => void chatListeners.current.delete(fn)
+            },
+          }
+        : null,
+    [],
+  )
 
   useEffect(() => {
     if (!myId) return
@@ -116,6 +134,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     if (relay) {
       const online = openOnlineLink<Meta>(relay, {
         onSync: () => read('sync'),
+        onChat: (m) => chatListeners.current.forEach((fn) => fn(m)),
         onStatus: (status) => {
           dbg('연결 상태(중계)', status)
           if (status === 'SUBSCRIBED') {
@@ -131,8 +150,12 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         },
       })
       link = online
+      relayRef.current = online
       isStuck = () => !subscribed.current
-      stop = online.close
+      stop = () => {
+        if (relayRef.current === online) relayRef.current = null
+        online.close()
+      }
       online.open()
     } else {
       const channel = supabase.channel(ONLINE_CHANNEL, { config: { presence: { key: myId } } })
@@ -215,7 +238,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
   // 여기서 계속하기 (#347): 양보를 풀면 App 이 장면을 다시 열고, 장면에 들어오며 이 탭이 순서를 새로 잡아 다른 탭이 양보합니다.
   const takeOver = useCallback(() => setYielded(false), [])
   return (
-    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver }}>
+    <OnlineContext.Provider value={{ people, studying, setPlace, setStudying, setQuiet, yielded: Boolean(myId) && yielded, takeOver, chat }}>
       {children}
       <ConnectionNotice />
     </OnlineContext.Provider>

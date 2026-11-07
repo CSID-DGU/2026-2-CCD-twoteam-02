@@ -8,11 +8,12 @@
 //   {t:'b', s:[...]}   →  사람마다 MOVE_EVENT
 //   {t:'b', g:[...]}   →  onLeave
 //   {t:'e', e, p}      →  FLICK_EVENT, PROFILE_EVENT
+//   {t:'p', e, p, r}   →  PLAY_EVENT (축구공·모래 글씨, #473)
 //
 // 토큰은 부프로토콜 칸으로 보낸다(이유는 relay/src/index.ts). 연결할 때마다 새로 읽으므로
 // 토큰이 끝나 서버가 끊으면 재연결이 새 토큰으로 들어간다.
 import { supabase } from '../lib/supabase'
-import { FLICK_EVENT, MOVE_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './participants'
+import { FLICK_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './participants'
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 
 const SUBPROTOCOL = 'relay.v1'
@@ -43,7 +44,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
   function receive(text: unknown) {
     heardAt = Date.now()
     if (typeof text !== 'string' || text === 'pong') return
-    let m: { t?: string; s?: unknown[]; g?: string[]; e?: string; p?: unknown }
+    let m: { t?: string; s?: unknown[]; g?: string[]; e?: string; p?: unknown; r?: string }
     try {
       m = JSON.parse(text)
     } catch {
@@ -54,6 +55,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
       for (const userId of m.g ?? []) events.onLeave([{ userId }])
       for (const state of m.s ?? []) events.onMessage(MOVE_EVENT, state)
     } else if (m.t === 'e' && m.e) events.onMessage(m.e, m.p)
+    else if (m.t === 'p') events.onMessage(PLAY_EVENT, { e: m.e, p: m.p, r: m.r })
   }
 
   async function connect() {
@@ -82,6 +84,11 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
       if (ws?.readyState !== WebSocket.OPEN) return 'closed'
       if (event === MOVE_EVENT) ws.send(JSON.stringify({ t: 'm', s: payload }))
       else if (event === FLICK_EVENT || event === PROFILE_EVENT) ws.send(JSON.stringify({ t: 'e', e: event, p: payload }))
+      else if (event === PLAY_EVENT) {
+        // 서버는 맨 앞 {"t":"p" 로 축구공·모래 글씨를 알아보고 따로 센다. t 를 맨 앞에 둔다
+        const q = payload as { e: string; p?: unknown; to?: string }
+        ws.send(JSON.stringify({ t: 'p', e: q.e, p: q.p ?? {}, ...(q.to ? { to: q.to } : {}) }))
+      }
       // HELLO_EVENT 는 보내지 않는다. 서버가 스냅샷을 직접 준다. SNAPSHOT_EVENT 는 대표가 없으니 나올 일이 없다.
       return 'ok'
     },

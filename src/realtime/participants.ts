@@ -127,6 +127,16 @@ export type FlickPort = {
   send: ((to: string) => void) | null // 방에 들어가기 전에는 null
 }
 
+// 축구공·모래 글씨(#473) 통로. 중계 서버를 쓸 때만 위치 방으로 주고받는다(relay/src/playLogic.ts).
+// 같은 화면에 공과 글씨가 같이 있을 수 있어 받는 곳을 여럿 둔다. ready 는 방에 (다시) 들어갔을 때 불러 need 를 보내게 한다.
+export const PLAY_EVENT = 'play'
+export type PlayMsg = { e?: string; p?: unknown; r?: string } // r: 서버가 need 를 넘겨줄 때 답할 연결
+export type PlayListener = { receive: (m: PlayMsg) => void; ready: () => void }
+export type PlayPort = {
+  send: ((e: string, p: unknown, to?: string) => void) | null // 방에 들어가기 전에는 null
+  listeners: Set<PlayListener>
+}
+
 export type ChatPort = {
   receive: (from: string, payload: unknown) => void
   send: ((text: string) => Promise<boolean>) | null // 방에 들어가기 전에는 null

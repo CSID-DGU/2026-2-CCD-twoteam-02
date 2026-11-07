@@ -19,6 +19,10 @@
 //   - 누가 들어오거나 나가면 그룹 방에 알려, 다른 멤버가 멤버 목록을 다시 읽게 합니다.
 // 회의 채팅(#298): 회의에 있는 사람끼리는 자동으로 회의 방(meeting:회의번호)에서 이야기합니다.
 //   회의 화면이 그 방에 들어가 있으므로(useParticipants) 회의 화면이 보내기·받기를 이어 줍니다(useMeetingChat).
+//
+// 중계 서버(#473): VITE_RELAY_URL 이 있으면 친구 방·그룹 방 대신 접속 표시 연결(useChatPort)로 주고받습니다.
+//   서버가 보낸 사람의 친구·그룹을 DB 에서 확인해 친구·멤버에게만 전달하므로 Supabase 연결이 열리지 않습니다.
+//   이벤트 이름과 내용은 그대로이고, 그룹 채팅의 보낸 사람은 서버가 붙입니다. 실험 배포는 예전처럼 Supabase 방을 씁니다.
 import { useQuietLock } from './quietLock'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -27,7 +31,8 @@ import { supabase } from '../lib/supabase'
 import { useSession } from '../auth/useSession'
 import { useFriends } from '../friends/useFriends'
 import { otherOf } from '../friends/friendsLogic'
-import { useMyStudying, useOnline, useQuietFlag } from '../realtime/onlineContext'
+import { useChatPort, useMyStudying, useOnline, useQuietFlag } from '../realtime/onlineContext'
+import type { ChatTarget } from '../realtime/onlineContext'
 import { ChatContext } from './chatContext'
 import type { ChatLine, MeetingInvite } from './chatContext'
 import {
@@ -75,6 +80,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { session } = useSession()
   const myId = session?.user.id ?? ''
   const people = useOnline()
+  const port = useChatPort() // 중계 서버 채팅 통로 (#473). null 이면 Supabase 방
   const studying = useMyStudying()
   const { list, names, reload } = useFriends(myId || undefined)
   const groupApi = useGroup(myId || undefined)
@@ -279,9 +285,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     receiveGroupChangedRef.current = receiveGroupChanged
   }, [receiveGroupChanged])
 
-  // 그룹 방(아래 groupChannel)에 "누가 들어왔다/나갔다"를 알립니다.
+  // 보내기(아래 sendTo). 위에서 정의하는 콜백도 늘 최신 것을 쓰게 ref 로 둡니다
+  const sendToRef = useRef<(to: ChatTarget, event: string, payload: Record<string, unknown>) => Promise<boolean>>(async () => false)
+
+  // 내 그룹에 "누가 들어왔다/나갔다"를 알립니다.
   const tellGroup = useCallback((who: string, change: 'join' | 'leave') => {
-    void groupChannel.current?.ch.send({ type: 'broadcast', event: GROUP_CHANGED_EVENT, payload: { who, change } })
+    const gid = latest.current.group?.id
+    if (gid !== undefined) void sendToRef.current({ g: gid }, GROUP_CHANGED_EVENT, { who, change })
   }, [])
 
   // 친구가 그룹 초대를 보냈다는 알림 (귓속말 방으로 옴). DB 에 그 초대가 있을 때만 [수락] [거절] 줄을 띄웁니다.
@@ -321,7 +331,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // 접속 중인 친구마다 둘만의 비공개 방에 들어가고, 나간 친구의 방에서는 나옵니다.
   const channels = useRef(new Map<string, RealtimeChannel>())
   useEffect(() => {
-    if (!myId) return
+    if (!myId || port) return
     const map = channels.current
     const want = new Set(onlineKey ? onlineKey.split(',') : [])
     for (const [id, ch] of map) {
@@ -344,13 +354,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         })
       map.set(id, ch)
     }
-  }, [myId, onlineKey])
+  }, [myId, onlineKey, port])
 
   // 내 그룹 방에 들어가고, 그룹이 바뀌거나 없어지면 나옵니다 (#298).
   // 접속한 멤버가 없어도 들어가 둡니다(나중에 누가 접속해 보내면 바로 받게).
   const groupId = group?.id ?? null
   useEffect(() => {
-    if (!myId || groupId === null) return
+    if (!myId || groupId === null || port) return
     const ch = supabase.channel(groupTopic(groupId), { config: { private: true, broadcast: { self: false } } })
     ch.on('broadcast', { event: GROUP_EVENT }, ({ payload }) => void receiveGroupRef.current(groupId, payload))
       .on('broadcast', { event: GROUP_CHANGED_EVENT }, ({ payload }) => void receiveGroupChangedRef.current(payload))
@@ -363,7 +373,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void supabase.removeChannel(ch)
       if (groupChannel.current?.ch === ch) groupChannel.current = null
     }
-  }, [myId, groupId])
+  }, [myId, groupId, port])
+
+  // 중계 서버로 받은 채팅·알림을 이벤트 이름대로 나눠 줍니다 (#473). 보낸 사람은 서버가 토큰으로 확인한 계정입니다
+  useEffect(() => {
+    if (!myId || !port) return
+    return port.listen(({ from, group: gid, event, payload }) => {
+      if (gid !== null) {
+        if (event === GROUP_EVENT) void receiveGroupRef.current(gid, { ...payload, from })
+        else if (event === GROUP_CHANGED_EVENT && latest.current.group?.id === gid) void receiveGroupChangedRef.current(payload)
+        return
+      }
+      if (event === WHISPER_EVENT) receiveRef.current(from, payload)
+      else if (event === INVITE_EVENT) void receiveInviteRef.current(from, payload)
+      else if (event === GROUP_INVITE_EVENT) void receiveGroupInviteRef.current(from)
+      else if (event === GROUP_JOINED_EVENT) receiveGroupJoinedRef.current(from)
+      else if (event === SUMMON_EVENT) receiveSummonRef.current(from)
+      else if (event === ARRIVED_EVENT) receiveArrivedRef.current(from, payload)
+    })
+  }, [myId, port])
+
+  // 친구·그룹 멤버가 바뀌면 서버가 DB 에서 다시 읽게 합니다 (#473). 처음 목록은 서버가 접속할 때 읽습니다
+  const friendsKey = friends.map((f) => f.id).sort().join(',')
+  const groupKey = group ? `${group.id}:${group.members.map((m) => m.id).sort().join(',')}` : ''
+  const peersSeen = useRef<string | null>(null)
+  useEffect(() => {
+    if (!myId || !port) return
+    const key = `${friendsKey}|${groupKey}`
+    if (peersSeen.current !== null && peersSeen.current !== key) port.refresh()
+    peersSeen.current = key
+  }, [myId, port, friendsKey, groupKey])
+
+  // 친구 한 명에게 보내기. 중계 서버면 접속 표시 연결로, 아니면 둘만의 Supabase 방으로 (접속한 친구에게만)
+  const canReach = useCallback((to: string) => (port ? onlineKey.split(',').includes(to) : channels.current.has(to)), [port, onlineKey])
+  const sendTo = useCallback(
+    async (to: ChatTarget, event: string, payload: Record<string, unknown>) => {
+      if (port) return port.send(to, event, payload)
+      const ch = 'u' in to ? channels.current.get(to.u) : groupChannel.current?.id === to.g ? groupChannel.current.ch : null
+      if (!ch) return false
+      return (await ch.send({ type: 'broadcast', event, payload: 'g' in to ? { ...payload, from: myId } : payload })) === 'ok'
+    },
+    [myId, port],
+  )
+  useEffect(() => {
+    sendToRef.current = sendTo
+  }, [sendTo])
 
   // 로그아웃하거나 계정이 바뀌면 방에서 모두 나옵니다. (그룹 방은 위 효과가 정리함)
   useEffect(() => {
@@ -379,16 +433,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { invite: dbInvite, accept: dbAccept, decline: dbDecline, leave: dbLeave } = groupApi
   const inviteToGroup = useCallback(
     async (friendId: string) => {
-      const ch = channels.current.get(friendId)
       const peer = latest.current.friends.find((f) => f.id === friendId)
-      if (!ch || !peer) return '접속한 친구만 그룹에 초대할 수 있어요.'
+      if (!canReach(friendId) || !peer) return '접속한 친구만 그룹에 초대할 수 있어요.'
       const error = await dbInvite(friendId)
       if (error) return error
-      void ch.send({ type: 'broadcast', event: GROUP_INVITE_EVENT, payload: {} })
+      void sendTo({ u: friendId }, GROUP_INVITE_EVENT, {})
       addLine({ kind: 'system', text: `${peer.nickname} 님을 그룹에 초대했어요. 5분 안에 수락하면 들어와요.` })
       return ''
     },
-    [addLine, dbInvite],
+    [addLine, canReach, dbInvite, sendTo],
   )
 
   // 받은 초대를 수락합니다. 지금 그룹이 있으면 나와서 옮겨 가고, 앞 그룹에는 나갔다고 알립니다.
@@ -398,11 +451,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const error = await dbAccept(inviterId)
       if (error) return error
       if (wasInGroup) tellGroup(myId, 'leave')
-      void channels.current.get(inviterId)?.send({ type: 'broadcast', event: GROUP_JOINED_EVENT, payload: {} })
+      void sendTo({ u: inviterId }, GROUP_JOINED_EVENT, {})
       addLine({ kind: 'system', text: '그룹에 들어갔어요. 채팅창에서 Tab 으로 [그룹]을 골라 이야기할 수 있어요.' })
       return ''
     },
-    [addLine, dbAccept, myId, tellGroup],
+    [addLine, dbAccept, myId, sendTo, tellGroup],
   )
 
   const leaveGroup = useCallback(async () => {
@@ -498,22 +551,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // 그룹에 보내기. 보낸 사람(나)을 적어 보냅니다.
       if (g && to === groupTopic(g.id)) {
-        const gch = groupChannel.current?.id === g.id ? groupChannel.current.ch : null
-        if (!gch) return '그룹 방에 아직 들어가지 못했어요. 잠시 뒤 다시 보내 주세요.'
+        if (!port && groupChannel.current?.id !== g.id) return '그룹 방에 아직 들어가지 못했어요. 잠시 뒤 다시 보내 주세요.'
         if (!g.members.some((p) => people.has(p.id))) return '그룹에 지금 접속한 멤버가 없어요.'
         lastSent.current = now
-        const result = await gch.send({ type: 'broadcast', event: GROUP_EVENT, payload: { text, from: myId } })
-        if (result !== 'ok') return '보내지 못했어요. 잠시 뒤 다시 보내 주세요.'
+        if (!(await sendTo({ g: g.id }, GROUP_EVENT, { text }))) return '보내지 못했어요. 잠시 뒤 다시 보내 주세요.'
         pushOutgoing({ room: { kind: 'group', key: to }, text }, to)
         return ''
       }
 
-      const ch = channels.current.get(to)
       const peer = latest.current.friends.find((f) => f.id === to)
-      if (!ch || !peer) return '그 친구는 지금 접속해 있지 않아요.'
+      if (!canReach(to) || !peer) return '그 친구는 지금 접속해 있지 않아요.'
       lastSent.current = now
-      const result = await ch.send({ type: 'broadcast', event: WHISPER_EVENT, payload: { text } })
-      if (result !== 'ok') return '보내지 못했어요. 잠시 뒤 다시 보내 주세요.'
+      if (!(await sendTo({ u: to }, WHISPER_EVENT, { text }))) return '보내지 못했어요. 잠시 뒤 다시 보내 주세요.'
       pushOutgoing({ peer, text }, to)
       // 상대가 방해금지 중이면 답이 늦을 수 있다고 한 번 알려 줍니다.
       const peerQuiet = people.get(to)?.quiet ?? false
@@ -524,40 +573,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!peerQuiet) toldQuiet.current.delete(to)
       return ''
     },
-    [addLine, myId, people, pushOutgoing],
+    [addLine, canReach, people, port, pushOutgoing, sendTo],
   )
 
   // 회의 초대 알림 보내기 (#45). 초대 자체는 먼저 DB(invite_to_meeting)에 저장하고, 접속한 친구에게만 이 알림이 갑니다.
   const sendInvite = useCallback(
     async (to: string, meetingId: number) => {
-      const ch = channels.current.get(to)
       const peer = latest.current.friends.find((f) => f.id === to)
-      if (!ch || !peer) return false
-      const result = await ch.send({ type: 'broadcast', event: INVITE_EVENT, payload: { meetingId } })
-      if (result !== 'ok') return false
+      if (!canReach(to) || !peer) return false
+      if (!(await sendTo({ u: to }, INVITE_EVENT, { meetingId }))) return false
       addLine({ kind: 'system', text: `${peer.nickname} 님을 회의에 초대했어요.` })
       return true
     },
-    [addLine],
+    [addLine, canReach, sendTo],
   )
 
   // 친구 부르기: 내가 있는 곳으로 와 달라는 [부름]을 보냅니다. 접속한 친구에게만 갑니다.
   const sendSummon = useCallback(
     async (to: string) => {
-      const ch = channels.current.get(to)
       const peer = latest.current.friends.find((f) => f.id === to)
-      if (!ch || !peer) return false
-      const result = await ch.send({ type: 'broadcast', event: SUMMON_EVENT, payload: {} })
-      if (result !== 'ok') return false
+      if (!canReach(to) || !peer) return false
+      if (!(await sendTo({ u: to }, SUMMON_EVENT, {}))) return false
       addLine({ kind: 'system', text: `${peer.nickname} 님을 불렀어요. 친구가 [가기]를 누르면 내 옆으로 와요.` })
       return true
     },
-    [addLine],
+    [addLine, canReach, sendTo],
   )
   // 친구 옆에 도착했다고 알립니다 (따라감·부름을 받고 감)
-  const tellArrived = useCallback((to: string, how: 'follow' | 'summon') => {
-    void channels.current.get(to)?.send({ type: 'broadcast', event: ARRIVED_EVENT, payload: { how } })
-  }, [])
+  const tellArrived = useCallback(
+    (to: string, how: 'follow' | 'summon') => {
+      if (canReach(to)) void sendTo({ u: to }, ARRIVED_EVENT, { how })
+    },
+    [canReach, sendTo],
+  )
 
   const setMuted = useCallback((on: boolean) => {
     setMutedState(on)
