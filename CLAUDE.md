@@ -21,7 +21,7 @@
 
 - 언어·프론트: TypeScript, React 19, Vite, react-router(주소별 화면 전환)
 - 2D·3D 화면: Three.js, React Three Fiber, drei (2D 이동과 3D 좌석은 같은 공간에서 카메라만 전환)
-- 캐릭터: GLB 모델(`public/models/character-a.glb`)을 drei `useGLTF`로 불러온다. 18종은 모양이 같고 스킨만 달라서 모델 하나에 맨몸(피부색)과 고른 부품(머리·상의·하의·신발, `public/models/Parts/`)을 겹치고 색을 입힌 스킨을 입힌다(#56). 눈·눈썹·입은 얼굴 앞에 붙인 판에 스티커처럼 얹어, 사용자가 위치·크기를 옮길 수 있다(#293). VRM·three-vrm은 쓰지 않는다.
+- 캐릭터: GLB 모델(`public/models/character-a.glb`)을 drei `useGLTF`로 불러온다. 모든 캐릭터가 이 모델 하나에 맨몸(피부색)과 고른 부품(머리·상의·하의·신발, `public/models/Parts/`)을 겹치고 색을 입힌 스킨을 입힌다(#56). 눈·눈썹·입은 얼굴 앞에 붙인 판에 스티커처럼 얹어, 사용자가 위치·크기를 옮길 수 있다(#293). VRM·three-vrm은 쓰지 않는다.
 - 트래킹: MediaPipe Face Landmarker (`@mediapipe/tasks-vision`, 고개·눈), Pose Landmarker (팔·카메라 가이드라인), Object Detector (휴대폰, EfficientDet-Lite0)
 - 백엔드: Supabase (`@supabase/supabase-js` — Auth, PostgreSQL, Realtime(Broadcast·Presence), 좌석 배정 DB 함수). 접속 정보는 `.env.local`에 두고 `src/lib/supabase.ts`에서만 읽는다. 스키마 변경은 `supabase/migrations/`에 번호 순서대로 파일을 추가한다.
 - 위치 중계: Cloudflare Workers·Durable Objects (`relay/`, #464). 광장·지점의 위치와 사이트 전체 접속 상태(#473, `/online`)를 여기로 주고받는다. 채팅·알림(귓속말, 그룹, 회의 초대, 부르기)은 접속 표시 방이 보낸 사람의 친구·그룹을 DB에서 확인해 전달하고, 축구공·모래 글씨는 위치 방으로 주고받는다(#473). 로그인, DB, 회의실, 음성은 Supabase에 둔다. `VITE_RELAY_URL`이 비어 있으면 위치, 접속 상태, 채팅, 축구공, 모래 글씨도 Supabase Realtime으로 주고받는다.
