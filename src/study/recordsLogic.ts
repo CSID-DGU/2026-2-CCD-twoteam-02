@@ -50,9 +50,12 @@ export function byMonthOfYear(rows: LogRow[]): number[] {
   return out
 }
 
-// 초 → "3시간 12분", "45분", "0분"
+// 초 → "3시간 12분", "45분", "40초", "0분"
+// 1분이 안 되면 초로 보여 줍니다. 분으로 버리면 기록이 있는데도 "0분"으로 보였습니다(#114).
 export function formatHM(seconds: number): string {
-  const minutes = Math.floor(seconds / 60)
+  const s = Math.floor(seconds)
+  if (s > 0 && s < 60) return `${s}초`
+  const minutes = Math.floor(s / 60)
   const h = Math.floor(minutes / 60), m = minutes % 60
   if (h === 0) return `${m}분`
   return m === 0 ? `${h}시간` : `${h}시간 ${m}분`
