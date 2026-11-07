@@ -8,6 +8,9 @@ import type { BranchInfo } from "./useBranchInfo";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
 import { useShowPerf } from "../menu/perfSetting";
 import { SeatCamera } from "./SeatCamera";
+import { SeatViewButton } from "./SeatViewButton";
+import { SeatedCharacter } from "./SeatedCharacter";
+import { useSeatView } from "./useSeatView";
 import { TopDownCamera } from "./TopDownCamera";
 import { MeetingDialog } from "../meeting/MeetingDialog";
 import KioskScreen from "../kiosk/KioskScreen";
@@ -396,15 +399,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     }));
   };
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이거나 키오스크가 떠 있으면 무시합니다.
+  // 앉아 있으면 좌석 카메라(SeatCamera)가 같은 키로 좌석 시점을 바꾸므로 여기서는 건드리지 않습니다(#436).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().view || e.repeat || kioskOpen || orderOpen || bookOpen || panelOpen || meetingOpen || elevatorOpen || boardOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
+      if (e.code !== getKeymap().view || e.repeat || seat !== null || kioskOpen || orderOpen || bookOpen || panelOpen || meetingOpen || elevatorOpen || boardOpen) return; // 위에서 보기 ↔ 1인칭 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       setView((v) => (v === "top" ? "first" : "top"));
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [kioskOpen, orderOpen, bookOpen, panelOpen, meetingOpen, elevatorOpen, boardOpen, setView]);
+  }, [seat, kioskOpen, orderOpen, bookOpen, panelOpen, meetingOpen, elevatorOpen, boardOpen, setView]);
   // 먹기·마시기 키(설정 eat, 기본 C): 손이 비워지고 잠깐 한마디
   const eat = (item: MenuItem) => {
     setHeldItem(null);
@@ -431,6 +435,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   });
 
   const seatSpot = spots.find((c) => c.no === seat);
+  const seatView = useSeatView(); // 앉았을 때 시점 (#436). 3인칭이면 내 캐릭터를 앉은 모습으로 그림
   const seatDesk = branch.seats.find((c) => c.no === seat); // 앉은 자리 책상 가운데 (음료 내려놓기)
   // 조준점이 가리키는 사람 (#354): 1인칭으로 서 있고 창이 없을 때만. 앉아 있으면 E 는 일어나기뿐
   const aim = useAim();
@@ -506,6 +511,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           spot={seatSpot}
           onArrive={handleArrive}
           paused={studyDialogOpen || panelOpen}
+          walls={branch.walls}
         />
       ) : view === "first" ? (
         <>
@@ -567,6 +573,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         />
       )}
 
+      {/* 3인칭 좌석 시점(#436): 앉아 있는 동안 Player 는 숨으므로, 남에게 보이는 것과 같은 앉은 모습으로 나를 그립니다. */}
+      {myModel && seatSpot && seatView !== "first" && <SeatedCharacter spot={seatSpot} model={myModel} live={me} />}
       {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
       {myModel && (
         <Player
@@ -616,6 +624,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     </Canvas>
     </div>
     {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
+    {seatSpot && !touch && <SeatViewButton />}
     {seat !== null && session && !isRest && ( // 휴식방에서는 공부 시작 창·트래킹을 띄우지 않음
       <SeatedStudy
         userId={session.user.id}

@@ -411,7 +411,7 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
   })
 
   return (
-    <group ref={ref} position={[spawn.x, 0, spawn.z]} rotation={[0, spawnHeading, 0]}>
+    <group ref={ref} position={[spawn.x, 0, spawn.z]} rotation={[0, spawnHeading, 0]} userData={{ person: true }}> {/* person: 좌석 3인칭 카메라가 숨기지 않음 */}
       <group ref={animRoot} key={character}>
         <primitive object={model} scale={SCALE} />
       </group>

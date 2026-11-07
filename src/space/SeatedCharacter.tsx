@@ -3,7 +3,9 @@
 // 그 사람이 보내 온 고개 각도와 눈 감김, 팔 방향, (회의실이면) 입 벌림을 반영합니다. (#129, #61)
 // 값은 0.25초마다 띄엄띄엄 오므로 머리는 목표 각도로 부드럽게 따라가게 합니다.
 // 고개를 안 보내 왔으면(얼굴을 못 찾음, 예전 버전) 정면으로 천천히 돌아옵니다.
+// 3인칭 좌석 시점(#436)에서는 내 캐릭터도 이것으로 그립니다. 그때는 live 로 내가 보낼 상태(me.current)를 넘겨 매 프레임 읽습니다.
 import { useEffect, useMemo, useRef } from 'react'
+import type { RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import { MathUtils } from 'three'
@@ -13,7 +15,7 @@ import { applyArms } from '../tracking/armPose'
 import { showEyes, updateMouth, useFace } from '../tracking/useFace'
 import { useHair } from '../tracking/useHair'
 import { BASE_MODEL_URL } from '../profile/characters'
-import type { ArmVector } from '../realtime/participants'
+import type { ArmVector, PresenceState } from '../realtime/participants'
 import type { Spot } from './layout'
 
 const SCALE = 0.6 // Player와 같은 크기
@@ -31,9 +33,10 @@ type Props = {
   eyes?: boolean // 눈을 감고 있는지
   arms?: [ArmVector | null, ArmVector | null] // 팔 방향 [캐릭터 왼팔, 오른팔]. 없으면 팔을 내립니다.
   mouth?: number // 입 벌린 정도(0~1). 회의실에서만 옵니다. 없으면 다문 입 (#61)
+  live?: RefObject<PresenceState | null> // 있으면 위 값 대신 매 프레임 여기서 읽음 (내 캐릭터, #436)
 }
 
-export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth = 0 }: Props) {
+export function SeatedCharacter({ spot, model, head: headProp, eyes: eyesProp = false, arms: armsProp, mouth: mouthProp = 0, live }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -53,6 +56,11 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
 
   // 앉기 동작(sit)은 머리·팔을 움직이지 않으므로 직접 돌려도 겹치지 않습니다.
   useFrame((_, delta) => {
+    const s = live?.current
+    const head = s ? s.head : headProp
+    const eyes = s ? s.eyes ?? false : eyesProp
+    const arms = s ? s.arms : armsProp
+    const mouth = s ? s.mouth ?? 0 : mouthProp
     showEyes(face, eyes)
     updateMouth(face, mouth, delta)
     applyArms(copy, { armLeft: toDir(arms?.[0]), armRight: toDir(arms?.[1]) }, 1 - Math.exp(-ARM_FOLLOW * delta))
@@ -66,7 +74,7 @@ export function SeatedCharacter({ spot, model, head, eyes = false, arms, mouth =
   })
 
   return (
-    <group ref={ref} position={[spot.x, spot.y ?? 0, spot.z]} rotation={[0, spot.rot, 0]}> {/* y: 높은 의자면 올라감 (#57) */}
+    <group ref={ref} position={[spot.x, spot.y ?? 0, spot.z]} rotation={[0, spot.rot, 0]} userData={{ person: true }}> {/* y: 높은 의자면 올라감 (#57). person: 좌석 3인칭 카메라가 숨기지 않음 */}
       {/* 라운지 소파(lie): 앉은 자세를 엉덩이를 축으로 뒤로 눕힙니다. (x 축 음수 회전 = 머리가 뒤(-z)로) */}
       <group position-y={HIP} rotation-x={-(spot.lie ?? 0)}>
         <group ref={animRoot} key={model} position-y={-HIP}>

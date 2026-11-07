@@ -8,7 +8,8 @@ import { TrackedCharacter } from "../tracking/TrackedCharacter";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import type { FaceState, PoseState, TrackingStatus } from "../tracking/useTracking";
 
-const SIZE = 200; // 화면 크기(픽셀)
+export const SELF_VIEW_SIZE = 200; // 화면 크기(픽셀). 좌석 시점 버튼(SeatViewButton)이 이 위에 놓임
+const SIZE = SELF_VIEW_SIZE;
 const LOOK_AT_Y = 2.0; // 카메라가 바라보는 높이 (가슴과 머리 사이)
 const CAMERA_DISTANCE = 4.5; // 팔을 옆으로 벌리거나 들어도 화면 안에 들어오는 거리
 

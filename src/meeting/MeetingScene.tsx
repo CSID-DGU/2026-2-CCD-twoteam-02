@@ -22,6 +22,9 @@ import { BRANCH_LAYOUTS, DEFAULT_BRANCH } from '../space/branches'
 import { Decor, ThemedDoor, ThemedFloor } from '../space/Decor'
 import { ceilingHeightOf, colorsOf, decorBoxes } from '../space/theme'
 import { SeatCamera } from '../space/SeatCamera'
+import { SeatViewButton } from '../space/SeatViewButton'
+import { SeatedCharacter } from '../space/SeatedCharacter'
+import { useSeatView } from '../space/useSeatView'
 import { WalkCamera } from '../space/WalkCamera'
 import { TopDownCamera } from '../space/TopDownCamera'
 import { Player } from '../space/Player'
@@ -296,13 +299,14 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
     const down = (e: KeyboardEvent) => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || panelOpen) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.code === getKeymap().view) setView((v) => (v === 'top' ? 'first' : 'top'))
+      // 앉아 있으면 좌석 카메라(SeatCamera)가 같은 키로 좌석 시점을 바꿉니다(#436).
+      if (e.code === getKeymap().view && seat === null) setView((v) => (v === 'top' ? 'first' : 'top'))
       if (e.code === getKeymap().lobby) leaveKey.current()
       if (e.code === getKeymap().mic) micKey.current()
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [setView, panelOpen])
+  }, [setView, panelOpen, seat])
   // R·F·P·O: 지점과 같은 창 단축키 (같은 키를 다시 누르면 닫힘). 방장 나가기 창이 떠 있으면 쓰지 않습니다.
   useMenuShortcuts({ myId, panel, setPanel, disabled: leaveAsk })
 
@@ -329,12 +333,13 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
           ? `${near}번 자리 · ${K.interact} 앉기`
           : `빈 의자에서 ${K.interact}로 앉기 · Shift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`
   const seatChair = chairs.find((c) => c.no === seat)
+  const seatView = useSeatView() // 앉았을 때 시점 (#436). 3인칭이면 내 캐릭터를 앉은 모습으로 그림
 
   return (
     <>
       <Canvas>
         {seatChair ? (
-          <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={panelOpen} />
+          <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={panelOpen} walls={MEETING_ROOM.walls} />
         ) : view === 'first' ? (
           <>
             <WalkCamera posRef={pos} headingRef={heading} paused={panelOpen} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
@@ -384,6 +389,8 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
           showStatus={false}
         />
 
+        {/* 3인칭 좌석 시점(#436): 앉아 있는 동안 Player 는 숨으므로, 남에게 보이는 것과 같은 앉은 모습(입 움직임 포함)으로 나를 그립니다. */}
+        {myModel && seatChair && seatView !== 'first' && <SeatedCharacter spot={seatChair} model={myModel} live={meRef} />}
         {myModel && (
           <Player
             model={myModel}
@@ -409,6 +416,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
           />
         )}
       </Canvas>
+      {seatChair && <SeatViewButton />}
 
       {/* 회의 이름과 참석자. 방장에게는 다른 사람 옆에 "방장 넘기기" 버튼이 보입니다. */}
       <div style={styles.info}>
