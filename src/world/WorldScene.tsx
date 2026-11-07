@@ -31,6 +31,9 @@ import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
 import { WalkCamera } from '../space/WalkCamera'
 import { SeatCamera } from '../space/SeatCamera'
+import { SeatViewButton } from '../space/SeatViewButton'
+import { SeatedCharacter } from '../space/SeatedCharacter'
+import { useSeatView } from '../space/useSeatView'
 import { useBranchInfo } from '../space/useBranchInfo'
 import { useMySeat } from '../space/useMySeat'
 import SeatTimeCorner from '../kiosk/SeatTimeCorner' // 남은 시간·자리 잃음 안내 (#38, #341)
@@ -322,15 +325,16 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const boardPhotos = usePortraits((todayRanking?.top ?? []).slice(0, BOARD_TOP).map((r) => r.id)) // 게시판 1~3등 캐릭터 얼굴
 
   // V 키로 시점을 바꿉니다. 글자를 입력하는 중이면 무시합니다.
+  // 앉아 있으면 좌석 카메라(SeatCamera)가 같은 키로 좌석 시점을 바꾸므로 여기서는 건드리지 않습니다(#436).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code !== getKeymap().view || e.repeat || panelRef.current) return // 1인칭 ↔ 위에서 보기 (키는 설정에서 바꿈, #250)
+      if (e.code !== getKeymap().view || e.repeat || panelRef.current || seat !== null) return // 1인칭 ↔ 위에서 보기 (키는 설정에서 바꿈, #250)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       setView((v) => (v === 'top' ? 'first' : 'top'))
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [setView])
+  }, [setView, seat])
 
   const loadBranches = useCallback(async () => {
     const { data, error } = await fetchOpenBranches()
@@ -413,6 +417,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 쉬는 자리 이름 (안내 글자)
   const restKind = (no: number) => PLAZA.rests?.[no - REST_NO_BASE]?.kind
   const seatSpot = REST_SPOTS.find((r) => r.no === seat) ?? BENCH_SPOTS.find((s) => s.no === seat)
+  const seatView = useSeatView() // 앉았을 때 시점 (#436). 3인칭이면 내 캐릭터를 앉은 모습으로 그림. 광장은 벽이 없어 카메라를 당기지 않음
   // 다른 참여자가 앉아 있는 벤치 자리에는 앉을 수 없습니다.
   const taken = new Set(others.map((p) => p.seat).filter((no): no is number => no !== null))
   const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
@@ -612,6 +617,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           />
         )}
 
+        {/* 3인칭 좌석 시점(#436): 앉아 있는 동안 Player 는 숨으므로, 남에게 보이는 것과 같은 앉은 모습으로 나를 그립니다. */}
+        {myModel && seatSpot && seatView !== 'first' && <SeatedCharacter spot={seatSpot} model={myModel} live={me} />}
         {/* 내 캐릭터를 읽은 뒤에 그립니다. (기본 캐릭터가 잠깐 보였다가 바뀌지 않게) */}
         {myModel && (
           <Player
@@ -682,6 +689,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         )}
       </Canvas>
       </div>
+      {seatSpot && !touch && !sandBoard && <SeatViewButton />}
       {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
 
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}

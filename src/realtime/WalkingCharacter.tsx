@@ -160,7 +160,7 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq, ju
   })
 
   return (
-    <group ref={ref}>
+    <group ref={ref} userData={{ person: true }}> {/* person: 좌석 3인칭 카메라가 가리는 물건으로 숨기지 않음 (SeatCamera) */}
       <group ref={body}>
         <group ref={animRoot} key={model}>
           <primitive object={copy} scale={SCALE} />

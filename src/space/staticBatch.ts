@@ -50,6 +50,7 @@ export function batchStatic(root: Object3D): { group: Group; dispose: () => void
     if (!merged) continue // 속성이 안 맞으면 원래대로 둠
     made.push(merged)
     const mesh = new Mesh(merged, material)
+    mesh.userData.merged = true // 좌석 3인칭 카메라(SeatCamera)가 가리는 물건으로 숨기지 않음 (숨기면 묶인 소품이 한꺼번에 사라짐)
     mesh.renderOrder = parts[0].renderOrder
     group.add(mesh)
     for (const p of parts) p.visible = false
