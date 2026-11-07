@@ -1,7 +1,7 @@
 // 내 기록 창의 "꽃 피는 길" (꽃 피는 칭호): 8단계를 한 줄로 늘어놓고 지금 어디인지 보여 줍니다.
 // 지난 단계는 색, 지금 단계는 크게, 남은 단계는 흐리게. 아래에 진행 막대와 다음 단계까지 남은 시간·어림 기간.
 import type { CSSProperties } from 'react'
-import { DAILY_HOURS_GUESS, TITLES, daysLeft, progressOf } from './levelLogic'
+import { DAILY_HOURS_GUESS, TITLES, daysLeft, pathPosition, progressOf } from './levelLogic'
 import { formatHM } from '../study/recordsLogic'
 
 export function FlowerPath({ seconds }: { seconds: number }) {
@@ -24,7 +24,7 @@ export function FlowerPath({ seconds }: { seconds: number }) {
         })}
       </div>
       <div style={styles.bar}>
-        <div style={{ ...styles.fill, width: `${Math.round(p.ratio * 100)}%`, background: color }} />
+        <div style={{ ...styles.fill, width: `${(pathPosition(seconds) * 100).toFixed(1)}%`, background: color }} />
       </div>
       <p style={styles.muted}>
         {p.next
@@ -38,8 +38,9 @@ export function FlowerPath({ seconds }: { seconds: number }) {
 const styles: Record<string, CSSProperties> = {
   box: { padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,.05)', display: 'flex', flexDirection: 'column', gap: 6 },
   title: { fontWeight: 700, fontSize: 14 },
-  path: { display: 'flex', justifyContent: 'space-between', gap: 4, marginTop: 6 },
-  step: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontSize: 11, color: '#aab0bb', minWidth: 0, flex: 1, textAlign: 'center' },
+  // 칸 사이 간격(gap) 없이 칸 안쪽 여백으로 띄워, 아이콘 가운데가 막대의 (i + 0.5) / 8 자리와 맞게 합니다(pathPosition).
+  path: { display: 'flex', justifyContent: 'space-between', marginTop: 6 },
+  step: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontSize: 11, color: '#aab0bb', minWidth: 0, flex: 1, textAlign: 'center', padding: '0 2px' },
   stepNow: { color: '#fff', fontWeight: 700 },
   emoji: { fontSize: 22, lineHeight: 1.2 },
   emojiLater: { filter: 'grayscale(1)', opacity: 0.35 },

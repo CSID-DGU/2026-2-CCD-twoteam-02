@@ -43,6 +43,16 @@ export function progressOf(seconds: number): { level: number; next: Title | null
   return { level, next, leftSeconds: to - seconds, ratio: (seconds - from) / (to - from) }
 }
 
+// 꽃 피는 길 진행 막대가 찰 곳(0~1). 단계 아이콘이 같은 간격으로 놓여 있어(시간 간격은 1·5·10…1000시간으로 다름)
+// 시간 비율이 아니라 아이콘 칸 기준으로 셉니다. i번째 아이콘 가운데 = (i + 0.5) / 단계 수. (#439)
+//   첫 단계 전: 왼쪽 끝 → 첫 아이콘, 그다음: 지금 아이콘 → 다음 아이콘 사이를 ratio 만큼, 마지막 단계: 끝까지
+export function pathPosition(seconds: number): number {
+  const { level, next, ratio } = progressOf(seconds)
+  if (!next) return 1
+  if (level === 0) return (ratio * 0.5) / MAX_LEVEL
+  return (level - 0.5 + ratio) / MAX_LEVEL
+}
+
 // before → now 사이에 새로 넘은 가장 높은 단계. 없으면 null (한 번에 여러 단계를 넘어도 축하는 하나)
 export function levelCrossed(beforeSeconds: number, nowSeconds: number): number | null {
   const before = levelOf(beforeSeconds)
