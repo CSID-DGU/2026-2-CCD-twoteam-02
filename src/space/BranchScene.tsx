@@ -277,6 +277,11 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }); // 딱밤 신호 통로 (#304)
   const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef); // 같은 지점·같은 채널의 다른 참여자 (실시간)
+  // 집중 상태가 바뀌면 화면 그리기(handleMove)를 기다리지 않고 바로 보낼 상태에 넣습니다.
+  // 같은 창의 다른 탭으로 가면 크롬이 이 탭의 화면 그리기를 멈춰, 떠나기 직전 초록불이 계속 나가던 문제를 막습니다.
+  useEffect(() => {
+    if (me.current) me.current = { ...me.current, status: seat === null ? "idle" : studyStatus };
+  }, [seat, studyStatus]);
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null);
