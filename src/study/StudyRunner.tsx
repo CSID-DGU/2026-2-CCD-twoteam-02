@@ -7,7 +7,8 @@ import { HOLD_LABEL, holdReason, shownStudyMs } from '../focus/focusLogic'
 import type { FocusInput, FocusStatus } from '../focus/focusLogic'
 import type { PresenceStatus } from '../space/status'
 import { supabase } from '../lib/supabase'
-import { SAVE_INTERVAL_MS, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
+import { steadyNow } from './steadyClock'
+import { SAVE_INTERVAL_MS, canCutChunk, devicesOf, formatDuration, startChunk, takeChunk } from './studyLogic'
 import type { ChunkRow, ChunkState } from './studyLogic'
 import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
@@ -54,8 +55,17 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
     onStatus(hold ? 'hold' : focus.status)
   }, [focus.status, hold, onStatus])
 
+  // 5분 저장 때 보류 중(노란불)이면 자르기를 미룹니다(canCutChunk). 보류가 끝나면 그때 자릅니다.
+  const pendingNow = useRef(0)
+  const cutIfDue = useRef<(() => void) | null>(null) // 아래 저장 effect 가 채움
   useEffect(() => {
-    let chunk: ChunkState = startChunk(Date.now(), studyMs.current)
+    pendingNow.current = focus.pendingMs
+    cutIfDue.current?.()
+  }, [focus.pendingMs])
+
+  useEffect(() => {
+    // 시각은 뒤로 가지 않는 시계로 잽니다(steadyClock.ts). 컴퓨터 시계가 뒤로 가도 조각이 겹치거나 공부 시간이 길이를 넘지 않습니다.
+    let chunk: ChunkState = startChunk(steadyNow(), studyMs.current)
     const base = {
       user_id: userId,
       session_id: sessionId,
@@ -75,22 +85,35 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
         console.warn('study_logs.condition 칸이 없어 실험 조건 없이 저장합니다. 0011 마이그레이션을 실행해 주세요.')
         ;({ error } = await supabase.from('study_logs').insert(values))
       }
-      if (!error) return
+      if (!error) {
+        setSaveError('') // 앞 조각이 실패했어도 저장이 다시 되면 문구를 지웁니다. (#444)
+        return
+      }
       console.error('공부 기록을 저장하지 못했습니다:', error.message)
       setSaveError('기록 저장 실패')
     }
     // 지금까지의 구간을 잘라 저장합니다.
+    let due = false // 5분이 되어 자를 차례인데 보류가 끝나기를 기다리는 중
     const flush = () => {
-      const { row, next } = takeChunk(chunk, studyMs.current, Date.now())
+      due = false
+      const { row, next } = takeChunk(chunk, studyMs.current, steadyNow())
       chunk = next
       if (row) void save(row)
     }
 
-    const timer = setInterval(flush, SAVE_INTERVAL_MS)
+    const cut = () => {
+      if (due && canCutChunk(pendingNow.current)) flush()
+    }
+    cutIfDue.current = cut
+    const timer = setInterval(() => {
+      due = true
+      cut()
+    }, SAVE_INTERVAL_MS)
     // 탭을 닫을 때도 남은 조각을 보내 봅니다. 브라우저가 요청을 끊으면 이 조각(최대 5분)만 잃습니다.
     window.addEventListener('pagehide', flush)
     return () => {
       clearInterval(timer)
+      cutIfDue.current = null
       window.removeEventListener('pagehide', flush)
       flush() // 일어나기, 과목 바꾸기, 지점 나가기
     }

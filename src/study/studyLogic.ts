@@ -50,12 +50,20 @@ export const startChunk = (now: number, studyMs = 0): ChunkState => ({ startedAt
 // (내림이면 마지막 조각에서 최대 1초가 항상 빠지지만, 반올림이면 오차가 ±0.5초 안에서 어느 쪽으로도 치우치지 않습니다.)
 export function takeChunk(state: ChunkState, studyMs: number, now: number): { row: ChunkRow | null; next: ChunkState } {
   if (now - state.startedAt < MIN_CHUNK_MS) return { row: null, next: state }
-  const focusedSeconds = Math.max(0, Math.round((studyMs - state.savedStudyMs) / 1000))
+  // 공부 시간이 조각 길이를 넘으면 기록이 부풉니다(검사가 있는 DB 에서는 조각이 통째로 거절됨). 시각은 뒤로 가지 않는 시계(steadyClock.ts)로 재서
+  // 보통은 넘지 않지만, 그래도 넘으면 길이만큼만 저장하고 나머지는 다음 조각으로 넘깁니다. (#444)
+  const chunkSeconds = Math.round((now - state.startedAt) / 1000)
+  const focusedSeconds = Math.min(Math.max(0, Math.round((studyMs - state.savedStudyMs) / 1000)), chunkSeconds)
   return {
     row: { startedAt: state.startedAt, endedAt: now, focusedSeconds },
     next: { startedAt: now, savedStudyMs: state.savedStudyMs + focusedSeconds * 1000 },
   }
 }
+
+// 저장할 때(5분)가 되어도 보류 중(노란불)이면 조각을 자르지 않고 보류가 끝날 때까지 기다립니다.
+// 보류 시간은 돌아오는 순간 한꺼번에 확정되므로, 보류 중에 자르면 앞 조각의 보류분이 다음 조각에 몰려
+// 다음 조각의 공부 시간이 조각 길이를 넘습니다(검사가 있는 DB 에서는 그 조각이 통째로 거절됨). 보류는 길어야 1분(AWAY_SECONDS)이라 그만큼만 늦어집니다.
+export const canCutChunk = (pendingMs: number) => pendingMs <= 0
 
 // 밀리초 → "01:02:03"
 export function formatDuration(ms: number) {

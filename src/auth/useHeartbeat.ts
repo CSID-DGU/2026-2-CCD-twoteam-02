@@ -12,7 +12,7 @@
 // 쓸 자리 정보가 필요해서 응답을 쓰는 것이고, 여기서는 신호만 보냅니다.
 // 1분에 한 번 더 부르는 비용은 무시할 수준이라 둘을 합치지 않았습니다.
 import { useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { sendNow, supabase } from '../lib/supabase'
 import { useSession } from './useSession'
 
 // 자리를 비우는 기준은 5분입니다(0017). 그보다 넉넉히 자주 보냅니다.
@@ -25,7 +25,7 @@ export function useHeartbeat() {
   useEffect(() => {
     if (!userId) return
     // 자리가 없는 사람도 부르지만, 그때는 DB 가 고칠 행이 없어 사실상 아무 일도 하지 않습니다.
-    const send = () => void supabase.rpc('heartbeat')
+    const send = () => sendNow(supabase.rpc('heartbeat'), '접속 신호를 보내지 못했습니다')
     send()
     const timer = setInterval(send, HEARTBEAT_MS)
     return () => clearInterval(timer)
