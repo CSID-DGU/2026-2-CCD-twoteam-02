@@ -2,6 +2,7 @@
   "id": "room-c",
   "name": "room C",
   "experimentSeat": 4,
+  "recordedPeers": true,
   "allowOtherScreen": true,
   "size": {
     "w": 24,

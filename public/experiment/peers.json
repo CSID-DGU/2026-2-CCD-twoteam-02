@@ -1,0 +1,23 @@
+{
+  "videoServer": "",
+  "peers": [
+    {
+      "name": "참여자 1",
+      "model": "b",
+      "record": "record-room-c-seat18-20261108-1908.json",
+      "video": ""
+    },
+    {
+      "name": "참여자 2",
+      "model": "c",
+      "record": "record-room-c-seat19-20261103-0132.json",
+      "video": ""
+    },
+    {
+      "name": "참여자 3",
+      "model": "d",
+      "record": "record-room-c-seat20-20261108-1606.json",
+      "video": ""
+    }
+  ]
+}

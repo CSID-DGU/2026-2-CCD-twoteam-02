@@ -5,58 +5,50 @@
 //   - 소리 없음. 칸마다 이름표와 마이크 꺼짐 표시
 //   - 셀프뷰는 이 기기 안의 카메라 미리보기일 뿐, 어디에도 보내거나 저장하지 않습니다(CLAUDE.md 절대 규칙)
 //   - 트래킹·공부 타이머는 돌리지 않습니다. A 는 영상만 보여 주는 조건입니다
-//   - 들어오면 바로 재생하고 영상이 끝나면 마지막 장면에서 멈춥니다. (진행자 시작 신호는 #196 에서)
-// 진행자는 Shift+O 로 영상·이름표를 고릅니다(VideoSetup). 나가기 버튼이나 L 키로 로비의 room A 문 앞으로 돌아갑니다.
+//   - 들어오면 바로 재생하고 영상이 끝나면 마지막 장면에서 멈춥니다.
+// 이름표·영상 파일 이름은 public/experiment/peers.json(peersManifest.ts)에서 읽고, 영상은 영상 서버에 로그인 토큰을 보여 주고
+// 잠깐 유효한 주소를 받아 틉니다(팀원 얼굴 영상이라 로그인한 실험 계정만 볼 수 있게). 참가자마다 진행자가 할 일은 없습니다.
+// 나가기 버튼이나 L 키로 로비의 room A 문 앞으로 돌아갑니다.
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router'
 import { useOnlinePlace } from '../realtime/onlineContext'
-import { DEFAULT_PEERS, loadPeers } from './videoStore'
-import type { PeerVideo } from './videoStore'
-import { VideoSetup } from './VideoSetup'
+import { useSession } from '../auth/useSession'
+import { loadManifest, signVideoUrl } from '../replay/peersManifest'
 
 export const ROOM_A_SLUG = 'room-a' // 로비 문과 접속 상태에서 쓰는 이름
 const LEAVE_KEY = 'KeyL'
-const SETUP_KEY = 'KeyO' // Shift 와 함께
+const PEER_COUNT = 3 // 화면에 나오는 팀원 수 (팀원 3명, 2026-10-23 결정)
 
-type Shown = { name: string; url: string | null } // 화면에 띄울 칸 (영상 주소는 이 화면이 있는 동안만 쓰는 임시 주소)
+type Shown = { name: string; url: string | null } // 화면에 띄울 칸. url 이 없으면 이름 첫 글자만
+// 목록을 읽기 전·못 읽었을 때 칸
+const EMPTY_TILES: Shown[] = Array.from({ length: PEER_COUNT }, (_, i) => ({ name: `참여자 ${i + 1}`, url: null }))
 
 const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement
 
 export function VideoRoom() {
   const navigate = useNavigate()
   useOnlinePlace(ROOM_A_SLUG)
-  const [peers, setPeers] = useState<PeerVideo[]>(DEFAULT_PEERS)
-  const [shown, setShown] = useState<Shown[]>(() => DEFAULT_PEERS.map((p) => ({ name: p.name, url: null })))
-  const [setupOpen, setSetupOpen] = useState(false)
+  const accessToken = useSession().session?.access_token ?? null
+  const [shown, setShown] = useState<Shown[]>(EMPTY_TILES)
   const [camError, setCamError] = useState('')
   const selfVideo = useRef<HTMLVideoElement>(null)
-  const urls = useRef<string[]>([]) // 만든 임시 주소. 바꾸거나 화면을 떠나면 지웁니다
 
-  // 저장한 영상으로 칸을 채웁니다. Blob 을 <video> 에 넣으려면 임시 주소(createObjectURL)가 필요합니다.
-  const show = (list: PeerVideo[]) => {
-    urls.current.forEach((u) => URL.revokeObjectURL(u))
-    const next = list.map((p) => ({ name: p.name, url: p.file ? URL.createObjectURL(p.file) : null }))
-    urls.current = next.flatMap((s) => (s.url ? [s.url] : []))
-    setPeers(list)
-    setShown(next)
-  }
-  const showRef = useRef(show)
+  // 목록을 읽고 영상마다 주소를 받아 칸을 채웁니다. 목록에 있는 사람 수만큼만(최대 3명) 보여 줍니다.
   useEffect(() => {
-    showRef.current = show
-  })
-
-  useEffect(() => {
+    if (!accessToken) return
     let cancelled = false
-    void loadPeers().then((list) => {
-      if (!cancelled) showRef.current(list)
-    })
+    void (async () => {
+      const { videoServer, peers } = await loadManifest()
+      const list = peers.slice(0, PEER_COUNT)
+      if (list.length === 0) return
+      const urls = await Promise.all(list.map((p) => signVideoUrl(videoServer, p.video, accessToken)))
+      if (!cancelled) setShown(list.map((p, i) => ({ name: p.name, url: urls[i] })))
+    })()
     return () => {
       cancelled = true
-      urls.current.forEach((u) => URL.revokeObjectURL(u))
-      urls.current = []
     }
-  }, [])
+  }, [accessToken])
 
   // 내 카메라 미리보기. 화면을 떠나면 카메라를 끕니다.
   useEffect(() => {
@@ -91,8 +83,7 @@ export function VideoRoom() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return
-      if (e.code === SETUP_KEY && e.shiftKey) setSetupOpen((o) => !o)
-      else if (e.code === LEAVE_KEY && !e.shiftKey) leaveRef.current()
+      if (e.code === LEAVE_KEY && !e.shiftKey) leaveRef.current()
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
@@ -123,8 +114,6 @@ export function VideoRoom() {
       <button type="button" style={styles.leave} onClick={leave}>
         나가기 (L)
       </button>
-
-      {setupOpen && <VideoSetup peers={peers} onSaved={show} onClose={() => setSetupOpen(false)} />}
     </div>
   )
 }
