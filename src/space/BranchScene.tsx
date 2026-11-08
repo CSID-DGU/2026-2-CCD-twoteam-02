@@ -245,14 +245,16 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   //   내 트래킹·타이머·기록은 두 조건 모두 그대로 동작합니다.
   const condition = conditionOf(branch);
   const hidden = condition === "hidden";
-  const live = useParticipants(hidden ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  // 실험 참가자끼리는 어느 방에서도 서로 보이면 안 됩니다. C 지점(recordedPeers)은 실시간 방을 끊고 팀원 봇만 그립니다(#195).
+  const botsOnly = branch.recordedPeers === true;
+  const live = useParticipants(hidden || botsOnly ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
   // 기록 모드(#190): 주소의 ?record=18 처럼 자리를 정하면 그 자리에 앉아 내 움직임을 기록합니다. 팀원 녹화용.
   const [recordSeat] = useState(() => recordSeatOf(location.search));
   // C 조건의 팀원 캐릭터 (#195). 참가자가 들어오면 한 명씩 걸어 들어와 앉고 기록을 재생합니다. 팀원이 녹화할 때는 그 자리를 비워야 하므로 끕니다.
   const recorded = useRecordedPeers(branch.recordedPeers === true && recordSeat === null, branch);
   const others = [...live, ...recorded];
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
-  useOnlineInvisible(hidden); // B 조건이면 접속 상태에서 나를 뺌
+  useOnlineInvisible(hidden || botsOnly); // B·C 조건이면 접속 상태에서 나를 뺌
   useEffect(() => {
     console.info(`[실험 조건] ${condition === "hidden" ? "hidden (캐릭터 숨김 모드)" : "visible (캐릭터 보임)"}`);
   }, [condition]);
