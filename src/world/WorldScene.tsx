@@ -582,7 +582,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 월드 사이 정문 (광장 남서쪽 ↔ 캠퍼스 남쪽), 쿼드의 돗자리·빈백 */}
         {GATES.map((g) => (
           <group key={g.no}>
-            {PLAZA.beach || g.spec.to === 'beach' ? <BeachGate gate={g} near={near === g.no} /> : <UniversityGate gate={g} near={near === g.no} />}
+            {PLAZA.beach || g.spec.to === 'beach' ? <BeachGate gate={g} near={near === g.no} size={g.spec.to === 'beach' ? PLAZA.size : undefined} /> : <UniversityGate gate={g} near={near === g.no} />}
             {/* 문 너머 바닥은 옆 문 풍경과 겹치지 않는 데까지만 (겹치면 같은 높이라 깜빡임) */}
             {PLAZA.beach || g.spec.to === 'beach' ? (
               <BeachGateView gate={g} inland={!!PLAZA.beach} limit={gateViewSpan(GATES, g)} />
