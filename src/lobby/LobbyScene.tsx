@@ -35,6 +35,7 @@ import lobby from './lobby.json'
 const DOOR_GAP = 1.1 // 문 앞에서 이만큼 떨어진 곳이 입장 지점
 // 지점에서 나오면 그 지점 문 앞 이만큼 떨어진 곳에 섭니다. 입장 지점(1.1)보다 멀어서
 // 나오자마자 "입장" 안내가 뜨지 않습니다. (#150)
+const LOBBY_HIDE_OTHERS = true // 실험 기간: 로비에서 다른 참가자를 숨깁니다 (#195)
 const ARRIVE_GAP = 2.1
 const NO_KIOSK = { x: 1000, z: 1000 } // 로비에는 키오스크가 없다. 아래 Player 주석 참고
 const VIEW_KEY = 'KeyV' // 1인칭 ↔ 위에서 보기
@@ -98,9 +99,9 @@ export default function LobbyScene({ onEnter }: Props) {
   const { model: myModel } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   // 로비에 있는 다른 참여자 (실시간, #166). 내 위치·방향은 매 프레임 바뀌므로 ref 에 담아 두면 훅이 주기적으로 보냅니다.
   const me = useRef<PresenceState | null>(null)
-  // 실험 B 조건(혼자 공부)은 지점(room B)에서만 숨깁니다(#198). 로비에서는 모두 보입니다.
-  // (experiment 는 실험 전용 Supabase 프로젝트를 쓰므로 로비에 개발 테스트 중인 팀원이 섞이지 않습니다)
-  const others = useParticipants(LOBBY_CHANNEL, me)
+  // 실험 참가자끼리는 로비에서도 서로 보이면 안 됩니다(#195). 실시간 방에 들어가지 않아 남의 위치를 받지도, 내 위치를 보내지도 않습니다.
+  // 방 이름은 LOBBY_CHANNEL 그대로 두고 빈 문자열로 꺼 둡니다. 실험이 끝나면 되돌립니다.
+  const others = useParticipants(LOBBY_HIDE_OTHERS ? '' : LOBBY_CHANNEL, me)
   // 사이트 전체 접속 상태에 "로비에 있음"으로 표시합니다. (#176)
   useOnlinePlace(LOBBY_PLACE)
 
