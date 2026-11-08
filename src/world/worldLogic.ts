@@ -438,6 +438,12 @@ export function gateViewSpan(gates: PlacedGate[], g: PlacedGate): [number, numbe
   return [left, right]
 }
 
+// 문 기준 좌표(+Z 가 앞면)의 한 점이 월드 땅 안에 있는지. 모퉁이 가까이 선 문의 앞쪽 장식이 땅 밖 허공에 놓이지 않게 거릅니다.
+export function gateSpotOnGround(g: PlacedGate, x: number, z: number, size: { w: number; d: number }): boolean {
+  const offset = rotate(x, z, g.angle)
+  return Math.abs(g.spec.x + offset.x) <= size.w / 2 && Math.abs(g.spec.z + offset.z) <= size.d / 2
+}
+
 // ── 문 사이로 걸어 들어가기 · 울타리 틈 ───────────────────────────────
 // 정문은 E 를 눌러도 되고, 문 사이로 걸어 들어가도 넘어갑니다(실제 길을 걸어 들어가는 느낌).
 // 문 앞면(입장 쪽)에서 GATE_PASS 안쪽까지 들어오고 두 기둥 사이에 있으면 넘어갑니다.

@@ -24,6 +24,10 @@ export function CampusGateView({ gate, limit = [-Infinity, Infinity] }: { gate: 
   const entrance = layout.gates?.find((g) => g.to === 'plaza')
   const halls = useMemo(() => computedOf(CAMPUS_WORLD).placed.filter((b) => b.spec.shape === 'hall' && b.spec.z < 0), [])
   const span = [Math.max(limit[0], -LAWN.width / 2), Math.min(limit[1], LAWN.width / 2)]
+  // 옆 문 쪽 나무는 그리지 않음: 해변 문 너머에서 벚꽃·느티나무가 해변 야자수와 겹쳐 보였습니다
+  const [limitLeft, limitRight] = limit
+  const entranceX = entrance?.x ?? 0
+  const trees = useMemo(() => layout.trees.filter((t) => t.x - entranceX >= limitLeft && t.x - entranceX <= limitRight), [layout.trees, entranceX, limitLeft, limitRight])
   if (!entrance) return null
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
@@ -33,7 +37,7 @@ export function CampusGateView({ gate, limit = [-Infinity, Infinity] }: { gate: 
         {layout.walks && <Walks walks={layout.walks} />}
         {layout.court && <CampusCourt court={layout.court} />}
         {layout.courtyard && <LanternCourtyard courtyard={layout.courtyard} />}
-        <CampusTrees trees={layout.trees} />
+        <CampusTrees trees={trees} />
         <Lamps lamps={layout.lamps} />
         {layout.props && <CampusProps props={layout.props} />}
         {layout.mainGate && <MainGate gate={layout.mainGate} />}

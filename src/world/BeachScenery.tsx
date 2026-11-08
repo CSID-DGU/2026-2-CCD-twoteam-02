@@ -1,11 +1,11 @@
 // 캠빛 해변 풍경: 바다, 모래, 나무 산책로, 야자수, 옆 울타리, 나무 문.
 // 바다는 -z 쪽 큰 판 하나에 셰이더로 그립니다(실시간 조명·물체 추가 없음). 시간 값 하나와 밤낮 값만 프레임마다 바꿉니다.
 // 물가의 거품은 물결 따라 모래 쪽으로 밀려왔다 빠지고, 사람이 설 수 있는 곳(shoreZ 뒤)까지 살짝 올라옵니다. 부딪힘은 beachLogic.
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { GATE_POST } from './worldLogic'
+import { GATE_POST, gateSpotOnGround } from './worldLogic'
 import type { PlacedGate, PlazaLayout, Point } from './worldLogic'
 import { nightGlow } from './worldMaterials'
 import { BOARDWALK } from './beachLogic'
@@ -359,17 +359,17 @@ function shrubGeometry() {
   return mergeGeometries(parts)!
 }
 // 입구 양옆 덤불과 돌 (문 기준)
-function GateShrubs() {
+function GateShrubs({ onGround }: { onGround: (x: number, z: number) => boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const stones = useRef<THREE.InstancedMesh>(null)
   const geo = useMemo(() => shrubGeometry(), [])
   useEffect(() => () => geo.dispose(), [geo])
-  const count = SHRUB.spots.length * 2
+  // 땅 밖으로 나가는 자리는 뺍니다 (양옆 [sx, 자리] 목록)
+  const spots = useMemo(() => [-1, 1].flatMap((sx) => SHRUB.spots.filter(([x, z]) => onGround(sx * x, z)).map((spot) => [sx, spot] as const)), [onGround])
+  const count = spots.length
   useLayoutEffect(() => {
     const o = new THREE.Object3D()
-    let i = 0
-    for (const sx of [-1, 1]) {
-      for (const [x, z] of SHRUB.spots) {
+    spots.forEach(([sx, [x, z]], i) => {
         o.position.set(sx * x, 0, z)
         o.rotation.y = x * 2.1 + sx
         o.scale.setScalar(0.9 + ((x * 7) % 3) * 0.22)
@@ -379,12 +379,10 @@ function GateShrubs() {
         o.scale.set(1.25, 0.72, 1)
         o.updateMatrix()
         stones.current?.setMatrixAt(i, o.matrix)
-        i++
-      }
-    }
+    })
     if (ref.current) ref.current.instanceMatrix.needsUpdate = true
     if (stones.current) stones.current.instanceMatrix.needsUpdate = true
-  }, [])
+  }, [spots])
   return (
     <>
       <instancedMesh ref={ref} args={[geo, shrubMat, count]} frustumCulled={false} />
@@ -490,7 +488,8 @@ export function BeachGateView({ gate, inland, limit = [-Infinity, Infinity] }: {
 }
 
 // 해변으로 이어지는 입구 (광장 쪽 문, 해변 쪽 문이 같음). 부딪힘은 placeGates 의 기둥·울타리 그대로. 글자는 간판 그림 (signTexture)
-export function BeachGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
+// size: 넘기면 앞쪽 야자수·덤불 중 그 땅 밖으로 나가는 것은 그리지 않음 (광장 모퉁이 가까이 선 문)
+export function BeachGate({ gate, near, size }: { gate: PlacedGate; near: boolean; size?: { w: number; d: number } }) {
   useFrame(() => {
     const g = Math.min(1, nightGlow())
     letterMat.emissiveIntensity = SIGN_GLOW.letterDay + (SIGN_GLOW.letterNight - SIGN_GLOW.letterDay) * g
@@ -513,7 +512,9 @@ export function BeachGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
     shapes.letters.dispose()
   }, [shapes])
   signFaceMat ??= new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.88, emissive: '#ffffff', emissiveMap: signTexture(), emissiveIntensity: 0 })
-  const avenue = useMemo(() => avenuePalms(gate.spec.to === 'beach'), [gate.spec.to])
+  const onGround = useCallback((x: number, z: number) => !size || gateSpotOnGround(gate, x, z, size), [gate, size])
+  // 뒤쪽 줄(z < 0)은 원래 땅 밖 풍경이므로 앞쪽만 거릅니다
+  const avenue = useMemo(() => avenuePalms(gate.spec.to === 'beach').filter((p) => p.z < 0 || onGround(p.x, p.z)), [gate.spec.to, onGround])
   return (
     <group position={[gate.spec.x, 0, gate.spec.z]} rotation-y={gate.angle}>
       {[-postX, postX].map((x) => (
@@ -535,7 +536,7 @@ export function BeachGate({ gate, near }: { gate: PlacedGate; near: boolean }) {
         </mesh>
       ))}
       <Palms trees={avenue} />
-      <GateShrubs />
+      <GateShrubs onGround={onGround} />
     </group>
   )
 }
