@@ -13,6 +13,7 @@ import { SubjectSettings } from '../study/SubjectManager'
 import { setShowMinimap, useShowMinimap } from './minimapSetting'
 import { setFlickReceiving, useFlickReceiving } from './flickSetting'
 import { setShowPerf, useShowPerf } from './perfSetting'
+import { FavoritePlaceSetting } from '../quickseat/QuickSeat'
 
 const TABS = [
   ['account', '내 정보'],
@@ -101,6 +102,11 @@ export function SettingsView() {
             <input type="checkbox" checked={perf} onChange={(e) => setShowPerf(e.target.checked)} style={styles.check} />
           </label>
           <span style={styles.help}>화면 왼쪽 위에 화면이 1초에 몇 번 그려지는지(FPS) 보여 줘요. 성능을 잴 때만 켜면 돼요.</span>
+          <div style={{ ...styles.row, marginTop: 6 }}>
+            <span style={styles.label}>바로 앉기 최애 공간</span>
+            <FavoritePlaceSetting />
+          </div>
+          <span style={styles.help}>캠리단길에서 "바로 앉기"를 누르면 이 공간의 빈자리에 앉아 바로 공부를 시작해요. 지우면 누를 때 다시 골라요.</span>
         </div>
       )}
       {tab === 'keys' && <KeymapSettings />}

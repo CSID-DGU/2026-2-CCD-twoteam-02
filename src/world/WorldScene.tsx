@@ -55,6 +55,9 @@ import type { Perf } from '../space/PerfReadout'
 import { useSession } from '../auth/useSession'
 import { InfoPanel } from '../menu/InfoPanel'
 import { SceneMenu } from '../menu/SceneMenu'
+import { QuickSeatControl } from '../quickseat/QuickSeat'
+import { useQuickSeatArrival } from '../quickseat/useQuickSeat'
+import { PLAZA_CAMPFIRE_KEY } from '../quickseat/places'
 import type { PanelView } from '../menu/panelTypes'
 import { panelKey } from '../menu/panelTypes'
 import { useMenuShortcuts } from '../menu/useMenuShortcuts'
@@ -159,7 +162,7 @@ type Props = {
 export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 월드의 배치와 미리 계산한 값 (월드마다 한 번만 계산해 둠, worldConfig.computedOf)
   const PLAZA = world.layout
-  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, studySpots: BENCH_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
+  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, studySpots: BENCH_SPOTS, campfireSpots: CAMPFIRE_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
   const navigate = useNavigate()
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
@@ -207,9 +210,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const sand = useSandMarks(!!PLAZA.beach, channel.no, playRef) // 해변 모래 글씨·그림 (같은 채널 사람에게 보임, #481)
   const [sandBoard, setSandBoard] = useState<SandBoard | null>(null) // 지금 쓰는 판 (쓰는 동안 움직이지 않음)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
+  // 바로 앉기 (#116): 메뉴의 "바로 앉기"가 부를 함수(QuickSeatControl 이 채움)와 공간 고르는 창이 떠 있는지
+  const quickStart = useRef<(() => void) | null>(null)
+  const [quickOpen, setQuickOpen] = useState(false)
   const { model: myModel, chosen: avatarChosen, save: saveAvatar } = useMyAvatar() // 내 프로필에서 고른 캐릭터 (#131). 읽기 전에는 null
   const firstCharacter = avatarChosen === false // 캐릭터를 한 번도 고르지 않음 → 처음 고르는 창 (#146)
-  const overlay = sandBoard !== null || fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
+  const overlay = sandBoard !== null || fortune !== null || rankingOpen || cafe.conflict !== null || studyDialogOpen || firstCharacter || quickOpen // 광장 위에 창이 떠 있음 (메뉴 창 panel 과 따로)
   // 들고 있는 것 (카페 음료·빵, 캠프파이어 마시멜로). 지점 화면과 같은 기억(heldItem)이라 카페에서 받은 것도 들고 나옴
   const [holding, setHoldingState] = useState(heldItem)
   const setHolding = (item: MenuItem | null) => {
@@ -421,6 +427,22 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 다른 참여자가 앉아 있는 벤치 자리에는 앉을 수 없습니다.
   const taken = new Set(others.map((p) => p.seat).filter((no): no is number => no !== null))
   const freeSpots = [...ENTRIES, ...BENCH_SPOTS.filter((s) => !taken.has(s.no))]
+  // 바로 앉기 (#116): 요청을 들고 왔으면 빈자리 하나에 바로 앉습니다 (폰은 구경만이라 제외).
+  // 캠리단길은 벤치(world.id)와 캠프파이어 통나무(PLAZA_CAMPFIRE_KEY)를 따로 고릅니다
+  const campfireNos = new Set(CAMPFIRE_SPOTS.map((s) => s.no))
+  useQuickSeatArrival({
+    spots: {
+      [world.id]: BENCH_SPOTS.filter((s) => !taken.has(s.no) && !campfireNos.has(s.no)),
+      ...(CAMPFIRE_SPOTS.length > 0 ? { [PLAZA_CAMPFIRE_KEY]: CAMPFIRE_SPOTS.filter((s) => !taken.has(s.no)) } : {}),
+    },
+    ready: plazaId !== null && channel.room !== null && !touch,
+    seatNoOf: benchSeatNumber,
+    claim: cafe.claim,
+    teleportRef: teleport,
+    onResult: (ok) => {
+      if (!ok) setMessage(`${world.study.label} 자리가 모두 찼어요. 다른 곳을 골라 주세요.`)
+    },
+  })
   const acts = (no: number) => canEnter(no) || no === BOARD_NO || (spotKindOf(no) === 'bench' && !touch && plazaId !== null)
   const blockedEnter = (no: number) => {
     if (spotKindOf(no) === 'bench') {
@@ -693,6 +715,15 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
 
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
+      {/* 바로 앉기 (#116): 캠리단길에 도착하면 큰 버튼을 한 번, 그 뒤로는 메뉴에서. 폰은 공부를 못 하므로 없음 */}
+      {session && !touch && (
+        <QuickSeatControl
+          myId={session.user.id}
+          startRef={quickStart}
+          banner={world.id === 'plaza' && seat === null && panel === null && !overlay}
+          onDialogChange={setQuickOpen}
+        />
+      )}
       {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
       {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 앉아 있는 동안은 채널을 바꾸지 못하게 숨깁니다. 자리는 채널별로 잡혀 있습니다 */}
@@ -735,7 +766,15 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {levelUp !== null && <LevelUpCard key={levelUp} level={levelUp} onDone={() => setLevelUp(null)} />}
       {/* 다른 자리(예: 별다방 7번)를 쓰는 중이면: 반납하고 이 벤치에 앉기 */}
       {cafe.conflict && <CafeConflictDialog message={cafe.conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
-      {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onSkyTime={() => setSkyTimeOpen((v) => !v)} top={!touch && showPerf ? <PerfReadout perf={perf} /> : undefined} />}
+      {session && (
+        <SceneMenu
+          myId={session.user.id}
+          onOpen={setPanel}
+          onSkyTime={() => setSkyTimeOpen((v) => !v)}
+          onQuickSeat={touch || seat !== null ? undefined : () => quickStart.current?.()}
+          top={!touch && showPerf ? <PerfReadout perf={perf} /> : undefined}
+        />
+      )}
       {skyTimeOpen && <SkyTimePanel onClose={() => setSkyTimeOpen(false)} />}
       {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
       {/* 순위 게시판·순위 창에 쓰는 캐릭터 얼굴 사진을 찍는 화면 (찍을 것이 있을 때만 만들어짐) */}

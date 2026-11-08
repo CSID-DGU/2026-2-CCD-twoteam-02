@@ -22,6 +22,7 @@ import { SeatedStudy } from "../study/SeatedStudy";
 import { MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
 import { useCafeSeat } from "./useCafeSeat";
+import { useQuickSeatArrival } from "../quickseat/useQuickSeat";
 import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
@@ -380,6 +381,22 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44, useCafeSeat) ──
   const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat, "all", channel.no);
   const { conflict, message: cafeMessage } = cafe;
+  // 바로 앉기 (#116): 요청을 들고 왔으면 빈자리 하나에 바로 앉습니다. 카페형 지점만(키오스크 지점은 이용권이 있어야 해서 아직 제외)
+  const [quickNote, setQuickNote] = useState("");
+  useEffect(() => {
+    if (!quickNote) return;
+    const t = setTimeout(() => setQuickNote(""), TOUCH_NOTE_MS);
+    return () => clearTimeout(t);
+  }, [quickNote]);
+  useQuickSeatArrival({
+    spots: { [branch.id]: spots.filter((c) => !taken.has(c.no)) },
+    ready: isCafe && !isRest && !touch && channel.room !== null,
+    claim: cafe.claim,
+    teleportRef: teleport,
+    onResult: (ok) => {
+      if (!ok) setQuickNote("빈자리가 없어요. 다른 곳을 골라 주세요.");
+    },
+  });
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
@@ -497,7 +514,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           : mySeat === null
             ? "키오스크에서 자리를 지정하세요"
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
-  const hint = kioskOpen || orderOpen || bookOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint + eatHint : touch ? `${walkHint}${eatHint}\n${viewHint}` : `${walkHint}${eatHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
+  const hint = kioskOpen || orderOpen || bookOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : quickNote ? quickNote : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint + eatHint : touch ? `${walkHint}${eatHint}\n${viewHint}` : `${walkHint}${eatHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
 
   return (
     <>
