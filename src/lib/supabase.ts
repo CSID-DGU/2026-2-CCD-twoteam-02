@@ -26,3 +26,16 @@ if (!url || !publishableKey) {
 export const supabase = createClient(url, publishableKey, {
   auth: { storage: choosingStorage },
 })
+
+// 결과를 기다리지 않고 보내는 요청 (접속 신호 등).
+// supabase-js 의 rpc()·from() 은 await 나 then 을 붙여야 실제로 요청을 보냅니다.
+// `void supabase.rpc(...)` 만 쓰면 요청이 한 번도 나가지 않습니다(#448). 그래서 이 함수가 then 을 붙여 보내고,
+// 실패하면 무엇을 못 했는지(what) 콘솔에 남깁니다.
+export function sendNow(request: PromiseLike<{ error: { message: string } | null }>, what: string) {
+  request.then(
+    ({ error }) => {
+      if (error) console.error(`${what}:`, error.message)
+    },
+    (e: unknown) => console.error(`${what}:`, e),
+  )
+}
