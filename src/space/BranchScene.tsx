@@ -20,6 +20,7 @@ import { useMySeat } from "./useMySeat";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
+import { useRecordedPeers } from "../replay/useRecordedPeers";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
@@ -244,7 +245,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   //   내 트래킹·타이머·기록은 두 조건 모두 그대로 동작합니다.
   const condition = conditionOf(branch);
   const hidden = condition === "hidden";
-  const others = useParticipants(hidden ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  const live = useParticipants(hidden ? "" : channelName(BRANCH_ID), me); // 같은 지점의 다른 참여자 (실시간)
+  // 기록 모드(#190): 주소의 ?record=18 처럼 자리를 정하면 그 자리에 앉아 내 움직임을 기록합니다. 팀원 녹화용.
+  const [recordSeat] = useState(() => recordSeatOf(location.search));
+  // C 조건의 팀원 캐릭터 (#195). 참가자가 들어오면 한 명씩 걸어 들어와 앉고 기록을 재생합니다. 팀원이 녹화할 때는 그 자리를 비워야 하므로 끕니다.
+  const recorded = useRecordedPeers(branch.recordedPeers === true && recordSeat === null, branch);
+  const others = [...live, ...recorded];
   useOnlinePlace(branch.id); // 사이트 전체 접속 상태에 "이 지점에 있음"으로 표시 (친구 탭 활동 중, #176)
   useOnlineInvisible(hidden); // B 조건이면 접속 상태에서 나를 뺌
   useEffect(() => {
@@ -256,8 +262,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   );
   const freeSpots = spots.filter((c) => !taken.has(c.no));
   // 실험 지점(room B·C)은 정해진 자리 하나에만 앉습니다. 참가자마다 팀원 캐릭터가 같은 각도로 보이게 (#199)
-  // 기록 모드(#190): 주소의 ?record=18 처럼 자리를 정하면 그 자리에 앉아 내 움직임을 기록합니다. 팀원 녹화용.
-  const [recordSeat] = useState(() => recordSeatOf(location.search));
   const fixedSeat = recordSeat ?? branch.experimentSeat ?? null;
   const sittable = fixedSeat === null ? freeSpots : freeSpots.filter((c) => c.no === fixedSeat);
   const [perf, setPerf] = useState<Perf>(initialPerf); // 측정용 수치
