@@ -53,6 +53,7 @@ export type WorldComputed = {
   gates: PlacedGate[]
   rests: Spot[] // 쉬는 자리 (돗자리·빈백)
   studySpots: Spot[] // 공부 자리: 광장은 벤치 자리 + 캠프파이어 통나무, 캠퍼스는 등불 나무 광장 빈백, 해변은 비치체어
+  campfireSpots: Spot[] // 그중 캠프파이어 통나무 자리 (광장만. 바로 앉기 #116 에서 벤치와 따로 고름)
   obstacles: Box[]
   entries: Spot[] // Player 의 "앉는 자리": 건물 입구 + 정문 입장 자리 + 쉬는 자리 + 순위 게시판 앞(#59)
   litLamps: PlazaLayout['lamps'] // 밤에 점광원을 켜는 가로등 (JSON 의 light)
@@ -65,11 +66,13 @@ export function computedOf(w: WorldConfig): WorldComputed {
     const gates = placeGates(w.layout)
     const rests = restSpots(w.layout)
     const board = boardSpot(w.layout)
+    const campfireSpots = w.layout.beach || w.id === 'campus' ? [] : campfireStudySeats(w.layout)
     c = {
       placed,
       gates,
       rests,
-      studySpots: w.layout.beach ? beachSeats(w.layout.beach, BENCH_SEAT_BASE) : w.id === 'campus' ? courtyardSeats(w.layout) : [...benchSeats(w.layout), ...campfireStudySeats(w.layout)],
+      studySpots: w.layout.beach ? beachSeats(w.layout.beach, BENCH_SEAT_BASE) : w.id === 'campus' ? courtyardSeats(w.layout) : [...benchSeats(w.layout), ...campfireSpots],
+      campfireSpots,
       obstacles: plazaObstacles(w.layout, placed),
       entries: [...placed.map((b) => b.entry), ...gates.map((g) => g.entry), ...rests, ...(board ? [board] : [])],
       litLamps: w.layout.lamps.filter((l) => l.light),

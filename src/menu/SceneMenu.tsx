@@ -23,10 +23,11 @@ type Props = {
   lobbyLabel?: string // 나가기 버튼 글자 (없으면 "캠리단길로"). 캠빛 대학교 건물이면 "캠빛 대학교로"
   onTracking?: () => void // 지점에서만: 트래킹 검증 화면으로 가는 버튼
   onSkyTime?: () => void // 광장·캠퍼스에서만: 팀 전용 하늘 조절판(시간·날씨) 열기·닫기
+  onQuickSeat?: () => void // 바깥 공간에서만: 바로 앉기 (최애 공간 빈자리에 앉아 공부 시작, #116)
   top?: ReactNode // 메뉴 맨 위에 둘 것 (FPS 표시). 있으면 메뉴가 그 아래로 내려감
 }
 
-export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyTime, lobbyLabel = '캠리단길로', top }: Props) {
+export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyTime, onQuickSeat, lobbyLabel = '캠리단길로', top }: Props) {
   const keys = useKeymap()
   const team = useIsTeam(myId)
   // 폰(#377): 작은 화면을 가리지 않게 [☰] 하나로 접어 두고, 누르면 펼침. 고르면 다시 접힘
@@ -64,6 +65,19 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
         </div>
       )}
       <nav style={menuBox}>
+        {/* 바로 앉기 (#116): 최애 공간의 빈자리에 앉아 바로 공부 시작. 단축키 없음 */}
+        {onQuickSeat && (
+          <button
+            type="button"
+            style={menuRow}
+            onClick={() => {
+              setUnfolded(false)
+              onQuickSeat()
+            }}
+          >
+            🪑 바로 앉기
+          </button>
+        )}
         {PANEL_KEYS.filter((it) => it.action !== 'settings').map((it) => (
           <button
             key={it.action}

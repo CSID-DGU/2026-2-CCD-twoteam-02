@@ -39,18 +39,20 @@ export function useCafeSeat(
     onMySeatRef.current = onMySeat
   })
 
-  const claim = async (seatNo: number, spotNo: number = seatNo) => {
-    if (branchId === null) return
+  // 잡았으면 true. 거절됐으면(다른 사람이 먼저 앉음, 다른 자리 이용 중) false — 바로 앉기(#116)가 다른 자리로 다시 해 보는 데 씁니다
+  const claim = async (seatNo: number, spotNo: number = seatNo): Promise<boolean> => {
+    if (branchId === null) return false
     const { error } = await inOrder(() => supabase.rpc('sit_cafe_seat', { p_branch_id: branchId, p_seat_number: seatNo, ...(channel > 1 ? { p_channel: channel } : {}) }))
     if (error) {
       // DT001: 다른 자리(예: 별다방 7번)를 이용 중. 반납하고 앉기 버튼을 띄웁니다.
       if (error.code === 'DT001') setConflict({ message: error.message, seatNo, spotNo })
       else setMessage(error.message)
-      return
+      return false
     }
     setMessage('')
     onMySeatRef.current(seatNo)
     sitRequest.current = spotNo
+    return true
   }
 
   const releaseAndSit = async () => {
