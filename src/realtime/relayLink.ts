@@ -5,7 +5,7 @@
 //
 //   서버 메시지            useParticipants 가 받는 것
 //   {t:'s', s:[...]}   →  SNAPSHOT_EVENT {states}
-//   {t:'b', s:[...]}   →  사람마다 MOVE_EVENT
+//   {t:'b', s:[...]}   →  사람마다 MOVE_EVENT. 서버에서 기다린 시간(a)을 빼서 표본 시각(sampledAt)을 붙인다 (#504)
 //   {t:'b', g:[...]}   →  onLeave
 //   {t:'e', e, p}      →  FLICK_EVENT, PROFILE_EVENT
 //   {t:'p', e, p, r}   →  PLAY_EVENT (축구공·모래 글씨, #473)
@@ -14,6 +14,7 @@
 // 토큰이 끝나 서버가 끊으면 재연결이 새 토큰으로 들어간다.
 import { supabase } from '../lib/supabase'
 import { FLICK_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './participants'
+import { sampledTime } from './walkLogic'
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 
 const SUBPROTOCOL = 'relay.v1'
@@ -44,7 +45,8 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
   function receive(text: unknown) {
     heardAt = Date.now()
     if (typeof text !== 'string' || text === 'pong') return
-    let m: { t?: string; s?: unknown[]; g?: string[]; e?: string; p?: unknown; r?: string }
+    const receivedAt = performance.now()
+    let m: { t?: string; s?: unknown[]; a?: unknown[]; g?: string[]; e?: string; p?: unknown; r?: string }
     try {
       m = JSON.parse(text)
     } catch {
@@ -53,7 +55,10 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
     if (m.t === 's') events.onMessage(SNAPSHOT_EVENT, { states: m.s })
     else if (m.t === 'b') {
       for (const userId of m.g ?? []) events.onLeave([{ userId }])
-      for (const state of m.s ?? []) events.onMessage(MOVE_EVENT, state)
+      ;(m.s ?? []).forEach((state, i) => {
+        if (typeof state === 'object' && state !== null) (state as { sampledAt?: number }).sampledAt = sampledTime(receivedAt, m.a?.[i])
+        events.onMessage(MOVE_EVENT, state)
+      })
     } else if (m.t === 'e' && m.e) events.onMessage(m.e, m.p)
     else if (m.t === 'p') events.onMessage(PLAY_EVENT, { e: m.e, p: m.p, r: m.r })
   }

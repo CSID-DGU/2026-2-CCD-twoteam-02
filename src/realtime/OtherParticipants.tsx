@@ -133,7 +133,7 @@ export function OtherParticipants({
               </>
             ) : (
               // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
-              <WalkingCharacter x={p.x} z={p.z} h={p.h} model={p.model} emote={p.emote} emoteSeq={p.emoteSeq} jump={p.jump}>
+              <WalkingCharacter x={p.x} z={p.z} h={p.h} t={p.sampledAt} model={p.model} emote={p.emote} emoteSeq={p.emoteSeq} jump={p.jump}>
                 <NameTag x={0} z={0} name={p.nickname} level={p.lv} />
                 {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
                 {pops?.has(p.userId) && <FlickPop x={0} z={0} />}

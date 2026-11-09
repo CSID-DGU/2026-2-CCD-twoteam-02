@@ -44,7 +44,30 @@ export function facingGoal(vx: number, vz: number, h: number | undefined, walkin
 }
 
 // 받은 위치 하나. t 는 받은 시각(performance.now 기준 ms)입니다.
+// 중계 서버에서 온 위치는 서버에서 기다린 시간을 빼서, 보낸 간격이 살아 있는 시각을 씁니다 (sampledTime).
 export type Sample = { t: number; x: number; z: number; h?: number }
+
+// 중계 서버는 붐비는 방에서 받은 위치를 0.1초(relay/src/relayLogic.ts 의 TICK_MS) 단위로 묶어 내보냅니다.
+// 그래서 0.25초마다 보낸 위치가 0.2초·0.3초 간격으로 섞여 도착하고, 받은 시각대로 이으면
+// 같은 거리를 0.2초와 0.3초에 번갈아 가서 속도가 0.84배·1.26배로 출렁였습니다(19명 측정, #504).
+// 서버가 위치마다 기다린 시간을 알려 주므로, 받은 시각에서 그만큼 빼면 보낸 간격(0.25초)이 돌아옵니다.
+//
+// 다만 빼기만 하면 표본 시각이 최대 0.1초 앞당겨져 INTERP_DELAY_MS 안에 다음 표본이 못 올 수 있습니다.
+// 그래서 묶음 간격의 절반만큼 되돌립니다. 붐비는 방에서는 평균 대기(0.05초)와 같아 지연이 예전과 같고,
+// 한가한 방(기다림 0)에서는 0.05초 늦게 보입니다.
+export const RELAY_WAIT_MAX_MS = 100 // 서버의 묶음 간격. 이보다 긴 기다림은 잘못 온 값으로 보고 줄입니다
+export const RELAY_WAIT_OFFSET_MS = 50
+
+// 표본 시각. receivedAt 은 받은 시각, waitedMs 는 서버가 알려 준 기다린 시간(옛 서버는 없음)
+export function sampledTime(receivedAt: number, waitedMs: unknown): number {
+  const waited = typeof waitedMs === 'number' && Number.isFinite(waitedMs) ? Math.min(Math.max(waitedMs, 0), RELAY_WAIT_MAX_MS) : 0
+  return receivedAt - waited + RELAY_WAIT_OFFSET_MS
+}
+
+// 쌓을 표본의 시각. 시각이 앞 표본보다 이르면(통신 흔들림) 앞 표본 바로 뒤로 둡니다. 시각이 거꾸로 가면 보간이 깨집니다.
+export function nextSampleTime(t: number, prev: number | undefined): number {
+  return prev !== undefined && t <= prev ? prev + 1 : t
+}
 
 // 그 시각의 위치와 속도. 두 표본 사이를 일정한 속도로 잇습니다.
 export type Placed = { x: number; z: number; h?: number; vx: number; vz: number }
