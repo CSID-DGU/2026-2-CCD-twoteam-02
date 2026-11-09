@@ -319,6 +319,8 @@ export function useParticipants(
       } else if (event === MOVE_EVENT) {
         const state = payload as PresenceState
         if (!state?.userId || state.userId === me.current?.userId) return
+        // 받은 시각을 여기서 붙인다. 화면에 그릴 때 붙이면 다시 그리는 데 걸린 시간만큼 간격이 흔들린다. 중계 서버 위치는 relayLink 가 이미 붙였다
+        state.sampledAt ??= performance.now()
         moves.set(state.userId, state)
         lastHeard.set(state.userId, Date.now())
         rebuild()

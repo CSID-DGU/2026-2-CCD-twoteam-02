@@ -11,7 +11,8 @@
 //            {t:'p', e, p, to?}          축구공·모래 글씨 (playLogic.ts, #473)
 //            'ping'                      살아 있음 (런타임이 객체를 깨우지 않고 'pong' 으로 답한다)
 //   보내는 것 {t:'s', u:나, s:[위치...]}  입장 스냅샷. 들어온 사람에게만
-//            {t:'b', s:[위치...], g:[나간 사람...]}  틱마다 묶은 변경
+//            {t:'b', s:[위치...], a:[기다린 ms...], g:[나간 사람...]}  틱마다 묶은 변경. a 는 s 와 같은 순서로,
+//                                        각 위치를 받은 뒤 내보낼 때까지 기다린 시간이다 (#504)
 //            {t:'e', e:이름, p:내용}     딱밤·프로필 알림
 //            {t:'r', ...}                측정용 계수
 //            {t:'p', e, p} / {t:'p', e, r}  축구공·모래 글씨, 서버가 넘긴 need (r: 답할 연결)
@@ -60,6 +61,7 @@ type Attachment = {
 export class RelayRoom extends DurableObject<RelayEnv> {
   private latest = new Map<string, RelayState>() // 사람별 최신 위치
   private pending = new Map<string, RelayState>() // 이번 틱에 바뀐 위치
+  private pendingAt = new Map<string, number>() // 그 위치를 받은 시각
   private gone = new Set<string>() // 이번 틱에 나간 사람
   private rates = new Map<string, RateWindow>() // 연결별 초당 메시지. 잠들면 사라져도 상관없다
   private playRates = new Map<string, RateWindow>() // 축구공·모래 글씨는 위치와 따로 센다 (공을 찬 사람은 위치 초당 4번 + 공 초당 약 7번)
@@ -173,6 +175,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
       ws.serializeAttachment({ ...a, heardAt: now, state } satisfies Attachment)
       this.latest.set(a.userId, state)
       this.pending.set(a.userId, state)
+      this.pendingAt.set(a.userId, now)
       this.gone.delete(a.userId)
       this.requestFlush(now)
     } else if (parsed.t === 'e') {
@@ -219,8 +222,17 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     this.lastFlushAt = now
     if (now - this.lastSweepAt >= SWEEP_INTERVAL_MS) this.sweep(now)
     if (this.pending.size === 0 && this.gone.size === 0) return
-    const batch = { t: 'b', s: [...this.pending.values()], ...(this.gone.size > 0 ? { g: [...this.gone] } : {}) }
+    // 붐비는 방은 틱 단위로만 내보내서, 0.25초마다 온 위치가 0.2초·0.3초 간격으로 섞여 나간다.
+    // 받는 화면이 보낸 간격대로 이어 그리도록 위치마다 기다린 시간을 함께 보낸다 (#504)
+    const s: RelayState[] = []
+    const waited: number[] = []
+    for (const [userId, state] of this.pending) {
+      s.push(state)
+      waited.push(now - (this.pendingAt.get(userId) ?? now))
+    }
+    const batch = { t: 'b', s, a: waited, ...(this.gone.size > 0 ? { g: [...this.gone] } : {}) }
     this.pending.clear()
+    this.pendingAt.clear()
     this.gone.clear()
     this.stats.flushes++
     this.sendAll(JSON.stringify(batch))
@@ -304,6 +316,7 @@ export class RelayRoom extends DurableObject<RelayEnv> {
     }
     if (!this.latest.delete(a.userId)) return
     this.pending.delete(a.userId)
+    this.pendingAt.delete(a.userId)
     this.gone.add(a.userId)
     this.requestFlush(Date.now())
   }

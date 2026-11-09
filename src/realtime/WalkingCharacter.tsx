@@ -21,7 +21,7 @@ import type { ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useAnimations, useGLTF } from '@react-three/drei'
 import type { Group } from 'three'
-import { INTERP_DELAY_MS, SAMPLE_MAX, TELEPORT_GAP, angleDiff, facingGoal, gaitOf, sampleAt } from './walkLogic'
+import { INTERP_DELAY_MS, SAMPLE_MAX, TELEPORT_GAP, angleDiff, facingGoal, gaitOf, nextSampleTime, sampleAt } from './walkLogic'
 import { WALK_SPEED } from '../space/moveSpeed'
 import type { Gait, Sample } from './walkLogic'
 import { EMOTE_CLIPS, emoteById, emoteSeconds, prepareEmoteAction } from '../space/emotes'
@@ -42,6 +42,7 @@ type Props = {
   x: number
   z: number
   h?: number // 그 사람이 보낸 몸 방향. 없으면 가는 방향을 봅니다.
+  t?: number // 이 위치의 표본 시각(받을 때 붙인 값, #504). 없으면(NPC) 그리는 시각을 씁니다.
   model: string
   children?: ReactNode // 캐릭터와 함께 움직일 것 (닉네임·표시등). 몸이 돌아도 따라 돌지 않습니다.
   emote?: string // 그 사람이 지금 하는 감정표현 (#162)
@@ -49,7 +50,7 @@ type Props = {
   jump?: number // 점프할 때마다 올라가는 번호
 }
 
-export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq, jump }: Props) {
+export function WalkingCharacter({ x, z, h, t, model, children, emote, emoteSeq, jump }: Props) {
   const ref = useRef<Group>(null!) // 위치만 옮기는 묶음
   const body = useRef<Group>(null!) // 몸 방향만 돌리는 묶음
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
@@ -81,13 +82,14 @@ export function WalkingCharacter({ x, z, h, model, children, emote, emoteSeq, ju
     emoteClip.current = null
   }, [actions])
 
-  // 새 위치가 올 때마다 받은 시각과 함께 쌓아 둡니다.
-  // prop 이 바뀔 때만 도므로, 같은 값이 다시 와도 표본이 늘지 않습니다.
+  // 새 위치가 올 때마다 표본 시각과 함께 쌓아 둡니다.
+  // prop 이 바뀔 때만 도므로, 다른 사람 때문에 다시 그려져도 표본이 늘지 않습니다.
+  // 가만히 선 사람이 같은 위치를 다시 보내면 표본 시각(t)만 바뀌어 멈춘 표본이 하나 더 쌓입니다(멈춘 그대로 보임).
   useEffect(() => {
     const b = buf.current
-    b.push({ t: performance.now(), x, z, h })
+    b.push({ t: nextSampleTime(t ?? performance.now(), b[b.length - 1]?.t), x, z, h })
     if (b.length > SAMPLE_MAX) b.shift()
-  }, [x, z, h])
+  }, [x, z, h, t])
 
   // 점프 번호가 바뀌면 지금부터 한 번 뜁니다. 처음 받은 번호는 기준으로만 삼습니다.
   useEffect(() => {
