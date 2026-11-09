@@ -35,6 +35,7 @@ import { LABEL_PX, labelTexture } from '../space/labelTexture'
 import { OtherParticipants } from '../realtime/OtherParticipants'
 import { useParticipants } from '../realtime/useParticipants'
 import type { Participant, PresenceState } from '../realtime/participants'
+import type { LiveStates } from '../realtime/liveStates'
 import { useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { useChatPort, useMeetingChat } from '../chat/useMeetingChat'
@@ -87,7 +88,7 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
   const me = useRef<PresenceState | null>(null)
   const signalRef = useSignalPort() // 같은 회의 방으로 음성 연결 신호도 주고받습니다 (#46)
   const chatPort = useChatPort() // 같은 회의 방으로 회의 채팅도 주고받습니다 (#298)
-  const others = useParticipants(`meeting:${meetingId}`, me, true, signalRef, chatPort)
+  const { others, live } = useParticipants(`meeting:${meetingId}`, me, true, signalRef, chatPort)
   useMeetingChat(meetingId, others, chatPort) // 채팅창 Tab 목록에 [회의]
   const voice = useVoice(myId, others.map((o) => o.userId).sort().join(','), signalRef)
   // 다시 읽기 신호: 내가 방장을 넘기면 1 올려 다른 참석자에게 보내고(PresenceState.sync), 나도 다시 읽습니다.
@@ -129,6 +130,7 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
       info={state.info}
       people={people}
       others={others}
+      live={live}
       meetingId={meetingId}
       myId={myId}
       meRef={me}
@@ -145,7 +147,8 @@ function MeetingRoom({ meetingId, myId, slug }: { meetingId: number; myId: strin
 type SpaceProps = {
   info: MeetingInfo
   people: MeetingPerson[]
-  others: Participant[] // 실시간으로 받은 다른 참석자 (위치·앉은 의자·고개·눈·팔)
+  others: Participant[] // 실시간으로 받은 다른 참석자 (들고 날 때 바뀌는 목록)
+  live: LiveStates // 참석자마다 가장 최근 상태 (위치·앉은 의자·고개·눈·팔·입, #504)
   meetingId: number
   myId: string
   meRef: RefObject<PresenceState | null> // 보낼 내 상태 (이름이 Ref 로 끝나야 React 규칙 검사가 ref 로 알아봄)
@@ -158,7 +161,7 @@ type SpaceProps = {
 }
 
 // 회의실 공간. 지점(BranchScene)과 같은 부품(Player·카메라·다른 참석자 그리기)으로 만듭니다.
-function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place, slug }: SpaceProps) {
+function MeetingSpace({ info, people, others, live, meetingId, myId, meRef, sync, onHostChanged, onLeave, voice, place, slug }: SpaceProps) {
   const chairs = useMemo(() => meetingChairs(info.capacity), [info.capacity])
   // 내 칭호 (꽃 피는 칭호). 공개 범위가 '모두'일 때만 다른 참석자에게 단계를 보냅니다(sharedLevel).
   const myTitle = useMyTitle(myId)
@@ -385,6 +388,7 @@ function MeetingSpace({ info, people, others, meetingId, myId, meRef, sync, onHo
         {/* 다른 참석자: 앉은 사람은 의자에, 서 있는 사람은 받은 위치에 그립니다(지점과 같음). 표시등은 없고, 방장 이름 앞에 👑 */}
         <OtherParticipants
           others={others.map((o) => (o.userId === info.hostId ? { ...o, nickname: `👑 ${o.nickname}` } : o))}
+          live={live}
           spots={chairs}
           showStatus={false}
         />

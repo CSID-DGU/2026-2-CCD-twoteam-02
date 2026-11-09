@@ -20,10 +20,12 @@ import type { EmoteState } from '../space/emotes'
 import type { AimTarget } from '../space/aimLogic'
 import type { Spot } from '../space/layout'
 import type { FlickPort, Participant, PresenceState } from '../realtime/participants'
+import type { LiveStates } from '../realtime/liveStates'
 
 type Args = {
   myId: string | undefined
   others: Participant[]
+  live?: LiveStates // 사람마다 지금 위치 (others 의 위치는 목록을 만든 때의 값, #504)
   spots: Spot[] // 앉은 사람 자리 (그 사람이 어디 있는지)
   me: RefObject<PresenceState | null> // 내 상태(빨간불인지)와 위치
   port: RefObject<FlickPort> // useParticipants 에 같이 넘긴 통로
@@ -45,17 +47,17 @@ function bindReceive(port: FlickPort, receive: FlickPort['receive']) {
   port.receive = receive
 }
 
-export function useFlick({ myId, others, spots, me, port, aim, emoteRef, disabled }: Args) {
+export function useFlick({ myId, others, live, spots, me, port, aim, emoteRef, disabled }: Args) {
   const { list } = useFriends(myId)
   const [pops, setPops] = useState<ReadonlySet<string>>(new Set()) // 머리 위 "딱!" 말풍선을 띄울 사람
   const [hit, setHit] = useState<{ name: string; at: number } | null>(null) // 내가 맞음
   const [cooling, setCooling] = useState<ReadonlySet<string>>(new Set()) // 방금 보내서 30초 기다리는 사람
   const lastSent = useRef(new Map<string, number>())
   const lastHit = useRef(new Map<string, number>())
-  const latest = useRef({ others, spots, list }) // 신호·키를 받는 함수가 읽을 최신 값 (그릴 때가 아니라 effect 에서 넣음)
+  const latest = useRef({ others, live, spots, list }) // 신호·키를 받는 함수가 읽을 최신 값 (그릴 때가 아니라 effect 에서 넣음)
   useEffect(() => {
-    latest.current = { others, spots, list }
-  }, [others, spots, list])
+    latest.current = { others, live, spots, list }
+  }, [others, live, spots, list])
 
   const pop = useCallback((id: string) => {
     setPops((s) => new Set(s).add(id))
@@ -113,10 +115,10 @@ export function useFlick({ myId, others, spots, me, port, aim, emoteRef, disable
         return
       }
       const mine = me.current
-      const { others: people, spots: places, list: friends } = latest.current
+      const { others: people, live: states, spots: places, list: friends } = latest.current
       const sender = people.find((x) => x.userId === from)
       if (!mine || !myId) return
-      const at = sender ? placeOf(sender, places) : null
+      const at = sender ? placeOf(states?.get(from) ?? sender, places) : null // 거리는 지금 위치로
       const here = placeOf(mine, places)
       const now = Date.now()
       const ok = acceptFlick(

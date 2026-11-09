@@ -133,7 +133,7 @@ function ShopPeople({ slug, layout }: { slug: string; layout: BranchLayout }) {
 function ShopPeopleIn({ id, layout }: { id: number; layout: BranchLayout }) {
   const me = useRef<PresenceState | null>(null)
   const room = useWatchRoom(channelName(id)) // 내 채널의 가게 안을 본다 (#481)
-  const others = useParticipants(room, me, false, undefined, undefined, watchSupabase)
+  const { others, live } = useParticipants(room, me, false, undefined, undefined, watchSupabase)
   const spots = useMemo(() => spotsOf(layout), [layout]) // 앉은 사람 자세
-  return <OtherParticipants others={others} spots={spots} showStatus={false} />
+  return <OtherParticipants others={others} live={live} spots={spots} showStatus={false} />
 }

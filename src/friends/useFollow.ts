@@ -19,6 +19,7 @@ import { BRANCH_LAYOUTS } from '../space/branches'
 import { BEACH_WORLD, CAMPUS_WORLD } from '../world/worldConfig'
 import type { Box, Spot } from '../space/layout'
 import type { Participant } from '../realtime/participants'
+import type { LiveStates } from '../realtime/liveStates'
 
 const REQUEST_TTL_MS = 30_000 // 이만큼 지난 요청은 버림 (도착한 화면이 늦게 떠도 엉뚱한 때 옮겨지지 않게)
 
@@ -88,6 +89,7 @@ type Arrival = {
   place: string // 이 화면의 장소(채널이 나뉘면 방 이름). 바뀌면(지점 → 다른 지점, 채널 이동) 그때부터 다시 기다림
   ready?: boolean // 이 장소의 방에 들어갔는지. 채널을 배정받는 동안은 false 라 기다리는 시간을 세지 않음 (생략하면 true)
   others: Participant[] // 이 장소의 다른 참여자
+  live?: LiveStates // 사람마다 지금 위치 (others 의 위치는 목록을 만든 때의 값, #504)
   spots: Spot[] // 앉은 사람의 자리 번호 → 위치
   obstacles: Box[]
   bounds: { w: number; d: number } // 공간 크기 (가운데 0, 0)
@@ -99,7 +101,7 @@ type Arrival = {
 }
 
 // 광장·지점 화면: 따라가기 요청이 있으면 친구 옆으로 옮깁니다.
-export function useFollowArrival({ place, ready = true, others, spots, obstacles, bounds, teleportRef, onArrive, channel }: Arrival) {
+export function useFollowArrival({ place, ready = true, others, live, spots, obstacles, bounds, teleportRef, onArrive, channel }: Arrival) {
   const req = useSyncExternalStore(subscribe, () => request)
   const online = useOnline()
   const mine = channel?.mine ?? null
@@ -124,7 +126,8 @@ export function useFollowArrival({ place, ready = true, others, spots, obstacles
       take()
       return
     }
-    const friend = others.find((p) => p.userId === req.friendId)
+    const listed = others.find((p) => p.userId === req.friendId)
+    const friend = listed && { ...listed, ...live?.get(listed.userId) } // 자리·위치·방향은 지금 값으로
     if (!friend) {
       const theirs = online.get(req.friendId)?.channel ?? null
       const step = channelStep(theirs, mine, req.channel)
@@ -152,5 +155,5 @@ export function useFollowArrival({ place, ready = true, others, spots, obstacles
       arrive.current(req.friendId, req.reason, false)
     }, Math.max(0, deadline - now))
     return () => clearTimeout(timer)
-  }, [req, ready, others, spots, obstacles, bounds, teleportRef, online, mine])
+  }, [req, ready, others, live, spots, obstacles, bounds, teleportRef, online, mine])
 }
