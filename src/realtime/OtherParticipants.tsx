@@ -7,10 +7,14 @@
 // 실시간으로 오는 위치를 따라가게 그립니다(WalkingCharacter).
 // 머리 위에는 닉네임과 상태 표시등을 같이 올립니다.
 // 위에서 보는 시점에서 캐릭터를 누르면 onSelect, 1인칭에서 조준점이 캐릭터를 가리키면 onAim 으로 그 사람을 알립니다. (프로필 창 열기)
-import { useEffect, useRef } from 'react'
+//
+// 목록(others)은 사람이 들고 날 때만 바뀌고, 위치·고개 같은 자주 바뀌는 값은 사람마다 live 에서 받습니다.
+// 한 사람이 움직이면 그 사람(OtherPerson)만 다시 그립니다. (#504, liveStates.ts)
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Raycaster, Vector3 } from 'three'
 import type { Object3D } from 'three'
+import type { RefObject } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import { StatusMarker } from '../space/StatusMarker'
 import { SeatedCharacter } from '../space/SeatedCharacter'
@@ -18,6 +22,7 @@ import type { Spot } from '../space/layout'
 import { WalkingCharacter } from './WalkingCharacter'
 import { NameTag } from './NameTag'
 import type { Participant } from './participants'
+import type { LiveStates } from './liveStates'
 import { AIM_HZ, BODY, CLOSE_RANGE, pickAimPerson } from '../space/aimLogic'
 import { isTouchMode } from '../space/useIsTouch'
 import type { AimPerson, AimTarget } from '../space/aimLogic'
@@ -36,6 +41,7 @@ const shown = (o: Object3D | null): boolean => !o || (o.visible && shown(o.paren
 
 export function OtherParticipants({
   others,
+  live,
   spots,
   onSelect,
   showStatus = true,
@@ -44,6 +50,7 @@ export function OtherParticipants({
   pops,
 }: {
   others: Participant[]
+  live?: LiveStates // 사람마다 가장 최근 상태 (useParticipants). 없으면 목록의 값으로 그립니다
   spots: Spot[]
   showStatus?: boolean // 상태 표시등. 로비에서는 모두 공부 전이라 끕니다. (#166)
   onSelect?: (userId: string) => void // 커서로 캐릭터를 눌렀을 때 (위에서 보는 시점)
@@ -71,7 +78,8 @@ export function OtherParticipants({
     camera.getWorldDirection(probe.dir)
     // 그려지는 위치: 앉은 사람은 자리, 걷는 사람은 보간된 캐릭터 위치(묶음의 첫 자식)
     const people: AimPerson[] = []
-    for (const p of others) {
+    for (const listed of others) {
+      const p = { ...listed, ...live?.get(listed.userId) } // 앉은 자리·위치는 지금 값으로
       const spot = p.seat === null ? undefined : spots.find((s) => s.no === p.seat)
       const body = groups.current.get(p.userId)?.children[0]
       const x = spot ? spot.x : (body?.position.x ?? p.x)
@@ -88,7 +96,7 @@ export function OtherParticipants({
     onAim(blocked ? null : { kind: 'person', id: hit.person.id, name: hit.person.name, close: hit.dist <= CLOSE_RANGE })
   })
 
-  // 참여자 목록이 0.1초마다 바뀌며 다시 그려져도 원래 커서를 잃지 않게 ref 에 둡니다.
+  // 캐릭터가 다시 그려져도 원래 커서를 잃지 않게 ref 에 둡니다.
   const savedCursor = useRef('')
   // 이벤트가 일어난 곳(지점 화면 캔버스)의 커서를 바꿉니다.
   const canvasOf = (e: ThreeEvent<PointerEvent>) => e.nativeEvent.target as HTMLElement
@@ -102,46 +110,85 @@ export function OtherParticipants({
 
   return (
     <>
-      {others.map((p) => {
-        const spot = p.seat === null ? undefined : spots.find((s) => s.no === p.seat)
-        // 앉아 있다고 알려 왔는데 그 좌석을 못 찾으면 서 있는 것으로 그립니다.
-        const x = spot ? spot.x : p.x
-        const z = spot ? spot.z : p.z
-        return (
-          <group
-            key={p.userId}
-            userData={{ userId: p.userId }}
-            ref={(o) => {
-              if (o) groups.current.set(p.userId, o)
-              else groups.current.delete(p.userId)
-            }}
-            onClick={(e: ThreeEvent<MouseEvent>) => {
-              if (document.pointerLockElement) return // 잠긴 동안은 클릭으로 열지 않습니다(조준점 + E).
-              if (!onSelect || e.delta > CLICK_TOLERANCE) return
-              e.stopPropagation() // 뒤에 겹친 다른 캐릭터까지 열리지 않게
-              onSelect(p.userId)
-            }}
-            onPointerOver={onSelect ? hoverIn : undefined}
-            onPointerOut={onSelect ? hoverOut : undefined}
-          >
-            {spot ? (
-              <>
-                <SeatedCharacter spot={spot} model={p.model} head={p.head} eyes={p.eyes} arms={p.arms} mouth={p.mouth} />
-                <NameTag x={x} z={z} name={p.nickname} level={p.lv} />
-                {showStatus && <StatusMarker x={x} z={z} status={p.status} />}
-                {pops?.has(p.userId) && <FlickPop x={x} z={z} />}
-              </>
-            ) : (
-              // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
-              <WalkingCharacter x={p.x} z={p.z} h={p.h} t={p.sampledAt} model={p.model} emote={p.emote} emoteSeq={p.emoteSeq} jump={p.jump}>
-                <NameTag x={0} z={0} name={p.nickname} level={p.lv} />
-                {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
-                {pops?.has(p.userId) && <FlickPop x={0} z={0} />}
-              </WalkingCharacter>
-            )}
-          </group>
-        )
-      })}
+      {others.map((p) => (
+        <OtherPerson
+          key={p.userId}
+          listed={p}
+          live={live}
+          spots={spots}
+          groups={groups}
+          showStatus={showStatus}
+          pop={pops?.has(p.userId) ?? false}
+          onSelect={onSelect}
+          hoverIn={hoverIn}
+          hoverOut={hoverOut}
+        />
+      ))}
     </>
+  )
+}
+
+// 한 사람. 이 사람의 최신 상태만 구독해, 움직이면 이 컴포넌트만 다시 그립니다.
+function OtherPerson({
+  listed,
+  live,
+  spots,
+  groups,
+  showStatus,
+  pop,
+  onSelect,
+  hoverIn,
+  hoverOut,
+}: {
+  listed: Participant // 닉네임·캐릭터는 여기서 (회의실은 방장 표시를 붙여 넘김)
+  live?: LiveStates
+  spots: Spot[]
+  groups: RefObject<Map<string, Object3D>>
+  showStatus: boolean
+  pop: boolean
+  onSelect?: (userId: string) => void
+  hoverIn: (e: ThreeEvent<PointerEvent>) => void
+  hoverOut: (e: ThreeEvent<PointerEvent>) => void
+}) {
+  const id = listed.userId
+  const subscribe = useCallback((onChange: () => void) => live?.subscribe(id, onChange) ?? (() => {}), [live, id])
+  const latest = useSyncExternalStore(subscribe, () => live?.get(id))
+  const p = latest ?? listed
+  const spot = p.seat === null ? undefined : spots.find((s) => s.no === p.seat)
+  // 앉아 있다고 알려 왔는데 그 좌석을 못 찾으면 서 있는 것으로 그립니다.
+  const x = spot ? spot.x : p.x
+  const z = spot ? spot.z : p.z
+  return (
+    <group
+      userData={{ userId: id }}
+      ref={(o) => {
+        if (o) groups.current.set(id, o)
+        else groups.current.delete(id)
+      }}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (document.pointerLockElement) return // 잠긴 동안은 클릭으로 열지 않습니다(조준점 + E).
+        if (!onSelect || e.delta > CLICK_TOLERANCE) return
+        e.stopPropagation() // 뒤에 겹친 다른 캐릭터까지 열리지 않게
+        onSelect(id)
+      }}
+      onPointerOver={onSelect ? hoverIn : undefined}
+      onPointerOut={onSelect ? hoverOut : undefined}
+    >
+      {spot ? (
+        <>
+          <SeatedCharacter spot={spot} model={listed.model} head={p.head} eyes={p.eyes} arms={p.arms} mouth={p.mouth} />
+          <NameTag x={x} z={z} name={listed.nickname} level={p.lv} />
+          {showStatus && <StatusMarker x={x} z={z} status={p.status} />}
+          {pop && <FlickPop x={x} z={z} />}
+        </>
+      ) : (
+        // 돌아다니는 사람은 닉네임·표시등이 캐릭터를 따라 부드럽게 움직이도록 안에 넣습니다.
+        <WalkingCharacter x={p.x} z={p.z} h={p.h} t={p.sampledAt} model={listed.model} emote={p.emote} emoteSeq={p.emoteSeq} jump={p.jump}>
+          <NameTag x={0} z={0} name={listed.nickname} level={p.lv} />
+          {showStatus && <StatusMarker x={0} z={0} status={p.status} />}
+          {pop && <FlickPop x={0} z={0} />}
+        </WalkingCharacter>
+      )}
+    </group>
   )
 }

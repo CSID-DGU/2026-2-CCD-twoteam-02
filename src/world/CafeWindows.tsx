@@ -177,7 +177,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
 export function StreetPeople({ world }: { world: WorldConfig }) {
   const me = useRef<PresenceState | null>(null)
   const room = useWatchRoom(world.channel) // 내 채널의 거리를 본다 (#442, #481)
-  const others = useParticipants(room, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
+  const { others, live } = useParticipants(room, me, false, undefined, undefined, watchSupabase) // 광장 화면과 따로 된 보기 전용 연결
   const spots = useMemo(() => [...computedOf(world).rests, ...(world.id === 'plaza' ? [...benchSeats(world.layout), ...campfireStudySeats(world.layout)] : [])], [world]) // 앉은 사람 자세
-  return <OtherParticipants others={others} spots={spots} />
+  return <OtherParticipants others={others} live={live} spots={spots} />
 }

@@ -284,14 +284,14 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
-  const others = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
+  const { others, live } = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
   // 벤치에서 공부하는 집중 상태가 바뀌면 화면 그리기를 기다리지 않고 바로 보낼 상태에 넣습니다(지점 화면과 같음).
   // 같은 창의 다른 탭으로 가면 크롬이 화면 그리기를 멈춰, 떠나기 직전 초록불이 계속 나가던 문제를 막습니다.
   useEffect(() => {
     if (me.current) me.current = { ...me.current, status: benchSeated ? studyStatus : 'idle' }
   }, [benchSeated, studyStatus])
   // 딱밤 (#304): 벤치에서 빨간불인 친구 바로 옆에서 조준하고 Q. 조준이 켜져 있을 때만(서 있고 1인칭, 창 없음)
-  const flick = useFlick({ myId: session?.user.id, others, spots: sitSpots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn })
+  const flick = useFlick({ myId: session?.user.id, others, live, spots: sitSpots, me, port: flickPort, aim: aimOn ? aim.target : null, emoteRef: emote, disabled: !aimOn })
   const shakeBox = useFlickShake(flick.hit?.at ?? null)
 
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
@@ -303,6 +303,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   useFollowArrival({
     ...channelUi.arrival,
     others,
+    live,
     spots: sitSpots,
     obstacles: OBSTACLES,
     bounds: PLAZA.size,
@@ -631,6 +632,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {condition === 'visible' && (
           <OtherParticipants
             others={others}
+            live={live}
             spots={sitSpots}
             onSelect={view === 'top' && seat === null ? (userId) => setPanel({ kind: 'profile', userId }) : undefined}
             aimOn={aimOn}

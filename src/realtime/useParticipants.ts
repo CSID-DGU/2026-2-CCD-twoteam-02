@@ -18,11 +18,11 @@
 //            ▼
 //  timer(0.25초) 가 me.current 를 읽어
 //  sendNow() 로 broadcast 전송  ───────────▶  on('broadcast') 가 받아
-//                                             moves 에 넣고 rebuild()
+//                                             moves·live 에 넣는다
 //                                                    │
 //  subscribe 되면 track({userId, at}) 한 번         ▼
-//            │                              others 배열이 바뀌고
-//            ▼                              OtherParticipants 가 그린다
+//            │                              그 사람 캐릭터만 live 를 읽어 다시 그린다
+//            ▼                              (새 사람·앉기 등이면 others 목록도 새로, #504)
 //  on('presence' join) 으로 남이 들어온 걸 알면
 //  내가 대표일 때만 방 전체 위치를 한 번 보낸다
 //
@@ -94,6 +94,8 @@ import { openSupabaseLink } from './roomLink'
 import type { Presence, RoomLink } from './roomLink'
 import { openRelayLink, relayUrl, ROOM_FULL_STATUS } from './relayLink'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
+import { createLiveStates, listFieldsChanged } from './liveStates'
+import type { LiveStates } from './liveStates'
 
 type AvatarRow = { id: string; nickname: string; avatar: unknown }
 type Profile = { nickname: string; model: string }
@@ -103,6 +105,11 @@ type Profile = { nickname: string; model: string }
 // signalRef: 같은 방으로 음성 연결 신호도 주고받을 때 (회의실 음성, #46)
 // chatRef: 같은 방으로 채팅도 주고받을 때 (회의 채팅, #298)
 // client: 실시간 연결. 기본은 supabase, 지점 통창에서 광장을 보기만 할 때는 watchSupabase (닉네임·캐릭터는 늘 supabase 로 읽음)
+//
+// 돌려주는 것 (#504)
+//   others — 다른 참여자 목록. 사람이 들고 나거나 앉기·상태처럼 드물게 바뀌는 값이 바뀔 때만 새로 만든다.
+//            안의 위치·고개는 목록을 만든 때의 값이라, 지금 값은 live 에서 읽는다.
+//   live   — 사람마다 가장 최근 상태. 위치가 올 때마다 바뀌지만 React 상태가 아니라 화면 전체를 다시 그리지 않는다(liveStates.ts).
 export function useParticipants(
   room: string | null,
   me: RefObject<PresenceState | null>,
@@ -115,6 +122,7 @@ export function useParticipants(
   playRef?: RefObject<PlayPort>, // 축구공·모래 글씨 통로 (중계 서버를 쓸 때 캠퍼스·해변, #473)
 ) {
   const [others, setOthers] = useState<Participant[]>([])
+  const [live] = useState(createLiveStates)
   // 한 번 읽은 닉네임·캐릭터는 들고 있는다. 사람이 들어올 때만 더 읽는다.
   const profiles = useRef(new Map<string, Profile>())
 
@@ -221,6 +229,7 @@ export function useParticipants(
       for (const [id, last] of lastHeard) {
         if (id === leftId || now - last > STALE_MS) {
           moves.delete(id)
+          live.delete(id)
           lastHeard.delete(id)
           profiles.current.delete(id)
           changed = true
@@ -289,6 +298,7 @@ export function useParticipants(
         const now = Date.now()
         for (const state of fresh) {
           moves.set(state.userId, state)
+          live.set(state)
           lastHeard.set(state.userId, now)
         }
         rebuild()
@@ -321,9 +331,12 @@ export function useParticipants(
         if (!state?.userId || state.userId === me.current?.userId) return
         // 받은 시각을 여기서 붙인다. 화면에 그릴 때 붙이면 다시 그리는 데 걸린 시간만큼 간격이 흔들린다. 중계 서버 위치는 relayLink 가 이미 붙였다
         state.sampledAt ??= performance.now()
+        const prev = moves.get(state.userId)
         moves.set(state.userId, state)
+        live.set(state) // 캐릭터는 여기서 받아 그 사람만 다시 그린다
         lastHeard.set(state.userId, Date.now())
-        rebuild()
+        // 목록은 처음 온 사람이거나 앉기·상태 등이 바뀌었을 때만 새로 만든다. 위치만 바뀌면 화면 전체를 다시 그리지 않는다 (#504)
+        if (!prev || listFieldsChanged(prev, state)) rebuild()
       }
     }
 
@@ -488,8 +501,9 @@ export function useParticipants(
       if (noticeToken) markUp(noticeToken)
       channel?.leave()
       setOthers([]) // 다른 채널로 옮기면 예전 방 사람이 남지 않게 한다
+      live.clear()
     }
-  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef, fullRef, playRef])
+  }, [room, me, isPrivate, signalRef, chatRef, client, flickRef, fullRef, playRef, live])
 
-  return others
+  return { others, live: live as LiveStates }
 }
