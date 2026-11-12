@@ -27,7 +27,8 @@
 //   (눈 감은 13초가 1초 '뜸' 판독에 0으로 돌아가 21초에 끝내 닿지 못한 사례)
 //   단, 졸음이 되려면 감은 기록 중 실제로 감음으로 읽힌 시간이 EYE_CLOSED_RATIO 이상이어야 합니다. 공부 중 눈 크기가
 //   기준 근처에서 깜빡이면 짧은 '감음'들이 끊김 허용으로 이어 붙어 21초를 채우는 일이 있었습니다(각본 시험 2026-10-23).
-//   그동안 노란 보류는 그대로 보이고, 빨간 졸음만 막습니다.
+//   그동안 노란 보류는 그대로 보이고, 빨간 졸음만 막습니다. 기준 시간에 닿았는데 비율이 모자라면 깜빡임으로 보고
+//   보류를 확정한 뒤 감은 기록을 지워 다시 셉니다. 보류가 기준 시간 넘게 쌓이지 않게 하기 위해서입니다(#514).
 //
 // 다른 화면(다른 탭·다른 앱) 사용: 시작할 때 "다른 탭·앱 사용함"을 고른 경우에만 공부로 인정합니다. (#172)
 // - 사용 안 함(기본): 다른 탭으로 가거나 다른 앱을 누르면 바로 "다른 화면 사용"이 되고 시간이 멈춥니다.
@@ -266,10 +267,17 @@ function judgeFace(
   // 눈: 보정 기준으로 감았는지 봅니다. (보정이 없으면 감지 않은 것으로 봄) 얼굴이 안 보이면 읽을 수 없음(null).
   const wasClosed = prev.closedSince !== null;
   const closedNow = input.found ? eyeClosed(input, wasClosed) : null;
-  const eyes = nextEyes(prev, closedNow, nowMs, step, awakeAt);
-  const closedSeconds = eyes.closedSince === null ? 0 : (nowMs - eyes.closedSince) / 1000;
+  let eyes = nextEyes(prev, closedNow, nowMs, step, awakeAt);
+  let closedSeconds = eyes.closedSince === null ? 0 : (nowMs - eyes.closedSince) / 1000;
   // 감은 기록 중 감음으로 읽힌 비율이 EYE_CLOSED_RATIO 이상일 때만 졸음으로 넘어갑니다. (기준 근처 깜빡임이 이어 붙은 것은 제외)
   const mostlyClosed = closedSeconds > 0 && eyes.closedReadMs >= closedSeconds * 1000 * EYE_CLOSED_RATIO;
+  // 기준 시간을 넘겼는데 비율이 모자라면 졸음이 아니라 기준 근처 깜빡임이므로, 감은 기록을 지워 0부터 다시 셉니다.
+  // 기록을 그대로 두면 눈이 2초 넘게 뜬 것으로 읽힐 때까지 보류가 상한 없이 쌓이고(다른 보류는 모두 기준 시간이 상한),
+  // 5분 조각 저장도 그만큼 밀립니다(studyLogic 의 canCutChunk). 그동안 보류한 시간은 아래에서 공부로 확정합니다. (#514)
+  if (closedSeconds >= drowsyLimitSeconds && !mostlyClosed) {
+    eyes = { closedSince: null, closedReadMs: 0, eyeGapSince: null };
+    closedSeconds = 0;
+  }
 
   // 얼굴이 안 보이면 안 보인 시간을 잽니다. 몸이 자리에 있으면 엎드림(→ 졸음), 없으면 자리 이탈입니다.
   if (!back) {
