@@ -28,7 +28,7 @@ import { useOnline } from '../realtime/onlineContext'
 import { keyLabel, useKeymap } from '../menu/keymap'
 import { boxToMap, buildWorld, countByPlace, findPlace, toMap, turnWorld } from './mapLogic'
 import type { MapBranch, MapPlace, Rect, WorldLayout } from './mapLogic'
-import { CAMPUS_TURN, ZOOM, aspectFor, campusOffset, fitView, labelScale, linkRoad, panView, storyHeight, textWidth, turnPoint, turnRect, unionRect, withTitle, worldRect, zoomView } from './atlasLogic'
+import { CAMPUS_TURN, ROAD_LEN, ZOOM, aspectFor, campusOffset, fitView, labelScale, linkRoad, panView, storyHeight, textWidth, turnPoint, turnRect, unionRect, withTitle, worldRect, zoomView } from './atlasLogic'
 import type { Point, View } from './atlasLogic'
 
 // 지도를 연 화면이 알려 주는 "지금 나": 있는 곳(접속 상태와 같은 이름), 그 공간 안 위치와 몸 방향, 이 지점의 내 자리
@@ -46,27 +46,24 @@ const RAW: Record<WorldId, PlazaLayout> = { plaza: world as PlazaLayout, campus:
 const PLAZA_GATE = RAW.plaza.gates?.find((g) => g.to === 'campus')
 const CAMPUS_GATE = RAW.campus.gates?.find((g) => g.to === 'plaza')
 const CAMPUS_AT = PLAZA_GATE && CAMPUS_GATE ? campusOffset(RAW.plaza, PLAZA_GATE, CAMPUS_GATE) : { x: -70, z: 0 }
-// 해변은 광장 서쪽 문 너머 북서쪽. 해변 남쪽 문까지 길로 잇습니다 (캠퍼스처럼 문끼리 맞대지 않고, 바다가 지도 위쪽을 보게 돌리지 않음)
-const BEACH_AT = { x: -52, z: -56 }
-const BEACH_ROAD_OUT = 6 // 광장 문에서 서쪽으로 나가는 길이
-const BEACH_ROAD_BELOW = 3 // 해변 아래로 지나가는 여유
+// 해변은 광장 동쪽 문 너머(캠퍼스 반대편). 광장에서 해변 문까지 길이 곧으므로, 지도에서도 캠퍼스처럼
+// 해변을 오른쪽으로 90도 돌려(BEACH_TURN) 남쪽 문이 서쪽(캠리단길)을 보게 하고, 광장 해변 문에서 ROAD_LEN 곧은 길로 잇습니다. 바다는 동쪽 끝
+const BEACH_TURN = -Math.PI / 2
+const BEACH_DOOR = RAW.plaza.gates?.find((g) => g.to === 'beach')
+const BEACH_BACK = RAW.beach.gates?.find((g) => g.to === 'plaza')
+const BEACH_GATE_TURNED = BEACH_BACK ? turnPoint(BEACH_BACK, BEACH_TURN) : null
+const BEACH_AT = BEACH_DOOR && BEACH_GATE_TURNED ? { x: BEACH_DOOR.x + ROAD_LEN - BEACH_GATE_TURNED.x, z: BEACH_DOOR.z - BEACH_GATE_TURNED.z } : { x: 70, z: 0 }
 const ATLAS: AtlasWorld[] = [
   { id: 'plaza', layout: buildWorld(RAW.plaza, BRANCH_LAYOUTS), raw: RAW.plaza, offset: { x: 0, z: 0 }, turn: 0, placed: placeBuildings(RAW.plaza, BRANCH_LAYOUTS), ribbon: '#7a4b2a' },
   { id: 'campus', layout: turnWorld(buildWorld(RAW.campus, BRANCH_LAYOUTS, CAMPUS_PLACE), CAMPUS_TURN), raw: RAW.campus, offset: CAMPUS_AT, turn: CAMPUS_TURN, placed: placeBuildings(RAW.campus, BRANCH_LAYOUTS), ribbon: '#8a2f2f' },
-  { id: 'beach', layout: buildWorld(RAW.beach, BRANCH_LAYOUTS, BEACH_PLACE), raw: RAW.beach, offset: BEACH_AT, turn: 0, placed: [], ribbon: '#2f7fa8' },
+  { id: 'beach', layout: turnWorld(buildWorld(RAW.beach, BRANCH_LAYOUTS, BEACH_PLACE), BEACH_TURN), raw: RAW.beach, offset: BEACH_AT, turn: BEACH_TURN, placed: [], ribbon: '#2f7fa8' },
 ]
 const rectOf = (w: AtlasWorld) => worldRect(w.raw, w.offset, w.turn) // 지도에서 그 월드가 차지하는 사각형
 const BOUNDS = unionRect(ATLAS.map(rectOf))
 const ROAD = PLAZA_GATE && CAMPUS_GATE ? linkRoad(RAW.plaza, PLAZA_GATE, CAMPUS_GATE, CAMPUS_AT) : null
-const BEACH_DOOR = RAW.plaza.gates?.find((g) => g.to === 'beach')
-const BEACH_BACK = RAW.beach.gates?.find((g) => g.to === 'plaza')
-const BEACH_ROAD: Point[] | null = BEACH_DOOR && BEACH_BACK
-  ? (() => {
-      // 광장 서쪽 문 → 북쪽으로 올라가 → 해변 남쪽 문
-      const doorX = BEACH_AT.x + BEACH_BACK.x
-      const below = BEACH_AT.z + RAW.beach.size.d / 2 + BEACH_ROAD_BELOW
-      return [{ x: BEACH_DOOR.x, z: BEACH_DOOR.z }, { x: BEACH_DOOR.x - BEACH_ROAD_OUT, z: BEACH_DOOR.z }, { x: BEACH_DOOR.x - BEACH_ROAD_OUT, z: below }, { x: doorX, z: below }, { x: doorX, z: BEACH_AT.z + BEACH_BACK.z }]
-    })()
+// 광장 동쪽 해변 문 → 돌린 해변 남쪽 문 (곧은 길)
+const BEACH_ROAD: Point[] | null = BEACH_DOOR && BEACH_GATE_TURNED
+  ? [{ x: BEACH_DOOR.x, z: BEACH_DOOR.z }, { x: BEACH_GATE_TURNED.x + BEACH_AT.x, z: BEACH_GATE_TURNED.z + BEACH_AT.z }]
   : null
 
 // 있는 곳(접속 상태 이름)이 어느 월드의 어느 공간인지

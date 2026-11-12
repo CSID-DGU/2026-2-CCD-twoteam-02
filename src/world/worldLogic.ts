@@ -423,7 +423,7 @@ export function signArrows(post: Signpost, gates: GateSpec[]): { label: string; 
 }
 
 // 문 너머 풍경 바닥(모래·잔디 판)이 옆 문의 풍경 바닥과 겹치지 않는 범위 (문 기준 가로 좌표 [왼쪽, 오른쪽]).
-// 같은 울타리에 나란히 선 문(광장 서쪽 해변 문·캠퍼스 문, 24m 사이)은 판이 넓어 서로 겹쳤고, 같은 높이라 겹친 곳이 지지직 깜빡였습니다.
+// 같은 울타리에 나란히 선 문(예전 광장 서쪽에 함께 있던 해변 문·캠퍼스 문, 24m 사이)은 판이 넓어 서로 겹쳤고, 같은 높이라 겹친 곳이 지지직 깜빡였습니다.
 // 옆 문 쪽으로는 두 문 사이 가운데까지만. 옆 문이 없는 쪽은 끝이 없음(Infinity) — 풍경 판이 자기 폭 안에서 자름.
 export function gateViewSpan(gates: PlacedGate[], g: PlacedGate): [number, number] {
   let left = -Infinity
