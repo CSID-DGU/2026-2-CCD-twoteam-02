@@ -189,6 +189,14 @@ function boxToWorld(spec: BuildingSpec, b: Box): Box {
   return { x: spec.x + c.x, z: spec.z + c.z, w, d }
 }
 
+// 층별 안내판 (Facades 의 SquareSigns): 여러 층 정원 건물(캠리 스퀘어) 앞 왼쪽 모서리 바로 바깥에 선 판.
+// 화단(gardenLogic)이 이 자리를 비우도록 광장 좌표 상자를 줍니다. 안내판이 없는 건물이면 null
+export const PYLON = { w: 1.4, h: 2.6, d: 0.18, x: 0.2, front: 1.0 } // 판 폭·높이·두께, 건물 옆면과의 틈, 앞면에서 나온 거리
+export function pylonBox(b: PlacedBuilding): Box | null {
+  if (b.spec.facade !== 'garden' || b.floors.length < 2) return null
+  return boxToWorld(b.spec, { x: -b.spec.w / 2 - PYLON.x - PYLON.w / 2, z: b.spec.d / 2 + PYLON.front, w: PYLON.w, d: PYLON.d })
+}
+
 function pointToWorld(spec: BuildingSpec, x: number, z: number): Point {
   const c = rotate(x, z, facingAngle(spec.facing))
   return { x: spec.x + c.x, z: spec.z + c.z }

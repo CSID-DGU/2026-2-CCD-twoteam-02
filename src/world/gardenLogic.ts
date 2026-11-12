@@ -8,7 +8,7 @@
 // 캠퍼스(잔디 쿼드)는 화단 띠 없이 풀 포기와 들꽃만. 굽은 길·축구장·등불나무 광장·쉬는 자리도 비움
 import { propFootprints } from './hallLogic'
 import { orbBoxes, walkPoints } from './walkLogic'
-import { GRAVEL_W, gravelStrips, placeGates } from './worldLogic'
+import { GRAVEL_W, gravelStrips, placeGates, pylonBox } from './worldLogic'
 import type { PlacedBuilding, PlazaLayout } from './worldLogic'
 import type { Box } from '../space/layout'
 
@@ -47,6 +47,10 @@ export function keepOutBoxes(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[
     ...campfireKeepOut(plaza),
     ...rects.map((r) => grow(r, PAD.building)),
     ...placed.map((b) => ({ x: b.entry.x, z: b.entry.z, w: PAD.entry * 2, d: PAD.entry * 2 })),
+    ...placed.flatMap((b) => {
+      const p = pylonBox(b) // 층별 안내판 (꽃이 판을 뚫고 나오지 않게)
+      return p ? [grow(p, PAD.building)] : []
+    }),
     ...plaza.benches.map((b) => ({ x: b.x, z: b.z, w: 1.6 + PAD.bench * 2, d: 1.6 + PAD.bench * 2 })),
     ...plaza.lamps.map((l) => ({ x: l.x, z: l.z, w: PAD.lamp * 2, d: PAD.lamp * 2 })),
   ]

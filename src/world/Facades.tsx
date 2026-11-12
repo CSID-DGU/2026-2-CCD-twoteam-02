@@ -9,6 +9,7 @@
 // 아직 안 연 지점은 회색. 좌표는 건물 실내 기준(입구가 +Z 쪽 앞면 z = d/2), 부딪힘·입구 자리는 그대로입니다.
 import { createContext, useContext } from 'react'
 import * as THREE from 'three'
+import { PYLON } from './worldLogic'
 import type { FacadeStyle } from './worldLogic'
 import { MAT, colorMat, pictureMat, plantMat, shopWindowMat } from './worldMaterials'
 import { awningTexture, interiorTexture, letterSignTexture, mossTexture } from './facadeTextures'
@@ -326,7 +327,7 @@ function GardenFront({ w, floorH, floors, floorSlugs, doorX, doorW, doorH, open,
 
 // 상가 간판들 (앞면 z = 0 기준)
 const ROOF_TOP = 0.3 // 건물 지붕 판 두께 (WorldDecor ROOF.t)
-const PYLON = { w: 1.4, h: 2.6, d: 0.18, x: 0.2 } // 층별 안내판 (건물 앞 모서리 바로 바깥에 선 판)
+// 층별 안내판 크기·자리는 worldLogic 의 PYLON (화단이 그 자리를 비우는 데도 씀)
 function SquareSigns({ w, floorH, floorSlugs }: { w: number; floorH: number; floorSlugs: string[] }) {
   const top = floorH * floorSlugs.length + ROOF_TOP
   const iron = MAT.iron
@@ -345,7 +346,7 @@ function SquareSigns({ w, floorH, floorSlugs }: { w: number; floorH: number; flo
       <B p={[0, top + 0.35, -0.4]} s={[signW * 0.85, 0.06, 0.06]} m={iron} />
       <Letters lines={SQUARE_NAME} face="#f7f3ea" side="#8f8a80" x={0} y={top + 0.75} z={-0.33} w={signW} />
       {/* 층별 안내판: 건물 앞 왼쪽 모서리 바깥 */}
-      <group position={[-w / 2 - PYLON.x - PYLON.w / 2, 0, 1.0]}>
+      <group position={[-w / 2 - PYLON.x - PYLON.w / 2, 0, PYLON.front]}>
         <B p={[0, PYLON.h / 2, 0]} s={[PYLON.w, PYLON.h, PYLON.d]} m={colorMat('#2a2d31')} />
         <Letters lines={directory} face="#f7f3ea" side="#55595f" x={0} y={PYLON.h - 0.55} z={PYLON.d / 2 + 0.01} w={PYLON.w - 0.1} />
       </group>
