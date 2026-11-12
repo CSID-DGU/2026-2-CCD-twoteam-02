@@ -795,8 +795,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {/* 처음 들어온 사람: 캐릭터 고르기 (#146). 저장하면 닫히고 다시 뜨지 않음 */}
       {firstCharacter && <FirstCharacterDialog save={saveAvatar} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: world.place, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
-      {/* 해변 파도 소리: 물에 가까울수록 크게. 앉아서 공부할 때도 납니다 */}
-      {PLAZA.beach && <AmbienceControl kind="waves" levelOf={() => waveLevel(pos.current.z, PLAZA.beach!.shoreZ)} />}
+      {/* 해변 파도 소리: 물에 가까울수록 크게. 앉아서 공부할 때도 납니다. 아래(top 136)의 영수증과 겹치지 않게 그 위에 */}
+      {PLAZA.beach && (
+        <div style={ambienceCorner}>
+          <AmbienceControl kind="waves" levelOf={() => waveLevel(pos.current.z, PLAZA.beach!.shoreZ)} />
+        </div>
+      )}
     </>
   )
 }
@@ -806,6 +810,9 @@ const onlineBox: React.CSSProperties = {
   padding: '6px 12px', borderRadius: 999, background: 'rgba(32,35,42,.85)', color: '#fff',
   font: '13px system-ui, sans-serif', fontVariantNumeric: 'tabular-nums',
 }
+
+// 왼쪽 위 가방(top 16) 아래, 영수증(top 136) 위. 지점의 접속 인원 자리와 같은 높이
+const ambienceCorner: React.CSSProperties = { position: 'fixed', top: 76, left: 16 }
 
 const crosshair: React.CSSProperties = {
   position: 'fixed', left: '50%', top: '50%', width: 6, height: 6, marginLeft: -3, marginTop: -3,

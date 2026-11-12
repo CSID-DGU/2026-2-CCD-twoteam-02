@@ -682,23 +682,23 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         }}
       />
     )}
-    {/* 이 지점 접속 인원 (나 포함, #176). 숨김 모드에서는 다른 사람은 안 보이고 이 인원만 알 수 있습니다. */}
-    <div
-      style={{
-        position: "fixed",
-        top: 76,
-        left: 16,
-        padding: "6px 10px",
-        borderRadius: 8,
-        background: "rgba(32,35,42,.85)",
-        color: "#fff",
-        font: "13px system-ui, sans-serif",
-      }}
-    >
-      이 지점 접속 인원 {others.length + 1}명
+    {/* 접속 인원과 배경 소리를 한 줄에 둡니다. 아래(top 136)의 영수증과 겹치지 않게 */}
+    <div style={{ position: "fixed", top: 76, left: 16, display: "flex", alignItems: "center", gap: 8 }}>
+      {/* 이 지점 접속 인원 (나 포함, #176). 숨김 모드에서는 다른 사람은 안 보이고 이 인원만 알 수 있습니다. */}
+      <div
+        style={{
+          padding: "6px 10px",
+          borderRadius: 8,
+          background: "rgba(32,35,42,.85)",
+          color: "#fff",
+          font: "13px system-ui, sans-serif",
+        }}
+      >
+        이 지점 접속 인원 {others.length + 1}명
+      </div>
+      {/* 배경 소리 (휴식방 물소리). 지점 JSON 의 ambience 가 있는 곳에서만, 나가면 꺼짐 */}
+      {branch.ambience && <AmbienceControl kind={branch.ambience} />}
     </div>
-    {/* 배경 소리 (휴식방 물소리). 지점 JSON 의 ambience 가 있는 곳에서만, 나가면 꺼짐 */}
-    {branch.ambience && <AmbienceControl kind={branch.ambience} />}
     {channelUi.overlay}
     <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
     {/* 감정표현: 숫자키 1~8, X 바퀴 (#162). 창이 떠 있거나 앉아 있으면 쓰지 않습니다. */}

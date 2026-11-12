@@ -82,8 +82,10 @@ export function AmbienceControl({ kind, levelOf }: { kind: AmbienceKind; levelOf
 }
 
 const styles: Record<string, CSSProperties> = {
+  // 화면 위치는 쓰는 쪽이 정합니다. 왼쪽 위에 영수증(SeatTimeCorner, top 136)이 있어 그보다 위에 둡니다.
+  // (지점은 접속 인원 옆, 해변은 그 자리 — 전에는 top 116 고정이라 앉으면 영수증과 겹쳤음)
   box: {
-    position: 'fixed', top: 116, left: 16, display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: 'center', gap: 8,
     padding: '4px 10px', borderRadius: 8, background: 'rgba(32,35,42,.85)', color: '#fff', font: '13px system-ui, sans-serif',
   },
   button: { background: 'none', border: 'none', color: '#fff', font: 'inherit', cursor: 'pointer', padding: '2px 0' },
