@@ -13,7 +13,7 @@ export type BandRun = { subjectId: number | null; startedAt: number; endedAt: nu
 
 // 빨강의 사유 (focusLogic 의 상태 이름과 같은 말)
 export const KIND_LABEL: Record<SegmentKind, string> = {
-  focus: '집중',
+  focus: '공부',
   away: '자리 이탈',
   drowsy: '졸음',
   offscreen: '다른 화면',

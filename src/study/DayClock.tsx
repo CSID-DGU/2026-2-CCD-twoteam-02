@@ -121,7 +121,7 @@ export function DayClock({ runs, dayStart, colorOf, focusedSeconds, hovered, onH
         })}
 
       <text x={C} y={C - 10} fill="#aab0bb" fontSize="12" textAnchor="middle">
-        집중
+        공부
       </text>
       <text x={C} y={C + 12} fill="#fff" fontSize="20" fontWeight="700" textAnchor="middle">
         {formatSpan(focusedSeconds)}
