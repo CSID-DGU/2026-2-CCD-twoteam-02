@@ -117,6 +117,7 @@ import { BeachBridge } from './BeachBridge'
 import { SandSteps } from './SandSteps'
 import { waveLevel } from './beachLogic'
 import { AmbienceControl } from '../space/AmbienceControl'
+import { useNearSounds } from './useNearSounds'
 import { FortunePanel } from './FortunePanel'
 import { signOfBirthday } from './starLogic'
 import { useMyBirthday } from '../profile/useMyBirthday'
@@ -209,6 +210,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const playRef = relayUrl() ? playPort : undefined
   const sand = useSandMarks(!!PLAZA.beach, channel.no, playRef) // 해변 모래 글씨·그림 (같은 채널 사람에게 보임, #481)
   const [sandBoard, setSandBoard] = useState<SandBoard | null>(null) // 지금 쓰는 판 (쓰는 동안 움직이지 않음)
+  const nearSounds = useNearSounds(pos, PLAZA.campfire, PLAZA.fountain) // 캠프파이어·분수 소리 켜기·음량 (들리는 곳에서만 막대)
   const [skyTimeOpen, setSkyTimeOpen] = useState(false) // 팀 전용 하늘 조절판(시간·날씨). 창이 아니라 캐릭터는 그대로 움직임
   // 바로 앉기 (#116): 메뉴의 "바로 앉기"가 부를 함수(QuickSeatControl 이 채움)와 공간 고르는 창이 떠 있는지
   const quickStart = useRef<(() => void) | null>(null)
@@ -575,7 +577,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           </>
         )}
         {/* 분수: 가까이 가면 물소리 (채팅 "소리 끔"이면 조용) */}
-        {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} posRef={pos} muted={chat?.muted ?? false} />}
+        {PLAZA.fountain && <Fountain fountain={PLAZA.fountain} posRef={pos} muted={chat?.muted ?? false} volume={nearSounds.fountainVolume} />}
         {/* 나무·벤치: 캠리단길·캠퍼스 모두 풍성한 활엽수와 정원 벤치 (질감 있게) */}
         {!PLAZA.beach && (PLAZA.ground === 'lawn' ? <CampusTrees trees={PLAZA.trees} /> : <LushTrees trees={PLAZA.trees} />)}
         <GardenBenches benches={PLAZA.benches} />
@@ -622,7 +624,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
         {/* 캠퍼스 가운데 등불 나무 광장: 둥근 원목 화단 속 큰 나무 + 등불, 둘레 빈백에서 공부 */}
         {PLAZA.courtyard && <LanternCourtyard courtyard={PLAZA.courtyard} />}
         {/* 캠리단길 광장 서쪽 캠프파이어: 통나무 의자에서 공부, 가까이 가면 장작 소리 (채팅 "소리 끔"이면 조용. 방해금지는 공부하면 자동으로 켜져서 따르지 않음 — 불멍하며 공부) */}
-        {PLAZA.campfire && <Campfire fire={PLAZA.campfire} posRef={pos} muted={chat?.muted ?? false} vendorSay={vendor.say} vendorSeq={vendor.seq} onToast={setToastName} />}
+        {PLAZA.campfire && <Campfire fire={PLAZA.campfire} posRef={pos} muted={chat?.muted ?? false} volume={nearSounds.campfireVolume} vendorSay={vendor.say} vendorSeq={vendor.seq} onToast={setToastName} />}
         {/* 들고 있는 것: 1인칭으로 걷거나 앉으면 내 몸이 숨겨지므로 화면 오른쪽 아래에 */}
         {holding && (seatSpot || view === 'first') && <DrinkInView item={holding} emoteRef={emote} />}
         {PLAZA.rests && <Beanbags rests={PLAZA.rests} />}
@@ -795,12 +797,13 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {/* 처음 들어온 사람: 캐릭터 고르기 (#146). 저장하면 닫히고 다시 뜨지 않음 */}
       {firstCharacter && <FirstCharacterDialog save={saveAvatar} />}
       {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: world.place, pos, heading: bodyHeading }} onClose={() => setPanel(null)} />}
-      {/* 해변 파도 소리: 물에 가까울수록 크게. 앉아서 공부할 때도 납니다. 아래(top 136)의 영수증과 겹치지 않게 그 위에 */}
-      {PLAZA.beach && (
-        <div style={ambienceCorner}>
-          <AmbienceControl kind="waves" levelOf={() => waveLevel(pos.current.z, PLAZA.beach!.shoreZ)} />
-        </div>
-      )}
+      {/* 소리 조절: 아래(top 136)의 영수증과 겹치지 않게 그 위에 한 줄로 */}
+      <div style={ambienceCorner}>
+        {/* 해변 파도 소리: 물에 가까울수록 크게. 앉아서 공부할 때도 납니다 */}
+        {PLAZA.beach && <AmbienceControl kind="waves" levelOf={() => waveLevel(pos.current.z, PLAZA.beach!.shoreZ)} />}
+        {/* 캠프파이어·분수: 소리가 들리는 곳에 있을 때만 */}
+        {nearSounds.controls}
+      </div>
     </>
   )
 }
@@ -812,7 +815,7 @@ const onlineBox: React.CSSProperties = {
 }
 
 // 왼쪽 위 가방(top 16) 아래, 영수증(top 136) 위. 지점의 접속 인원 자리와 같은 높이
-const ambienceCorner: React.CSSProperties = { position: 'fixed', top: 76, left: 16 }
+const ambienceCorner: React.CSSProperties = { position: 'fixed', top: 76, left: 16, display: 'flex', alignItems: 'center', gap: 8 }
 
 const crosshair: React.CSSProperties = {
   position: 'fixed', left: '50%', top: '50%', width: 6, height: 6, marginLeft: -3, marginTop: -3,

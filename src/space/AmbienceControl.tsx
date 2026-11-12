@@ -50,6 +50,11 @@ export function AmbienceControl({ kind, levelOf }: { kind: AmbienceKind; levelOf
     saveAmbiencePref(next)
   }
 
+  return <SoundControl label={LABEL[kind]} pref={pref} onChange={change} />
+}
+
+// 켜기·끄기 버튼과 음량 막대 (보이는 부분만). 광장 캠프파이어·분수 소리(useNearSounds)도 같은 모양을 씁니다.
+export function SoundControl({ label, pref, onChange }: { label: string; pref: AmbiencePref; onChange: (next: AmbiencePref) => void }) {
   return (
     <div style={styles.box}>
       <button
@@ -57,12 +62,12 @@ export function AmbienceControl({ kind, levelOf }: { kind: AmbienceKind; levelOf
         style={styles.button}
         // 누른 뒤 초점을 놓아, 이어서 누르는 Space(점프)·WASD 가 이 버튼으로 가지 않게 합니다.
         onClick={(e) => {
-          change({ ...pref, on: !pref.on })
+          onChange({ ...pref, on: !pref.on })
           e.currentTarget.blur()
         }}
-        aria-label={pref.on ? `${LABEL[kind]} 끄기` : `${LABEL[kind]} 켜기`}
+        aria-label={pref.on ? `${label} 끄기` : `${label} 켜기`}
       >
-        {pref.on ? '🔊' : '🔇'} {LABEL[kind]}
+        {pref.on ? '🔊' : '🔇'} {label}
       </button>
       {pref.on && (
         <input
@@ -70,11 +75,11 @@ export function AmbienceControl({ kind, levelOf }: { kind: AmbienceKind; levelOf
           min={0}
           max={100}
           value={Math.round(pref.volume * 100)}
-          onChange={(e) => change({ ...pref, volume: Number(e.target.value) / 100 })}
+          onChange={(e) => onChange({ ...pref, volume: Number(e.target.value) / 100 })}
           // 다 옮기면 초점을 놓습니다. 초점이 남아 있으면 걷기 키가 막힙니다(Player 는 입력칸에서 친 키를 무시).
           onPointerUp={(e) => e.currentTarget.blur()}
           style={styles.slider}
-          aria-label={`${LABEL[kind]} 음량`}
+          aria-label={`${label} 음량`}
         />
       )}
     </div>
