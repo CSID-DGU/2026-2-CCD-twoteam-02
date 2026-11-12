@@ -69,7 +69,7 @@ export function DayBand({ cells, nameOf, dayStart, onOpen }: DayProps) {
                   {clock(r.startedAt)} ~ {clock(r.endedAt)}
                 </span>
                 <span style={styles.muted}>
-                  {formatSpan(seconds(r))} 중 집중 {formatSpan(focusedInRun)}
+                  {formatSpan(seconds(r))} 중 {formatSpan(focusedInRun)} 공부
                 </span>
                 <span style={styles.chevron}>›</span>
               </button>
@@ -98,7 +98,7 @@ export function RunDetail({ run, subject, onBack }: { run: BandRun; subject: str
             {subject} {clock(run.startedAt)} ~ {clock(run.endedAt)}
           </h2>
           <div style={styles.muted}>
-            {formatSpan(seconds(run))} 중 집중 {formatSpan(focused)}
+            {formatSpan(seconds(run))} 중 {formatSpan(focused)} 공부
           </div>
         </div>
       </div>
@@ -141,8 +141,8 @@ function RatioBand({ cells }: { cells: BandCell[] }) {
   const red = reds.reduce((sum, t) => sum + t.seconds, 0)
   const all = green + red || 1
   const parts = [
-    { key: 'green' as const, label: '집중', seconds: green, color: LIGHT_COLOR.green },
-    { key: 'red' as const, label: '집중 외', seconds: red, color: LIGHT_COLOR.red },
+    { key: 'green' as const, label: '공부', seconds: green, color: LIGHT_COLOR.green },
+    { key: 'red' as const, label: '공부 외', seconds: red, color: LIGHT_COLOR.red },
   ].filter((p) => p.seconds > 0)
   const pctOf = (sec: number) => Math.round((sec / all) * 100)
 
@@ -181,7 +181,7 @@ function RatioBand({ cells }: { cells: BandCell[] }) {
               <span style={{ ...styles.dot, background: LIGHT_COLOR.red }} />
               <span style={styles.kind}>{KIND_LABEL[t.kind]}</span>
               <span style={styles.muted}>
-                {formatSpan(t.seconds)} · 집중 외의 {Math.round((t.seconds / (red || 1)) * 100)}%
+                {formatSpan(t.seconds)} · 공부 외의 {Math.round((t.seconds / (red || 1)) * 100)}%
               </span>
             </li>
           ))}
