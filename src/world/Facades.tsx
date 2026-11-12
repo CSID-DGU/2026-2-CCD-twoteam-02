@@ -5,23 +5,20 @@
 //   garden   올리브 테라스 1층 테라코타 벽돌, 층마다 화분 난간, 양옆 덩굴, 테라코타 차양 / 아치형 나무 문
 //   modern   흑요 라운지 검은 상자, 통유리 + 따뜻한 간접조명 띠, 금빛 글자 간판, 왼쪽 덩굴 / 검은 유리문 + 구리 테
 //   woodbar  월넛 바     호두나무 판자 + 아래 붉은 벽돌, 금테 창, 벽 펜던트 전구, 술통 화분 / 둥근 창 나무 문
-// 창에는 그 지점 실내 그림이 들어가 밤에 빛납니다(worldMaterials.shopWindowMat). 문은 지금처럼 앞에 서면 주황,
+// 창은 밖에서 안이 보이지 않는 반사 유리입니다(mirrorGlass). 문은 지금처럼 앞에 서면 주황,
 // 아직 안 연 지점은 회색. 좌표는 건물 실내 기준(입구가 +Z 쪽 앞면 z = d/2), 부딪힘·입구 자리는 그대로입니다.
-import { createContext, useContext } from 'react'
 import * as THREE from 'three'
 import { PYLON } from './worldLogic'
 import type { FacadeStyle } from './worldLogic'
-import { MAT, colorMat, pictureMat, plantMat, shopWindowMat } from './worldMaterials'
-import { awningTexture, interiorTexture, letterSignTexture, mossTexture } from './facadeTextures'
+import { MAT, colorMat, pictureMat, plantMat } from './worldMaterials'
+import { mirrorGlassMat } from './mirrorGlass'
+import { awningTexture, letterSignTexture, mossTexture } from './facadeTextures'
 import type { SignLine } from './facadeTextures'
 import { groundTextures } from './worldTextures'
 import { bushShape, vineShape } from './plantShapes'
 
 type V3 = [number, number, number]
-type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; floorSlugs: string[]; open: boolean; near: boolean; glass?: THREE.Material }
-
-// 광장에서 가게 유리창에 비출 실제 실내 (ShopInteriors 가 그린 그림). 없으면 실내 그림(interiorTexture)
-const GlassCtx = createContext<THREE.Material | null>(null)
+type Props = { style: FacadeStyle; w: number; d: number; floorH: number; floors: number; doorX: number; doorW: number; doorH: number; name: string; floorSlugs: string[]; open: boolean; near: boolean }
 
 // 여러 곳이 같이 쓰는 모양·재질 (처음 쓸 때 한 번)
 const shared = new Map<string, unknown>()
@@ -43,9 +40,9 @@ function B({ p, s, m }: { p: V3; s: V3; m: THREE.Material }) {
   )
 }
 
-// 실내가 비치는 창 + 테두리(+ 가운데 살)
-function Pane({ style, x, y, z, w, h, frame, t = 0.08, bars = 0 }: { style: FacadeStyle; x: number; y: number; z: number; w: number; h: number; frame: THREE.Material; t?: number; bars?: number }) {
-  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture(style))
+// 반사 유리 창 + 테두리(+ 가운데 살)
+function Pane({ x, y, z, w, h, frame, t = 0.08, bars = 0 }: { x: number; y: number; z: number; w: number; h: number; frame: THREE.Material; t?: number; bars?: number }) {
+  const glass = mirrorGlassMat()
   return (
     <group position={[x, y, z]}>
       <mesh position-z={0.01} material={glass}>
@@ -123,8 +120,8 @@ function Awning({ x, top, z, w, depth, a, b, stripes, scallop }: { x: number; to
 const doorPanel = (open: boolean, near: boolean, color: string) => (near ? MAT.near : open ? colorMat(color) : MAT.doorSoon)
 
 // 둥근 창(포트홀) 문: 판 + 둥근 유리 + 테
-function RoundDoor({ x, z, w, h, color, trim, open, near, style }: { x: number; z: number; w: number; h: number; color: string; trim: string; open: boolean; near: boolean; style: FacadeStyle }) {
-  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture(style))
+function RoundDoor({ x, z, w, h, color, trim, open, near }: { x: number; z: number; w: number; h: number; color: string; trim: string; open: boolean; near: boolean }) {
+  const glass = mirrorGlassMat()
   return (
     <group position={[x, 0, z]}>
       <B p={[0, h / 2, 0.08]} s={[w, h, 0.16]} m={doorPanel(open, near, color)} />
@@ -139,12 +136,12 @@ function RoundDoor({ x, z, w, h, color, trim, open, near, style }: { x: number; 
   )
 }
 
-// 유리문: 테두리(지점 색, 상태 따라 바뀜) + 실내가 비치는 유리 + 격자
-function GlassDoor({ x, z, w, h, color, open, near, style, bars }: { x: number; z: number; w: number; h: number; color: string; open: boolean; near: boolean; style: FacadeStyle; bars: number }) {
+// 유리문: 테두리(지점 색, 상태 따라 바뀜) + 반사 유리 + 격자
+function GlassDoor({ x, z, w, h, color, open, near, bars }: { x: number; z: number; w: number; h: number; color: string; open: boolean; near: boolean; bars: number }) {
   const frame = doorPanel(open, near, color)
   return (
     <group position={[x, 0, z]}>
-      <Pane style={style} x={0} y={h / 2} z={0.04} w={w - 0.1} h={h - 0.1} frame={frame} t={0.12} bars={bars} />
+      <Pane x={0} y={h / 2} z={0.04} w={w - 0.1} h={h - 0.1} frame={frame} t={0.12} bars={bars} />
       {bars > 0 && <B p={[0, h * 0.55, 0.08]} s={[w - 0.1, 0.06, 0.06]} m={frame} />}
     </group>
   )
@@ -185,11 +182,9 @@ function Vine({ p, len }: { p: V3; len: number }) {
   return <mesh geometry={g} material={plantMat('#7cc254', false)} position={p} />
 }
 
-// glass: 광장에서는 유리창으로 실제 실내가 보임 (ShopInteriors). 지점 안 통창 너머 거리에서는 없음
 export function Facade(props: Props) {
   const z = props.d / 2
   return (
-    <GlassCtx.Provider value={props.glass ?? null}>
     <group position-z={z}>
       {props.style === 'classic' && <Classic {...props} />}
       {props.style === 'diner' && <Diner {...props} />}
@@ -199,7 +194,6 @@ export function Facade(props: Props) {
       {props.style === 'moss' && <MossFront {...props} />}
       {props.style === 'garden' && props.floors > 1 && <UpperFronts w={props.w} floorH={props.floorH} floorSlugs={props.floorSlugs} />}
     </group>
-    </GlassCtx.Provider>
   )
 }
 
@@ -216,9 +210,9 @@ function Classic({ w, floorH, floors, doorX, doorW, doorH, open, near }: Props) 
     <>
       {/* 1층 통유리 (문 양옆) */}
       {[-1, 1].map((side) => (
-        <Pane key={side} style="classic" x={doorX + side * (doorW / 2 + 0.25 + winW / 2)} y={1.35} z={0} w={winW} h={2.3} frame={black} t={0.06} bars={2} />
+        <Pane key={side} x={doorX + side * (doorW / 2 + 0.25 + winW / 2)} y={1.35} z={0} w={winW} h={2.3} frame={black} t={0.06} bars={2} />
       ))}
-      <GlassDoor x={doorX} z={0} w={doorW} h={doorH} color="#1d1d1f" open={open} near={near} style="classic" bars={1} />
+      <GlassDoor x={doorX} z={0} w={doorW} h={doorH} color="#1d1d1f" open={open} near={near} bars={1} />
       {/* 검은 간판 띠 + 빛나는 글자 + 아래 조명 줄 */}
       <B p={[0, fascia, 0.1]} s={[w + 0.1, 0.8, 0.2]} m={black} />
       <Letters lines={SIGN_TEXT.classic} face="#fff6dc" side="#b08a3e" x={doorX} y={fascia} z={0.21} w={3.4} />
@@ -226,7 +220,7 @@ function Classic({ w, floorH, floors, doorX, doorW, doorH, open, near }: Props) 
       {/* 2층 독서실 띠 창 (여러 칸) + 작은 글자 */}
       {floors > 1 && (
         <>
-          <Pane style="classic" x={0} y={floorH + 1.55} z={0} w={w - 1.2} h={1.7} frame={black} t={0.06} bars={4} />
+          <Pane x={0} y={floorH + 1.55} z={0} w={w - 1.2} h={1.7} frame={black} t={0.06} bars={4} />
           <Letters lines={[{ text: '2F READING ROOM', font: 'serif', size: 0.09, spacing: 16 }]} face="#2a2a2c" side="#9a9a9a" x={0} y={floorH + 2.75} z={0.03} w={4} />
         </>
       )}
@@ -280,7 +274,7 @@ function Diner({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
         const x = doorX + side * (doorW / 2 + 0.5 + winW / 2)
         return (
           <group key={side}>
-            <Pane style="diner" x={x} y={1.45} z={0} w={winW} h={1.3} frame={chrome} t={0.12} />
+            <Pane x={x} y={1.45} z={0} w={winW} h={1.3} frame={chrome} t={0.12} />
             <B p={[x, 0.78, 0.22]} s={[winW, 0.06, 0.4]} m={chrome} />
             {[-0.33, 0, 0.33].map((k) => (
               <group key={k} position={[x + k * winW, 0, 0.55]}>
@@ -293,7 +287,7 @@ function Diner({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
           </group>
         )
       })}
-      <RoundDoor x={doorX} z={0} w={doorW} h={doorH} color="#7a1b1b" trim="#d0d4dc" open={open} near={near} style="diner" />
+      <RoundDoor x={doorX} z={0} w={doorW} h={doorH} color="#7a1b1b" trim="#d0d4dc" open={open} near={near} />
     </>
   )
 }
@@ -312,7 +306,7 @@ function GardenFront({ w, floorH, floors, floorSlugs, doorX, doorW, doorH, open,
       <Letters lines={SIGN_TEXT.garden} face="#f7f3ea" side="#a9a196" x={doorX} y={3.0} z={0.05} w={3.4} />
       <Awning x={0} top={2.45} z={0} w={w - 0.6} depth={0.8} a={terra} b="#e8c3a0" stripes={12} scallop={false} />
       {[-1, 1].map((side) => (
-        <Pane key={side} style="garden" x={doorX + side * (doorW / 2 + 0.7 + winW / 2)} y={1.25} z={0.03} w={winW} h={1.4} frame={colorMat('#5e4330')} bars={1} />
+        <Pane key={side} x={doorX + side * (doorW / 2 + 0.7 + winW / 2)} y={1.25} z={0.03} w={winW} h={1.4} frame={colorMat('#5e4330')} bars={1} />
       ))}
       <ArchDoor x={doorX} z={0.02} w={doorW} h={doorH + 0.2} color="#a7774d" open={open} near={near} />
       {/* 양옆 덩굴 */}
@@ -363,9 +357,9 @@ function Modern({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
       <B p={[0, floorH - 0.35, 0.08]} s={[w + 0.1, 0.7, 0.16]} m={colorMat('#1a1a1d')} />
       <Letters lines={SIGN_TEXT.modern} face="#e2c193" side="#7d5f3d" x={0} y={floorH - 0.35} z={0.17} w={3.6} />
       {/* 통유리 + 위 간접조명 띠 */}
-      <Pane style="modern" x={0} y={1.42} z={0} w={glassW} h={2.4} frame={black} t={0.14} bars={3} />
+      <Pane x={0} y={1.42} z={0} w={glassW} h={2.4} frame={black} t={0.14} bars={3} />
       <B p={[0, 2.66, 0.12]} s={[glassW, 0.05, 0.08]} m={MAT.lampGlow} />
-      <GlassDoor x={doorX} z={0.05} w={doorW} h={doorH} color={copper} open={open} near={near} style="modern" bars={0} />
+      <GlassDoor x={doorX} z={0.05} w={doorW} h={doorH} color={copper} open={open} near={near} bars={0} />
       <Vine p={[-w / 2 + 0.2, 0.6, 0.12]} len={floorH - 0.6} />
     </>
   )
@@ -393,7 +387,7 @@ function WoodBar({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
         const x = doorX + side * (doorW / 2 + 0.75 + winW / 2)
         return (
           <group key={side}>
-            <Pane style="woodbar" x={x} y={1.75} z={0.02} w={winW} h={1.2} frame={gold} bars={1} />
+            <Pane x={x} y={1.75} z={0.02} w={winW} h={1.2} frame={gold} bars={1} />
             {/* 펜던트 전구 */}
             <B p={[x, 3.0, 0.35]} s={[0.02, 0.4, 0.02]} m={MAT.iron} />
             <B p={[x, 3.22, 0.18]} s={[0.04, 0.04, 0.36]} m={MAT.iron} />
@@ -415,7 +409,7 @@ function WoodBar({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
           </group>
         )
       })}
-      <RoundDoor x={doorX} z={0.02} w={doorW} h={doorH} color="#6b3f24" trim="#c9a24a" open={open} near={near} style="woodbar" />
+      <RoundDoor x={doorX} z={0.02} w={doorW} h={doorH} color="#6b3f24" trim="#c9a24a" open={open} near={near} />
     </>
   )
 }
@@ -435,7 +429,7 @@ function MossFront({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
             <planeGeometry args={[MOSS_PANEL, floorH - 0.3]} />
           </mesh>
           <B p={[side * (w / 2 - MOSS_PANEL / 2 - 0.1), floorH - 0.3, 0.06]} s={[MOSS_PANEL + 0.1, 0.06, 0.1]} m={colorMat('#46553a')} />
-          <Pane style="moss" x={doorX + side * (doorW / 2 + 0.5 + winW / 2)} y={1.4} z={0.02} w={winW} h={2.3} frame={black} t={0.05} bars={1} />
+          <Pane x={doorX + side * (doorW / 2 + 0.5 + winW / 2)} y={1.4} z={0.02} w={winW} h={2.3} frame={black} t={0.05} bars={1} />
           {/* 긴 콘크리트 화분 + 고사리 */}
           <group position={[doorX + side * (doorW / 2 + 0.5 + winW / 2), 0, 0.45]}>
             <B p={[0, 0.22, 0]} s={[winW, 0.44, 0.45]} m={colorMat('#9a9a94')} />
@@ -461,7 +455,7 @@ function MossFront({ w, floorH, doorX, doorW, doorH, open, near }: Props) {
 }
 
 // ── 여러 층 건물(캠리 스퀘어)의 위층 앞면: 층마다 그 가게 콘셉트 ─────────────
-// 창은 그 층 실내 통창 구멍 자리(문 양옆 1.4~4.6m, 층 바닥에서 0.5~2.0m)라 광장에서 그 층 실제 실내가 보임(GlassCtx)
+// 창은 그 층 실내 통창 구멍 자리(문 양옆 1.4~4.6m, 층 바닥에서 0.5~2.0m)지만, 밖에서는 안이 보이지 않는 반사 유리(mirrorGlass)
 const UPPER_WIN = { x: 3.0, w: 3.0, y: 1.25, h: 1.5 }
 const UPPER_SIGN: Record<string, SignLine[]> = {
   stream: [
@@ -503,7 +497,7 @@ function StreamFront({ w, floorH, slug }: { w: number; floorH: number; slug: str
       <B p={[0, 2.35, 0.025]} s={[w, 0.025, 0.01]} m={colorMat('#b3aa9e')} />
       {[-1, 1].map((side) => (
         <group key={side}>
-          <Pane style="garden" x={side * UPPER_WIN.x} y={UPPER_WIN.y} z={0.03} w={UPPER_WIN.w} h={UPPER_WIN.h} frame={bronze} t={0.05} bars={2} />
+          <Pane x={side * UPPER_WIN.x} y={UPPER_WIN.y} z={0.03} w={UPPER_WIN.w} h={UPPER_WIN.h} frame={bronze} t={0.05} bars={2} />
           {/* 물결 띠 (창 아래) */}
           {Array.from({ length: 6 }, (_, k) => (
             <mesh key={k} position={[side * UPPER_WIN.x - UPPER_WIN.w / 2 + 0.25 + k * 0.5, 0.33, 0.06]} rotation-z={Math.PI / 2}>
@@ -530,7 +524,7 @@ function BreathFront({ w, floorH }: { w: number; floorH: number }) {
   const frame = colorMat('#6c8258')
   const top = floorH - 0.12
   const archR = UPPER_WIN.w / 2
-  const glass = useContext(GlassCtx) ?? shopWindowMat(interiorTexture('garden'))
+  const glass = mirrorGlassMat()
   return (
     <>
       <mesh position={[0, top / 2 + 0.06, 0.02]} material={sage}>
@@ -547,13 +541,13 @@ function BreathFront({ w, floorH }: { w: number; floorH: number }) {
         const rectH = UPPER_WIN.h - archR * 0.5
         return (
           <group key={side}>
-            <Pane style="garden" x={cx} y={0.5 + rectH / 2} z={0.03} w={UPPER_WIN.w} h={rectH} frame={frame} t={0.06} bars={1} />
+            <Pane x={cx} y={0.5 + rectH / 2} z={0.03} w={UPPER_WIN.w} h={rectH} frame={frame} t={0.06} bars={1} />
             {/* 아치 테 (윗부분 반원) */}
             <mesh position={[cx, 0.5 + rectH, 0.06]} scale={[1, 0.5, 1]}>
               <torusGeometry args={[archR, 0.05, 8, 24, Math.PI]} />
               <meshStandardMaterial color="#6c8258" />
             </mesh>
-            {/* 아치 윗부분도 유리 (그 층 실내가 비침) */}
+            {/* 아치 윗부분도 같은 반사 유리 */}
             <mesh position={[cx, 0.5 + rectH, 0.025]} scale={[1, 0.5, 1]} material={glass}>
               <circleGeometry args={[archR - 0.04, 24, 0, Math.PI]} />
             </mesh>
