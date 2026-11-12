@@ -16,6 +16,7 @@ import { TILE, tiledPlane } from './worldTextures'
 
 // 잔디 범위(m): 문 기준 가로 폭과 안쪽 깊이. 본관 뒤 나무까지 덮습니다.
 const LAWN = { width: 64, depth: 68 }
+const WALK_BELOW = 0.01 // 문 너머 캠퍼스 길을 광장 길보다 이만큼 낮게 (겹친 곳 깜빡임 방지)
 
 // limit: 옆 문 풍경과 겹치지 않는 가로 범위 (gateViewSpan). 잔디는 이 범위까지만 깝니다.
 export function CampusGateView({ gate, limit = [-Infinity, Infinity] }: { gate: PlacedGate; limit?: [number, number] }) {
@@ -34,7 +35,13 @@ export function CampusGateView({ gate, limit = [-Infinity, Infinity] }: { gate: 
       {/* 잔디 (월드 땅보다 살짝 아래라 겹쳐도 깜빡이지 않음) */}
       <mesh rotation-x={-Math.PI / 2} position={[(span[0] + span[1]) / 2, -0.02, -LAWN.depth / 2 - 1]} material={WMAT.grass} geometry={tiledPlane(span[1] - span[0], LAWN.depth, TILE.grass)} />
       <group position={[-entrance.x, 0, -entrance.z]}>
-        {layout.walks && <Walks walks={layout.walks} />}
+        {/* 캠퍼스 길은 광장 길(높이 0.02)과 같은 높이라, 문 앞에서 겹친 곳의 벽돌이 섞여 보였습니다.
+            시작 부분이 둥글게 광장 쪽으로 나오므로 1cm 낮춰, 겹친 곳은 광장 길이 덮게 합니다 */}
+        {layout.walks && (
+          <group position-y={-WALK_BELOW}>
+            <Walks walks={layout.walks} />
+          </group>
+        )}
         {layout.court && <CampusCourt court={layout.court} />}
         {layout.courtyard && <LanternCourtyard courtyard={layout.courtyard} />}
         <CampusTrees trees={trees} />
