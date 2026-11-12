@@ -230,21 +230,22 @@ export type AmbiencePref = { on: boolean; volume: number }
 const STORAGE_KEY = 'dooteum.ambience'
 const DEFAULT_PREF: AmbiencePref = { on: true, volume: 0.6 }
 
-export function loadAmbiencePref(): AmbiencePref {
+// key·fallback: 다른 소리(광장 캠프파이어·분수, useNearSounds)도 같은 모양으로 따로 기억할 때
+export function loadAmbiencePref(key = STORAGE_KEY, fallback = DEFAULT_PREF): AmbiencePref {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
+    const raw = JSON.parse(localStorage.getItem(key) ?? 'null')
     if (raw && typeof raw.on === 'boolean' && typeof raw.volume === 'number') {
       return { on: raw.on, volume: Math.min(1, Math.max(0, raw.volume)) }
     }
   } catch {
     // 읽지 못하면 기본값
   }
-  return { ...DEFAULT_PREF }
+  return { ...fallback }
 }
 
-export function saveAmbiencePref(pref: AmbiencePref) {
+export function saveAmbiencePref(pref: AmbiencePref, key = STORAGE_KEY) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(pref))
+    localStorage.setItem(key, JSON.stringify(pref))
   } catch {
     // 기억하지 못해도 이번 접속에서는 바꾼 값을 씁니다.
   }

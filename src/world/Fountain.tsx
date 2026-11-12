@@ -72,22 +72,22 @@ function markRipple(m: THREE.Mesh, base: number) {
   m.userData.base = base
 }
 
-// posRef: 내 자리 (주면 물소리), muted: 채팅 "소리 끔"
-export function Fountain({ fountain, posRef, muted = false }: { fountain: NonNullable<PlazaLayout['fountain']>; posRef?: RefObject<{ x: number; z: number }>; muted?: boolean }) {
+// posRef: 내 자리 (주면 물소리), muted: 채팅 "소리 끔", volume: 사용자가 정한 음량 0~1 (useNearSounds, 1 이 원래 크기)
+export function Fountain({ fountain, posRef, muted = false, volume = 1 }: { fountain: NonNullable<PlazaLayout['fountain']>; posRef?: RefObject<{ x: number; z: number }>; muted?: boolean; volume?: number }) {
   return (
     <>
       <FountainBody fountain={fountain} />
-      {posRef && <FountainSound fountain={fountain} posRef={posRef} muted={muted} />}
+      {posRef && <FountainSound fountain={fountain} posRef={posRef} muted={muted} volume={volume} />}
     </>
   )
 }
 
 // 물소리: 매 프레임 거리로 크기 (보이는 것은 없음)
-function FountainSound({ fountain, posRef, muted }: { fountain: { x: number; z: number }; posRef: RefObject<{ x: number; z: number }>; muted: boolean }) {
+function FountainSound({ fountain, posRef, muted, volume }: { fountain: { x: number; z: number }; posRef: RefObject<{ x: number; z: number }>; muted: boolean; volume: number }) {
   useEffect(() => stopFountainSound, [])
   useFrame(() => {
     const p = posRef.current
-    setFountainVolume(muted || !p ? 0 : fountainLoudness(fountain, p))
+    setFountainVolume(muted || !p ? 0 : fountainLoudness(fountain, p) * volume)
   })
   return null
 }

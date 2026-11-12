@@ -90,7 +90,8 @@ const flameMat = (color: string) => new THREE.MeshBasicMaterial({ color, transpa
 
 // posRef: 내 자리 (주면 장작 소리·마시멜로 굽기). 루프탑·카페 창 너머 광장처럼 멀리서 보이기만 할 때는 빼면 모양만
 // vendorSay: 판매원 말풍선, onToast: 들고 있는 마시멜로의 굽기 이름이 바뀔 때 (먹기 안내 글자)
-export function Campfire({ fire, posRef, muted = false, vendorSay = null, vendorSeq = 0, onToast }: { fire: CampfireSpec; posRef?: RefObject<{ x: number; z: number }>; muted?: boolean; vendorSay?: string | null; vendorSeq?: number; onToast?: (label: string) => void }) {
+// volume: 사용자가 정한 음량 0~1 (useNearSounds, 1 이 원래 크기)
+export function Campfire({ fire, posRef, muted = false, volume = 1, vendorSay = null, vendorSeq = 0, onToast }: { fire: CampfireSpec; posRef?: RefObject<{ x: number; z: number }>; muted?: boolean; volume?: number; vendorSay?: string | null; vendorSeq?: number; onToast?: (label: string) => void }) {
   const seats = useMemo(() => campfireSeats(fire, 0), [fire])
   const flames = useRef<(THREE.Mesh | null)[]>([])
   const tongues = useRef<(THREE.Mesh | null)[]>([])
@@ -165,7 +166,7 @@ export function Campfire({ fire, posRef, muted = false, vendorSay = null, vendor
     }
     if (posRef) {
       const p = posRef.current
-      setCampfireVolume(muted || !p ? 0 : fireLoudness(fire, p))
+      setCampfireVolume(muted || !p ? 0 : fireLoudness(fire, p) * volume)
     }
   })
 
