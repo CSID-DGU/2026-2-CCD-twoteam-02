@@ -104,7 +104,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
     })
     return { scene: new THREE.Scene(), views }
   }, [windows, y, h, depth, buildingDepth])
-  useEffect(() => resizePortal(portal, size.width * dpr, size.height * dpr), [portal, size, dpr])
+  useEffect(() => resizePortal(portal, size.width, size.height, dpr), [portal, size, dpr])
   useEffect(() => () => disposePortal(portal), [portal])
   useFrame(({ gl, camera }) => renderPortal(gl, camera, portal), -1) // 화면 그리기 전에 (음수 순서라 자동 그리기는 그대로)
 

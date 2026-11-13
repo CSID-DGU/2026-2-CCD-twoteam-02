@@ -67,7 +67,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
     })
     return { scene: new THREE.Scene(), views: [{ target, mat: portalMaterial(target.texture), windows }] }
   }, [holes, round.r, paneR])
-  useEffect(() => resizePortal(portal, size.width * dpr, size.height * dpr), [portal, size, dpr])
+  useEffect(() => resizePortal(portal, size.width, size.height, dpr), [portal, size, dpr])
   useEffect(() => () => disposePortal(portal), [portal])
   useFrame(({ gl, camera }) => renderPortal(gl, camera, portal), -1) // 화면 그리기 전에
 
