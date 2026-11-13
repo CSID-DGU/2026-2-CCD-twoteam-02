@@ -19,8 +19,12 @@ export function mirrorGlassMat() {
   if (cached) return cached
   const G = MIRROR_GLASS
   cached = new THREE.ShaderMaterial({
+    // 자르기 면(clippingPlanes)을 따르게: 지점 통창 너머 거리(CafeWindows)는 방 쪽을 잘라 내고 그리는데,
+    // 직접 짠 셰이더는 아래 clipping 조각을 넣어야 잘립니다. 없으면 방 자리에 있는 이 유리가 창에 판처럼 비침 (이끼 정원 뒷창)
+    clipping: true,
     uniforms: { night: NIGHT_UNIFORM }, // 밤 값은 setNightGlow 가 매 프레임 바꿈 (hallGlass 와 같이 씀)
     vertexShader: `
+      #include <clipping_planes_pars_vertex>
       varying vec2 vUv;
       varying vec3 vWorld;
       varying vec3 vNor;
@@ -29,14 +33,18 @@ export function mirrorGlassMat() {
         vec4 w = modelMatrix * vec4(position, 1.0);
         vWorld = w.xyz;
         vNor = mat3(modelMatrix) * normal;
-        gl_Position = projectionMatrix * viewMatrix * w;
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
       }`,
     fragmentShader: `
+      #include <clipping_planes_pars_fragment>
       uniform float night;
       varying vec2 vUv;
       varying vec3 vWorld;
       varying vec3 vNor;
       void main() {
+        #include <clipping_planes_fragment>
         vec3 N = normalize(vNor);
         vec3 V = normalize(cameraPosition - vWorld);
         vec3 R = reflect(-V, N);
