@@ -102,12 +102,16 @@ export class RelayRoom extends DurableObject<RelayEnv> {
 
     const { 0: client, 1: server } = new WebSocketPair()
     const respond = () => new Response(null, { status: 101, webSocket: client, headers: { 'Sec-WebSocket-Protocol': SUBPROTOCOL } })
+    const now = Date.now()
+    // 정원을 세기 전에 죽은 연결(소식 없음·토큰 만료)부터 정리한다 (#515). 조용한 방은 메시지가 없어 정리가 돌지 않으므로
+    // 새 사람이 올 때 한다. 접속 표시 방(online.ts)과 같다
+    if (now - this.lastSweepAt >= SWEEP_INTERVAL_MS) this.sweep(now)
     const sockets = this.ctx.getWebSockets()
+    const conns = sockets.flatMap((ws) => this.attachmentOf(ws) ?? []) // 정리한 연결(저장칸이 빈 것)은 빼고 센다
 
     // 정원 초과는 HTTP 로 거절하지 않고 받은 뒤 닫는다. 브라우저는 HTTP 거절 이유를 코드에서 읽을 수 없다.
     // 잠들기 연결로 받지 않는다. 곧 닫을 연결이라 방 인원에 잡히면 안 된다.
-    const watching = sockets.filter((ws) => this.attachmentOf(ws)?.watch).length
-    if (!hasRoom(watch, sockets.length - watching, watching, capacity)) {
+    if (!hasRoom(watch, userId, conns, capacity)) {
       server.accept()
       server.close(CLOSE_FULL, 'room full')
       return respond()
@@ -125,7 +129,6 @@ export class RelayRoom extends DurableObject<RelayEnv> {
       this.closeAndForget(mine.reduce((old, ws) => (heardAt(ws) < heardAt(old) ? ws : old)), CLOSE_REPLACED, 'replaced')
     }
 
-    const now = Date.now()
     const attachment: Attachment = { conn: crypto.randomUUID(), userId, expiresAt, heardAt: now, state: null, watch, room, joinedAt: now }
     server.serializeAttachment(attachment)
     // 들어온 사람에게만 전체 상태를 준다. 예전처럼 대표가 답할 일이 없다.
