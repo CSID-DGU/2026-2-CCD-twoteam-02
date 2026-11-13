@@ -23,6 +23,13 @@ export const PORTAL_STILL_MS = 28
 // 완전히 같은 값이 안 될 수 있음. 1e-5 는 2000px 화면에서 약 0.01px 차이
 export const PORTAL_MOVE_EPS = 1e-5
 
+// 창 너머 그림을 그려 둘 곳. 8비트 색(픽셀당 4바이트, HalfFloat 의 절반)
+// sRGB 로 저장(SRGB8_ALPHA8)해서 어두운 곳 색 띠를 막음: 그릴 때·읽을 때 GPU 가 선형 색으로 알아서 바꿈
+// 대신 1 보다 밝은 빛(가로등 등)은 톤매핑 전에 1 에서 잘림 (#516, 화면 비교로 확인)
+export function portalTarget() {
+  return new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType, colorSpace: THREE.SRGBColorSpace })
+}
+
 // 창 판 재질: 렌더 타깃 그림을 화면 좌표로 읽음. 그림은 선형 색·톤매핑 전이라 여기서 화면처럼 바꿈
 // 투명도는 1 로 고정: 그림의 빈 곳이 투명하면 캔버스도 투명해져 페이지 배경(다크·라이트 모드 색)이 비침 (#450)
 export function portalMaterial(map: THREE.Texture) {

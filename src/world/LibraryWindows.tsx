@@ -14,7 +14,7 @@ import { LIB_TILE, plasterBump, plasterFine } from '../space/libraryTextures'
 import { ROUND_WINDOW, roundWindowHoles } from '../space/theme'
 import type { RoundRoom } from '../space/theme'
 import { StreetPeople } from './CafeWindows'
-import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
+import { disposePortal, portalMaterial, portalTarget, renderPortal, resizePortal } from './cafePortal'
 import { PortalCamera } from './PortalCamera'
 import type { Portal } from './cafePortal'
 import { Beanbags, CampusBuildingTrim, GateBackdrop, Mats, UniversityGate } from './CampusDecor'
@@ -59,7 +59,7 @@ export function LibraryWindows({ slug, round, doorX, doorZ, showPeople }: { slug
 
   // 창 하나하나의 자리: 화면에 보이는지 확인용 (곡면이라 네 귀퉁이를 다 넣은 상자)
   const portal = useMemo<Portal>(() => {
-    const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType })
+    const target = portalTarget()
     const windows = holes.map((h) => {
       const box = new THREE.Box3()
       for (const a of [h.a0, (h.a0 + h.a1) / 2, h.a1]) for (const r of [round.r, paneR]) for (const y of [h.y0, h.y1]) box.expandByPoint(new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r))
