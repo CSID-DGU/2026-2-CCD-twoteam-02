@@ -9,7 +9,7 @@ import type { BranchLayout } from '../space/layout'
 import { CAFE_WINDOW, FLOOR_H, paneCount } from './cafeWindowLogic'
 import type { CafeWindow, CafeWindows as Windows, WindowWall } from './cafeWindowLogic'
 import { cafeWindowsOf, windowLayoutOf } from './cafeWindowsOf'
-import { disposePortal, portalMaterial, renderPortal, resizePortal } from './cafePortal'
+import { disposePortal, portalMaterial, portalTarget, renderPortal, resizePortal } from './cafePortal'
 import type { Portal } from './cafePortal'
 import { PortalCamera } from './PortalCamera'
 import { benchSeats, buildingOf, campfireStudySeats } from './worldLogic'
@@ -85,7 +85,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
     const views = WALLS.flatMap((wall) => {
       const spots = windows.spots.filter((s) => s.wall === wall)
       if (spots.length === 0) return []
-      const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType })
+      const target = portalTarget()
       return [
         {
           target,
@@ -104,7 +104,7 @@ function CafePortal({ slug, doorX, doorZ, depth, windows, showPeople }: { slug: 
     })
     return { scene: new THREE.Scene(), views }
   }, [windows, y, h, depth, buildingDepth])
-  useEffect(() => resizePortal(portal, size.width * dpr, size.height * dpr), [portal, size, dpr])
+  useEffect(() => resizePortal(portal, size.width, size.height, dpr), [portal, size, dpr])
   useEffect(() => () => disposePortal(portal), [portal])
   useFrame(({ gl, camera }) => renderPortal(gl, camera, portal), -1) // 화면 그리기 전에 (음수 순서라 자동 그리기는 그대로)
 
