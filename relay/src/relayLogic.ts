@@ -124,8 +124,14 @@ export function assignChannel(want: number | null, mode: AssignMode, userId: str
 }
 
 // 새 연결을 받을 자리가 있는지. 활동 연결과 보기 전용 연결은 서로의 자리를 차지하지 않는다.
-export function hasRoom(watch: boolean, active: number, watching: number, capacity: number): boolean {
-  return watch ? watching < MAX_WATCH_CONNECTIONS : active < capacity
+// 활동 연결은 연결 수가 아니라 사람 수로 센다 (#515). 이미 방에 연결이 있는 사람은 새 사람이 아니라서 받는다:
+//   와이파이가 끊겼다 다시 붙으면 서버는 아직 옛 연결을 살아 있는 것으로 본다(소식 없음 2분 뒤에야 닫음).
+//   연결 수로 세면 그 옛 연결 때문에 꽉 찬 방에서 거절되어 다음 채널로 밀렸다. 탭을 두 개 연 사람도 두 명으로 잡혔다.
+// conns: 방에 남아 있는 연결들 (이미 정리한 연결은 빼고 넘긴다)
+export function hasRoom(watch: boolean, userId: string, conns: { userId: string; watch: boolean }[], capacity: number): boolean {
+  if (watch) return conns.filter((c) => c.watch).length < MAX_WATCH_CONNECTIONS
+  const people = new Set(conns.filter((c) => !c.watch).map((c) => c.userId))
+  return people.has(userId) || people.size < capacity
 }
 
 export type RelayState = Record<string, unknown> & { userId: string; x: number; z: number }
