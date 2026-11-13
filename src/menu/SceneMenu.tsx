@@ -16,6 +16,25 @@ import type { CSSProperties, ReactNode } from 'react'
 
 const guestNote: CSSProperties = { display: 'block', padding: '4px 8px', color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }
 
+// 컴퓨터에서 메뉴를 접어 뒀는지. 계정이 아니라 이 브라우저에 기억합니다(미니맵 설정과 같은 방식).
+const FOLD_KEY = 'dooteum.menuFolded'
+
+function loadFolded(): boolean {
+  try {
+    return localStorage.getItem(FOLD_KEY) === 'on'
+  } catch {
+    return false // 저장소를 못 쓰는 브라우저(사생활 보호 모드 등)면 펼친 채로 시작
+  }
+}
+
+function saveFolded(on: boolean) {
+  try {
+    localStorage.setItem(FOLD_KEY, on ? 'on' : 'off')
+  } catch {
+    // 기억하지 못해도 이번 접속에서는 접힌 상태를 씁니다.
+  }
+}
+
 type Props = {
   myId: string
   onOpen: (view: PanelView) => void
@@ -34,6 +53,13 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
   const touch = useIsTouch()
   const guest = useIsGuest()
   const [unfolded, setUnfolded] = useState(false)
+  // 컴퓨터: 메뉴가 화면을 가려 거슬리면 직접 접어 둠. 접은 채로 두면 다시 들어와도 접혀 있음(이 브라우저에 기억).
+  // 접어도 단축키(G·R·F·P·O 등)는 그대로 됩니다.
+  const [folded, setFoldedState] = useState(loadFolded)
+  const setFolded = (on: boolean) => {
+    setFoldedState(on)
+    saveFolded(on)
+  }
   const onOpen = (view: PanelView) => {
     setUnfolded(false)
     openPanel(view)
@@ -47,6 +73,18 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
       </div>
     )
   }
+  if (!touch && folded) {
+    return (
+      <div style={menuStack}>
+        {top /* FPS 표시는 접어도 보임(켠 사람만) */}
+        <div style={menuBox}>
+          <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setFolded(false)} aria-label="메뉴 펼치기">
+            ☰ 메뉴
+          </button>
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={menuStack}>
       {top /* 맨 위 칸: FPS 표시(설정에서 켰을 때) */}
@@ -54,6 +92,13 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
         <button type="button" style={{ ...menuRow, justifyContent: 'center' }} onClick={() => setUnfolded(false)} aria-label="메뉴 접기">
           ✕ 접기
         </button>
+      )}
+      {!touch && (
+        <div style={menuBox}>
+          <button type="button" style={{ ...menuRowMinor, justifyContent: 'center' }} onClick={() => setFolded(true)} aria-label="메뉴 접기">
+            ▲ 메뉴 접기
+          </button>
+        </div>
       )}
       {/* 게스트 (#375): 가입하면 친구·채팅·회의·순위를 쓰고 기록이 이어짐. 가입은 설정 → 내 정보 */}
       {guest && (
