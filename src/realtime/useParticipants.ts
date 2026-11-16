@@ -93,6 +93,7 @@ import { markDown, markUp } from './connectionStatus'
 import { openSupabaseLink } from './roomLink'
 import type { Presence, RoomLink } from './roomLink'
 import { openRelayLink, relayUrl, ROOM_FULL_STATUS } from './relayLink'
+import { listenSecure, meetingIdOf, SECURE_WAIT_MS, sendSecure } from './secureEvents'
 import { avatarFromDb, avatarKey } from '../avatar/avatarLogic'
 import { createLiveStates, listFieldsChanged } from './liveStates'
 import type { LiveStates } from './liveStates'
@@ -133,6 +134,8 @@ export function useParticipants(
     let channel: RoomLink | null = null // 지금 쓰는 채널. 끊겨서 다시 붙을 때까지는 null
     const port = signalRef?.current // 음성 연결 신호 통로 (회의실만)
     const chatPort = chatRef?.current // 채팅 통로 (회의실만)
+    // 회의실이면 음성 신호·채팅은 보낸 사람을 DB 가 확인하는 보안 방으로만 주고받는다 (#512, secureEvents.ts)
+    const secureMeeting = isPrivate ? meetingIdOf(roomName) : null
     const flickPort = flickRef?.current // 딱밤 통로 (지점·광장)
     const playPort = playRef?.current // 축구공·모래 글씨 통로 (#473)
     // 끊김 안내에 적을 표. 보기 전용 연결은 안내를 띄우지 않는다.
@@ -285,8 +288,10 @@ export function useParticipants(
       }, SNAPSHOT_WAIT_MS)
     }
 
-    // 받은 메시지를 이름별로 처리한다.
-    function receive(event: string, payload: unknown) {
+    // 받은 메시지를 이름별로 처리한다. secure: 보안 방에서 온 것(보낸 사람을 DB 가 넣음)
+    function receive(event: string, payload: unknown, secure = false) {
+      // 회의실의 음성 신호·채팅은 보안 방에서 온 것만 믿는다. 회의 방으로 온 것은 보낸 사람을 화면이 적은 것이라 버린다 (#512)
+      if (secureMeeting !== null && !secure && (event === SIGNAL_EVENT || event === CHAT_EVENT)) return
       if (event === HELLO_EVENT) {
         // 누가 막 들어왔다. 기다리게 하지 않고 대표가 방 전체 위치를 알려 준다.
         const who = (payload as { userId?: string })?.userId
@@ -379,6 +384,7 @@ export function useParticipants(
       helloSaid = false
       if (port) {
         port.send = (to, data) => {
+          if (secureMeeting !== null) return void sendSecure(client, secureMeeting, SIGNAL_EVENT, { to, data }) // 보낸 사람은 DB 가 넣음
           const from = me.current?.userId
           if (from) void ch.send(SIGNAL_EVENT, { from, to, data })
         }
@@ -395,6 +401,7 @@ export function useParticipants(
       }
       if (chatPort) {
         chatPort.send = async (text) => {
+          if (secureMeeting !== null) return sendSecure(client, secureMeeting, CHAT_EVENT, { text }) // 보낸 사람은 DB 가 넣음
           const from = me.current?.userId
           if (!from) return false
           return (await ch.send(CHAT_EVENT, { from, text })) === 'ok'
@@ -449,7 +456,24 @@ export function useParticipants(
     window.addEventListener('offline', wentOffline)
     window.addEventListener('online', cameOnline)
 
-    connect()
+    // 회의 보안 방(음성 신호·채팅을 쓰는 회의실만)에 먼저 들어간 뒤 회의 방에 들어간다.
+    // 반대 순서면 남이 회의 방에서 나를 보고 바로 보낸 음성 연결 신호를, 보안 방에 들어가기 전이라 놓친다.
+    // 보안 방이 SECURE_WAIT_MS 안에 안 열려도 회의 방에는 들어간다(위치는 보이게). 보안 방은 끊기면 라이브러리가 다시 붙는다
+    let stopSecure: (() => void) | null = null
+    let secureTimer: ReturnType<typeof setTimeout> | null = null
+    if (secureMeeting !== null && (port || chatPort)) {
+      let started = false
+      const start = () => {
+        if (started || !alive) return
+        started = true
+        if (secureTimer) clearTimeout(secureTimer)
+        connect()
+      }
+      stopSecure = listenSecure(client, secureMeeting, (event, payload) => receive(event, payload, true), start)
+      secureTimer = setTimeout(start, SECURE_WAIT_MS)
+    } else {
+      connect()
+    }
 
     // 값이 충분히 바뀌었을 때 보내고, 그대로여도 가끔 한 번 보낸다.
     //
@@ -497,6 +521,8 @@ export function useParticipants(
       if (snapshotTimer) clearTimeout(snapshotTimer)
       if (retryTimer) clearTimeout(retryTimer)
       stopProfileListen()
+      stopSecure?.()
+      if (secureTimer) clearTimeout(secureTimer)
       closePorts()
       if (noticeToken) markUp(noticeToken)
       channel?.leave()
