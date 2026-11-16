@@ -16,15 +16,18 @@ export const EMOTE_CAMERA = {
   prefer: 2.0, // 앞이 이만큼 트였으면 앞에서 비춤. 아니면 다른 방향을 찾아봄
   min: 1.2, // 이보다 가까우면 캐릭터가 화면에 다 안 들어와서 그 방향은 쓰지 않음
   margin: 0.25, // 벽에서 띄우는 거리. 캐릭터 충돌 반경(0.3)보다 작아야 벽에 붙어 서 있어도 출발점이 벽 여유 안에 안 들어감
-  person: 0.45, // 다른 사람이 가리는 반지름 (몸 폭 + 여유)
+  person: 0.45, // 다른 사람이 가리는 반지름 (몸 폭 + 여유). 카메라가 사람 속·뒤로 가지 않게 멈추는 기준
+  personView: 0.9, // 방향을 고를 때 사람을 이만큼 넓게 봄. 카메라 선에서 이 안에 선 사람은 화면에서 내 몸(든 팔)과 겹쳐 보임
   overlap: 0.2, // 나와 이만큼 겹쳐 서 있는 사람은 어느 방향으로도 못 피하므로 계산에서 뺌
 }
 
-// 살펴보는 순서: 앞 → 앞 대각선 → 옆 → 뒤 대각선 → 뒤 (내가 보는 방향 기준)
-const OFFSETS = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, (Math.PI * 3) / 4, -(Math.PI * 3) / 4, Math.PI]
+// 살펴보는 순서: 앞 → 앞 대각선 → 옆 → 뒤 대각선 → 뒤 (내가 보는 방향 기준). 같은 각도면 오른쪽(-)이 먼저:
+// 한 팔로 하는 동작(손 흔들기·딱밤·발차기)이 모두 오른쪽이라, 왼쪽에서 비추면 움직이는 팔이 몸 뒤로 가려짐
+const OFFSETS = [0, -Math.PI / 4, Math.PI / 4, -Math.PI / 2, Math.PI / 2, -(Math.PI * 3) / 4, (Math.PI * 3) / 4, Math.PI]
 
 // from 에서 angle 방향으로 max 까지 가는 동안 처음 막히는 곳까지의 거리 (안 막히면 max)
-export function freeDistance(from: Point, angle: number, boxes: Box[], people: Point[], max: number): number {
+// personRadius: 사람을 얼마나 넓게 볼지 (기본은 카메라가 멈추는 기준 EMOTE_CAMERA.person)
+export function freeDistance(from: Point, angle: number, boxes: Box[], people: Point[], max: number, personRadius = EMOTE_CAMERA.person): number {
   const dx = Math.sin(angle)
   const dz = Math.cos(angle)
   let free = max
@@ -33,18 +36,24 @@ export function freeDistance(from: Point, angle: number, boxes: Box[], people: P
     if (t < free) free = t
   }
   for (const p of people) {
-    const t = rayCircle(from, dx, dz, p, EMOTE_CAMERA.person)
+    const t = rayCircle(from, dx, dz, p, personRadius)
     if (t < free) free = t
   }
   return Math.max(0, free)
 }
 
 // heading: 내가 보는 방향. 돌려주는 angle 은 카메라가 나에게서 빠지는 방향(절대 각도), distance 는 그 방향으로 갈 수 있는 거리
+// 먼저 사람을 넓게 보고(personView) 고릅니다: 카메라 선 가까이에 선 사람은 선을 막지 않아도 화면에서 내 몸과 겹칩니다
+// (앞 1m 에 사람이 있을 때 대각선에서 비추면 그 사람 머리가 내 든 팔을 가림). 그렇게는 갈 곳이 없을 만큼 붐비면 좁게 보고 다시 고릅니다.
 export function pickEmoteView(from: Point, heading: number, boxes: Box[], people: Point[]): { angle: number; distance: number } | null {
+  return pickWith(from, heading, boxes, people, EMOTE_CAMERA.personView) ?? pickWith(from, heading, boxes, people, EMOTE_CAMERA.person)
+}
+
+function pickWith(from: Point, heading: number, boxes: Box[], people: Point[], personRadius: number): { angle: number; distance: number } | null {
   let best: { angle: number; distance: number } | null = null
   for (const off of OFFSETS) {
     const angle = heading + off
-    const distance = freeDistance(from, angle, boxes, people, EMOTE_CAMERA.distance)
+    const distance = freeDistance(from, angle, boxes, people, EMOTE_CAMERA.distance, personRadius)
     if (distance >= EMOTE_CAMERA.prefer) return { angle, distance } // 순서가 앞선 방향 중 충분히 트인 첫 방향
     if (!best || distance > best.distance) best = { angle, distance }
   }
