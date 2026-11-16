@@ -11,6 +11,8 @@ import { useIsTeam } from '../report/useIsTeam'
 import { useIsTouch } from '../space/useIsTouch'
 import { useState } from 'react'
 import { useIsGuest } from '../auth/useIsGuest'
+import { useMyStudying } from '../realtime/onlineContext'
+import { EndStudyConfirm } from '../study/EndStudyConfirm'
 import { GUEST_KEEP_DAYS } from '../auth/guestNotice'
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -52,6 +54,10 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
   // 폰(#377): 작은 화면을 가리지 않게 [☰] 하나로 접어 두고, 누르면 펼침. 고르면 다시 접힘
   const touch = useIsTouch()
   const guest = useIsGuest()
+  // 공부 중에 "캠리단길로"·"트래킹 검증"을 누르면 공부가 끝나므로 한 번 더 묻습니다 (#558)
+  const studying = useMyStudying()
+  const [pending, setPending] = useState<{ go: () => void; label: string } | null>(null)
+  const guard = (go: () => void, label: string) => () => (studying ? setPending({ go, label }) : go())
   const [unfolded, setUnfolded] = useState(false)
   // 컴퓨터: 메뉴가 화면을 가려 거슬리면 직접 접어 둠. 접은 채로 두면 다시 들어와도 접혀 있음(이 브라우저에 기억).
   // 접어도 단축키(G·R·F·P·O 등)는 그대로 됩니다.
@@ -138,7 +144,7 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
           <>
             <div style={menuDivider} />
             {/* 버튼으로 나가도 보던 방향 그대로 바깥(광장·캠퍼스)의 그 건물 입구 앞에 섭니다. (#150, #315) */}
-            <button type="button" style={menuRow} onClick={onLobby}>
+            <button type="button" style={menuRow} onClick={guard(onLobby, `끝내고 ${lobbyLabel}`)}>
               <span style={keyCap}>{keyLabel(keys.lobby)}</span>
               {lobbyLabel}
             </button>
@@ -167,12 +173,22 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
           </button>
         )}
         {onTracking && (
-          <button type="button" style={menuRowMinor} onClick={onTracking}>
+          <button type="button" style={menuRowMinor} onClick={guard(onTracking, '끝내고 트래킹 검증')}>
             <span style={keyCap}>{keyLabel(keys.tracking)}</span>
             트래킹 검증
           </button>
         )}
         <LogoutButton style={menuRowMinor} />
+        {pending && (
+          <EndStudyConfirm
+            endLabel={pending.label}
+            onCancel={() => setPending(null)}
+            onEnd={() => {
+              setPending(null)
+              pending.go()
+            }}
+          />
+        )}
       </div>
     </div>
   )

@@ -80,9 +80,13 @@ type Props = {
   // 바깥에서 "여기로 옮겨라" 요청 (친구 따라가기·부르기, useFollowArrival). 앉아 있으면 먼저 일어납니다.
   teleportRef?: RefObject<Teleport | null>
   holding?: MenuItem | null // 카페에서 받은 음료·빵을 오른손에 듦 (내 화면에만)
+  // 공부 중 일어나기 확인 (#558). 앉아서 E 를 눌렀을 때 confirmStand 에 함수가 있으면 일어나지 않고 그것을 부릅니다(확인 창).
+  // 창에서 [끝내기]를 누르면 바깥에서 standRef 를 true 로 두고, 다음 프레임에 일어납니다.
+  confirmStand?: RefObject<(() => void) | null>
+  standRef?: RefObject<boolean>
 }
 
-export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, acts, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef, holding = null }: Props) {
+export function Player({ model: character, obstacles, spawn, spawnHeading = 0, spots, kiosk, frozen, onNear, onSeat, onNearKiosk, onKiosk, exit, onNearExit, onExit, meeting, onNearMeeting, onMeeting, elevator, onNearElevator, onElevator, canSit, acts, onMove, headingRef, onSitBlocked, sitRef, emoteRef, aimRef, onAim, teleportRef, holding = null, confirmStand, standRef }: Props) {
   const ref = useRef<Group>(null!)
   // 동작의 뿌리: 모델(캐릭터)이 바뀌면 key 로 이 묶음도 새로 만듭니다. drei useAnimations 는 모델이 바뀔 때 예전 관절 연결을
   // 지우지 못해서, 같은 뿌리를 쓰면 새 동작이 화면에서 빠진 옛 모델을 움직이고 새 모델은 가만히 있었습니다. (#259)
@@ -245,7 +249,14 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     toggle.current = false
     if (seated.current) {
       if (em) clearEmoteRequest(em) // 앉아 있을 때는 감정표현을 하지 않습니다 (다리 자세·트래킹과 겹침)
-      if (!wantToggle) return
+      const confirmed = standRef?.current === true // 확인 창에서 [끝내기]를 누름
+      if (standRef) standRef.current = false
+      if (!wantToggle && !confirmed) return
+      const ask = confirmStand?.current
+      if (!confirmed && ask) {
+        ask() // 공부 중: 바로 일어나지 않고 묻습니다
+        return
+      }
       // 단 위 자리(강의실)면 단 뒤 통로로 내려섭니다
       const standAt = seated.current.standAt
       if (standAt) {

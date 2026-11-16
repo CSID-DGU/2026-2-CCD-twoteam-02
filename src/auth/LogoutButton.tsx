@@ -3,6 +3,8 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { clearStoredSession } from './sessionStorageChoice'
+import { useMyStudying } from '../realtime/onlineContext'
+import { EndStudyConfirm } from '../study/EndStudyConfirm'
 
 const base: CSSProperties = {
   padding: '6px 12px',
@@ -17,22 +19,33 @@ const base: CSSProperties = {
 
 export default function LogoutButton({ style }: { style?: CSSProperties }) {
   const [busy, setBusy] = useState(false)
+  const studying = useMyStudying() // 공부 중이면 공부가 끝나므로 한 번 더 묻습니다 (#558)
+  const [asking, setAsking] = useState(false)
+
+  const logout = async () => {
+    setBusy(true)
+    await supabase.auth.signOut()
+    // 양쪽 저장소를 비우고 "로그인 유지"도 해제합니다.
+    // 다음에 로그인 화면에 왔을 때 항상 꺼진 상태로 시작하게 하려는 것입니다. (#128)
+    clearStoredSession()
+    setBusy(false)
+  }
 
   return (
-    <button
-      style={{ ...base, ...style }}
-      type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true)
-        await supabase.auth.signOut()
-        // 양쪽 저장소를 비우고 "로그인 유지"도 해제합니다.
-        // 다음에 로그인 화면에 왔을 때 항상 꺼진 상태로 시작하게 하려는 것입니다. (#128)
-        clearStoredSession()
-        setBusy(false)
-      }}
-    >
-      {busy ? '…' : '로그아웃'}
-    </button>
+    <>
+      <button style={{ ...base, ...style }} type="button" disabled={busy} onClick={() => (studying ? setAsking(true) : void logout())}>
+        {busy ? '…' : '로그아웃'}
+      </button>
+      {asking && (
+        <EndStudyConfirm
+          endLabel="끝내고 로그아웃"
+          onCancel={() => setAsking(false)}
+          onEnd={() => {
+            setAsking(false)
+            void logout()
+          }}
+        />
+      )}
+    </>
   )
 }

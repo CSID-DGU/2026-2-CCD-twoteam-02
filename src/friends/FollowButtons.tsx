@@ -35,7 +35,7 @@ export function FollowButtons({ friendId, onMessage }: { friendId: string; onMes
   if (confirming) {
     return (
       <>
-        <span style={styles.muted}>공부를 끝내고 갈까요?</span>
+        <span style={styles.muted}>공부를 끝낼까요?</span>
         <button type="button" style={styles.primary} onClick={follow}>
           이동
         </button>
