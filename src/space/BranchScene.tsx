@@ -39,6 +39,7 @@ import { useAim } from "./useAim";
 import { useFollowArrival } from "../friends/useFollow";
 import type { Teleport } from "../friends/useFollow";
 import { useChat } from "../chat/chatContext";
+import { useStandConfirm } from "../study/useStandConfirm";
 import { aimWins } from "./aimLogic";
 import { useFlick, useFlickShake } from "../friends/useFlick";
 import { getFlickReceiving } from "../menu/flickSetting";
@@ -323,6 +324,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null);
   const chat = useChat();
+  const stand = useStandConfirm(); // 공부 중 E로 일어나면 "공부를 끝낼까요?" (#558)
   // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
   // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
   const { search } = useLocation();
@@ -637,7 +639,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           emoteRef={emote}
           spots={freeSpots}
           kiosk={branch.kiosk ?? (barista ? orderSpot(barista) : NO_KIOSK)}
-          frozen={kioskOpen || orderOpen || bookOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || (seat !== null && studyDialogOpen)}
+          frozen={kioskOpen || orderOpen || bookOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || (seat !== null && studyDialogOpen) || stand.asking}
           onNear={setNear}
           onSeat={handleSeat}
           onNearKiosk={setNearKiosk}
@@ -669,6 +671,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
           onAim={(t) => setPanel({ kind: "profile", userId: t.id })}
           onMove={handleMove}
           teleportRef={teleport}
+          confirmStand={stand.confirmStand}
+          standRef={stand.standRef}
           holding={holding}
           headingRef={view === "first" ? heading : undefined}
         />
@@ -734,6 +738,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     </div>
     {channelUi.overlay}
     <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
+    {stand.dialog}
     {/* 감정표현: 숫자키 1~8, X 바퀴 (#162). 창이 떠 있거나 앉아 있으면 쓰지 않습니다. */}
     <EmoteControls
       emoteRef={emote}

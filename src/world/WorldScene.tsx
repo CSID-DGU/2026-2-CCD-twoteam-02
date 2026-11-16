@@ -125,6 +125,7 @@ import { useWorldWeather } from './useWorldWeather'
 import { useFollowArrival } from '../friends/useFollow'
 import type { Teleport } from '../friends/useFollow'
 import { useChat } from '../chat/chatContext'
+import { useStandConfirm } from '../study/useStandConfirm'
 import { SkyTimePanel } from './SkyTimePanel'
 import { useAim } from '../space/useAim'
 import { aimWins } from '../space/aimLogic'
@@ -299,6 +300,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 친구 따라가기·부르기: 요청이 있으면 친구 옆으로 옮김 (src/friends/useFollow)
   const teleport = useRef<Teleport | null>(null)
   const chat = useChat()
+  const stand = useStandConfirm() // 벤치 등에서 공부 중 E로 일어나면 "공부를 끝낼까요?" (#558)
   const [condition] = useState(() => currentCondition(location.search))
   // 채널 표시·입장 대기·친구 채널 창과 따라가기 설정 (#442, #481. 카페 화면과 같이 씀)
   const channelUi = useChannelUi({ channel, place: world.place, seated: seat !== null, count: others.length + 1, showBadge: condition === 'visible' })
@@ -657,7 +659,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             // 광장에는 키오스크가 없다. Player 가 키오스크 좌표를 반드시 받으므로,
             // 걸어서 닿을 수 없는 자리를 줘서 감지가 일어나지 않게 한다. (광장은 56×56 크기다)
             kiosk={stall ? stallOrderSpot(stall) : NO_KIOSK}
-            frozen={panel !== null || overlay}
+            frozen={panel !== null || overlay || stand.asking}
             onNearKiosk={setNearStall}
             onKiosk={() => {
               if (stall) buyMarshmallow()
@@ -675,6 +677,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
             aimRef={aim.current}
             onAim={openAim}
             teleportRef={teleport}
+            confirmStand={stand.confirmStand}
+            standRef={stand.standRef}
             onMove={(x, z, h) => {
               pos.current.x = x
               pos.current.z = z
@@ -735,6 +739,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {channelUi.overlay}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
       <ChatOverlay /> {/* 친구 귓속말 로그창 (#49) */}
+      {stand.dialog}
       <EmoteControls emoteRef={emote} suspendLookRef={suspendLook} disabled={panel !== null || overlay || seat !== null} /> {/* 감정표현: 1~8, X 바퀴 (#162) */}
       {/* 조준점: 마우스가 잠겨 커서가 없을 때 화면 가운데. 사람·별자리를 가리키고 E 를 누르면 프로필·운세 (#166, #321) */}
       {(locked || (touch && view === 'first')) && seat === null && <div style={crosshair} />}

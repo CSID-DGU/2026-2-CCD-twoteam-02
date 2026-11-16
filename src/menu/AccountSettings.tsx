@@ -23,6 +23,8 @@ import { toKoreanMessage } from '../auth/authErrors'
 import { EMAIL_MAX, NICKNAME_MAX, NICKNAME_MIN } from '../auth/authLimits'
 import { emailChangedRedirectTo, guestLinkedRedirectTo, resetRedirectTo } from '../auth/authRedirect'
 import { useNavigate } from 'react-router'
+import { useMyStudying } from '../realtime/onlineContext'
+import { EndStudyConfirm } from '../study/EndStudyConfirm'
 import { checkNickname } from '../auth/nicknameRules'
 import { announceMyProfileChanged } from '../profile/characters'
 import { BirthdayInput } from '../profile/BirthdayInput'
@@ -41,6 +43,13 @@ export function AccountSettings() {
   const guest = session?.user.is_anonymous === true // 게스트면 이메일 칸이 "가입하기" (#375)
   const [taken, setTaken] = useState(false) // 게스트가 넣은 이메일이 이미 가입된 이메일
   const navigate = useNavigate()
+  // 게스트가 "로그인하러 가기"를 누르면 로그아웃되어 공부가 끝나므로, 공부 중이면 한 번 더 묻습니다 (#558)
+  const studying = useMyStudying()
+  const [askLogin, setAskLogin] = useState(false)
+  const goLogin = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
 
   const { nickname: savedNickname, reload: reloadNickname } = useMyNickname()
   // 아직 고치지 않았으면 null. 그동안에는 읽어 온 값을 그대로 보여 줍니다.
@@ -229,13 +238,20 @@ export function AccountSettings() {
             <button
               type="button"
               style={styles.link}
-              onClick={async () => {
-                await supabase.auth.signOut()
-                navigate('/login')
-              }}
+              onClick={() => (studying ? setAskLogin(true) : void goLogin())}
             >
               로그인하러 가기
             </button>
+            {askLogin && (
+              <EndStudyConfirm
+                endLabel="끝내고 로그인하러 가기"
+                onCancel={() => setAskLogin(false)}
+                onEnd={() => {
+                  setAskLogin(false)
+                  void goLogin()
+                }}
+              />
+            )}
           </p>
         )}
         {!guest && (

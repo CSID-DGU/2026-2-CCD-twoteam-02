@@ -469,7 +469,7 @@ function SummonActions({ friendId, at, alive, hidden }: { friendId: string; at: 
   if (state === 'confirm') {
     return (
       <>
-        <span>공부를 끝내고 갈까요?</span>{' '}
+        <span>공부를 끝낼까요?</span>{' '}
         <button type="button" style={style} onMouseDown={keepFocus} onClick={leave}>이동</button>{' '}
         <button type="button" style={ghost} onMouseDown={keepFocus} onClick={() => setState('ready')}>취소</button>
       </>
@@ -510,7 +510,7 @@ function JoinButton({ meeting, hidden }: { meeting: MeetingInvite; hidden: boole
   if (confirming) {
     return (
       <>
-        <span>공부를 끝내고 회의로 갈까요?</span>{' '}
+        <span>공부를 끝낼까요?</span>{' '}
         <button type="button" style={style} disabled={busy} onMouseDown={(e) => e.preventDefault()} onClick={() => void join()}>이동</button>{' '}
         <button type="button" style={style} onMouseDown={(e) => e.preventDefault()} onClick={() => setConfirming(false)}>취소</button>
       </>
