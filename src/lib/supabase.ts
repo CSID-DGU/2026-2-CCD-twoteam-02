@@ -18,6 +18,12 @@ if (!url || !publishableKey) {
   )
 }
 
+// 메일 링크(비밀번호 재설정·게스트 가입 확인)를 눌러 들어왔는지 (#513).
+// 링크는 주소 끝에 #access_token=…&type=recovery 처럼 일회용 로그인 정보를 붙여 오고, supabase-js 가 읽은 뒤 주소에서 지웁니다.
+// "로그인돼 있음"만으로는 링크를 누른 사람인지 알 수 없어서(남의 PC에 남은 로그인), 지워지기 전 주소를 여기서 남겨 둡니다.
+// createClient 보다 먼저 읽습니다.
+export const openedFromAuthLink = new URLSearchParams(window.location.hash.slice(1)).has('access_token')
+
 // 로그인 정보를 어디에 둘지는 choosingStorage 가 그때그때 고릅니다. (#128)
 // 기본은 창을 닫으면 사라지는 곳이고, "로그인 유지"를 고른 사람만 남깁니다.
 //
@@ -26,6 +32,23 @@ if (!url || !publishableKey) {
 export const supabase = createClient(url, publishableKey, {
   auth: { storage: choosingStorage },
 })
+
+// 재설정 메일 링크로 들어오면 supabase-js 가 PASSWORD_RECOVERY 이벤트를 한 번 보냅니다 (#513).
+// 재설정 화면이 이벤트보다 늦게 떠도 놓치지 않게 여기서 받아 둡니다. 로그아웃하면 지웁니다.
+let passwordRecovery = false
+const recoveryListeners = new Set<() => void>()
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') passwordRecovery = false
+  if (event !== 'PASSWORD_RECOVERY') return
+  passwordRecovery = true
+  recoveryListeners.forEach((l) => l())
+})
+// 재설정 링크로 들어왔으면 cb 를 부름 (이미 들어왔으면 바로). 돌려준 함수로 그만 듣기
+export function onPasswordRecovery(cb: () => void): () => void {
+  if (passwordRecovery) cb()
+  recoveryListeners.add(cb)
+  return () => recoveryListeners.delete(cb)
+}
 
 // 보기 전용 실시간 연결: 캠리단길 지점 안 통창 너머로 광장을 걷는 사람을 볼 때만 씁니다(CafeWindows).
 // 광장 화면의 연결(supabase)과 따로 두어, 지점에서 광장으로 나가는 순간 닫히는 중인 광장 방을
