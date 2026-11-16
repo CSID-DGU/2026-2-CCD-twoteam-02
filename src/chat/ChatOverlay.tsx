@@ -113,13 +113,16 @@ export function ChatOverlay() {
     return () => window.removeEventListener('keydown', down)
   }, [chat?.enabled, open])
 
-  // 열면 입력칸에 커서를 두고, 열려 있는 동안 온 귓속말은 읽은 것으로 칩니다.
+  // 열면 입력칸에 커서를 둡니다. 열 때 한 번만: 열어 둔 채 다른 입력칸(신고하기 등)에 쓰는 중에
+  // 귓속말이 와도 커서를 뺏지 않게 (예전에는 새 귓속말마다 다시 커서를 가져가 쓰던 글이 채팅으로 들어감)
+  useEffect(() => {
+    if (open) input.current?.focus()
+  }, [open])
+  // 열려 있는 동안 온 귓속말은 읽은 것으로 칩니다.
   const unread = chat?.unread ?? 0
   const markRead = chat?.markRead
   useEffect(() => {
-    if (!open) return
-    input.current?.focus()
-    if (unread > 0) markRead?.()
+    if (open && unread > 0) markRead?.()
   }, [open, unread, markRead])
 
   // 열어 두고 10초 동안 아무것도 안 하면 스르륵 닫습니다. 입력칸에서 글을 적는 중이면 기다리고, 새 줄이 오면 다시 셉니다.
