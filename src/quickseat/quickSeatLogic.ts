@@ -24,7 +24,7 @@ export type QuickPlace = {
 // outside: 바깥 공부 자리 목록(앞에 둠). open: 월드에 건물로 서 있는 지점 slug (위층 포함)
 export function quickPlaces(layouts: Record<string, BranchLayout>, outside: QuickPlace[], open: Set<string>): QuickPlace[] {
   const branches = Object.entries(layouts)
-    .filter(([slug, b]) => open.has(slug) && !b.kiosk && !b.rest)
+    .filter(([slug, b]) => open.has(slug) && !b.kiosk && !b.kioskAt && !b.rest) // kioskAt: 키오스크는 다른 층에 있지만 이용권 지점
     .map(([slug, b]) => ({ key: slug, label: b.name, place: slug, route: `/space?branch=${slug}`, seats: b.seats.length }))
   return [...outside, ...branches]
 }

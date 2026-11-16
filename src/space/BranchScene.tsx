@@ -21,6 +21,10 @@ import { WalkCamera } from "./WalkCamera";
 import { SeatedStudy } from "../study/SeatedStudy";
 import { MySeatMarker } from "./MySeatMarker";
 import { useMySeat } from "./useMySeat";
+import { useFloorIds } from "./useFloorIds";
+import { useOtherFloorSeat } from "./useOtherFloorSeat";
+import { floorSeatHint, noSeatHint } from "../kiosk/floorLogic";
+import type { KioskFloor } from "../kiosk/floorLogic";
 import { useCafeSeat } from "./useCafeSeat";
 import { useQuickSeatArrival } from "../quickseat/useQuickSeat";
 import { CafeConflictDialog } from "./CafeConflictDialog";
@@ -253,6 +257,35 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const [locked, setLocked] = useState(false); // 1인칭에서 마우스가 잠겨 있는지 (마우스로 바라보는 중)
   const channel = useChannel(`branch:${BRANCH_ID}`); // 이 지점의 어느 채널에 들어갈지. 채널은 광장과 이어지는 세계 (#481)
   const { mySeat, sessionId, setMySeat } = useMySeat(BRANCH_ID, channel.no); // 키오스크에서 배정받은 내 자리 (지금 채널의 것)
+  // 여러 층 스터디카페 (Cam Study Cafe): 1층 키오스크 하나에서 모든 층 자리를 받습니다. 층마다 DB 지점 번호를 읽어 두고,
+  // 내 자리가 다른 층에 있으면 그 층으로 가라고 알려 줍니다(floorLogic). 2층에는 키오스크가 없습니다(byeol-2f.json kioskAt).
+  // 카페형 층(이끼 정원·루프탑)은 앉으면 내 자리라 다른 층 자리를 찾지 않습니다.
+  const floorIds = useFloorIds(!isCafe && floors.length > 1 ? floors.map((f) => f.slug) : []);
+  const [floorRefresh, setFloorRefresh] = useState(0); // 올리면 다른 층의 내 자리를 다시 읽음 (배정·반납 뒤)
+  const otherFloorIds = floorIds ? floors.filter((f) => f.slug !== branch.id).flatMap((f) => floorIds.get(f.slug) ?? []) : [];
+  const otherSeat = useOtherFloorSeat(otherFloorIds, channel.no, `${floorRefresh}:${mySeat}`);
+  const otherSeatLevel = otherSeat && floorIds ? floors.find((f) => floorIds.get(f.slug) === otherSeat.branchId)?.level : undefined;
+  const hereLevel = floors.find((f) => f.slug === branch.id)?.level ?? 1;
+  const kioskLevel = branch.kioskAt ? floors.find((f) => f.slug === branch.kioskAt)?.level ?? null : null;
+  // 이 층에 내 자리가 없을 때 안내: 다른 층에 있으면 그 층으로, 없으면 키오스크로 (키오스크가 다른 층이면 그 층을 알려 줌)
+  const noSeatText = otherSeat && otherSeatLevel !== undefined ? floorSeatHint(hereLevel, { level: otherSeatLevel, seat: otherSeat.seat }) : noSeatHint(kioskLevel);
+  // 키오스크에서 고를 수 있는 층 (층 번호를 다 읽은 뒤에만. 못 읽었으면 지금 층만)
+  const kioskFloors: KioskFloor[] | undefined =
+    branch.kiosk && floorIds && floors.length > 1
+      ? floors.flatMap((f) => {
+          const id = floorIds.get(f.slug);
+          const layout = BRANCH_LAYOUTS[f.slug];
+          return id !== undefined && layout ? [{ level: f.level, layout, branchId: id }] : [];
+        })
+      : undefined;
+  // 키오스크 배정·반납: 이 층 자리면 내 자리로, 다른 층 자리면 이 층에는 내 자리가 없고 다른 층 자리를 다시 읽음
+  const onKioskAssigned = useCallback(
+    (no: number | null, seatBranchId: number) => {
+      setMySeat(seatBranchId === BRANCH_ID ? no : null);
+      setFloorRefresh((n) => n + 1);
+    },
+    [setMySeat, BRANCH_ID],
+  );
   const [studyStatus, setStudyStatus] = useState<PresenceStatus>("idle"); // 앉아 있을 때의 집중 상태
   const [studyDialogOpen, setStudyDialogOpen] = useState(false); // 공부 시작 창이 떠 있는지 (중지 중 포함: 캐릭터·시점·단축키를 막음)
   const [studyPaused, setStudyPaused] = useState(false); // 공부 중지 중 (#236). 안내 문구와 메뉴의 나가기 버튼에 씀
@@ -508,12 +541,12 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         ? near === mySeat
           ? `${near}번 좌석 (내 자리) · ${K.interact} 앉기`
           : mySeat === null
-            ? `${near}번 좌석 · 키오스크에서 자리를 먼저 지정하세요`
+            ? `${near}번 좌석 · ${noSeatText}`
             : `${near}번 좌석 · 내 자리(${mySeat}번)가 아니에요`
         : nearKiosk
           ? `키오스크 · ${K.interact} 사용하기`
           : mySeat === null
-            ? "키오스크에서 자리를 지정하세요"
+            ? noSeatText
             : `${mySeat}번 좌석이 내 자리예요 · 파란 의자로 가세요`;
   const hint = kioskOpen || orderOpen || bookOpen || panelOpen || conflict || meetingOpen || elevatorOpen || boardOpen ? "" : studyPaused ? "⏸ 중지 중 · 다시 시작을 누르면 이어서 공부해요" : cafeMessage ? cafeMessage : quickNote ? quickNote : touchNote ? touchNote : aimOn && aim.target && aimWins(placeReady, true) ? flick.target ? `${aim.target.name} · ${K.flick} 딱밤 · ${K.interact} 프로필 보기` : `${aim.target.name} · ${K.interact} 프로필 보기` : seat !== null ? walkHint + eatHint : touch ? `${walkHint}${eatHint}\n${viewHint}` : `${walkHint}${eatHint}\nShift 달리기 · ${K.emoteWheel} 감정표현 · ${viewHint}`; // 할 일 한 줄, 조작 키는 다음 줄
 
@@ -708,7 +741,15 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       disabled={kioskOpen || orderOpen || bookOpen || panelOpen || conflict !== null || meetingOpen || elevatorOpen || boardOpen || seat !== null || !emotesAllowed(branch.rules)}
     />
     {session && <SceneMenu myId={session.user.id} onOpen={setPanel} onLobby={studyPaused ? undefined : goLobby} lobbyLabel={toward(outside.title)} onTracking={studyPaused ? undefined : goTracking} top={!touch && showPerf ? <PerfReadout perf={perf} /> : undefined} />}
-    {session && <SeatTimeCorner onLost={() => setMySeat(null)} placeKey={mySeat} />}
+    {/* placeKey: 다른 층 자리(1층 키오스크에서 받은 2층 자리)도 넣어야 받자마자 영수증이 뜸. canRelease: 앉아 있는 동안은 반납 숨김 */}
+    {session && (
+      <SeatTimeCorner
+        onLost={() => setMySeat(null)}
+        placeKey={mySeat ?? otherSeat?.seat ?? null}
+        canRelease={seat === null}
+        onReleased={() => onKioskAssigned(null, BRANCH_ID)}
+      />
+    )}
     {/* key: 단축키로 다른 창으로 바꾸면 새 창으로 엽니다 */}
     {panel && session && <InfoPanel key={panelKey(panel)} initial={panel} myId={session.user.id} here={{ place: branch.id, pos, heading: bodyHeading, mySeat }} onClose={() => setPanel(null)} />}
     {conflict && <CafeConflictDialog message={conflict.message} onClose={cafe.closeConflict} onReleaseAndSit={() => void cafe.releaseAndSit()} />}
@@ -741,8 +782,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         branchId={BRANCH_ID}
         branch={branch}
         onClose={() => setKioskOpen(false)}
-        onAssigned={setMySeat}
+        onAssigned={onKioskAssigned}
         channel={channel.no}
+        floors={kioskFloors}
       />
     )}
     {/* 폰 조작: 조이스틱·끌어서 둘러보기·[E]·점프·시점 (#377). 창이 떠 있으면 숨김 */}
