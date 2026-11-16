@@ -4,7 +4,7 @@
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { BEACH_CHANNEL, CAMPUS_CHANNEL, LOBBY_CHANNEL } from '../realtime/participants'
 import { BEACH_PLACE, CAMPUS_PLACE, LOBBY_PLACE } from '../realtime/online'
-import { benchSeats, boardSpot, buildingOf, campfireStudySeats, courtyardSeats, placeBuildings, placeGates, plazaObstacles, restSpots, BENCH_SEAT_BASE } from './worldLogic'
+import { benchSeats, boardSpot, buildingOf, cameraBlockers, campfireStudySeats, courtyardSeats, placeBuildings, placeGates, plazaObstacles, restSpots, BENCH_SEAT_BASE } from './worldLogic'
 import type { PlacedBuilding, PlacedGate, PlazaLayout, WorldId } from './worldLogic'
 import type { Box, Spot } from '../space/layout'
 import world from './world.json'
@@ -55,6 +55,7 @@ export type WorldComputed = {
   studySpots: Spot[] // 공부 자리: 광장은 벤치 자리 + 캠프파이어 통나무, 캠퍼스는 등불 나무 광장 빈백, 해변은 비치체어
   campfireSpots: Spot[] // 그중 캠프파이어 통나무 자리 (광장만. 바로 앉기 #116 에서 벤치와 따로 고름)
   obstacles: Box[]
+  cameraBlockers: Box[] // 감정표현 카메라를 가리는 높은 것 (건물·나무·정문)
   entries: Spot[] // Player 의 "앉는 자리": 건물 입구 + 정문 입장 자리 + 쉬는 자리 + 순위 게시판 앞(#59)
   litLamps: PlazaLayout['lamps'] // 밤에 점광원을 켜는 가로등 (JSON 의 light)
 }
@@ -74,6 +75,7 @@ export function computedOf(w: WorldConfig): WorldComputed {
       studySpots: w.layout.beach ? beachSeats(w.layout.beach, BENCH_SEAT_BASE) : w.id === 'campus' ? courtyardSeats(w.layout) : [...benchSeats(w.layout), ...campfireSpots],
       campfireSpots,
       obstacles: plazaObstacles(w.layout, placed),
+      cameraBlockers: cameraBlockers(w.layout, placed),
       entries: [...placed.map((b) => b.entry), ...gates.map((g) => g.entry), ...rests, ...(board ? [board] : [])],
       litLamps: w.layout.lamps.filter((l) => l.light),
     }

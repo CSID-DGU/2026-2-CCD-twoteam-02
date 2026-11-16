@@ -171,6 +171,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     return () => setQuietLock(false);
   }, [branch]);
   const obstacles = useMemo(() => obstaclesOf(branch), [branch]);
+  // 감정표현 카메라를 가리는 높은 것: 벽과 계단·엘리베이터. 책상·의자는 낮아서 카메라가 위로 지나감 (emoteCameraLogic)
+  const cameraBlockers = useMemo(() => [...branch.walls, ...(branch.elevator ? [branch.elevator] : [])], [branch]);
   const spots = useMemo(() => spotsOf(branch), [branch]);
   const [near, setNear] = useState<number | null>(null); // 앉을 수 있는 좌석 번호
   const [seat, setSeat] = useState<number | null>(null); // 앉아 있는 좌석 번호
@@ -315,6 +317,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }); // 딱밤 신호 통로 (#304)
   const { others, live } = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef); // 같은 지점·같은 채널의 다른 참여자 (실시간)
+  // 다른 사람들의 지금 위치 (감정표현 카메라가 사람 뒤로 가서 내가 가려지지 않게). 위치는 live 에서 그때그때 읽음
+  const otherSpots = useCallback(() => others.flatMap((o) => live.get(o.userId) ?? []), [others, live]);
   // 집중 상태가 바뀌면 화면 그리기(handleMove)를 기다리지 않고 바로 보낼 상태에 넣습니다.
   // 같은 창의 다른 탭으로 가면 크롬이 이 탭의 화면 그리기를 멈춰, 떠나기 직전 초록불이 계속 나가던 문제를 막습니다.
   useEffect(() => {
@@ -575,6 +579,8 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
             onLockChange={setLocked}
             emoteRef={emote}
             suspendLookRef={suspendLook}
+            blockers={cameraBlockers}
+            people={otherSpots}
           />
           {holding && <DrinkInView item={holding} emoteRef={emote} />} {/* 1인칭에선 내 몸이 숨겨지므로 받은 음료를 화면에 띄움 */}
         </>

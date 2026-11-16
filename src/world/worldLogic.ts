@@ -316,6 +316,17 @@ export function restSpots(layout: PlazaLayout): Spot[] {
 export const spotKindOf = (no: number): 'building' | 'gate' | 'rest' | 'board' | 'bench' =>
   no > BENCH_SEAT_BASE ? 'bench' : no === BOARD_NO ? 'board' : no >= REST_NO_BASE ? 'rest' : no >= GATE_NO_BASE ? 'gate' : 'building'
 
+// 감정표현 카메라를 가리는 높은 것들: 건물, 현관 기둥, 나무 줄기, 정문 (emoteCameraLogic).
+// 벤치·분수·울타리처럼 낮은 것은 카메라(눈높이)가 그 위로 지나가므로 넣지 않습니다.
+export function cameraBlockers(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
+  return [
+    ...placed.flatMap((b) => (b.spec.shape === 'drum' ? drumBoxes(b.rect) : [b.rect])),
+    ...placed.flatMap(hallColumnBoxes),
+    ...plaza.trees.map((t) => ({ x: t.x, z: t.z, w: TRUNK, d: TRUNK })),
+    ...placeGates(plaza).flatMap((g) => [...g.posts, ...g.back]),
+  ]
+}
+
 // 광장에서 부딪히는 상자: 울타리, 건물, 분수, 나무 줄기, 가로등 기둥, 벤치, 정문 기둥
 export function plazaObstacles(plaza: PlazaLayout, placed: PlacedBuilding[]): Box[] {
   const { w, d } = plaza.size

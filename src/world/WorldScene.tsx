@@ -164,7 +164,7 @@ type Props = {
 export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   // 이 월드의 배치와 미리 계산한 값 (월드마다 한 번만 계산해 둠, worldConfig.computedOf)
   const PLAZA = world.layout
-  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, studySpots: BENCH_SPOTS, campfireSpots: CAMPFIRE_SPOTS, obstacles: OBSTACLES, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
+  const { placed: PLACED, gates: GATES, rests: REST_SPOTS, studySpots: BENCH_SPOTS, campfireSpots: CAMPFIRE_SPOTS, obstacles: OBSTACLES, cameraBlockers: CAMERA_BLOCKERS, entries: ENTRIES, litLamps: LIT_LAMPS } = computedOf(world)
   const navigate = useNavigate()
   const [near, setNear] = useState<number | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
@@ -288,6 +288,8 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
   const { others, live } = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
+  // 다른 사람들의 지금 위치 (감정표현 카메라가 사람 뒤로 가서 내가 가려지지 않게). 위치는 live 에서 그때그때 읽음
+  const otherSpots = useCallback(() => others.flatMap((o) => live.get(o.userId) ?? []), [others, live])
   // 벤치에서 공부하는 집중 상태가 바뀌면 화면 그리기를 기다리지 않고 바로 보낼 상태에 넣습니다(지점 화면과 같음).
   // 같은 창의 다른 탭으로 가면 크롬이 화면 그리기를 멈춰, 떠나기 직전 초록불이 계속 나가던 문제를 막습니다.
   useEffect(() => {
@@ -546,7 +548,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           <SeatCamera key={seatSpot.no} spot={seatSpot} onArrive={() => {}} paused={panel !== null || overlay} />
         ) : view === 'first' ? (
           <>
-            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || overlay} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} />
+            <WalkCamera posRef={pos} headingRef={heading} paused={panel !== null || overlay} onLockChange={setLocked} emoteRef={emote} suspendLookRef={suspendLook} blockers={CAMERA_BLOCKERS} people={otherSpots} />
             {/* 걸을 때만 뜨는 미니맵 (#290). 설정에서 켠 사람만(기본 꺼짐). 광장은 넓어서 내 둘레만 */}
             {showMinimap && <Minimap area={PLAZA.size} posRef={pos} headingRef={heading} follow={MINIMAP_SPAN} />}
           </>
