@@ -1,6 +1,7 @@
 // 바로 앉기 (#116)에서 고를 수 있는 공간 목록. 배치는 실행 중에 바뀌지 않으므로 한 번만 만듭니다.
 // 바깥 공부 자리(캠리단길 벤치, 캠리단길 캠프파이어 통나무, 캠빛 대학교 빈백, 캠빛 해변 비치체어)가 앞,
 // 월드에 건물로 서 있는 카페형 지점이 뒤. 규칙은 quickSeatLogic.quickPlaces
+// 고르는 창·설정에서는 구역(캠리단길·캠빛 대학교·캠빛 해변)별로 묶어 보여 줍니다(PLACE_GROUPS). 위치를 잘 몰라도 고르기 쉽게
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { BEACH_WORLD, CAMPUS_WORLD, PLAZA_WORLD, computedOf } from '../world/worldConfig'
 import { quickPlaces } from './quickSeatLogic'
@@ -19,6 +20,20 @@ const outside: QuickPlace[] = [
 const open = new Set(WORLDS.flatMap((w) => computedOf(w).placed.flatMap((b) => b.floors.map((f) => f.slug))))
 
 export const PLACES = quickPlaces(BRANCH_LAYOUTS, outside, open)
+
+// 구역별 묶음. 바깥 자리는 그 월드, 지점은 건물이 서 있는 월드로 나눕니다. 순서는 WORLDS 순서
+// short: 묶음 안에서 보일 이름. 구역 이름이 앞에 붙어 있으면 뗍니다 ("캠리단길 벤치" → "벤치")
+export type PlaceGroup = { area: string; places: (QuickPlace & { short: string })[] }
+const areaOf = new Map<string, string>()
+for (const w of WORLDS) {
+  areaOf.set(w.place, w.title) // 바깥 자리 (place = 그 월드의 접속 장소 이름)
+  for (const b of computedOf(w).placed) for (const f of b.floors) areaOf.set(f.slug, w.title) // 지점 (place = slug)
+}
+const shortOf = (label: string, area: string) => (label.startsWith(`${area} `) ? label.slice(area.length + 1) : label)
+export const PLACE_GROUPS: PlaceGroup[] = WORLDS.map((w) => ({
+  area: w.title,
+  places: PLACES.filter((p) => areaOf.get(p.place) === w.title).map((p) => ({ ...p, short: shortOf(p.label, w.title) })),
+})).filter((g) => g.places.length > 0)
 
 // 저장된 이름 → 화면에 보일 이름. 목록에 없으면(지점이 없어짐) null
 export const placeLabelOf = (key: string | null) => PLACES.find((p) => p.key === key)?.label ?? null

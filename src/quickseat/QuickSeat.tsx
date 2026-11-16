@@ -9,7 +9,7 @@ import { useOnline } from '../realtime/onlineContext'
 import { choosePlace, countByPlace, isValidPlace } from './quickSeatLogic'
 import type { QuickPlace } from './quickSeatLogic'
 import { useFavoritePlace, useGoQuickSeat } from './useQuickSeat'
-import { PLACES } from './places'
+import { PLACES, PLACE_GROUPS } from './places'
 
 const BANNER_SEEN_KEY = 'dooteum.quickSeatBanner' // 이 탭에서 배너를 한 번 보였는지 (sessionStorage: 탭을 닫으면 지워짐)
 
@@ -104,17 +104,29 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
                 ✕
               </button>
             </div>
-            <div style={styles.list}>
-              {PLACES.map((p) => {
-                const n = counts.get(p.place) ?? 0
-                return (
-                  <button key={p.key} type="button" style={styles.item} onClick={() => choose(p)}>
-                    <span>{p.label}</span>
-                    <span style={styles.count}>{n > 0 ? `${n}명` : '비어 있음'}</span>
-                  </button>
-                )
-              })}
-            </div>
+            {/* 구역(캠리단길·캠빛 대학교·캠빛 해변)별로 묶어 보여 줍니다. 인원은 구역 이름 옆에 합쳐서도 보여 줌 */}
+            {PLACE_GROUPS.map((g) => {
+              const total = [...new Set(g.places.map((p) => p.place))].reduce((sum, place) => sum + (counts.get(place) ?? 0), 0) // 벤치·캠프파이어는 같은 장소라 한 번만 셈
+              return (
+                <section key={g.area} style={styles.group}>
+                  <div style={styles.groupHead}>
+                    <span>{g.area}</span>
+                    {total > 0 && <span style={styles.count}>{total}명</span>}
+                  </div>
+                  <div style={styles.list}>
+                    {g.places.map((p) => {
+                      const n = counts.get(p.place) ?? 0
+                      return (
+                        <button key={p.key} type="button" style={styles.item} onClick={() => choose(p)}>
+                          <span>{p.short}</span>
+                          <span style={styles.count}>{n > 0 ? `${n}명` : '비어 있음'}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              )
+            })}
             <label style={styles.remember}>
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={styles.check} />
               다음부터 이 공간으로 바로 앉기 (설정에서 지울 수 있어요)
@@ -146,10 +158,14 @@ export function FavoritePlaceSetting() {
         }}
       >
         <option value="">{loaded ? '없음 (누를 때 골라요)' : '읽는 중…'}</option>
-        {PLACES.map((p) => (
-          <option key={p.key} value={p.key}>
-            {p.label}
-          </option>
+        {PLACE_GROUPS.map((g) => (
+          <optgroup key={g.area} label={g.area}>
+            {g.places.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.short}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       {note && <span style={{ color: '#f87171', fontSize: 13 }}>{note}</span>}
@@ -176,6 +192,8 @@ const styles: Record<string, CSSProperties> = {
   },
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 16 },
   list: { display: 'flex', flexDirection: 'column', gap: 4 },
+  group: { display: 'flex', flexDirection: 'column', gap: 6 },
+  groupHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', color: '#c4b5fd', fontSize: 13, fontWeight: 700, padding: '0 2px' },
   item: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8,
     border: '1px solid #3a3f4b', background: '#16181d', color: '#fff', cursor: 'pointer', font: 'inherit', textAlign: 'left',
