@@ -15,8 +15,8 @@ import { COUNTER, counterBox, orderSpot } from '../space/baristaLogic'
 export type StallSpec = { x: number; z: number; w: number; facing: Facing }
 export type CampfireSpec = { x: number; z: number; r: number; logs: number; stall?: StallSpec }
 
-// ring: 불 둘레 돌 고리 반지름, near·far: 이 거리 안이면 소리 최대, 밖이면 소리 없음(m)
-export const CAMPFIRE = { ring: 0.75, near: 3.5, far: 13 }
+// ring: 불 둘레 돌 고리 반지름, near·far: 이 거리 안이면 소리 최대, 밖이면 소리 없음(m). far 는 13 이면 광장 멀리서도 들려 6 으로 줄임(통나무 2.8·가판대 약 5.6m 까지만)
+export const CAMPFIRE = { ring: 0.75, near: 3.5, far: 6 }
 
 // 통나무 자리: 고리 위에 같은 간격. 동서남북은 비워(반 칸 돌려) 사이로 걸어 들어감(광장 쪽 길이 동쪽에서 옴). rot = 불을 보는 방향(0 = +z)
 export function campfireSeats(fire: CampfireSpec, firstNo: number) {

@@ -13,7 +13,7 @@ export const TIERS = [
   { r: 0.55, y: 2.8, depth: 0.18, lip: 0.04 },
 ]
 export const GRAVITY = 9.8 // m/s²
-export const FOUNTAIN_SOUND = { near: 3, far: 8 } // 이 거리 안이면 소리 최대, 밖이면 소리 없음(m). 수반(반지름 2.5) 곁에 가야 들리게
+export const FOUNTAIN_SOUND = { near: 3, far: 4 } // 이 거리 안이면 소리 최대, 밖이면 소리 없음(m). 수반(반지름 2.5) 바로 곁에서만 들리게(8 이면 멀리서도 들려 줄임)
 export const DROPS = 240 // 물방울 수 (점 하나씩, 한 번에 그림)
 const OUT = { min: 0.25, max: 0.7 } // 가장자리에서 바깥으로 나가는 빠르기(m/s)
 const UP_MAX = 0.35 // 처음 위로 뜨는 빠르기 최대(m/s)
