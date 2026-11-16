@@ -716,7 +716,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       </Canvas>
       </div>
       {seatSpot && !touch && !sandBoard && <SeatViewButton />}
-      {flick.hit && <div style={flickToast}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
+      {flick.hit && <div style={{ ...flickToast, ...(benchSeated ? flickBelowOnline : null) }}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
 
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
       {/* 바로 앉기 (#116): 캠리단길에 도착하면 큰 버튼을 한 번, 그 뒤로는 메뉴에서. 폰은 공부를 못 하므로 없음 */}
@@ -728,8 +728,9 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           onDialogChange={setQuickOpen}
         />
       )}
-      {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176) */}
-      {condition === 'visible' && onlineCount > 0 && <div style={onlineBox}>🟢 지금 {onlineCount}명 접속 중</div>}
+      {/* 전체 접속자 수 (나 포함). 숨김 모드(실험 B)에서는 인원도 보여 주지 않습니다. (#176)
+          앉아 있으면 같은 자리(위 가운데)에 공부 막대가 뜨므로 그 아래로 내립니다 */}
+      {condition === 'visible' && onlineCount > 0 && <div style={{ ...onlineBox, ...(benchSeated ? onlineBelowBar : null) }}>🟢 지금 {onlineCount}명 접속 중</div>}
       {/* 앉아 있는 동안은 채널을 바꾸지 못하게 숨깁니다. 자리는 채널별로 잡혀 있습니다 */}
       {channelUi.overlay}
       {sandBoard && <SandBar board={sandBoard} write={sand.write} onClose={() => setSandBoard(null)} />}
@@ -828,6 +829,9 @@ const flickToast: React.CSSProperties = {
   position: 'fixed', top: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 15, padding: '8px 16px', borderRadius: 999,
   background: 'rgba(245,158,11,.95)', color: '#1b1e24', font: '600 15px system-ui, sans-serif', pointerEvents: 'none',
 }
+// 앉아 있을 때: 공부 막대(top 16, 높이 약 36) 아래에 접속 인원(약 28), 그 아래에 딱밤 문구
+const onlineBelowBar: React.CSSProperties = { top: 60 }
+const flickBelowOnline: React.CSSProperties = { top: 96 }
 
 const hintAboveControls: React.CSSProperties = { bottom: 'calc(env(safe-area-inset-bottom) + 156px)', maxWidth: 'calc(100vw - 32px)', textAlign: 'center' }
 const TOUCH_DPR = 1.5 // 폰 3D 화면 해상도 상한 (폰은 기기 해상도가 3배라 그대로 그리면 무거움)
