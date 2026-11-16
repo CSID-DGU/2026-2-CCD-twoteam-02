@@ -133,8 +133,9 @@ export function prepareEmoteAction(action: AnimationAction, emote: Emote) {
 // seq: 시작할 때마다 1 올라감. 다른 참여자 화면이 "새로 시작했는지" 알아보는 데 씁니다.
 // jump: 점프할 때마다 1 올라가는 번호(jumpLogic.ts). 감정표현과 같이 위치 메시지에 실어 보내므로 같은 상태에 둡니다.
 // jumpAt: 마지막으로 뛴 시각(ms). 1인칭 카메라(WalkCamera)가 이 시각으로 눈높이를 같이 올립니다.
-export type EmoteState = { request: EmoteId | null; playing: EmoteId | null; until: number; seq: number; jump: number; jumpAt: number }
-export const newEmoteState = (): EmoteState => ({ request: null, playing: null, until: 0, seq: 0, jump: 0, jumpAt: -Infinity })
+// selfHidden: 1인칭에서 감정표현 중인데 카메라가 빠질 자리가 없어(사방이 벽·사람) 제자리에 있음. 내 몸이 화면을 가리지 않게 숨김 (WalkCamera 가 정함)
+export type EmoteState = { request: EmoteId | null; playing: EmoteId | null; until: number; seq: number; jump: number; jumpAt: number; selfHidden: boolean }
+export const newEmoteState = (): EmoteState => ({ request: null, playing: null, until: 0, seq: 0, jump: 0, jumpAt: -Infinity, selfHidden: false })
 
 // 상태 바꾸기. (컴포넌트 안에서 ref 값을 직접 고치지 않도록 여기서 합니다)
 export function clearEmoteRequest(s: EmoteState) {
@@ -157,6 +158,9 @@ export function startJump(s: EmoteState, at: number) {
 }
 export function cancelJump(s: EmoteState) {
   s.jumpAt = -Infinity
+}
+export function setEmoteSelfHidden(s: EmoteState, hidden: boolean) {
+  s.selfHidden = hidden
 }
 
 // 감정표현 바퀴에서 마우스를 움직인 방향(dx, dy)으로 고른 칸. 너무 조금 움직였으면 null

@@ -329,7 +329,8 @@ export function Player({ model: character, obstacles, spawn, spawnHeading = 0, s
     if (headingRef) {
       // 1인칭: 보는 방향 기준으로 움직입니다. 내 캐릭터는 카메라를 가리므로 숨깁니다.
       // 감정표현 중에는 카메라가 앞으로 빠져 나를 비추므로 보이게 합니다. (WalkCamera)
-      g.visible = Boolean(em?.playing)
+      // 카메라가 빠질 자리가 없어 제자리에 있을 때(selfHidden)는 그대로 숨깁니다.
+      g.visible = Boolean(em?.playing) && !em?.selfHidden
       const turn = +k.has('ArrowRight') - +k.has('ArrowLeft')
       headingRef.current -= turn * KEY_TURN_SPEED * dt // 오른쪽 방향키 = 오른쪽으로 돌기
       const h = headingRef.current
