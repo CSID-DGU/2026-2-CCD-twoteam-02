@@ -5,7 +5,7 @@
 // 게스트는 비밀번호가 없으므로 여기서 바로 정합니다(updateUser({ password })). 그다음부터는 이메일·비밀번호로 로그인합니다.
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { supabase } from '../lib/supabase'
+import { openedFromAuthLink, supabase } from '../lib/supabase'
 import { styles } from './authStyles'
 import { toKoreanMessage } from './authErrors'
 import { PASSWORD_MAX } from './authLimits'
@@ -14,7 +14,8 @@ type Phase = 'checking' | 'ready' | 'done' | 'invalid'
 const WAIT_MS = 5000 // 링크의 로그인 정보를 기다리는 시간
 
 export default function GuestLinkedPage({ onDone }: { onDone?: () => void }) {
-  const [phase, setPhase] = useState<Phase>('checking')
+  // 링크 정보가 주소에 없으면(직접 쳤거나 새로고침) 처음부터 잘못된 링크 (#513)
+  const [phase, setPhase] = useState<Phase>(openedFromAuthLink ? 'checking' : 'invalid')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordAgain, setPasswordAgain] = useState('')
@@ -22,7 +23,10 @@ export default function GuestLinkedPage({ onDone }: { onDone?: () => void }) {
   const [busy, setBusy] = useState(false)
 
   // 링크로 들어온 로그인 정보에 이메일이 붙어 있으면 비밀번호를 정할 차례
+  // 확인 메일 링크로 들어왔을 때만 엽니다 (#513). 로그인한 정식 회원이 주소창에 /guest-linked 를 쳐서
+  // 예전 비밀번호 없이 바꾸지 못하게. 링크 정보가 주소에 없으면 바로 잘못된 링크로 봅니다
   useEffect(() => {
+    if (!openedFromAuthLink) return
     let alive = true
     const read = (user: { email?: string } | null | undefined) => {
       if (!alive || !user?.email) return

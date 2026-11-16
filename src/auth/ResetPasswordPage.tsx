@@ -5,11 +5,11 @@
 // 그래서 이 화면에서는 "지금 비밀번호"를 묻지 않습니다. 메일을 받은 사람 = 본인이기 때문입니다.
 //
 // 토큰 처리는 supabase-js 가 알아서 하지만 즉시 끝나지는 않습니다. 그래서 화면을 바로
-// 보여 주지 않고, PASSWORD_RECOVERY 이벤트나 세션이 확인될 때까지 기다립니다.
+// 보여 주지 않고, PASSWORD_RECOVERY 이벤트가 올 때까지 기다립니다. 세션만 있는 것으로는 열지 않습니다 (#513).
 // (createClient 의 detectSessionInUrl 기본값이 true 라 따로 켤 것은 없습니다)
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { supabase } from '../lib/supabase'
+import { onPasswordRecovery, openedFromAuthLink, supabase } from '../lib/supabase'
 import { toKoreanMessage } from './authErrors'
 import { styles } from './authStyles'
 import { PASSWORD_MAX } from './authLimits'
@@ -21,9 +21,11 @@ type Props = {
 
 // 링크를 확인하는 동안 / 확인됨 / 링크가 잘못됨
 type Phase = 'checking' | 'ready' | 'invalid'
+const LINK_WAIT_MS = 8000 // 링크의 로그인 정보를 서버에 확인하는 시간 (느린 망 여유)
 
 export default function ResetPasswordPage({ onDone, onGoForgot }: Props) {
-  const [phase, setPhase] = useState<Phase>('checking')
+  // 링크 정보가 주소에 없으면(직접 쳤거나 새로고침) 처음부터 잘못된 링크 (#513)
+  const [phase, setPhase] = useState<Phase>(openedFromAuthLink ? 'checking' : 'invalid')
   const [password, setPassword] = useState('')
   const [passwordAgain, setPasswordAgain] = useState('')
   const [error, setError] = useState('')
@@ -31,23 +33,15 @@ export default function ResetPasswordPage({ onDone, onGoForgot }: Props) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    let alive = true
-
-    // 메일 링크를 눌러 들어오면 이 이벤트가 옵니다.
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!alive) return
-      if (event === 'PASSWORD_RECOVERY' || session) setPhase('ready')
-    })
-
-    // 이벤트를 놓쳤을 수도 있으니 지금 세션도 한 번 확인합니다.
-    supabase.auth.getSession().then(({ data: now }) => {
-      if (!alive) return
-      setPhase(now.session ? 'ready' : 'invalid')
-    })
-
+    // 재설정 링크로 들어왔을 때만 폼을 엽니다 (#513). 로그인돼 있기만 하면 열지 않습니다:
+    // 남의 PC에 로그인이 남아 있을 때 주소창에 /reset-password 를 쳐서 예전 비밀번호 없이 바꾸지 못하게.
+    // 링크 정보가 주소에 없으면(직접 쳤거나 새로고침) 기다릴 것도 없이 잘못된 링크입니다.
+    if (!openedFromAuthLink) return
+    const stop = onPasswordRecovery(() => setPhase('ready'))
+    const timer = setTimeout(() => setPhase((p) => (p === 'checking' ? 'invalid' : p)), LINK_WAIT_MS)
     return () => {
-      alive = false
-      data.subscription.unsubscribe()
+      stop()
+      clearTimeout(timer)
     }
   }, [])
 
