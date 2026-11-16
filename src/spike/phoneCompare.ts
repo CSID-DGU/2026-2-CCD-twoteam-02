@@ -15,10 +15,17 @@
 //   - D-FINE-N: 640 크기로 보는 모델. 코드·가중치 Apache-2.0. MediaPipe 가 받는 형식이 아니라 ONNX Runtime Web 으로 돌립니다.
 //     실행 라이브러리는 package.json 에 넣지 않고 이 화면에서만 CDN 에서 불러옵니다(서비스 빌드에 들어가지 않음).
 //     주소에 ?ep=webgpu 를 붙이면 CPU 대신 WebGPU 로 돌립니다.
+//   - PP-PicoDet-M: 320 크기로 보는 가벼운 모델. 코드·가중치 Apache-2.0. 배포처가 브라우저에서 바로 받는 것을 막아 두어,
+//     파일을 내려받아 local-models/ 폴더(git 에서 빠져 있음)에 두어야 불러옵니다. 없으면 건너뜁니다.
+//     받는 곳: https://paddledet.bj.bcebos.com/deploy/third_engine/picodet_m_320_coco_lcnet.onnx
+//   - PP-PicoDet-M 우리 영상 학습: 위 모델을 팀원이 찍은 영상으로 이어서 학습시킨 것(귀 옆 손을 "휴대폰 없음"으로 가르침).
+//     local-models/picodet_m_320_phone_ft.onnx 가 있을 때만 불러옵니다. 학습 방법과 결과는 docs/휴대폰-모델-비교.md 에 있습니다.
+//
+// 영상 하나에 여러 장면을 이어 찍었으면 화면의 "장면 순서"에 이름을 쉼표로 적어 나눠 잽니다(이름 첫 글자 p·q·n 이 정답).
 //
 // 영상·그림은 저장하지도 전송하지도 않습니다. 숫자만 남깁니다. 모든 계산은 이 브라우저 안에서 합니다.
 import { FaceLandmarker, FilesetResolver, ObjectDetector } from "@mediapipe/tasks-vision";
-import { centerCrop, decodeDfine, longestRun, simulateRule } from "./compareLogic";
+import { centerCrop, decodeDfine, decodePicodet, longestRun, simulateRule } from "./compareLogic";
 import type { Box } from "./compareLogic";
 
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
@@ -28,6 +35,13 @@ const LITE0_INT8_URL = "https://storage.googleapis.com/mediapipe-models/object_d
 const ORT_DIST = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.1/dist/";
 const DFINE_REPO = "https://huggingface.co/onnx-community/dfine_n_coco-ONNX/resolve/main/";
 const DFINE_SIZE = 640; // 모델이 받는 사진 크기
+const PICODET_URL = "/local-models/picodet_m_320_coco_lcnet.onnx";
+// 위 모델을 우리 영상으로 이어서 학습시킨 것 (PaddleDetection 으로 학습 → paddle2onnx 로 변환). 파일이 있을 때만 불러옵니다.
+const PICODET_FT_URL = "/local-models/picodet_m_320_phone_ft.onnx";
+const PICODET_SIZE = 320;
+// PP-PicoDet 은 색마다 평균을 빼고 표준편차로 나눈 값을 받습니다 (ImageNet 값, 학습 설정과 같음)
+const PICODET_MEAN = [0.485, 0.456, 0.406];
+const PICODET_STD = [0.229, 0.224, 0.225];
 const USE_WEBGPU = new URLSearchParams(location.search).get("ep") === "webgpu";
 
 const PHONE = "cell phone";
@@ -99,6 +113,10 @@ document.body.innerHTML = `
      <button id="start" disabled>측정 시작</button>
      <button id="json">JSON 내려받기</button>
      <button id="clear">결과 지우기</button></p>
+  <p class="note">한 영상에 여러 장면을 이어서 찍었으면 아래를 채웁니다(비우면 영상 하나가 장면 하나. 채우면 이름 첫 글자로 정답을 정하고 파일별 정답은 쓰지 않습니다).<br>
+     장면 순서 <input id="segNames" size="60" placeholder="p-보이게들기, q-편하게쓰기, n-귀옆손, n-평소공부">
+     장면 길이(초) <input id="segSec" type="number" value="60" min="1" style="width:60px">
+     장면 앞뒤로 버릴 시간(초) <input id="segTrim" type="number" value="5" min="0" style="width:50px"></p>
   <div id="list"></div>
   <canvas id="view" width="${FRAME_W}" height="${FRAME_H}"></canvas>
   <p class="legend" id="legend"></p>
@@ -208,13 +226,30 @@ function mediapipeModel(key: string, name: string, color: string, detector: Obje
   };
 }
 
+// 실행 라이브러리와 COCO 80종 이름은 한 번만 불러 두 모델이 같이 씁니다.
+let ortPromise: Promise<Ort> | null = null;
+function loadOrt(): Promise<Ort> {
+  ortPromise ??= (async () => {
+    // 변수에 담은 주소라 Vite 가 묶지 않고, 브라우저가 이 화면에서만 CDN 에서 불러옵니다.
+    const ortUrl = `${ORT_DIST}${USE_WEBGPU ? "ort.webgpu.min.mjs" : "ort.wasm.min.mjs"}`;
+    const ort = (await import(/* @vite-ignore */ ortUrl)) as Ort;
+    ort.env.wasm.wasmPaths = ORT_DIST;
+    return ort;
+  })();
+  return ortPromise;
+}
+let labelsPromise: Promise<string[]> | null = null;
+function loadLabels(): Promise<string[]> {
+  labelsPromise ??= (async () => {
+    const config = (await (await fetch(`${DFINE_REPO}config.json`)).json()) as { id2label: Record<string, string> };
+    return Object.keys(config.id2label).map((_, i) => config.id2label[String(i)]);
+  })();
+  return labelsPromise;
+}
+
 async function dfineModel(): Promise<Model> {
-  // 변수에 담은 주소라 Vite 가 묶지 않고, 브라우저가 이 화면에서만 CDN 에서 불러옵니다.
-  const ortUrl = `${ORT_DIST}${USE_WEBGPU ? "ort.webgpu.min.mjs" : "ort.wasm.min.mjs"}`;
-  const ort = (await import(/* @vite-ignore */ ortUrl)) as Ort;
-  ort.env.wasm.wasmPaths = ORT_DIST;
-  const config = (await (await fetch(`${DFINE_REPO}config.json`)).json()) as { id2label: Record<string, string> };
-  const labels = Object.keys(config.id2label).map((_, i) => config.id2label[String(i)]);
+  const ort = await loadOrt();
+  const labels = await loadLabels();
   const phoneIndex = labels.indexOf(PHONE);
   if (phoneIndex < 0) throw new Error("D-FINE 종류 목록에 cell phone 이 없습니다");
   const session = await ort.InferenceSession.create(`${DFINE_REPO}onnx/model.onnx`, { executionProviders: [USE_WEBGPU ? "webgpu" : "wasm"] });
@@ -254,6 +289,53 @@ async function dfineModel(): Promise<Model> {
   };
 }
 
+async function picodetModel(key: string, name: string, color: string, url: string): Promise<Model> {
+  const ort = await loadOrt();
+  const labels = await loadLabels();
+  const phoneIndex = labels.indexOf(PHONE);
+  if (phoneIndex < 0) throw new Error("종류 목록에 cell phone 이 없습니다");
+  // 파일이 없으면 개발 서버가 대신 HTML 을 돌려주므로, 모델 파일이 맞는지 먼저 봅니다.
+  const head = await fetch(url, { method: "HEAD" });
+  if (!head.ok || (head.headers.get("content-type") ?? "").includes("text/html")) throw new Error("local-models/ 에 PP-PicoDet 파일이 없습니다");
+  const session = await ort.InferenceSession.create(url, { executionProviders: [USE_WEBGPU ? "webgpu" : "wasm"] });
+
+  const input = document.createElement("canvas");
+  input.width = PICODET_SIZE;
+  input.height = PICODET_SIZE;
+  const inputCtx = input.getContext("2d", { willReadFrequently: true })!;
+  const pixels = PICODET_SIZE * PICODET_SIZE;
+  return {
+    key,
+    name: `${name} (${USE_WEBGPU ? "WebGPU" : "CPU"})`,
+    color,
+    run: async (image) => {
+      inputCtx.drawImage(image, 0, 0, PICODET_SIZE, PICODET_SIZE);
+      const rgba = inputCtx.getImageData(0, 0, PICODET_SIZE, PICODET_SIZE).data;
+      const data = new Float32Array(3 * pixels);
+      for (let i = 0; i < pixels; i++) {
+        for (let ch = 0; ch < 3; ch++) data[ch * pixels + i] = (rgba[i * 4 + ch] / 255 - PICODET_MEAN[ch]) / PICODET_STD[ch];
+      }
+      const output = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", data, [1, 3, PICODET_SIZE, PICODET_SIZE]) });
+      // 출력 8개: 격자 단계마다 점수(마지막 크기 = 종류 수)와 거리(그 밖)가 한 쌍입니다. 칸 수가 같은 것끼리 짝짓습니다.
+      const tensors = session.outputNames.map((name) => output[name]);
+      const levels = tensors
+        .filter((t) => t.dims[2] === labels.length)
+        .map((scores) => {
+          const distances = tensors.find((t) => t.dims[2] !== labels.length && t.dims[1] === scores.dims[1]);
+          if (!distances) throw new Error("PP-PicoDet 출력 형식이 예상과 다릅니다");
+          return { scores: scores.data, distances: distances.data };
+        });
+      if (levels.length === 0) throw new Error("PP-PicoDet 출력 형식이 예상과 다릅니다");
+      const found = decodePicodet(levels, PICODET_SIZE, labels.length, phoneIndex);
+      return {
+        score: found.phoneScore,
+        box: found.box,
+        other: found.otherIndex >= 0 ? `${labels[found.otherIndex]} ${found.otherScore.toFixed(2)}` : "",
+      };
+    },
+  };
+}
+
 async function loadModels() {
   const fileset = await FilesetResolver.forVisionTasks(WASM_URL);
   const failed: string[] = [];
@@ -273,6 +355,8 @@ async function loadModels() {
     mediapipeModel("lite0_int8_cpu", "Lite0 int8·CPU", "#f59e0b", await ObjectDetector.createFromOptions(fileset, { baseOptions: { modelAssetPath: LITE0_INT8_URL, delegate: "CPU" }, ...detectorOptions }))
   );
   await attempt("D-FINE-N", dfineModel);
+  await attempt("PP-PicoDet-M", () => picodetModel("picodet_m", "PP-PicoDet-M", "#a3e635", PICODET_URL));
+  await attempt("PP-PicoDet-M 학습판", () => picodetModel("picodet_m_ft", "PP-PicoDet-M 우리 영상 학습", "#e879f9", PICODET_FT_URL));
   try {
     face = await FaceLandmarker.createFromOptions(fileset, { baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: "GPU" }, runningMode: "IMAGE", numFaces: 1 });
   } catch (error: unknown) {
@@ -346,6 +430,24 @@ function drawSource(source: CanvasImageSource, width: number, height: number) {
   frameCtx.drawImage(source, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, FRAME_W, FRAME_H);
 }
 
+// 영상 하나를 장면으로 나눕니다. "장면 순서"가 비어 있으면 영상 전체가 장면 하나입니다.
+// 채워져 있으면 장면 길이만큼 차례로 자르고, 이름 첫 글자(p·q·n)로 정답을 정합니다.
+// 장면이 바뀌는 순간(휴대폰을 집거나 내려놓는 동작)이 섞이지 않게 장면 앞뒤를 조금 버립니다.
+function splitScenes(fileName: string, fileLabel: Label, duration: number) {
+  const names = (document.getElementById("segNames") as HTMLInputElement).value.split(",").map((name) => name.trim()).filter(Boolean);
+  if (names.length === 0) return [{ scene: fileName, label: fileLabel, from: 0, to: duration }];
+  const seconds = Math.max(1, Number((document.getElementById("segSec") as HTMLInputElement).value) || 60);
+  const trim = Math.max(0, Number((document.getElementById("segTrim") as HTMLInputElement).value) || 0);
+  return names
+    .map((name, i) => ({
+      scene: items.length > 1 ? `${fileName} / ${name}` : name,
+      label: guessLabel(name),
+      from: i * seconds + trim,
+      to: Math.min((i + 1) * seconds, duration) - trim,
+    }))
+    .filter((part) => part.to - part.from >= GRID_SEC);
+}
+
 async function runFile(item: Item, warm: boolean) {
   const scene = item.file.name;
   if (item.file.type.startsWith("image/")) {
@@ -361,15 +463,19 @@ async function runFile(item: Item, warm: boolean) {
     video.src = url;
     await once(video, "loadedmetadata");
     if (!Number.isFinite(video.duration)) throw new Error("영상 길이를 알 수 없습니다 (브라우저로 녹화한 webm 은 안 됩니다. QuickTime·카메라 앱으로 찍은 mov·mp4 를 써 주세요)");
-    const total = Math.floor(video.duration / GRID_SEC);
-    for (let i = 0; i < total; i++) {
-      const t = i * GRID_SEC + GRID_SEC / 2;
-      video.currentTime = t;
-      await once(video, "seeked");
-      drawSource(video, video.videoWidth, video.videoHeight);
-      if (warm && i === 0) await measure(scene, item.label, t, false);
-      await measure(scene, item.label, t, true);
-      nowEl.textContent = `● ${scene} — ${i + 1} / ${total}`;
+    let first = warm;
+    for (const part of splitScenes(scene, item.label, video.duration)) {
+      const total = Math.floor((part.to - part.from) / GRID_SEC);
+      for (let i = 0; i < total; i++) {
+        const t = part.from + i * GRID_SEC + GRID_SEC / 2;
+        video.currentTime = t;
+        await once(video, "seeked");
+        drawSource(video, video.videoWidth, video.videoHeight);
+        if (first) await measure(part.scene, part.label, t, false);
+        first = false;
+        await measure(part.scene, part.label, t, true);
+        nowEl.textContent = `● ${part.scene} — ${i + 1} / ${total}`;
+      }
     }
   } finally {
     URL.revokeObjectURL(url);

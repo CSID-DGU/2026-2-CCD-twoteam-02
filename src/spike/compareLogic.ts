@@ -89,3 +89,54 @@ export function decodeDfine(logits: ArrayLike<number>, boxes: ArrayLike<number>,
   }
   return { phoneScore, box, otherIndex, otherScore };
 }
+
+// PP-PicoDet 출력 읽기.
+// 이 모델은 사진을 격자로 나눠(한 칸이 8·16·32·64픽셀인 네 단계) 칸마다 종류별 점수와 상자까지의 거리를 냅니다.
+// - scores: [칸 수 x 종류 수] 0~1 점수
+// - distances: [칸 수 x 4 x 구간 수] 칸 가운데에서 상자의 왼쪽·위·오른쪽·아래까지 거리를 "구간별 가능성"으로 낸 값.
+//   가능성으로 평균을 내면 거리(칸 단위)가 되고, 칸 크기를 곱하면 픽셀이 됩니다.
+// 네 단계를 모두 훑어 휴대폰 점수가 가장 높은 칸의 상자와, 휴대폰이 아닌 것 중 점수가 가장 높은 종류를 돌려줍니다.
+export function decodePicodet(levels: { scores: ArrayLike<number>; distances: ArrayLike<number> }[], inputSize: number, numClasses: number, phoneIndex: number) {
+  let phoneScore = 0;
+  let box: Box | null = null;
+  let otherScore = 0;
+  let otherIndex = -1;
+  for (const { scores, distances } of levels) {
+    const cells = Math.floor(scores.length / numClasses);
+    const side = Math.round(Math.sqrt(cells));
+    const stride = inputSize / side;
+    const bins = Math.floor(distances.length / cells / 4);
+    for (let i = 0; i < cells; i++) {
+      for (let c = 0; c < numClasses; c++) {
+        const score = scores[i * numClasses + c];
+        if (c !== phoneIndex) {
+          if (score > otherScore) {
+            otherScore = score;
+            otherIndex = c;
+          }
+          continue;
+        }
+        if (score <= phoneScore) continue;
+        phoneScore = score;
+        const reach: number[] = [];
+        for (let edge = 0; edge < 4; edge++) {
+          const at = (i * 4 + edge) * bins;
+          let top = -Infinity;
+          for (let b = 0; b < bins; b++) top = Math.max(top, distances[at + b]);
+          let sum = 0;
+          let expected = 0;
+          for (let b = 0; b < bins; b++) {
+            const weight = Math.exp(distances[at + b] - top);
+            sum += weight;
+            expected += weight * b;
+          }
+          reach.push((expected / sum) * stride);
+        }
+        const cx = ((i % side) + 0.5) * stride;
+        const cy = (Math.floor(i / side) + 0.5) * stride;
+        box = { x: (cx - reach[0]) / inputSize, y: (cy - reach[1]) / inputSize, w: (reach[0] + reach[2]) / inputSize, h: (reach[1] + reach[3]) / inputSize };
+      }
+    }
+  }
+  return { phoneScore, box, otherIndex, otherScore };
+}
