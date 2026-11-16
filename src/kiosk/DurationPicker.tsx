@@ -23,13 +23,16 @@ export default function DurationPicker({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {/* 자주 쓰는 값: 같은 폭으로 한 줄 (좁은 창에서도 한 개만 아래로 떨어지지 않게) */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${PRESETS.length}, 1fr)`, gap: 6 }}>
         {PRESETS.map((m) => (
           <button
             key={m}
             type="button"
             style={{
               ...box,
+              padding: '8px 4px',
+              whiteSpace: 'nowrap',
               borderColor: m === minutes ? '#4ade80' : '#4b515c',
               color: m === minutes ? '#4ade80' : '#fff',
             }}
@@ -40,7 +43,8 @@ export default function DurationPicker({
         ))}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* − 시간 + : 양 끝 버튼 사이 가운데에 시간 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 44px', alignItems: 'center', gap: 12 }}>
         <button
           type="button"
           style={{ ...box, width: 44, textAlign: 'center' }}
@@ -51,9 +55,10 @@ export default function DurationPicker({
           −
         </button>
 
-        <div style={{ minWidth: 140, textAlign: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>{formatMinutes(minutes)}</div>
-          <div style={{ fontSize: 12, color: '#9aa1ab' }}>{minutes}분</div>
+          {/* "1시간 30분"처럼 바뀐 때만 분으로 한 번 더 (40분 아래에 또 40분이 뜨지 않게) */}
+          {formatMinutes(minutes) !== `${minutes}분` && <div style={{ fontSize: 12, color: '#9aa1ab' }}>{minutes}분</div>}
         </div>
 
         <button

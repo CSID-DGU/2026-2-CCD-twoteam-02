@@ -40,6 +40,7 @@ export type BranchLayout = {
   elevator?: Box // 엘리베이터 문 (서쪽·동쪽 벽). 여러 층 건물(world.json floors)의 지점에만. 앞에서 E 로 다른 층으로
   stairs?: 'up' | 'down' // 있으면 elevator 자리를 엘리베이터 대신 계단으로 그림 (별다방: 두 층뿐이라 E 를 누르면 층 고르기 없이 바로 다른 층으로)
   kiosk?: { x: number; z: number }
+  kioskAt?: string // 이 층 자리를 받는 키오스크가 다른 층에 있으면 그 층 slug (Cam Study Cafe 2층 → 1층 'byeol'). 이 층엔 키오스크가 없음
   noteBoard?: NoteBoardSpec // 벽에 걸린 코르크 게시판 (앞에서 E 로 쪽지 보기·붙이기, board_notes 0047). Cam Study Cafe 1층
   bar?: Box
   door?: Box // 로비로 나가는 출입문. 남쪽 벽 가운데, 들어오면 서는 자리(spawn) 바로 뒤 (#150)

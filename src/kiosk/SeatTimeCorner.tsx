@@ -7,6 +7,9 @@
 //
 // 시간이 지나도 자리는 유지됩니다(#38). 지나면 "시간 초과"로 바뀌고 연장을 권합니다.
 //
+// 반납도 여기서 합니다(이용권만). Cam Study Cafe 는 키오스크가 1층에만 있어, 2층 사람이 반납하러 내려오지 않아도 되게 했습니다.
+// 앉아 있는 동안(canRelease false)은 공부 기록 중 자리가 사라지지 않게 버튼을 숨깁니다.
+//
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
@@ -24,8 +27,6 @@ const TICK_MS = 1000
 // 신호를 따로 보내면 통신이 두 번이 되므로 한 번에 합쳤습니다.
 // 이 신호가 5분 넘게 끊기면 DB 가 자리를 반납합니다.
 const RELOAD_MS = 60 * 1000
-// 막 발급된 영수증을 펼쳐 둔 뒤 접기까지의 시간 (#39)
-const PRINT_SHOW_MS = 5000
 const LOST_TEXT = '접속이 끊겨 자리가 반납되었습니다. 키오스크에서 다시 받아 주세요.'
 
 // onLost: 접속이 끊겨 자리를 잃었을 때 부릅니다. 지점 화면이 들고 있던 내 자리도
@@ -33,19 +34,21 @@ const LOST_TEXT = '접속이 끊겨 자리가 반납되었습니다. 키오스�
 // lostText: 자리를 잃었을 때 안내 문구 (광장 벤치는 키오스크가 없어 다르게, #341)
 // placeKey: 지점 화면이 아는 내 자리 번호. 키오스크 배정·반납, 카페 앉기·일어나기로 바뀌면
 // 1분을 기다리지 않고 바로 다시 읽습니다. 새로 받은 자리면 영수증이 출력되듯 펼쳐집니다. (#39)
-export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOST_TEXT }: { onLost?: () => void; placeKey?: number | null; lostText?: string }) {
+// canRelease: 반납 버튼을 보일지 (지점 화면이 앉아 있지 않을 때만 true). onReleased: 반납한 뒤 지점 화면의 내 자리를 비우게 부름
+export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOST_TEXT, canRelease = false, onReleased }: { onLost?: () => void; placeKey?: number | null; lostText?: string; canRelease?: boolean; onReleased?: () => void }) {
   // 쓰는 쪽에서 onLost={() => ...} 로 넘기면 매 렌더마다 다른 함수가 됩니다.
   // 그대로 의존성에 넣으면 아래 타이머가 계속 지워졌다 다시 걸립니다. ref 에 담아 둡니다.
   const lostRef = useRef(onLost)
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [open, setOpen] = useState(false)
+  const [asking, setAsking] = useState(false) // "반납할까요?" 를 묻는 중
   const [minutes, setMinutes] = useState(30)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [now, setNow] = useState(() => Date.now())
   // 접속이 끊겨 자리를 잃었을 때 한 번 알립니다. (#155)
   const [lost, setLost] = useState(false)
-  const [expanded, setExpanded] = useState(false) // 영수증을 펼쳤는지 (#39)
+  const [expanded, setExpanded] = useState(true) // 영수증을 펼쳤는지 (#39). 처음에는 펼친 상태
   const [printKey, setPrintKey] = useState(0) // 올라가면 영수증이 출력되듯 나타납니다.
   const mineRef = useRef<MyPlace | null>(null) // 직전 자리 (사라졌는지·새로 생겼는지 비교)
   const loaded = useRef(false) // 처음 읽은 자리는 "새로 받은 자리"가 아닙니다. (새로고침해서 들어온 경우)
@@ -83,12 +86,7 @@ export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOS
     load()
   }, [placeKey, load])
 
-  // 출력된 영수증은 잠시 보여 준 뒤 접습니다.
-  useEffect(() => {
-    if (printKey === 0) return
-    const id = setTimeout(() => setExpanded(false), PRINT_SHOW_MS)
-    return () => clearTimeout(id)
-  }, [printKey])
+  // 영수증은 펼친 채로 둡니다. 접기 버튼이 있으니 접는 것은 사용자가 정합니다 (예전에는 출력 5초 뒤 저절로 접었음)
 
   const placeKind = mine?.kind === 'room' ? 'room' : mine ? 'seat' : null
   const detail = usePassDetail(placeKind, mine ? `${mine.kind}-${mine.number}-${mine.expires_at}` : '')
@@ -118,6 +116,23 @@ export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOS
       return
     }
     setOpen(false)
+    load()
+  }
+
+  async function release() {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    const { error } = await supabase.rpc('release_my_place')
+    setBusy(false)
+    if (error) {
+      setError(`반납하지 못했습니다: ${error.message}`)
+      return
+    }
+    released.current = true // 직접 반납한 것이라 "접속이 끊겨" 안내를 띄우지 않습니다
+    setAsking(false)
+    setOpen(false)
+    onReleased?.()
     load()
   }
 
@@ -158,25 +173,62 @@ export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOS
         onToggle={() => {
           setExpanded((v) => !v)
           setOpen(false)
+          setAsking(false)
         }}
         footer={
           mode === 'pass' && (
-            <button type="button" style={styles.extendButton} onClick={() => setOpen((v) => !v)}>
-              {open ? '연장 닫기' : '시간 연장'}
-            </button>
+            <span style={styles.footer}>
+              <button
+                type="button"
+                style={styles.extendButton}
+                onClick={() => {
+                  setOpen((v) => !v)
+                  setAsking(false)
+                }}
+              >
+                {open ? '연장 닫기' : '시간 연장'}
+              </button>
+              {canRelease && (
+                <button
+                  type="button"
+                  style={styles.releaseButton}
+                  onClick={() => {
+                    setAsking((v) => !v)
+                    setOpen(false)
+                  }}
+                >
+                  반납
+                </button>
+              )}
+            </span>
           )
         }
       />
+
+      {expanded && asking && canRelease && mode === 'pass' && (
+        <div style={styles.askPanel}>
+          <p style={styles.line}>{where === `${mine.number}번 자리` ? `${where}를` : `${where}을`} 반납할까요?</p>
+          {error && <p style={styles.error}>{error}</p>}
+          <div style={styles.askRow}>
+            <button type="button" style={{ ...styles.ghost, flex: 1 }} onClick={() => setAsking(false)}>
+              아니오
+            </button>
+            <button type="button" style={{ ...styles.primary, flex: 1 }} disabled={busy} onClick={() => void release()}>
+              {busy ? '반납 중…' : '반납하기'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {expanded && open && mode === 'pass' && (
         <div style={styles.panel}>
           <DurationPicker minutes={minutes} onChange={setMinutes} />
           {error && <p style={styles.error}>{error}</p>}
-          <div style={styles.row}>
-            <button type="button" style={styles.ghost} onClick={() => setOpen(false)}>
+          <div style={styles.askRow}>
+            <button type="button" style={{ ...styles.ghost, flex: 1 }} onClick={() => setOpen(false)}>
               닫기
             </button>
-            <button type="button" style={styles.primary} disabled={busy} onClick={() => void extend()}>
+            <button type="button" style={{ ...styles.primary, flex: 2 }} disabled={busy} onClick={() => void extend()}>
               {busy ? '연장 중…' : `${formatMinutes(minutes)} 연장하기`}
             </button>
           </div>
@@ -188,10 +240,18 @@ export default function SeatTimeCorner({ onLost, placeKey = null, lostText = LOS
 
 const styles: Record<string, CSSProperties> = {
   // 왼쪽 위 자리. 위에는 가방(16)과 숨김 모드 인원 수(76)가 있습니다.
+  // 연장·반납 창은 영수증 오른쪽 옆에 엽니다. 아래로 붙이면 펼친 영수증 밑으로 길어져 왼쪽 아래 채팅과 겹칩니다.
+  // 화면이 좁아 옆에 자리가 없으면 아래로 내려갑니다(flexWrap).
   corner: {
     position: 'fixed', top: 136, left: 16, zIndex: 11,
-    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+    display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8,
     maxWidth: 'calc(100vw - 32px)',
+  },
+  footer: { display: 'inline-flex', gap: 6 },
+  // 반납: 연장보다 눈에 덜 띄게 테두리만
+  releaseButton: {
+    padding: '5px 10px', borderRadius: 6, border: '1px solid #26241f', background: 'transparent', color: '#26241f',
+    font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer',
   },
   extendButton: {
     padding: '5px 10px', borderRadius: 6, border: 'none', background: '#26241f', color: '#fbfaf5',
@@ -209,6 +269,12 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   line: { margin: 0, color: '#d6dae1' },
+  // 반납 확인: 영수증(PassReceipt 260px)과 같은 폭, 글과 버튼을 가운데로
+  askPanel: {
+    width: 'min(260px, calc(100vw - 32px))', boxSizing: 'border-box', padding: 14, borderRadius: 12,
+    background: '#20232a', color: '#fff', font: '13px/1.6 system-ui, sans-serif', display: 'grid', gap: 10, textAlign: 'center',
+  },
+  askRow: { display: 'flex', gap: 8 },
   row: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
   primary: {
     padding: '6px 14px', borderRadius: 8, border: 'none',

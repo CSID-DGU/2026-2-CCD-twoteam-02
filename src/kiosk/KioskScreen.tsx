@@ -10,12 +10,16 @@
 // 중간에 끊겨도 이용권만 남는 일이 없다. 실패 사유(자리 찼음, 이미 다른 자리 이용 중 등)는
 // 함수가 한국어 메시지로 돌려주므로 그대로 보여 준다.
 // 좌석 중복은 DB가 막으므로, 화면이 먼저 걸러도 여기서 한 번 더 확인된다.
-import { useCallback, useEffect, useState } from 'react'
+//
+// 여러 층 스터디카페(Cam Study Cafe): 실제 스터디카페처럼 1층 키오스크 하나에서 1·2층 자리를 모두 받는다.
+// 두 층은 DB 에서 서로 다른 지점이라, 좌석 단계에서 층을 고르면 그 층의 배치도·빈자리·지점 번호로 바꿔 쓴다(floors).
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import DurationPicker from './DurationPicker'
 import SeatMap from './SeatMap'
 import { formatMinutes } from './duration'
 import type { BranchLayout } from '../space/layout'
+import type { KioskFloor } from './floorLogic'
 
 type Step = 'loading' | 'current' | 'duration' | 'seat' | 'done' | 'extend'
 
@@ -31,11 +35,21 @@ type Props = {
   branchId?: number
   branch: BranchLayout // 지금 서 있는 층의 배치 (이름·좌석 수·배치도). 1층·2층 키오스크가 서로 다른 값을 받는다
   onClose: () => void
-  onAssigned?: (seatNumber: number | null) => void // 반납하면 null 을 넘긴다
+  // 배정하면 자리 번호와 그 자리가 있는 층의 지점 번호를 넘긴다. 반납하면 null (반납한 자리는 어느 층이든)
+  onAssigned?: (seatNumber: number | null, seatBranchId: number) => void
   channel?: number // 지금 채널 (#481). 채널마다 좌석이 따로라 배치도와 배정이 이 채널 기준이다
+  floors?: KioskFloor[] // 이 키오스크에서 고를 수 있는 층 (지금 층 포함). 둘 이상일 때만 층 고르기가 보인다
 }
 
-export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned, channel = 1 }: Props) {
+export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned, channel = 1, floors }: Props) {
+  // 고른 층. 처음에는 지금 서 있는 층이다. 층이 하나면 지금 층의 배치·번호를 그대로 쓴다
+  const floorList = floors && floors.length > 1 ? floors : null
+  const [floorId, setFloorId] = useState(branchId)
+  const floor = floorList?.find((f) => f.branchId === floorId) ?? null
+  const seatLayout = floor?.layout ?? branch
+  const seatBranchId = floor?.branchId ?? branchId
+  const floorText = floor ? `${floor.level}층 ` : '' // 층이 여럿일 때만 "2층 12번"처럼 층을 붙인다
+  const occupiedFor = useRef(branchId) // 마지막으로 현황을 요청한 층 (층을 빨리 바꿔도 늦게 온 다른 층 현황을 쓰지 않게)
   const [step, setStep] = useState<Step>('loading')
   const [mine, setMine] = useState<MyPlace | null>(null)
   const [minutes, setMinutes] = useState(60)
@@ -46,14 +60,25 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
   const [busy, setBusy] = useState(false)
 
   // 점유 현황은 좌석 번호만 돌려주는 함수로 받는다. 누가 앉았는지는 받지 않는다.
-  const loadOccupied = useCallback(async () => {
-    const { data, error } = await supabase.rpc('occupied_seat_numbers', { p_branch_id: branchId, ...(channel > 1 ? { p_channel: channel } : {}) }) // 1채널은 예전 호출 그대로
+  const loadOccupied = useCallback(async (id: number) => {
+    occupiedFor.current = id
+    const { data, error } = await supabase.rpc('occupied_seat_numbers', { p_branch_id: id, ...(channel > 1 ? { p_channel: channel } : {}) }) // 1채널은 예전 호출 그대로
+    if (occupiedFor.current !== id) return
     if (error) {
       setError(`좌석 현황을 불러오지 못했습니다: ${error.message}`)
       return
     }
     setOccupied(new Set((data ?? []) as number[]))
-  }, [branchId, channel])
+  }, [channel])
+
+  // 좌석 단계에서 층을 바꾼다. 고르던 자리는 다른 층 번호라 지운다
+  function pickFloor(id: number) {
+    if (id === floorId) return
+    setFloorId(id)
+    setPicked(null)
+    setOccupied(new Set())
+    void loadOccupied(id)
+  }
 
   // 화면이 열릴 때 지금 쓰고 있는 자리가 있는지 먼저 확인한다.
   useEffect(() => {
@@ -102,14 +127,14 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
       return
     }
     setMine(null)
-    onAssigned?.(null)
+    onAssigned?.(null, branchId)
     setStep('duration')
   }
 
   // 좌석 현황은 화면을 열 때와 배정에 실패했을 때 불러온다.
   async function goToSeatStep() {
     setError('')
-    await loadOccupied()
+    await loadOccupied(seatBranchId)
     setStep('seat')
   }
 
@@ -118,7 +143,7 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
     setError('')
 
     const { error } = await supabase.rpc('assign_seat', {
-      p_branch_id: branchId,
+      p_branch_id: seatBranchId,
       p_seat_number: seatNumber,
       ...(channel > 1 ? { p_channel: channel } : {}),
       p_duration_minutes: minutes,
@@ -129,12 +154,12 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
       // 함수가 올리는 메시지가 이미 한국어 안내문이다.
       setError(error.message)
       setPicked(null)
-      void loadOccupied()
+      void loadOccupied(seatBranchId)
       return
     }
 
     setStep('done')
-    onAssigned?.(seatNumber)
+    onAssigned?.(seatNumber, seatBranchId)
   }
 
   return (
@@ -205,16 +230,30 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
         {step === 'seat' && (
           <>
             <p style={styles.title}>자리를 선택해 주세요</p>
+            {floorList && (
+              <div style={styles.floors}>
+                {floorList.map((f) => (
+                  <button
+                    key={f.branchId}
+                    type="button"
+                    style={{ ...styles.floor, ...(f.branchId === seatBranchId ? styles.floorOn : null) }}
+                    onClick={() => pickFloor(f.branchId)}
+                  >
+                    {f.level}층 {f.layout.seats.length}석
+                  </button>
+                ))}
+              </div>
+            )}
             <p style={styles.sub}>
-              이용 시간 {formatMinutes(minutes)} · 빈자리 {branch.seats.length - occupied.size}석
+              이용 시간 {formatMinutes(minutes)} · 빈자리 {seatLayout.seats.length - occupied.size}석
               <button type="button" style={styles.link} onClick={() => setStep('duration')}>
                 시간 다시 고르기
               </button>
-              <button type="button" style={styles.link} onClick={() => void loadOccupied()}>
+              <button type="button" style={styles.link} onClick={() => void loadOccupied(seatBranchId)}>
                 현황 새로고침
               </button>
             </p>
-            <SeatMap branch={branch} occupied={occupied} selected={picked} onSelect={setPicked} />
+            <SeatMap branch={seatLayout} occupied={occupied} selected={picked} onSelect={setPicked} />
             <div style={styles.legend}>
               <span style={{ color: '#4ade80' }}>■ 빈자리</span>
               <span style={{ color: '#6b7280' }}>■ 이용 중</span>
@@ -225,8 +264,10 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
 
         {step === 'done' && (
           <>
-            <p style={styles.title}>{picked}번 자리를 배정했습니다</p>
-            <p style={styles.sub}>이용 시간 {formatMinutes(minutes)}. 자리로 이동해 앉아 주세요.</p>
+            <p style={styles.title}>{floorText}{picked}번 자리를 배정했습니다</p>
+            <p style={styles.sub}>
+              이용 시간 {formatMinutes(minutes)}. {seatBranchId === branchId ? '자리로 이동해 앉아 주세요.' : '계단으로 이동해 자리에 앉아 주세요.'}
+            </p>
             <button type="button" style={styles.primary} onClick={onClose}>
               닫기
             </button>
@@ -240,7 +281,7 @@ export default function KioskScreen({ branchId = 1, branch, onClose, onAssigned,
       {step === 'seat' && picked !== null && (
         <div style={styles.confirmBackdrop}>
           <div style={styles.confirm}>
-            <p style={{ ...styles.title, margin: 0 }}>{picked}번 자리를 선택하시겠습니까?</p>
+            <p style={{ ...styles.title, margin: 0 }}>{floorText}{picked}번 자리를 선택하시겠습니까?</p>
             <p style={styles.sub}>이용 시간 {formatMinutes(minutes)}</p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
@@ -330,6 +371,19 @@ const styles = {
     cursor: 'pointer',
   },
   legend: { display: 'flex', gap: 14, fontSize: 13, color: '#9aa1ab' },
+  // 층 고르기 (여러 층 스터디카페)
+  floors: { display: 'flex', gap: 8 },
+  floor: {
+    flex: 1,
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: '1px solid #4b515c',
+    background: 'transparent',
+    color: '#d1d5db',
+    font: '14px system-ui, sans-serif',
+    cursor: 'pointer',
+  },
+  floorOn: { borderColor: '#4ade80', background: 'rgba(74,222,128,.12)', color: '#fff', fontWeight: 600 },
   error: { margin: 0, color: '#f87171', fontSize: 14 },
   confirmBackdrop: {
     position: 'fixed',
