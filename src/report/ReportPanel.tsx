@@ -88,7 +88,7 @@ export function ReportPanel({ myId }: { myId: string }) {
       )}
 
       <label htmlFor="report-message" style={styles.label}>
-        설명 <span style={styles.hint}>(선택)</span>
+        설명
       </label>
       <textarea
         id="report-message"
