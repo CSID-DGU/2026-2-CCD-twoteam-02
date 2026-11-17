@@ -16,8 +16,15 @@ let gpu = ''
 // 지금 주소로 정한 장소 (/space → space)
 const herePlace = () => placeOfPath(typeof location === 'undefined' ? '/' : location.pathname)
 
+// 로그인했는지 (telemetry 가 로그인 상태가 바뀔 때마다 알려 줌). 로그인 전 에러는 모으지 않음: 보낼 때 로그인한 사람 이름으로 섞여 나가지 않게
+let signedIn = false
+export const setSignedIn = (on: boolean) => {
+  signedIn = on
+}
+
 // detail·place 는 없으면 빈 문자열·지금 장소
 export function recordError(e: Omit<OpsError, 'place' | 'detail'> & { place?: string; detail?: string }): void {
+  if (!signedIn) return
   addError(book, { ...e, detail: e.detail ?? '', place: e.place ?? herePlace() }, Date.now())
 }
 

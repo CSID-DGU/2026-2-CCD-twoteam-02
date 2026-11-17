@@ -17,6 +17,7 @@ import { FLICK_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } fr
 import { sampledTime } from './walkLogic'
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 import { recordError } from '../ops/collector'
+import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_FULL = 4503 // 서버가 방이 찼다고 닫을 때 쓰는 번호 (relay/src/relayLogic.ts)
@@ -86,8 +87,8 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
     }
     socket.onmessage = (event) => receive(event.data)
     socket.onclose = (event) => {
-      // 우리가 닫은 것(ended)이 아니면 서버가 닫았거나 끊긴 것: 운영 기록에 남김 (#590)
-      if (!ended) recordError({ kind: 'relay', code: String(event.code), target })
+      // 우리가 닫은 것(ended)과 정상 재연결(토큰 만료·다른 탭)이 아니면 서버가 닫았거나 끊긴 것: 운영 기록에 남김 (#590)
+      if (!ended && shouldRecordClose(event.code)) recordError({ kind: 'relay', code: String(event.code), target })
       end(event.code === CLOSE_FULL ? ROOM_FULL_STATUS : 'CLOSED')
     }
   }

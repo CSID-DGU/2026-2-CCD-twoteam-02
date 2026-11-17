@@ -86,7 +86,7 @@ export function OpsDashboard() {
           <div style={styles.tiles}>
             <Tile label="기록을 보낸 사람" value={String(d.summary.users)} />
             <Tile label="에러" value={String(d.summary.errors)} sub={`4xx ${d.summary.errors_4xx} · 5xx ${d.summary.errors_5xx}`} />
-            <Tile label="FPS 30 미만인 분" value={pct(d.summary.low_minutes, d.summary.fps_minutes)} sub={`${d.summary.low_minutes} / ${d.summary.fps_minutes}분`} />
+            <Tile label="FPS 이상치인 분" value={pct(d.summary.low_minutes, d.summary.fps_minutes)} sub={`${d.summary.low_minutes} / ${d.summary.fps_minutes}분`} />
             <Tile label="FPS 중앙값" value={d.summary.fps_median === null ? '–' : String(d.summary.fps_median)} />
           </div>
 
@@ -106,7 +106,7 @@ export function OpsDashboard() {
 
           <section style={styles.card}>
             <h3 style={styles.h3}>FPS 이상치 구간</h3>
-            <p style={styles.muted}>1분 평균이 30 미만이거나, 30 미만이 10초 넘게 이어진 분 (최근 100개)</p>
+            <p style={styles.muted}>1분 평균이 30 미만이거나, 그 1분 동안 30 미만이었던 시간이 합쳐서 10초 이상인 분 (최근 100개)</p>
             {d.outliers.length === 0 ? (
               <p style={styles.muted}>이 기간에 이상치가 없어요.</p>
             ) : (
@@ -193,10 +193,13 @@ function ErrorRowView({ row, env, open, onToggle }: { row: TopError; env: '서�
   const [copied, setCopied] = useState(false)
   const diag = diagnose(row)
   const copy = () => {
-    void navigator.clipboard.writeText(buildPrompt(row, env)).then(() => {
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    })
+    navigator.clipboard.writeText(buildPrompt(row, env)).then(
+      () => {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 2000)
+      },
+      () => {}, // 복사 권한이 없으면 버튼만 그대로
+    )
   }
   return (
     <>

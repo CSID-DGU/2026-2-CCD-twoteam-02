@@ -34,7 +34,7 @@ export function OpsSettingsTab({ onOpen }: { onOpen: () => void }) {
         <div style={styles.tiles}>
           <Tile label="기록을 보낸 사람" value={s ? String(s.users) : '…'} />
           <Tile label="에러" value={s ? String(s.errors) : '…'} />
-          <Tile label="FPS 30 미만인 분" value={s ? low : '…'} />
+          <Tile label="FPS 이상치인 분" value={s ? low : '…'} />
         </div>
       )}
       <button type="button" style={styles.open} onClick={onOpen}>

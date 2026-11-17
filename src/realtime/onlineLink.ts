@@ -13,6 +13,7 @@
 import { supabase } from '../lib/supabase'
 import type { ChatIncoming, ChatPort } from './onlineContext'
 import { recordError } from '../ops/collector'
+import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_REPLACED = 4409 // 같은 계정의 탭이 너무 많아 서버가 이 탭을 닫음 (relay/src/relayLogic.ts)
@@ -103,8 +104,8 @@ export function openOnlineLink<Meta>(url: string, events: Events): OnlineLink<Me
     }
     socket.onmessage = (event) => receive(event.data)
     socket.onclose = (event) => {
-      // 다른 탭이 이어받은 것(CLOSE_REPLACED)과 우리가 닫은 것은 빼고 운영 기록에 남김 (#590)
-      if (!ended && event.code !== CLOSE_REPLACED) recordError({ kind: 'relay', code: String(event.code), target: 'online' })
+      // 우리가 닫은 것과 정상 재연결(토큰 만료 4401, 다른 탭이 이어받음 4409)은 빼고 운영 기록에 남김 (#590)
+      if (!ended && shouldRecordClose(event.code)) recordError({ kind: 'relay', code: String(event.code), target: 'online' })
       end(event.code === CLOSE_REPLACED ? REPLACED_STATUS : 'CLOSED')
     }
   }

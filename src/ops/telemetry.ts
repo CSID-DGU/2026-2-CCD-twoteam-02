@@ -5,8 +5,8 @@
 // 보내기에 실패해도 다시 보내지 않습니다. 운영 기록 때문에 요청이 쌓이면 안 되기 때문입니다.
 // 저장소를 바꾸게 되면(예: 다른 DB) 이 파일만 바꾸면 됩니다.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { clearAll, drain, getGpu, recordError } from './collector'
-import { deviceFrom, FLUSH_MS, MAX_ERROR_ROWS, MAX_FPS_ROWS, scrubDetail } from './opsLogic'
+import { clearAll, drain, getGpu, recordError, setSignedIn } from './collector'
+import { deviceFrom, FLUSH_MS, isNoiseRejection, MAX_ERROR_ROWS, MAX_FPS_ROWS, scrubDetail } from './opsLogic'
 
 // 브라우저가 스스로 내는, 화면에 영향 없는 경고
 const IGNORED = /ResizeObserver loop/
@@ -49,8 +49,9 @@ export function startTelemetry(client: SupabaseClient): void {
     if (document.visibilityState === 'hidden') send(true)
   })
 
-  // 로그아웃하면 그 전 기록을 다음에 로그인한 사람 이름으로 보내지 않게 버림
-  client.auth.onAuthStateChange((event) => {
+  // 로그인했을 때만 모음(로그인 전 에러가 로그인한 사람 이름으로 섞이지 않게). 로그아웃하면 그 전 기록도 버림
+  client.auth.onAuthStateChange((event, session) => {
+    setSignedIn(session !== null)
     if (event === 'SIGNED_OUT') clearAll()
   })
 
@@ -61,6 +62,7 @@ export function startTelemetry(client: SupabaseClient): void {
   })
   window.addEventListener('unhandledrejection', (e) => {
     const reason: unknown = e.reason
+    if (isNoiseRejection(reason)) return // 소리 자동 재생 막힘·취소한 요청은 화면 오류가 아님
     const message = reason instanceof Error ? reason.message : String(reason)
     recordError({ kind: 'js', code: 'rejection', target: '', detail: scrubDetail(message) })
   })

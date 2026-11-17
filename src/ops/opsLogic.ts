@@ -235,3 +235,21 @@ export function fillSeries<T extends { t: string }>(points: T[], fromMs: number,
   for (let t = Math.floor(fromMs / step) * step; t < toMs; t += step) out.push(byTime.get(t) ?? empty(new Date(t).toISOString()))
   return out
 }
+
+// 중계 서버가 일부러 닫는 정상 재연결: 토큰 만료(4401, 화면이 새 토큰으로 다시 붙음), 다른 탭이 이어받음(4409). 에러로 세지 않음
+const EXPECTED_CLOSE = new Set([4401, 4409]) // relay/src/relayLogic.ts 의 CLOSE_TOKEN_EXPIRED, CLOSE_REPLACED
+export const shouldRecordClose = (code: number) => !EXPECTED_CLOSE.has(code)
+
+// 화면 오류가 아닌 거절: 소리 자동 재생 막힘(NotAllowedError), 취소한 요청(AbortError)
+export function isNoiseRejection(reason: unknown): boolean {
+  return reason instanceof Error && (reason.name === 'NotAllowedError' || reason.name === 'AbortError')
+}
+
+// 값 형식 검사. 기록은 누구나(게스트 포함) 보낼 수 있어, 프롬프트의 명령 줄에 들어가는 값은 정해진 글자만 허용 (DB 0072 와 같음)
+const SAFE: Record<'target' | 'code' | 'version' | 'place', RegExp> = {
+  target: /^[A-Za-z0-9_:./-]*$/,
+  code: /^[A-Za-z0-9_]+$/,
+  version: /^([0-9a-f]{7}|dev)$/,
+  place: /^[a-z0-9:_-]*$/,
+}
+export const isSafe = (field: keyof typeof SAFE, value: string) => SAFE[field].test(value)
