@@ -28,7 +28,7 @@
 | 칸 | 내용 |
 |---|---|
 | `minute` | 분 단위로 자른 시각 |
-| `place` | `lobby`, `campus`, `beach`, `branch:<slug>`, `meeting` (40자) |
+| `place` | `plaza`, `campus`, `beach`(`world.id` 그대로), `branch:<slug>`, `meeting` (40자) |
 | `fps_avg`, `fps_min` | 그 분의 평균·최저(0.5초 구간 기준) |
 | `low_seconds` | 30FPS 미만이었던 초 |
 | `seconds` | 실제로 잰 초 (다른 탭에 있던 시간 제외) |
@@ -68,11 +68,11 @@
 ## DB (`0071_ops_telemetry.sql`)
 
 - 테이블 2개 모두 RLS 를 켜고 정책을 만들지 않는다. 화면은 함수로만 넣고 읽는다.
-- `ops_report(p_fps jsonb, p_errors jsonb)` — security definer
+- `ops_report(p_device jsonb, p_fps jsonb, p_errors jsonb)` — security definer. 기기 정보(`p_device`)는 호출마다 한 번 받아 모든 줄에 넣는다. 에러에도 `browser`·`version` 을 남긴다
   - `auth.uid()` 가 없으면 거절. 보낸 사람은 화면 값이 아니라 `auth.uid()`.
   - 한 번에 FPS 5줄, 에러 30줄까지.
-  - `minute` 은 지금 기준 10분 전 ~ 1분 뒤만 받는다.
-  - FPS 는 (사용자, 분) 유일. 같은 분이 다시 오면 무시.
+  - `minute` 은 지금 기준 10분 전 ~ 1분 뒤만 받는다. 벗어난 줄은 그 줄만 건너뛴다(PC 시계가 틀린 사람 때문에 전체를 버리지 않게).
+  - FPS 는 (사용자, 분, 장소) 유일. 같은 분·같은 장소가 다시 오면 무시. 한 분 안에 장소를 옮기면 두 줄.
   - 에러는 (사용자, 분, 종류, 코드, 대상) 유일. 같으면 횟수를 더하고 최대 10000. 한 사람의 한 분에 서로 다른 에러는 30개까지.
   - 칸마다 길이·범위 제약(check).
 - `ops_dashboard(p_from timestamptz, p_to timestamptz)` — security definer, `is_team()` 이 아니면 거절. jsonb 하나로 돌려준다.
