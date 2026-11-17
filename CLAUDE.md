@@ -64,6 +64,7 @@ src/
   profile/             프로필(공부 기록 요약)과 공개 범위, 지점에서 캐릭터를 누르면 뜨는 프로필 창
   ranking/             공부 시간 순위 (광장 순위 게시판에서 E로 여는 창, DB 함수 study_ranking. rankingLogic.ts는 순수 로직)
   report/              오판·버그 신고 (메뉴 "신고하기", 최근 30초 판정 수치 첨부)와 팀용 신고 목록 (recentSamples.ts·reportLogic.ts는 순수 로직)
+  ops/                 운영 대시보드 (화면 에러·FPS 1분 기록, 설정 → 관리자 탭(팀만), #590. opsLogic.ts·diagnosis.ts는 순수 로직)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 relay/                 위치 중계 Worker (Cloudflare. 자체 package.json과 tsc를 쓰고, 화면 빌드에 들어가지 않는다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)
