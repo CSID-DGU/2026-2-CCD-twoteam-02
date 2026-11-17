@@ -16,8 +16,9 @@ let gpu = ''
 // 지금 주소로 정한 장소 (/space → space)
 const herePlace = () => placeOfPath(typeof location === 'undefined' ? '/' : location.pathname)
 
-export function recordError(e: Omit<OpsError, 'place'> & { place?: string }): void {
-  addError(book, { ...e, place: e.place ?? herePlace() }, Date.now())
+// detail·place 는 없으면 빈 문자열·지금 장소
+export function recordError(e: Omit<OpsError, 'place' | 'detail'> & { place?: string; detail?: string }): void {
+  addError(book, { ...e, detail: e.detail ?? '', place: e.place ?? herePlace() }, Date.now())
 }
 
 function keep(row: FpsRow | null) {

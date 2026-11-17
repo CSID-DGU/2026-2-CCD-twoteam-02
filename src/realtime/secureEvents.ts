@@ -7,6 +7,7 @@
 // 회의 방으로 온 신호·채팅은 믿지 않는다(useParticipants). 위치·고개 각도는 지금처럼 회의 방으로 오간다.
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { CHAT_EVENT, SIGNAL_EVENT } from './participants'
+import { recordError } from '../ops/collector'
 
 export const SECURE_EVENTS = [SIGNAL_EVENT, CHAT_EVENT] as const
 export type SecureEvent = (typeof SECURE_EVENTS)[number]
@@ -27,7 +28,10 @@ export function listenSecure(client: SupabaseClient, meetingId: number, onMessag
   for (const event of SECURE_EVENTS) ch.on('broadcast', { event }, ({ payload }) => onMessage(event, payload))
   ch.subscribe((status) => {
     if (status === 'SUBSCRIBED') onReady()
-    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error(`회의 보안 방에 들어가지 못했습니다(${status}). 음성·채팅이 안 될 수 있어요.`)
+    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      console.error(`회의 보안 방에 들어가지 못했습니다(${status}). 음성·채팅이 안 될 수 있어요.`)
+      recordError({ kind: 'realtime', code: status, target: 'meeting-secure' })
+    }
   })
   return () => void client.removeChannel(ch)
 }

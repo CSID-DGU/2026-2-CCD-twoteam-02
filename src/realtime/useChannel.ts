@@ -9,6 +9,7 @@ import { channelRoom, channelWorldOf, isChannelBase, parseReply, WAIT_JITTER_MS,
 import type { ChannelInfo } from './channelLogic'
 import { readMyChannel, saveMyChannel, useMyChannel } from './myChannel'
 import { relayUrl } from './relayLink'
+import { recordError } from '../ops/collector'
 
 // DB 에 남은 내 자리의 채널 (my_current_place, 0067). 자리가 없거나 못 읽으면 null
 async function seatChannel(): Promise<number | null> {
@@ -62,6 +63,7 @@ export function useChannel(base: string) {
         if (!alive) return
         const query = want ? `?want=${want}${request.pick ? '&pick=1' : ''}` : ''
         const res = await fetch(`${http}/channels/${channelWorldOf(base)}${query}`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok) recordError({ kind: 'relay', code: String(res.status), target: `channels/${channelWorldOf(base)}` })
         const reply = res.ok ? parseReply(await res.json()) : null
         if (!reply) throw new Error('bad reply')
         if (!alive) return
@@ -111,6 +113,7 @@ export function useChannel(base: string) {
       const token = data.session?.access_token
       if (!token) return null
       const res = await fetch(`${relay.replace(/^ws/, 'http')}/channels/${channelWorldOf(base)}?peek=1`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) recordError({ kind: 'relay', code: String(res.status), target: `channels/${channelWorldOf(base)}` })
       const reply = res.ok ? parseReply(await res.json()) : null
       if (reply) setState((s) => ({ ...s, channels: reply.channels, capacity: reply.capacity, autoFill: reply.autoFill, total: reply.total, totalCapacity: reply.totalCapacity }))
       return reply

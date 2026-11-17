@@ -4,6 +4,7 @@
 // 중계 서버(relayLink.ts)인지는 여기서 가른다. 입장 절차·재연결·화면 갱신은 useParticipants 한 곳에 그대로 있다.
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { CHAT_EVENT, FLICK_EVENT, HELLO_EVENT, MOVE_EVENT, PROFILE_EVENT, SIGNAL_EVENT, SNAPSHOT_EVENT } from './participants'
+import { recordError } from '../ops/collector'
 
 export type Presence = { userId?: string; at?: number }
 
@@ -37,7 +38,11 @@ export function openSupabaseLink(client: SupabaseClient, room: string, isPrivate
         .on('presence', { event: 'join' }, ({ newPresences }) => events.onJoin(newPresences as Presence[]))
         .on('presence', { event: 'leave' }, ({ leftPresences }) => events.onLeave(leftPresences as Presence[]))
       for (const event of BROADCAST_EVENTS) ch.on('broadcast', { event }, ({ payload }) => events.onMessage(event, payload))
-      ch.subscribe((status) => events.onStatus(status))
+      ch.subscribe((status) => {
+        // 방에 못 들어갔거나 끊김: 운영 기록에 방 종류만 남김 (#590)
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') recordError({ kind: 'realtime', code: status, target: room.split(':')[0] })
+        events.onStatus(status)
+      })
     },
     send: (event, payload) => ch.send({ type: 'broadcast', event, payload: payload as Record<string, unknown> }),
     track: (presence) => void ch.track(presence),
