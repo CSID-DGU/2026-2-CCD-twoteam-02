@@ -236,6 +236,11 @@ export function fillSeries<T extends { t: string }>(points: T[], fromMs: number,
   return out
 }
 
+// 그래프 세로축 눈금: 0, 가운데, 끝. 가운데가 정수가 아니면 빼서 1·1·0 처럼 같은 글자가 겹치지 않게 함
+export function axisTicks(max: number): number[] {
+  return Number.isInteger(max / 2) ? [0, max / 2, max] : [0, max]
+}
+
 // 중계 서버가 일부러 닫는 정상 재연결: 토큰 만료(4401, 화면이 새 토큰으로 다시 붙음), 다른 탭이 이어받음(4409). 에러로 세지 않음
 const EXPECTED_CLOSE = new Set([4401, 4409]) // relay/src/relayLogic.ts 의 CLOSE_TOKEN_EXPIRED, CLOSE_REPLACED
 export const shouldRecordClose = (code: number) => !EXPECTED_CLOSE.has(code)

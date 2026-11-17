@@ -4,7 +4,7 @@
 // 색은 opsColors.ts. 종류는 범례 글자로도 구분합니다.
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fillSeries, FPS_TARGET } from './opsLogic'
+import { axisTicks, fillSeries, FPS_TARGET } from './opsLogic'
 import type { ErrorKind } from './opsLogic'
 import type { ErrorPoint, FpsPoint } from './opsApi'
 import { KIND_COLOR, KIND_LABEL } from './opsColors'
@@ -103,7 +103,7 @@ export function ErrorBars({ series, bucketSec, from, to }: { series: ErrorPoint[
       <Legend items={(present.length ? present : KINDS).map((k) => ({ color: KIND_COLOR[k], label: KIND_LABEL[k] }))} />
       <div style={{ position: 'relative' }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={styles.svg} role="img" aria-label="시간대별 에러 수" onMouseLeave={() => setHover(null)}>
-          <Frame ticks={[0, yMax / 2, yMax]} yMax={yMax} yFmt={(v) => String(Math.round(v))} n={n} bucketSec={bucketSec} times={times} />
+          <Frame ticks={axisTicks(yMax)} yMax={yMax} yFmt={String} n={n} bucketSec={bucketSec} times={times} />
           {buckets.map((b, i) => {
             const x = PAD.l + i * slot + (slot - barW) / 2
             let y = PAD.t + PLOT_H
@@ -168,7 +168,7 @@ export function FpsLine({ series, bucketSec, from, to }: { series: FpsPoint[] } 
       <Legend items={[{ color: KIND_COLOR.supabase, label: '평균 FPS' }, { color: INK.secondary, label: `기준 ${FPS_TARGET}FPS`, dashed: true }]} />
       <div style={{ position: 'relative' }}>
         <svg viewBox={`0 0 ${W} ${H}`} style={styles.svg} role="img" aria-label="시간대별 평균 FPS" onMouseLeave={() => setHover(null)}>
-          <Frame ticks={[0, yMax / 2, yMax]} yMax={yMax} yFmt={(v) => String(Math.round(v))} n={n} bucketSec={bucketSec} times={times} />
+          <Frame ticks={axisTicks(yMax)} yMax={yMax} yFmt={String} n={n} bucketSec={bucketSec} times={times} />
           <line x1={PAD.l} x2={W - PAD.r} y1={yOf(FPS_TARGET)} y2={yOf(FPS_TARGET)} stroke={INK.secondary} strokeWidth={1.5} strokeDasharray="6 4" />
           <path d={d} fill="none" stroke={KIND_COLOR.supabase} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
           {points.map((p, i) => (p.avg !== null && lone[i] ? <circle key={p.t} cx={xOf(i)} cy={yOf(p.avg)} r={4} fill={KIND_COLOR.supabase} /> : null))}

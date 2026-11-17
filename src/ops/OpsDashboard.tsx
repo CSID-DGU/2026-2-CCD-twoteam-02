@@ -253,7 +253,7 @@ function ErrorRowView({ row, env, open, onToggle }: { row: TopError; env: '서�
 }
 
 const styles: Record<string, CSSProperties> = {
-  stack: { display: 'flex', flexDirection: 'column', gap: 12 },
+  stack: { display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }, // 메뉴 창의 가운데 정렬을 물려받으면 표 제목과 칸이 어긋남
   toolbar: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   badge: { padding: '2px 10px', borderRadius: 999, background: '#2e323b', color: '#d1d5db', fontWeight: 700, fontSize: 13 },
   badgeMain: { background: '#7f1d1d', color: '#fff' },
