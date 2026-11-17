@@ -40,6 +40,11 @@ const WS_RATIO = 20;         // 받은 WebSocket 메시지 20건 = 요청 1건
 const GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const ERROR_CHARS = 200;
+// 묶는 기준(dimensions)을 안 고르므로 응답은 합계 한 줄. 데이터셋 최대 limit 를 넘으면 거절되니 작게 둡니다
+const ROW_LIMIT = 100;
+
+// Cloudflare 예시처럼 초 단위로 보냅니다 (…T00:00:00.000Z → …T00:00:00Z)
+const toSeconds = (iso: string) => iso.replace(/\.\d{3}Z$/, "Z");
 
 export type CfValue = { value: number | null; note?: string; alert: boolean }; // alert false = 참고용 또는 수집 안 됨
 export type CfResult = { values: Record<CfMetric, CfValue>; errors: string[] };
@@ -105,7 +110,7 @@ export function utcDay(now: Date, offsetDays: 0 | -1): { date: string; start: st
 function buildQuery(ds: Dataset): string {
   const t = ds.filter.kind === "date" ? "Date" : "Time";
   return `query($a: string!, $s: ${t}!, $e: ${t}!) { viewer { accounts(filter: {accountTag: $a}) { ` +
-    `d: ${ds.name}(limit: 10000, filter: {${ds.filter.geq}: $s, ${ds.filter.leq}: $e}) { ` +
+    `d: ${ds.name}(limit: ${ROW_LIMIT}, filter: {${ds.filter.geq}: $s, ${ds.filter.leq}: $e}) { ` +
     `${ds.block} { ${Object.keys(ds.fields).join(" ")} } } } } }`;
 }
 
@@ -125,31 +130,36 @@ async function post(o: { fetch: typeof fetch; token: string; timeoutMs: number }
     signal: AbortSignal.timeout(o.timeoutMs),
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, ERROR_CHARS)}`);
+  // 자르기 전에 가립니다. 먼저 자르면 경계에 걸린 토큰 앞부분이 남습니다
+  const short = (s: string) => mask(s, o.token).slice(0, ERROR_CHARS);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${short(text)}`);
   let json: { data?: unknown; errors?: { message?: string }[] };
   try {
     json = JSON.parse(text);
   } catch {
     throw new Error("응답이 JSON 이 아님");
   }
-  if (json.errors?.length) throw new Error(String(json.errors[0]?.message ?? "GraphQL 오류").slice(0, ERROR_CHARS));
+  if (json.errors?.length) throw new Error(short(String(json.errors[0]?.message ?? "GraphQL 오류")));
   return json.data as Record<string, unknown> | null | undefined;
 }
 
 /** 한 데이터셋을 묻고 원시 키별 값(sum 은 합, max 는 최댓값)을 돌려줍니다. 행이 없으면 모든 필드 0 */
 async function fetchDataset(
   o: { fetch: typeof fetch; token: string; accountId: string; timeoutMs: number },
-  ds: Dataset, range: { start: string; end: string }, todayDate: string,
+  ds: Dataset, range: { start: string; end: string }, days: { today: string; yesterday: string },
 ): Promise<Record<string, number>> {
+  // 누적 값(today)은 하루 단위 기록이라 0시 직후엔 오늘 행이 아직 없을 수 있어 어제~오늘 중 최댓값을 씁니다
   const variables = ds.filter.kind === "date"
-    ? { a: o.accountId, s: ds.today ? todayDate : range.start.slice(0, 10), e: ds.today ? todayDate : range.end.slice(0, 10) }
-    : { a: o.accountId, s: range.start, e: range.end };
+    ? { a: o.accountId, s: ds.today ? days.yesterday : range.start.slice(0, 10), e: ds.today ? days.today : range.end.slice(0, 10) }
+    : { a: o.accountId, s: toSeconds(range.start), e: toSeconds(range.end) };
   const data = await post(o, buildQuery(ds), variables);
   const accounts = (data as { viewer?: { accounts?: { d?: unknown }[] } } | null)?.viewer?.accounts;
   const rows = accounts?.[0]?.d;
   if (!Array.isArray(rows)) throw new Error("응답 모양이 다름");
 
   const out: Record<string, number> = {};
+  // 행이 없으면: 하루 합계(sum)는 그날 쓴 게 없다는 뜻이라 0, 누적 값(max)은 아직 기록이 없다는 뜻이라 수집 안 됨
+  if (rows.length === 0 && ds.block === "max") return out;
   if (rows.length === 0) {
     for (const key of Object.values(ds.fields)) out[key] = 0;
     return out;
@@ -199,11 +209,11 @@ export async function queryCloudflare(o: {
   if (!o.token || !o.accountId) return { values: toValues({}), errors: ["Cloudflare 설정 없음"] };
   const ctx = { fetch: o.fetch, token: o.token, accountId: o.accountId, timeoutMs: o.timeoutMs ?? DEFAULT_TIMEOUT_MS };
   const range = utcDay(o.now, o.offsetDays);
-  const todayDate = utcDay(o.now, 0).date;
+  const days = { today: utcDay(o.now, 0).date, yesterday: utcDay(o.now, -1).date };
 
   const results = await Promise.all(CF_DATASETS.map(async (ds) => {
     try {
-      return { raw: await fetchDataset(ctx, ds, range, todayDate), error: null };
+      return { raw: await fetchDataset(ctx, ds, range, days), error: null };
     } catch (e) {
       return { raw: {}, error: `${ds.name}: ${mask(errorText(e), o.token!)}` };
     }
