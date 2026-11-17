@@ -7,6 +7,8 @@
 // 테이블 접근은 RLS 정책이 막는다. Secret key(service_role)는 절대 넣지 않는다.
 import { createClient } from '@supabase/supabase-js'
 import { choosingStorage } from '../auth/sessionStorageChoice'
+import { opsFetch } from '../ops/opsFetch'
+import { startTelemetry } from '../ops/telemetry'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -29,9 +31,13 @@ export const openedFromAuthLink = new URLSearchParams(window.location.hash.slice
 //
 // autoRefreshToken 은 끄지 않습니다. 끄면 토큰이 만료되는 1시간 뒤에 로그아웃되어
 // 2시간짜리 공부 중에 좌석과 기록이 끊깁니다.
+//
+// global.fetch: 400 이상 응답을 운영 대시보드용으로 셉니다(#590, src/ops/opsFetch.ts). 응답은 그대로 돌려줍니다.
 export const supabase = createClient(url, publishableKey, {
   auth: { storage: choosingStorage },
+  global: { fetch: opsFetch },
 })
+startTelemetry(supabase)
 
 // 재설정 메일 링크로 들어오면 supabase-js 가 PASSWORD_RECOVERY 이벤트를 한 번 보냅니다 (#513).
 // 재설정 화면이 이벤트보다 늦게 떠도 놓치지 않게 여기서 받아 둡니다. 로그아웃하면 지웁니다.

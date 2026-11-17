@@ -50,6 +50,7 @@ import { TopDownCamera } from '../space/TopDownCamera'
 import { Minimap } from '../space/Minimap'
 import { useShowMinimap } from '../menu/minimapSetting'
 import { FpsProbe, PerfReadout } from '../space/PerfReadout'
+import { OpsFpsProbe } from '../ops/OpsFpsProbe'
 import { useShowPerf } from '../menu/perfSetting'
 import type { Perf } from '../space/PerfReadout'
 import { useSession } from '../auth/useSession'
@@ -556,6 +557,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
           <TopDownCamera area={PLAZA.size} followRef={pos} span={TOP_VIEW_SPAN} />
         )}
         {showPerf && <FpsProbe onSample={handleFps} />}
+        <OpsFpsProbe place={world.id} />
         {/* 하늘·해·달·별과 빛 (#316), 조준점으로 별자리를 고르고 E 로 운세 창 (#321), 구름·비·눈 (#317) */}
         <WorldSky lamps={LIT_LAMPS} mySign={mySign} aimSign={aimOn} onAimSign={aimSign} weatherRef={weather} followRef={pos} />
         {/* 밤에 지평선을 두르는 먼 도시 (팀 조절판에서 숨길 수 있음) */}

@@ -12,6 +12,8 @@
 // 토큰은 연결할 때마다 새로 읽는다. 토큰이 끝나 서버가 끊으면(4401) OnlineProvider 가 다시 들어가며 새 토큰을 쓴다.
 import { supabase } from '../lib/supabase'
 import type { ChatIncoming, ChatPort } from './onlineContext'
+import { recordError } from '../ops/collector'
+import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_REPLACED = 4409 // 같은 계정의 탭이 너무 많아 서버가 이 탭을 닫음 (relay/src/relayLogic.ts)
@@ -92,13 +94,20 @@ export function openOnlineLink<Meta>(url: string, events: Events): OnlineLink<Me
       if (ended) return
       heardAt = Date.now()
       pingTimer = setInterval(() => {
-        if (Date.now() - heardAt > SILENCE_LIMIT_MS) end('TIMED_OUT')
+        if (Date.now() - heardAt > SILENCE_LIMIT_MS) {
+          recordError({ kind: 'relay', code: 'TIMED_OUT', target: 'online' })
+          end('TIMED_OUT')
+        }
         else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
       }, PING_INTERVAL_MS)
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)
-    socket.onclose = (event) => end(event.code === CLOSE_REPLACED ? REPLACED_STATUS : 'CLOSED')
+    socket.onclose = (event) => {
+      // 우리가 닫은 것과 정상 재연결(토큰 만료 4401, 다른 탭이 이어받음 4409)은 빼고 운영 기록에 남김 (#590)
+      if (!ended && shouldRecordClose(event.code)) recordError({ kind: 'relay', code: String(event.code), target: 'online' })
+      end(event.code === CLOSE_REPLACED ? REPLACED_STATUS : 'CLOSED')
+    }
   }
 
   return {

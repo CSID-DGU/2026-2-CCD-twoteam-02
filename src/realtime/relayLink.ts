@@ -16,6 +16,8 @@ import { supabase } from '../lib/supabase'
 import { FLICK_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } from './participants'
 import { sampledTime } from './walkLogic'
 import type { RoomLink, RoomLinkEvents } from './roomLink'
+import { recordError } from '../ops/collector'
+import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_FULL = 4503 // 서버가 방이 찼다고 닫을 때 쓰는 번호 (relay/src/relayLogic.ts)
@@ -33,6 +35,7 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
   let ended = false // 끊김을 이미 알렸거나 정리했다
   let heardAt = 0
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  const target = `room/${room.split(':')[0]}` // 운영 기록용 방 종류 (번호는 남기지 않음, #590)
 
   function end(status?: string) {
     if (ended) return
@@ -74,13 +77,20 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
       if (ended) return
       heardAt = Date.now()
       pingTimer = setInterval(() => {
-        if (Date.now() - heardAt > SILENCE_LIMIT_MS) end('TIMED_OUT')
+        if (Date.now() - heardAt > SILENCE_LIMIT_MS) {
+          recordError({ kind: 'relay', code: 'TIMED_OUT', target })
+          end('TIMED_OUT')
+        }
         else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
       }, PING_INTERVAL_MS)
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)
-    socket.onclose = (event) => end(event.code === CLOSE_FULL ? ROOM_FULL_STATUS : 'CLOSED')
+    socket.onclose = (event) => {
+      // 우리가 닫은 것(ended)과 정상 재연결(토큰 만료·다른 탭)이 아니면 서버가 닫았거나 끊긴 것: 운영 기록에 남김 (#590)
+      if (!ended && shouldRecordClose(event.code)) recordError({ kind: 'relay', code: String(event.code), target })
+      end(event.code === CLOSE_FULL ? ROOM_FULL_STATUS : 'CLOSED')
+    }
   }
 
   return {
