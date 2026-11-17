@@ -4,6 +4,7 @@
 //   과목     과목 이름 바꾸기·정리·지우기 (#369, 공부 시작 창의 "과목 관리"와 같은 화면)
 //   화면·마우스  1인칭 마우스 감도, 걸을 때 미니맵 보기(기본 꺼짐, 광장·캠퍼스), 딱밤 받기(기본 켜짐, #304), FPS 표시(기본 꺼짐)
 //   단축키   단축키 바꾸기 (#250)
+//   관리자   (팀만) 운영 대시보드 요약과 열기 (#590)
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { SENSITIVITY, getMouseSensitivity, sensitivityLabel, setMouseSensitivity } from './lookSettings'
@@ -14,6 +15,9 @@ import { setShowMinimap, useShowMinimap } from './minimapSetting'
 import { setFlickReceiving, useFlickReceiving } from './flickSetting'
 import { setShowPerf, useShowPerf } from './perfSetting'
 import { FavoritePlaceSetting } from '../quickseat/QuickSeat'
+import { useIsTeam } from '../report/useIsTeam'
+import { OpsSettingsTab } from '../ops/OpsSettingsTab'
+import type { PanelView } from './panelTypes'
 
 const TABS = [
   ['account', '내 정보'],
@@ -21,10 +25,14 @@ const TABS = [
   ['mouse', '화면·마우스'],
   ['keys', '단축키'],
 ] as const
-type Tab = (typeof TABS)[number][0]
+const OPS_TAB = ['ops', '관리자'] as const // 팀원에게만 붙임
+type Tab = (typeof TABS)[number][0] | (typeof OPS_TAB)[0]
 
-export function SettingsView() {
+// onOpen: 같은 창을 다른 화면으로 바꿈 (관리자 대시보드 열기, InfoPanel 의 "← 뒤로"로 돌아옴)
+export function SettingsView({ myId, onOpen }: { myId: string; onOpen: (view: PanelView) => void }) {
   const [tab, setTab] = useState<Tab>('account')
+  const team = useIsTeam(myId)
+  const tabs = team ? [...TABS, OPS_TAB] : TABS
   const [sensitivity, setSensitivity] = useState(getMouseSensitivity)
   const change = (value: number) => setSensitivity(setMouseSensitivity(value))
   const minimap = useShowMinimap()
@@ -35,7 +43,7 @@ export function SettingsView() {
     <div style={styles.stack}>
       {/* 프로필 창의 탭과 같은 모양 */}
       <nav style={styles.tabs} role="tablist">
-        {TABS.map(([key, label]) => (
+        {tabs.map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -110,6 +118,11 @@ export function SettingsView() {
         </div>
       )}
       {tab === 'keys' && <KeymapSettings />}
+      {tab === 'ops' && team && (
+        <div style={styles.card}>
+          <OpsSettingsTab onOpen={() => onOpen({ kind: 'ops' })} />
+        </div>
+      )}
     </div>
   )
 }
