@@ -37,7 +37,7 @@
 ## 수집
 
 - `https://api.cloudflare.com/client/v4/graphql`에 `Authorization: Bearer <토큰>`으로 질의 한 번을 보낸다.
-- 데이터셋: `workersInvocationsAdaptive`(Worker 요청, `scriptName = twoteam-relay`), `durableObjectsInvocationsAdaptiveGroups`(DO 요청), `durableObjectsPeriodicGroups`(실행 시간, SQLite 행), `durableObjectsStorageGroups`(저장 용량, `max storedBytes`).
+- 데이터셋: `workersInvocationsAdaptive`(Worker 요청, `scriptName = twoteam-relay`), `durableObjectsInvocationsAdaptiveGroups`(DO 요청), `durableObjectsPeriodicGroups`(실행 시간, SQLite 행), `durableObjectsSqlStorageGroups`(SQLite 저장 용량, `max storedBytes`. relay DO 가 모두 SQLite 기반이라 `durableObjectsStorageGroups` 에는 행이 없음).
 - 필드 이름은 공식 문서에 다 나오지 않는다. 기존 `discover` 모드에 Cloudflare 확인을 더해 설치할 때 실제 응답을 한 번 보고 정한다. 없는 항목은 "수집 안 됨"으로 표시하고 경고에서 뺀다.
 - 실행 시간이 GB-s로 오지 않으면 `activeTime`(마이크로초) × 128MB로 환산한다(Cloudflare 과금 기준).
 

@@ -75,8 +75,9 @@ export const CF_DATASETS: Dataset[] = [
     fields: { activeTime: "doActiveUs", inboundWebsocketMsgCount: "doWsIn", rowsRead: "doRowsRead", rowsWritten: "doRowsWritten" },
     filter: { geq: "datetimeHour_geq", leq: "datetimeHour_leq", kind: "time" },
   },
+  // relay 의 DO 는 모두 SQLite 기반이라(무료 플랜 조건) 키-값 저장소용 durableObjectsStorageGroups 에는 행이 없다
   {
-    name: "durableObjectsStorageGroups", block: "max",
+    name: "durableObjectsSqlStorageGroups", block: "max",
     fields: { storedBytes: "doStoredBytes" },
     filter: { geq: "date_geq", leq: "date_leq", kind: "date" },
     today: true,

@@ -62,7 +62,7 @@
 | `workersInvocationsAdaptive` | `sum` | `requests` → `workerRequests` | `datetime_geq`, `datetime_leq` |
 | `durableObjectsInvocationsAdaptiveGroups` | `sum` | `requests` → `doRequests` | `datetime_geq`, `datetime_leq` |
 | `durableObjectsPeriodicGroups` | `sum` | `activeTime` → `doActiveUs`, `inboundWebsocketMsgCount` → `doWsIn`, `rowsRead` → `doRowsRead`, `rowsWritten` → `doRowsWritten` | `datetimeHour_geq`, `datetimeHour_leq` |
-| `durableObjectsStorageGroups` | `max` | `storedBytes` → `doStoredBytes` | `date_geq`, `date_leq` |
+| `durableObjectsSqlStorageGroups` | `max` | `storedBytes` → `doStoredBytes` | `date_geq`, `date_leq` |
 
 - 데이터셋마다 **따로 요청**한다. GraphQL은 필드 하나가 틀려도 문서 전체를 거절하므로, 하나가 틀려도 나머지는 받기 위해서다. 질의 모양: `query($a: string!, $s: Time!, $e: Time!) { viewer { accounts(filter: {accountTag: $a}) { d: <데이터셋>(limit: 10000, filter: {<geq>: $s, <leq>: $e}) { <블록> { <필드들> } } } } }`. `date` 필터는 `Date` 타입과 날짜 문자열을 쓴다.
 - 한도는 계정 전체에 걸리므로 `scriptName`으로 거르지 않고 계정 합계를 쓴다(지금 Worker는 `twoteam-relay` 하나라 값은 같다).
