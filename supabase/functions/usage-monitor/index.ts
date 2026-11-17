@@ -1,9 +1,10 @@
-// Supabase 사용량 + DB 상태 모니터 Edge Function
+// Supabase 사용량 + DB 상태 + Cloudflare 하루 사용량 모니터 Edge Function
 //   POST ?mode=check      : 5분마다. 지표 수집·저장
 //                            - 사용량이 Free 한도의 50/80/95/100%를 처음 넘으면 경고
 //                            - DB 상태(메모리·CPU·연결 수·장기 쿼리·락)가 나빠지면 경고, 계속되면 재알림, 회복되면 복구 알림
-//   POST ?mode=summary    : 하루 한 번. 사용량 + DB 상태 요약(느린 쿼리, 캐시 적중률, 정리 필요 테이블 포함)
-//   POST ?mode=discover   : 필요한 Metrics API 지표가 있는지 확인 (설치 시 1회)
+//                            - Cloudflare(위치 중계 Worker·Durable Objects) 하루 한도의 80/95/100%를 그날 처음 넘으면 경고 (#574)
+//   POST ?mode=summary    : 하루 한 번. 사용량 + DB 상태 요약(느린 쿼리, 캐시 적중률, 정리 필요 테이블 포함) + Cloudflare 어제 하루
+//   POST ?mode=discover   : 필요한 Metrics API 지표와 Cloudflare 필드 이름이 있는지 확인 (설치 시 1회)
 //   POST ?mode=test-slack : Slack 연결 테스트
 // 모든 요청은 x-monitor-secret 헤더가 CRON_SECRET과 같아야 합니다.
 
@@ -14,6 +15,10 @@ import {
   newThresholds, parsePrometheus, pickMetric, type Series, sumByName,
   type CronJob, describeQuery, overallSummary, type SummaryInput,
 } from "./lib.ts";
+import {
+  CF_LABELS, CF_METRICS, CF_THRESHOLDS, cfAlertLine, cfDiscover, cfOverview, fmtCf, parseCfLimits,
+  queryCloudflare, utcDay,
+} from "./cloudflare.ts";
 
 const I = "    ";        // 1단계 들여쓰기
 const I2 = I + I;        // 2단계 들여쓰기
@@ -35,6 +40,13 @@ const REALERT_MIN = Number(env("HEALTH_REALERT_MINUTES") ?? "60");
 const EGRESS_ALERTS = env("EGRESS_ALERTS") === "true";
 const isReferenceOnly = (metric: string) => metric === "egress_bytes_approx" && !EGRESS_ALERTS;
 const RETENTION_DAYS = Number(env("SNAPSHOT_RETENTION_DAYS") ?? "14");
+
+// Cloudflare (#574). 토큰 권한은 Account Analytics: Read 하나. 값은 Supabase 비밀값에만 둡니다.
+const CF_TOKEN = env("CLOUDFLARE_API_TOKEN");
+const CF_ACCOUNT = env("CLOUDFLARE_ACCOUNT_ID");
+const { limits: CF_LIMITS, error: CF_LIMITS_ERROR } = parseCfLimits(env("CF_LIMITS_JSON"));
+const cfQuery = (now: Date, offsetDays: 0 | -1) =>
+  queryCloudflare({ fetch, token: CF_TOKEN, accountId: CF_ACCOUNT, now, offsetDays });
 
 // DB 상태 기준값 덮어쓰기: {"mem_used_pct":[85,95], ...}
 const HEALTH: typeof HEALTH_DEFS = structuredClone(HEALTH_DEFS);
@@ -139,6 +151,7 @@ async function collect(now: Date) {
   const health: Health = {};
   const details: HealthDetails = {};
   const warnings: string[] = [];
+  if (CF_LIMITS_ERROR) warnings.push(CF_LIMITS_ERROR);
 
   // 1) DB 기반 사용량: DB 크기, Storage, MAU
   const { data: db, error: dbErr } = await sb.rpc("usage_monitor_db_stats", { p_cycle_start: start.toISOString() });
@@ -317,17 +330,45 @@ async function runCheck(now: Date) {
     alerts.push(`${line(metric, u.value, now, start, I)}\n${I2}↳ *${Math.max(...fresh)}% 단계 도달*`);
   }
 
+  // Cloudflare: 기간은 UTC 하루라 기록 표의 cycle_start 에 UTC 날짜를 씁니다.
+  // 조회가 실패하면 경고 없이 응답에만 남기고 다음 실행에 다시 봅니다.
+  const cf = await cfQuery(now, 0);
+  const cfDay = utcDay(now, 0).date;
+  const cfAlerts: string[] = [];
+  for (const metric of CF_METRICS) {
+    const v = cf.values[metric];
+    if (!v.alert || v.value === null) continue;
+    const pct = (v.value / CF_LIMITS[metric]) * 100;
+    const { data: sent } = await sb.from("usage_monitor_alerts_sent").select("threshold")
+      .eq("cycle_start", cfDay).eq("metric", metric);
+    const fresh = newThresholds(pct, CF_THRESHOLDS, new Set((sent ?? []).map((r) => r.threshold)));
+    if (!fresh.length) continue;
+    await sb.from("usage_monitor_alerts_sent").insert(
+      fresh.map((t) => ({ cycle_start: cfDay, metric, threshold: t, value: v.value })),
+    );
+    cfAlerts.push(`${cfAlertLine(metric, v.value, CF_LIMITS[metric], I)}\n${I2}↳ *${Math.max(...fresh)}% 단계 도달*`);
+  }
+  const cfBlock = cfAlerts.length ? `☁️ *Cloudflare (오늘 9시부터)*\n${cfAlerts.join("\n")}` : "";
+
   if (alerts.length) {
     await slack(
       `🚨 *Supabase 사용량 경고* — \`${PROJECT_LABEL}\` (Free 플랜)\n\n${alerts.join("\n")}\n\n` +
-      `결제 주기 ${cycle} ~ ${cycleEnd(start).toISOString().slice(0, 10)} · 정확한 값은 대시보드 Usage 페이지 확인`,
+      `결제 주기 ${cycle} ~ ${cycleEnd(start).toISOString().slice(0, 10)} · 정확한 값은 대시보드 Usage 페이지 확인` +
+      (cfBlock ? `\n\n${cfBlock}` : ""),
+    );
+  } else if (cfBlock) {
+    await slack(
+      `🚨 *Cloudflare 사용량 경고* (무료 플랜)\n\n${cfBlock}\n\n하루 한도는 매일 오전 9시(KST)에 초기화돼요.`,
     );
   }
 
   const healthMsgs = await evaluateHealth(health, details, now);
   for (const m of healthMsgs) await slack(m);
 
-  return { mode: "check", cycle, usage, health, alerts: alerts.length, health_messages: healthMsgs.length, warnings };
+  return {
+    mode: "check", cycle, usage, health, alerts: alerts.length + cfAlerts.length, health_messages: healthMsgs.length, warnings,
+    cloudflare: cf.values, cloudflare_errors: cf.errors,
+  };
 }
 
 async function max24h(metric: string, now: Date): Promise<number | null> {
@@ -447,18 +488,34 @@ async function runSummary(now: Date) {
     healthAvailable: hr.available,
   });
 
+  // Cloudflare: 09:07 실행이라 방금 초기화됐으므로 어제 하루(UTC) 전체를 마감된 값으로 보여 줍니다.
+  // 저장 용량은 누적이라 cloudflare.ts 가 오늘 날짜로 묻습니다.
+  const cf = await cfQuery(now, -1);
+  const cfLines = CF_METRICS.map((m) => {
+    const v = cf.values[m];
+    if (v.value === null) return `${I}⚪ *${CF_LABELS[m]}*  수집 안 됨`;
+    if (!v.alert) return `${I}⚪ *${CF_LABELS[m]} · 참고용*  ${fmtCf(m, v.value)}` + (v.note ? `\n${I2}_${v.note}_` : "");
+    return cfAlertLine(m, v.value, CF_LIMITS[m], I) + (v.note ? `\n${I2}_${v.note}_` : "");
+  });
+  const cfLine = cfOverview(cf.values, CF_LIMITS);
+  // overallSummary 의 마지막 두 줄은 결제 주기와 Realtime 안내라, 사용량 문장 뒤(그 앞)에 넣습니다
+  if (cfLine) overview.splice(Math.max(0, overview.length - 2), 0, cfLine);
+  warnings.push(...cf.errors.map((e) => (e.startsWith("Cloudflare") ? e : `Cloudflare ${e}`)));
+
   const warn = warnings.length ? `\n\n⚠️ *수집 오류*\n${warnings.map((w) => `${I}${w}`).join("\n")}` : "";
   await slack(
-    `📊 *Supabase 일일 점검* — \`${PROJECT_LABEL}\`\n\n` +
+    `📊 *서비스 일일 점검* — \`${PROJECT_LABEL}\`\n\n` +
     `📝 *한눈에 보기*\n${overview.map((o) => `${I}• ${o}`).join("\n")}\n\n` +
     hr.text +
     `\n\n📦 *사용량* (결제 주기 ${cycle} ~ ${end.toISOString().slice(0, 10)}, 남은 ${daysLeft}일)\n` +
-    lines.join("\n") + warn,
+    lines.join("\n") +
+    `\n\n☁️ *Cloudflare* (어제 ${utcDay(now, -1).date} 9시 ~ 오늘 9시, 저장 용량은 지금 값)\n` +
+    cfLines.join("\n") + warn,
   );
-  return { mode: "summary", cycle, usage, health, warnings };
+  return { mode: "summary", cycle, usage, health, warnings, cloudflare: cf.values, cloudflare_errors: cf.errors };
 }
 
-async function runDiscover() {
+async function discoverMetrics() {
   const series = parsePrometheus(await fetchMetricsText());
   const sums = sumByName(series);
   const count = (n: string) => series.filter((s) => s.name === n).length;
@@ -469,7 +526,19 @@ async function runDiscover() {
   const cpuModes = [...new Set(series.filter((s) => s.name === "node_cpu_seconds_total")
     .map((s) => s.labels.match(/mode="([^"]*)"/)?.[1]).filter(Boolean))];
   const realtime = [...sums.keys()].filter((n) => /^realtime_/.test(n)).sort();
-  return { mode: "discover", total_metric_names: sums.size, required, cpu_modes: cpuModes, realtime };
+  return { total_metric_names: sums.size, required, cpu_modes: cpuModes, realtime };
+}
+
+// Metrics API 가 실패해도 Cloudflare 결과는 보이도록 따로 받습니다 (cfDiscover 는 오류를 결과로 돌려줌)
+async function runDiscover() {
+  let supabase: unknown;
+  try {
+    supabase = await discoverMetrics();
+  } catch (e) {
+    supabase = { error: (e as Error).message };
+  }
+  const cloudflare = await cfDiscover({ fetch, token: CF_TOKEN, accountId: CF_ACCOUNT });
+  return { mode: "discover", ...(supabase as object), cloudflare };
 }
 
 Deno.serve(async (req) => {
