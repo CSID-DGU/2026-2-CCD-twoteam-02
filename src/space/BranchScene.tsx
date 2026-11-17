@@ -6,6 +6,7 @@ import type { BranchLayout } from "./layout";
 import { useBranchInfo } from "./useBranchInfo";
 import type { BranchInfo } from "./useBranchInfo";
 import { FpsProbe, PerfReadout } from "./PerfReadout";
+import { OpsFpsProbe } from "../ops/OpsFpsProbe";
 import { useShowPerf } from "../menu/perfSetting";
 import { SeatCamera } from "./SeatCamera";
 import { SeatViewButton } from "./SeatViewButton";
@@ -588,6 +589,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
         <TopDownCamera area={branch.size} />
       )}
       {showPerf && <FpsProbe onSample={handleFps} />}
+      <OpsFpsProbe place={`branch:${branch.id}`} />
       {/* 지점 실내 (조명·바닥·벽·천장·가구·문·키오스크·커피 바). 광장에서 가게 창으로 보이는 실내도 같은 부품 (BranchInterior) */}
       {/* 받은 음료: 앉으면 그 자리 책상에 내려놓음 (소파 자리는 책상이 없어 그대로 듦) */}
       {holding && seatSpot && seatDesk && seatSpot.chair !== "lounger" && <DeskDrink key={seatSpot.no} item={holding} desk={seatDesk} rot={seatSpot.rot} />}

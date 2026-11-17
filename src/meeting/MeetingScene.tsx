@@ -57,6 +57,7 @@ import { sharedLevel } from '../level/levelLogic'
 import { useMeeting } from './useMeeting'
 import { useSignalPort, useVoice } from './useVoice'
 import type { MeetingInfo, MeetingPerson } from './useMeeting'
+import { OpsFpsProbe } from '../ops/OpsFpsProbe'
 
 const FLOOR_COLOR = '#c9d6e3' // 테마가 없는 지점(별다방)의 회의실 바닥
 const DOOR_HEIGHT = 2.2 // 지점 출입문과 같음
@@ -341,6 +342,7 @@ function MeetingSpace({ info, people, others, live, meetingId, myId, meRef, sync
   return (
     <>
       <Canvas>
+        <OpsFpsProbe place="meeting" />
         {seatChair ? (
           <SeatCamera key={seatChair.no} spot={seatChair} onArrive={() => {}} paused={panelOpen} walls={MEETING_ROOM.walls} />
         ) : view === 'first' ? (
