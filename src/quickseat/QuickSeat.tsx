@@ -1,7 +1,7 @@
 // 바로 앉기 (#116) 화면 조각.
-//   QuickSeatControl  광장 화면이 씁니다. 도착 직후 화면 아래에 큰 버튼(배너)을 한 번 보여 주고, 그 뒤로는 메뉴의 "바로 앉기"로 엽니다(startSeq).
+//   QuickSeatControl  광장 화면이 씁니다. 바깥 공간(캠리단길·캠빛 대학교·캠빛 해변)에 서 있는 동안 화면 아래에 큰 버튼(배너)을 늘 보여 줍니다. ▾ 로 접으면 작은 버튼만 남고, 누르면 다시 펴집니다. 메뉴의 "바로 앉기"로도 엽니다.
 //                     누르면: 최애 공간이 있으면 바로 그곳으로, 없으면 공간 고르는 창. 창에서 "다음부터 이 공간으로"를 켜면 계정에 저장됩니다.
-//   FavoritePlaceSetting  설정 창(화면·마우스 탭)에서 지금 최애 공간을 보고 지웁니다.
+//   FavoritePlaceSetting  최애 공간을 고르고 지우는 목록. 배너의 안내 글 뒤와 설정 창(화면·마우스 탭)에 같이 씁니다.
 // 이동과 앉기는 useQuickSeat.ts(요청 → 도착한 화면이 빈자리에 앉힘), 고르는 규칙은 quickSeatLogic.ts.
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
@@ -11,27 +11,28 @@ import type { QuickPlace } from './quickSeatLogic'
 import { useFavoritePlace, useGoQuickSeat } from './useQuickSeat'
 import { PLACES, PLACE_GROUPS } from './places'
 
-const BANNER_SEEN_KEY = 'dooteum.quickSeatBanner' // 이 탭에서 배너를 한 번 보였는지 (sessionStorage: 탭을 닫으면 지워짐)
+const FOLDED_KEY = 'dooteum.quickSeatFolded' // 배너를 접어 두었는지 (sessionStorage: 다른 공간으로 옮겨도 접힌 채로, 탭을 닫으면 지워짐)
 
-function seenBanner(): boolean {
+function readFolded(): boolean {
   try {
-    return sessionStorage.getItem(BANNER_SEEN_KEY) === '1'
+    return sessionStorage.getItem(FOLDED_KEY) === '1'
   } catch {
     return false
   }
 }
-function markBanner() {
+function writeFolded(on: boolean) {
   try {
-    sessionStorage.setItem(BANNER_SEEN_KEY, '1')
+    if (on) sessionStorage.setItem(FOLDED_KEY, '1')
+    else sessionStorage.removeItem(FOLDED_KEY)
   } catch {
-    // 저장 못 해도 이번 화면에서는 숨깁니다
+    // 저장 못 해도 이번 화면에서는 그대로 접고 폅니다
   }
 }
 
 type Props = {
   myId: string
   startRef: RefObject<(() => void) | null> // 메뉴의 "바로 앉기"가 부를 함수를 여기에 넣어 둡니다 (배너 버튼과 같은 동작)
-  banner: boolean // 배너를 보여도 되는 상황인지 (광장에 서 있고 다른 창이 없음)
+  banner: boolean // 배너를 보여도 되는 상황인지 (바깥 공간에 서 있고 다른 창이 없음)
   onDialogChange: (open: boolean) => void // 고르는 창이 떠 있는 동안 캐릭터 조작을 막으려고 알립니다
 }
 
@@ -41,7 +42,11 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
   const { favorite, loaded, save } = useFavoritePlace()
   const go = useGoQuickSeat()
   const [open, setOpen] = useState(false)
-  const [hidden, setHidden] = useState(seenBanner)
+  const [folded, setFoldedState] = useState(readFolded) // 접어 두었는지 (작은 버튼만 보임)
+  const setFolded = (on: boolean) => {
+    setFoldedState(on)
+    writeFolded(on)
+  }
   const [remember, setRemember] = useState(true)
   useEffect(() => {
     onDialogChange(open)
@@ -49,8 +54,6 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
 
   // 최애가 있으면 묻지 않고 바로, 없으면 고르는 창
   const start = () => {
-    setHidden(true)
-    markBanner()
     if (loaded && isValidPlace(favorite, PLACES)) {
       const place = choosePlace(favorite, PLACES, counts)
       if (place) go(place)
@@ -76,22 +79,21 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
 
   return (
     <>
-      {banner && !hidden && !open && (
+      {banner && !open && folded && (
+        <button type="button" style={styles.folded} aria-label="바로 앉기 펴기" onClick={() => setFolded(false)}>
+          🪑 바로 앉기 ▴
+        </button>
+      )}
+      {banner && !open && !folded && (
         <div style={styles.banner}>
           <button type="button" style={styles.bigButton} onClick={start}>
             🪑 바로 앉기
           </button>
           <span style={styles.bannerText}>최애 공간의 빈자리에 앉아 바로 공부를 시작해요</span>
-          <button
-            type="button"
-            style={styles.dismiss}
-            aria-label="닫기"
-            onClick={() => {
-              setHidden(true)
-              markBanner()
-            }}
-          >
-            ✕
+          {/* 최애 공간을 설정까지 가지 않고 여기서 바로 고릅니다. 고르기만 하고, 앉는 것은 "바로 앉기"를 눌러야 합니다 */}
+          <FavoritePlaceSetting />
+          <button type="button" style={styles.dismiss} aria-label="접기" title="접기" onClick={() => setFolded(true)}>
+            ▾
           </button>
         </div>
       )}
@@ -184,6 +186,11 @@ const styles: Record<string, CSSProperties> = {
     font: '700 17px system-ui, sans-serif', cursor: 'pointer',
   },
   bannerText: { color: '#d1d5db' },
+  folded: {
+    position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 12,
+    padding: '6px 14px', borderRadius: 999, border: 'none', background: 'rgba(32,35,42,.92)', color: '#c4b5fd',
+    font: '700 13px system-ui, sans-serif', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+  },
   dismiss: { border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: '16px system-ui, sans-serif', padding: '4px 6px' },
   backdrop: { position: 'fixed', inset: 0, zIndex: 20, background: 'rgba(0,0,0,.45)', display: 'grid', placeItems: 'center' },
   dialog: {
