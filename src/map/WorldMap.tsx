@@ -640,6 +640,30 @@ function RoofDeck({ x, y, w, d }: { x: number; y: number; w: number; d: number }
 // ── 이름표 ──────────────────────────────────────────────────
 
 type Line = { text: string; size: number; bold?: boolean; color?: string }
+
+// 이름표 글자는 늘 LABEL_REF_PX 크기로 짜고 transform 으로 줄여 그립니다.
+// Chrome(맥 system-ui)은 SVG 글자 크기 숫자(지도 m 단위라 1~5)가 작을수록 글자 사이를 넓게 잡습니다. 화면에 보이는 크기와 상관없이 그 숫자만 보므로,
+// 확대·축소에 따라 영문 이름("Cam Study Cafe")이 1.2~1.4배 길어져 이름표 밖으로 튀어나왔습니다. 크기를 고정하면 폭이 확대와 무관해집니다.
+const LABEL_FONT = 'system-ui, sans-serif'
+const LABEL_REF_PX = 16
+const LABEL_WIDTH_MARGIN = 1.03 // canvas 로 잰 폭이 SVG 보다 2%쯤 좁게 나와서 주는 여유
+let measureCtx: CanvasRenderingContext2D | null | undefined // 글자 폭을 재는 canvas (처음 쓸 때 한 번 만듦)
+const emCache = new Map<string, number>() // "굵기|글자" → 글자 크기 1 일 때의 폭
+
+// 이름표 한 줄의 폭(m). 실제 글꼴로 재고, canvas 를 못 쓰면 어림(textWidth)으로 대신합니다
+function lineWidth(l: Line, size: number): number {
+  const weight = l.bold ? 700 : 500
+  const key = `${weight}|${l.text}`
+  let em = emCache.get(key)
+  if (em === undefined) {
+    if (measureCtx === undefined) measureCtx = document.createElement('canvas').getContext('2d')
+    if (!measureCtx) return textWidth(l.text, size)
+    measureCtx.font = `${weight} ${LABEL_REF_PX}px ${LABEL_FONT}`
+    em = (measureCtx.measureText(l.text).width / LABEL_REF_PX) * LABEL_WIDTH_MARGIN
+    emCache.set(key, em)
+  }
+  return em * size
+}
 const countLine = (n: number, prefix = ''): Line => (n > 0 ? { text: `● ${prefix}${n}명`, size: 0.85, color: '#86efac' } : { text: `${prefix}비어 있음`, size: 0.85, color: '#cbd5e1' })
 
 // 건물 이름표: 이름, 1층 인원, 위층·루프탑 인원(한 줄씩), 회의 중 인원. 지붕 위에 띄움
@@ -668,7 +692,7 @@ function WorldTitle({ w, count, scale, compact }: { w: AtlasWorld; count: number
   const s = scale * 1.15
   const lines: Line[] = [{ text: w.layout.lobby.name, size: 1.5, bold: true }, count > 0 ? { text: `● ${count}명 돌아다니는 중`, size: 0.85, color: '#bbf7d0' } : { text: '돌아다니는 사람 없음', size: 0.85, color: '#f1e3d3' }]
   if (compact) lines.pop()
-  const width = Math.max(...lines.map((l) => textWidth(l.text, l.size * s))) + 0.9 * s
+  const width = Math.max(...lines.map((l) => lineWidth(l, l.size * s))) + 0.9 * s
   const r = rectOf(w)
   return <Pill x={-r.w / 2 + width / 2} z={-r.d / 2 - 1.2} scale={s} bg={w.ribbon} lines={lines} />
 }
@@ -678,17 +702,17 @@ function Pill({ x, z: at, lines, scale, bg = 'rgba(24,28,36,.82)', middle = fals
   const pad = 0.45 * scale
   const gap = 0.25 * scale
   const sizes = lines.map((l) => l.size * scale)
-  const w = Math.max(...lines.map((l, i) => textWidth(l.text, sizes[i]))) + pad * 2
+  const w = Math.max(...lines.map((l, i) => lineWidth(l, sizes[i]))) + pad * 2
   const h = sizes.reduce((a, s) => a + s, 0) + gap * (lines.length - 1) + pad * 2
   const z = middle ? at + h / 2 : at // 이름표 아래 끝
   // 줄마다 글자 아래 끝 높이: 위 줄들 크기·간격을 더해 나감
   const baselines = sizes.map((s, i) => z - h + pad + sizes.slice(0, i + 1).reduce((a, v) => a + v, 0) + gap * i - s * 0.15)
   return (
-    <g fontFamily="system-ui, sans-serif" textAnchor="middle">
+    <g fontFamily={LABEL_FONT} textAnchor="middle">
       <rect x={x - w / 2} y={z - h} width={w} height={h} rx={Math.min(h / 2, 1.1 * scale)} fill={bg} />
       {!middle && <path d={`M${x - 0.5 * scale} ${z}L${x} ${z + 0.6 * scale}L${x + 0.5 * scale} ${z}Z`} fill={bg} />}
       {lines.map((l, i) => (
-        <text key={i} x={x} y={baselines[i]} fontSize={sizes[i]} fontWeight={l.bold ? 700 : 500} fill={l.color ?? '#fff'}>
+        <text key={i} transform={`translate(${x} ${baselines[i]}) scale(${sizes[i] / LABEL_REF_PX})`} fontSize={LABEL_REF_PX} fontWeight={l.bold ? 700 : 500} fill={l.color ?? '#fff'}>
           {l.text}
         </text>
       ))}
