@@ -727,12 +727,12 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
       {flick.hit && <div style={{ ...flickToast, ...(benchSeated ? flickBelowOnline : null) }}>👉 {flick.hit.name}님이 딱밤으로 깨웠어요</div>}
 
       {(message || hint) && <div style={{ ...hintBox, ...(touch ? hintAboveControls : null) }}>{message || hint}</div>}
-      {/* 바로 앉기 (#116): 캠리단길에 도착하면 큰 버튼을 한 번, 그 뒤로는 메뉴에서. 폰은 공부를 못 하므로 없음 */}
+      {/* 바로 앉기 (#116): 바깥 공간(캠리단길·대학교·해변)에 서 있으면 큰 버튼을 늘 보여 주고(접을 수 있음), 메뉴에서도 엽니다. 폰은 공부를 못 하므로 없음 */}
       {session && !touch && (
         <QuickSeatControl
           myId={session.user.id}
           startRef={quickStart}
-          banner={world.id === 'plaza' && seat === null && panel === null && !overlay}
+          banner={seat === null && panel === null && !overlay}
           onDialogChange={setQuickOpen}
         />
       )}
