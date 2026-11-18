@@ -241,8 +241,9 @@ export function axisTicks(max: number): number[] {
   return Number.isInteger(max / 2) ? [0, max / 2, max] : [0, max]
 }
 
-// 중계 서버가 일부러 닫는 정상 재연결: 토큰 만료(4401, 화면이 새 토큰으로 다시 붙음), 다른 탭이 이어받음(4409). 에러로 세지 않음
-const EXPECTED_CLOSE = new Set([4401, 4409]) // relay/src/relayLogic.ts 의 CLOSE_TOKEN_EXPIRED, CLOSE_REPLACED
+// 중계 서버가 일부러 닫는 정상 재연결: 토큰 만료(4401, 화면이 새 토큰으로 다시 붙음), 다른 탭이 이어받음(4409),
+// 소식이 끊겨 정리됨(4408, 뚜껑을 닫았다 열면 남 — 화면이 다시 붙음). 에러로 세지 않음
+const EXPECTED_CLOSE = new Set([4401, 4408, 4409]) // relay/src/relayLogic.ts 의 CLOSE_TOKEN_EXPIRED, CLOSE_STALE, CLOSE_REPLACED
 export const shouldRecordClose = (code: number) => !EXPECTED_CLOSE.has(code)
 
 // 화면 오류가 아닌 거절: 소리 자동 재생 막힘(NotAllowedError), 취소한 요청(AbortError)

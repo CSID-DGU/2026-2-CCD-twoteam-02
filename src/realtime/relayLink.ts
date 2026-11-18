@@ -17,12 +17,14 @@ import { FLICK_EVENT, MOVE_EVENT, PLAY_EVENT, PROFILE_EVENT, SNAPSHOT_EVENT } fr
 import { sampledTime } from './walkLogic'
 import type { RoomLink, RoomLinkEvents } from './roomLink'
 import { recordError } from '../ops/collector'
+import { workerInterval } from '../lib/workerInterval'
 import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_FULL = 4503 // 서버가 방이 찼다고 닫을 때 쓰는 번호 (relay/src/relayLogic.ts)
 export const ROOM_FULL_STATUS = 'ROOM_FULL'
-const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다
+const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다. 서버는 75초 동안 소식이 없으면 끊는다(relayLogic.STALE_CONNECTION_MS)
+const SLEPT_GAP_MS = PING_INTERVAL_MS * 2 // 타이머가 이만큼 넘게 밀렸으면 기기가 잠들었던 것(뚜껑 닫음·절전)으로 본다
 const SILENCE_LIMIT_MS = 90000 // 이 시간 동안 아무 소식도 없으면 끊긴 것으로 본다
 
 export function relayUrl(): string | undefined {
@@ -34,13 +36,13 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
   let ws: WebSocket | null = null
   let ended = false // 끊김을 이미 알렸거나 정리했다
   let heardAt = 0
-  let pingTimer: ReturnType<typeof setInterval> | null = null
+  let stopPing: (() => void) | null = null
   const target = `room/${room.split(':')[0]}` // 운영 기록용 방 종류 (번호는 남기지 않음, #590)
 
   function end(status?: string) {
     if (ended) return
     ended = true
-    if (pingTimer) clearInterval(pingTimer)
+    stopPing?.()
     ws?.close()
     if (status) events.onStatus(status)
   }
@@ -76,13 +78,18 @@ export function openRelayLink(url: string, room: string, events: RoomLinkEvents,
     socket.onopen = () => {
       if (ended) return
       heardAt = Date.now()
-      pingTimer = setInterval(() => {
-        if (Date.now() - heardAt > SILENCE_LIMIT_MS) {
-          recordError({ kind: 'relay', code: 'TIMED_OUT', target })
+      // 워커 타이머: 일반 타이머는 탭이 숨은 지 5분 뒤 1분에 1번으로 느려져, 멀쩡한 사람이 서버에서 끊긴 것으로 보인다 (#417)
+      let tickAt = Date.now()
+      stopPing = workerInterval(PING_INTERVAL_MS, () => {
+        const now = Date.now()
+        const slept = now - tickAt > SLEPT_GAP_MS
+        tickAt = now
+        if (now - heardAt > SILENCE_LIMIT_MS) {
+          // 잠들었다 깬 것은 연결 문제가 아니므로 운영 기록에 남기지 않고 다시 연결만 함
+          if (!slept) recordError({ kind: 'relay', code: 'TIMED_OUT', target: target })
           end('TIMED_OUT')
-        }
-        else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
-      }, PING_INTERVAL_MS)
+        } else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
+      })
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)

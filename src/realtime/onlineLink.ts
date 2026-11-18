@@ -13,12 +13,14 @@
 import { supabase } from '../lib/supabase'
 import type { ChatIncoming, ChatPort } from './onlineContext'
 import { recordError } from '../ops/collector'
+import { workerInterval } from '../lib/workerInterval'
 import { shouldRecordClose } from '../ops/opsLogic'
 
 const SUBPROTOCOL = 'relay.v1'
 const CLOSE_REPLACED = 4409 // 같은 계정의 탭이 너무 많아 서버가 이 탭을 닫음 (relay/src/relayLogic.ts)
 export const REPLACED_STATUS = 'REPLACED'
-const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다
+const PING_INTERVAL_MS = 25000 // 살아 있다고 알리는 간격. 서버가 객체를 깨우지 않고 답한다. 서버는 75초 동안 소식이 없으면 끊는다(relayLogic.STALE_CONNECTION_MS)
+const SLEPT_GAP_MS = PING_INTERVAL_MS * 2 // 타이머가 이만큼 넘게 밀렸으면 기기가 잠들었던 것(뚜껑 닫음·절전)으로 본다
 const SILENCE_LIMIT_MS = 90000 // 이 시간 동안 아무 소식도 없으면 끊긴 것으로 본다
 const CHAT_ACK_MS = 5000 // 보낸 채팅의 전달 여부를 이만큼 기다린다. 넘으면 못 보낸 것으로 본다
 
@@ -41,7 +43,7 @@ export function openOnlineLink<Meta>(url: string, events: Events): OnlineLink<Me
   let ws: WebSocket | null = null
   let ended = false
   let heardAt = 0
-  let pingTimer: ReturnType<typeof setInterval> | null = null
+  let stopPing: (() => void) | null = null
   const list = new Map<string, { userId: string; meta: Meta }>() // 연결 번호 → 계정·상태
   const acks = new Map<number, (ok: boolean) => void>() // 보낸 채팅 번호 → 전달 여부를 기다리는 곳
   let chatSeq = 0
@@ -49,7 +51,7 @@ export function openOnlineLink<Meta>(url: string, events: Events): OnlineLink<Me
   function end(status?: Parameters<Events['onStatus']>[0]) {
     if (ended) return
     ended = true
-    if (pingTimer) clearInterval(pingTimer)
+    stopPing?.()
     ws?.close()
     for (const done of acks.values()) done(false)
     acks.clear()
@@ -93,13 +95,18 @@ export function openOnlineLink<Meta>(url: string, events: Events): OnlineLink<Me
     socket.onopen = () => {
       if (ended) return
       heardAt = Date.now()
-      pingTimer = setInterval(() => {
-        if (Date.now() - heardAt > SILENCE_LIMIT_MS) {
-          recordError({ kind: 'relay', code: 'TIMED_OUT', target: 'online' })
+      // 워커 타이머: 일반 타이머는 탭이 숨은 지 5분 뒤 1분에 1번으로 느려져, 멀쩡한 사람이 서버에서 끊긴 것으로 보인다 (#417)
+      let tickAt = Date.now()
+      stopPing = workerInterval(PING_INTERVAL_MS, () => {
+        const now = Date.now()
+        const slept = now - tickAt > SLEPT_GAP_MS
+        tickAt = now
+        if (now - heardAt > SILENCE_LIMIT_MS) {
+          // 잠들었다 깬 것은 연결 문제가 아니므로 운영 기록에 남기지 않고 다시 연결만 함
+          if (!slept) recordError({ kind: 'relay', code: 'TIMED_OUT', target: 'online' })
           end('TIMED_OUT')
-        }
-        else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
-      }, PING_INTERVAL_MS)
+        } else if (socket.readyState === WebSocket.OPEN) socket.send('ping')
+      })
       events.onStatus('SUBSCRIBED')
     }
     socket.onmessage = (event) => receive(event.data)
