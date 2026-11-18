@@ -114,7 +114,7 @@ export function SettingsView({ myId, onOpen }: { myId: string; onOpen: (view: Pa
             <span style={styles.label}>바로 앉기 최애 공간</span>
             <FavoritePlaceSetting />
           </div>
-          <span style={styles.help}>캠리단길에서 "바로 앉기"를 누르면 이 공간의 빈자리에 앉아 바로 공부를 시작해요. 지우면 누를 때 다시 골라요.</span>
+          <span style={styles.help}>캠리단길에서 "바로 앉기"를 누르면 이 공간의 빈자리에 앉아 바로 공부를 시작해요. 다른 공간으로 언제든 바꿀 수 있어요.</span>
         </div>
       )}
       {tab === 'keys' && <KeymapSettings />}

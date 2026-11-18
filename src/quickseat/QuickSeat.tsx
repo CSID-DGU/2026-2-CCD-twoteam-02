@@ -131,7 +131,7 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
             })}
             <label style={styles.remember}>
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={styles.check} />
-              다음부터 이 공간으로 바로 앉기 (설정에서 지울 수 있어요)
+              다음부터 이 공간으로 바로 앉기 (설정에서 바꿀 수 있어요)
             </label>
             <button type="button" style={styles.anyButton} onClick={() => choose(null)}>
               아무 데나 (사람이 있는 곳부터)
@@ -143,7 +143,8 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
   )
 }
 
-// 설정 창: 최애 공간 고르기·바꾸기·없애기 (없음이면 바로 앉기를 누를 때 고르는 창이 뜸)
+// 최애 공간 고르기·바꾸기. 한 번 고르면 다른 공간으로 바꿀 수만 있고 비울 수는 없습니다.
+// 아직 고른 적이 없으면 "공간 고르기"가 보이고(목록에는 안 나옴), 그동안은 바로 앉기를 누를 때 고르는 창이 뜹니다.
 export function FavoritePlaceSetting() {
   const { favorite, loaded, save } = useFavoritePlace()
   const [note, setNote] = useState('')
@@ -156,10 +157,16 @@ export function FavoritePlaceSetting() {
         value={value}
         disabled={!loaded}
         onChange={async (e) => {
-          setNote(await save(e.target.value === '' ? null : e.target.value))
+          if (e.target.value === '') return
+          setNote(await save(e.target.value))
         }}
       >
-        <option value="">{loaded ? '없음 (누를 때 골라요)' : '읽는 중…'}</option>
+        {/* 고른 공간이 없을 때만 보이는 자리 표시. disabled·hidden 이라 펼친 목록에서는 고를 수 없습니다 */}
+        {value === '' && (
+          <option value="" disabled hidden>
+            {loaded ? '공간 고르기' : '읽는 중…'}
+          </option>
+        )}
         {PLACE_GROUPS.map((g) => (
           <optgroup key={g.area} label={g.area}>
             {g.places.map((p) => (
