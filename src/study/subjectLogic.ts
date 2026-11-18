@@ -26,9 +26,15 @@ export const SUBJECT_TONES = {
   light: ['#f2d16b', '#f5b97a', '#e79ac0', '#b9a3e3', '#7fb3d5', '#86d0c8'],
   deep: ['#c9a23a', '#c8854f', '#c2578f', '#7f63c6', '#3f73b8', '#3f9a96'],
 }
-// 고르지 않은 과목에 붙이는 순서: 연한 색을 먼저 다 쓰고 진한 색. 이웃한 과목끼리 계열이 멀도록 파랑·주황·분홍·보라·노랑·청록 순서
-const HUE_ORDER = [4, 1, 2, 3, 0, 5]
-export const SUBJECT_PALETTE = [...HUE_ORDER.map((i) => SUBJECT_TONES.light[i]), ...HUE_ORDER.map((i) => SUBJECT_TONES.deep[i])]
+// 고르지 않은 과목에 붙이는 순서 (몇 번째 과목이 어떤 색인지).
+// 앞 8칸은 색을 고르기 전(#600 이전)의 순서 그대로입니다: 파랑·주황·(연두)·분홍·보라·노랑·청록·(연빨강).
+// 그때의 연두·연빨강 자리(3·8번째)만 진한 청록·진한 주황으로 바꿨습니다. 순서를 새로 짜면 3번째부터 모든 과목의 색이 바뀌기 때문입니다.
+// 9번째부터는 남은 진한 색. 예전에는 9번째부터 앞의 색이 다시 돌았습니다.
+const L = SUBJECT_TONES.light
+const D = SUBJECT_TONES.deep
+export const SUBJECT_PALETTE = [L[4], L[1], D[5], L[2], L[3], L[0], L[5], D[1], D[4], D[2], D[3], D[0]]
+// 새 과목에 자동으로 붙일 때 살펴보는 순서: 연한 색을 먼저 다 쓰고 진한 색 (nextSubjectColor)
+const NEW_SUBJECT_ORDER = [L[4], L[1], L[2], L[3], L[0], L[5], D[4], D[1], D[2], D[3], D[0], D[5]]
 export const DELETED_SUBJECT_COLOR = '#b8b8b8'
 const COLOR_FORMAT = /^#[0-9a-f]{6}$/ // DB 의 check(0074)와 같은 형식
 export const isSubjectColor = (color: string | null): color is string => color !== null && COLOR_FORMAT.test(color)
@@ -48,7 +54,7 @@ export function usedSubjectColors(list: Subject[], exceptId: number | null = nul
 // 새 과목에 미리 골라 둘 색: 쓰는 과목이 아직 안 쓴 색 중 첫 번째. 다 썼으면 과목 수로 돌려 씁니다.
 export function nextSubjectColor(list: Subject[]): string {
   const used = usedSubjectColors(list)
-  return SUBJECT_PALETTE.find((c) => !used.has(c)) ?? SUBJECT_PALETTE[list.length % SUBJECT_PALETTE.length]
+  return NEW_SUBJECT_ORDER.find((c) => !used.has(c)) ?? SUBJECT_PALETTE[list.length % SUBJECT_PALETTE.length]
 }
 
 // 기록의 과목 번호 → 이름. 번호가 비었거나(지운 과목) 목록에 없으면 "(지운 과목)"
