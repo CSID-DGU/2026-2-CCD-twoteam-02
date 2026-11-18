@@ -189,7 +189,7 @@ export function RecordsView() {
           ) : cells.length === 0 ? (
             <p style={styles.muted}>공부 흐름은 이 기능을 넣은 뒤의 기록부터 보여요.</p>
           ) : (
-            <DayBand cells={cells} nameOf={nameOf} dayStart={start.getTime()} onOpen={setOpenedRun} />
+            <DayBand cells={cells} nameOf={nameOf} subjectColor={(id) => subjectColorOf(subjects, id)} dayStart={start.getTime()} onOpen={setOpenedRun} />
           )}
         </section>
       )}
