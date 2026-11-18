@@ -8,7 +8,7 @@ import { useMyNickname } from '../auth/useMyNickname'
 import { BackLink } from '../menu/BackLink'
 import { useFriends } from './useFriends'
 import type { UserCard } from './useFriends'
-import { displayName, matchUsers, otherOf, relationOf, splitFriendships } from './friendsLogic'
+import { displayName, lastSeenLabel, matchUsers, otherOf, relationOf, splitFriendships } from './friendsLogic'
 import { useOnline } from '../realtime/onlineContext'
 import { placeLabel } from '../realtime/online'
 import { InviteButton } from '../meeting/InviteButton'
@@ -19,6 +19,8 @@ import { FollowButtons } from './FollowButtons'
 import { useIsGuest } from '../auth/useIsGuest'
 import { GuestOnly } from '../auth/GuestOnly'
 import type { OnlineEntry } from '../realtime/onlineContext'
+
+const NOW_TICK_MS = 60_000 // 마지막 접속 글("3분 전")을 다시 계산하는 간격
 
 // 친구 본문. 페이지(/friends)와 로비·지점 위 창이 같이 씁니다.
 // onOpenProfile 을 주면 이름을 눌렀을 때 페이지를 옮기지 않고 그 함수를 부릅니다(창 안에서 프로필 열기).
@@ -35,7 +37,7 @@ function FriendsBody({ onOpenProfile, invite }: ViewProps) {
   const { session } = useSession()
   const myId = session?.user.id ?? ''
   const { nickname: myNickname } = useMyNickname() // 닉네임 원본은 profiles 다
-  const { list, names, loading, error, reload, search, request, accept, remove } = useFriends(myId || undefined)
+  const { list, names, lastSeen, loading, error, reload, search, request, accept, remove } = useFriends(myId || undefined)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<UserCard[] | null>(null)
   const [message, setMessage] = useState('')
@@ -51,6 +53,12 @@ function FriendsBody({ onOpenProfile, invite }: ViewProps) {
   useEffect(() => {
     console.info('[접속진단] 친구 탭', '접속 목록', onlineKeys || '(없음)', '/ 친구', friendKeys || '(없음)')
   }, [onlineKeys, friendKeys])
+  // 마지막 접속 글("3분 전")의 기준 시각. 목록을 읽을 때와 1분마다 새로 잡습니다
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), NOW_TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
   const nameOf = (id: string) => displayName(names.get(id) ?? '…', id)
 
   // 버튼 하나를 누르는 동안 다른 버튼을 막고, 실패하면 안내를 띄웁니다.
@@ -159,7 +167,7 @@ function FriendsBody({ onOpenProfile, invite }: ViewProps) {
                   {online.get(otherOf(f, myId))?.studying ? ' · 공부 중' : ''}
                 </span>
               ) : (
-                <span style={styles.muted}>접속 안 함</span>
+                <span style={styles.muted}>{lastSeenLabel(lastSeen.get(otherOf(f, myId)), now)}</span>
               )}
               {invite &&
                 (invite.memberIds.includes(otherOf(f, myId)) ? (
