@@ -1,18 +1,19 @@
-// 내 과목 목록을 읽고, 추가·이름 수정·정리·꺼내기·삭제를 합니다. (#369)
+// 내 과목 목록을 읽고, 추가·이름 수정·색 바꾸기·정리·꺼내기·삭제를 합니다. (#369)
 // subjects 는 RLS 로 본인 것만 보이고 고칠 수 있습니다(0004). 정리한 과목(archived_at)도 같이 읽습니다.
 //
 // 같은 화면에 이 훅을 쓰는 곳이 여럿일 수 있어(공부 시작 창, 설정의 [과목] 탭, 내 기록),
 // 한 곳에서 바꾸면 changed() 로 알려 나머지도 다시 읽게 합니다.
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { checkSubjectName, subjectErrorText } from './subjectLogic'
+import { checkSubjectName, isSubjectColor, subjectErrorText } from './subjectLogic'
 import type { Subject } from './subjectLogic'
 
 export type { Subject } from './subjectLogic'
 export { SUBJECT_MAX } from './subjectLogic'
 
-type DbRow = { id: number; name: string; archived_at: string | null }
-const toSubject = (r: DbRow): Subject => ({ id: r.id, name: r.name, archivedAt: r.archived_at })
+type DbRow = { id: number; name: string; archived_at: string | null; color: string | null }
+const COLUMNS = 'id, name, archived_at, color' // color: 고른 과목 색 (0074)
+const toSubject = (r: DbRow): Subject => ({ id: r.id, name: r.name, archivedAt: r.archived_at, color: r.color })
 
 // 과목이 바뀌면 이 훅을 쓰는 모든 곳에 알립니다.
 const listeners = new Set<() => void>()
@@ -37,7 +38,7 @@ export function useSubjects(userId: string | undefined) {
     let cancelled = false
     supabase
       .from('subjects')
-      .select('id, name, archived_at')
+      .select(COLUMNS)
       .order('created_at')
       .then(({ data, error }) => {
         if (cancelled) return
@@ -55,16 +56,16 @@ export function useSubjects(userId: string | undefined) {
     }
   }, [userId, version])
 
-  // 성공하면 새 과목을, 실패하면 한국어 안내문을 돌려줍니다.
+  // 성공하면 새 과목을, 실패하면 한국어 안내문을 돌려줍니다. color 를 안 주면 색 칸을 비워 둡니다(만든 순서로 정함).
   const addSubject = useCallback(
-    async (rawName: string): Promise<Subject | string> => {
+    async (rawName: string, color: string | null = null): Promise<Subject | string> => {
       if (!userId) return '로그인이 필요합니다.'
       const invalid = checkSubjectName(rawName)
       if (invalid) return invalid
       const { data, error } = await supabase
         .from('subjects')
-        .insert({ user_id: userId, name: rawName.trim() })
-        .select('id, name, archived_at')
+        .insert({ user_id: userId, name: rawName.trim(), color: isSubjectColor(color) ? color : null })
+        .select(COLUMNS)
         .single()
       if (error) return subjectErrorText(error.code, error.message, '추가하지')
       const subject = toSubject(data as DbRow)
@@ -83,6 +84,16 @@ export function useSubjects(userId: string | undefined) {
     const { error } = await supabase.from('subjects').update({ name }).eq('id', id)
     if (error) return subjectErrorText(error.code, error.message, '바꾸지')
     setSubjects((list) => list.map((s) => (s.id === id ? { ...s, name } : s)))
+    changed()
+    return ''
+  }, [])
+
+  // 과목 색 바꾸기 (내 기록·플래너에 바로 반영)
+  const setColor = useCallback(async (id: number, color: string): Promise<string> => {
+    if (!isSubjectColor(color)) return '고를 수 없는 색이에요.'
+    const { error } = await supabase.from('subjects').update({ color }).eq('id', id)
+    if (error) return subjectErrorText(error.code, error.message, '바꾸지')
+    setSubjects((list) => list.map((s) => (s.id === id ? { ...s, color } : s)))
     changed()
     return ''
   }, [])
@@ -106,7 +117,7 @@ export function useSubjects(userId: string | undefined) {
     return ''
   }, [])
 
-  return { subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject }
+  return { subjects, loading, loadError, addSubject, renameSubject, setColor, setArchived, removeSubject }
 }
 
 export type SubjectsApi = ReturnType<typeof useSubjects>

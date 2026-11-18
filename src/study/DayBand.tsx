@@ -10,7 +10,7 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { LIGHT_COLOR } from '../space/status'
-import { KIND_LABEL, SUBJECT_COLORS, clock, formatSpan, isGreen, toRuns, totalsByKind } from './bandLogic'
+import { KIND_LABEL, clock, formatSpan, isGreen, toRuns, totalsByKind } from './bandLogic'
 import { DayClock } from './DayClock'
 import type { BandCell, BandRun } from './bandLogic'
 
@@ -25,18 +25,16 @@ const keyOf = (c: BandCell) => c.ids[0] // 칸의 첫 구간 번호. 다시 그�
 type DayProps = {
   cells: BandCell[]
   nameOf: (subjectId: number | null) => string
+  subjectColor: (subjectId: number | null) => string // 과목 색. 도넛·플래너와 같은 색(subjectLogic.subjectColorOf)
   dayStart: number
   onOpen: (run: number) => void // 공부 하나를 골라 그 공부의 화면(RunDetail)으로 (시작 시각)
 }
 
-export function DayBand({ cells, nameOf, dayStart, onOpen }: DayProps) {
+export function DayBand({ cells, nameOf, subjectColor, dayStart, onOpen }: DayProps) {
   const [hovered, setHovered] = useState<number | null>(null) // 강조할 공부(시작 시각)
   const runs = toRuns(cells)
   const totals = totalsByKind(cells)
   const focused = totals.find((t) => isGreen(t.kind))?.seconds ?? 0
-  // 과목 색: 그날 처음 나온 순서대로
-  const subjectIds = [...new Set(runs.map((r) => r.subjectId))]
-  const subjectColor = (id: number | null) => SUBJECT_COLORS[subjectIds.indexOf(id) % SUBJECT_COLORS.length]
   return (
     <div style={styles.wrap}>
       <DayClock

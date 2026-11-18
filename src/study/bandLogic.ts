@@ -24,9 +24,6 @@ export const KIND_LABEL: Record<SegmentKind, string> = {
 
 export const isGreen = (kind: SegmentKind) => kind === 'focus'
 
-// 하루 시계의 과목 색: 띠의 초록(집중)·빨강(멈춤)과 헷갈리지 않게 그 계열은 뺍니다.
-export const SUBJECT_COLORS = ['#3987e5', '#f59e0b', '#a78bfa', '#22d3ee', '#f472b6', '#facc15', '#94a3b8']
-
 // 이 차이(ms) 안으로 붙어 있으면 같은 칸으로 이어 봅니다. (저장 시각을 초 단위로 다루며 생기는 틈)
 const JOIN_MS = 1000
 

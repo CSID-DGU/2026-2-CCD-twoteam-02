@@ -67,7 +67,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
   const { face, pose, phone, status, message, errorName, retry } = useTracking(videoRef, { phone: choice !== null && !choice.allowDevices, paused: cameraOff })
   const cameraFailed = consentOk && status === 'error' // 웹캠을 못 켬 → 원인별 안내와 [다시 시도]
   const arms = useArmDirections(pose) // 떨림을 걸러낸 팔 방향 (다른 참여자에게 보냄)
-  const { subjects, loading, loadError, addSubject, renameSubject, setArchived, removeSubject } = useSubjects(userId)
+  const { subjects, loading, loadError, addSubject, renameSubject, setColor, setArchived, removeSubject } = useSubjects(userId)
   const { loans } = useLoans() // 빌린 책이 있으면 공부 시작 창에서 `+ 독서` 칩을 권함 (표가 없거나 읽기 실패면 빈 목록이라 칩만 빠짐)
   const [dialogOpen, setDialogOpen] = useState(true) // 앉자마자 공부 시작 창을 띄웁니다.
   // 보정: 처음 공부를 시작할 때 한 번 하고, 자리에 있는 동안 기준을 유지합니다. (과목을 바꿔도 다시 재지 않음)
@@ -153,6 +153,7 @@ export function SeatedStudy({ userId, sessionId, condition, onStatus, onDialogCh
           loadError={loadError}
           addSubject={addSubject}
           renameSubject={renameSubject}
+          setColor={setColor}
           setArchived={setArchived}
           removeSubject={removeSubject}
           rules={rules}

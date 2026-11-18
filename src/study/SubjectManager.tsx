@@ -1,22 +1,25 @@
-// 과목 관리 (#369): 이름 바꾸기, 정리·꺼내기, 지우기.
+// 과목 관리 (#369): 이름 바꾸기, 색 바꾸기, 정리·꺼내기, 지우기.
 // 공부 시작 창의 "과목 관리"와 설정의 [과목] 탭이 같이 씁니다.
 //   쓰는 과목    공부 시작 창에 보이는 과목
 //   정리한 과목  공부 시작 창에서 빠진 과목. 내 기록에는 이름 그대로 남고, [꺼내기]로 되돌림
+//   색          이름 앞 동그라미를 누르면 색 목록이 펴지고, 고르면 내 기록·플래너에 바로 반영
 //   지우기      공부 시간은 남고 이름만 없어짐 (내 기록에서는 "(지운 과목)"). 누르면 한 번 더 확인
 import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import { useSession } from '../auth/useSession'
 import { useSubjects } from './useSubjects'
 import type { SubjectsApi } from './useSubjects'
-import { SUBJECT_MAX, activeSubjects, archivedSubjects, checkSubjectName } from './subjectLogic'
+import { SUBJECT_MAX, activeSubjects, archivedSubjects, checkSubjectName, subjectColorOf, usedSubjectColors } from './subjectLogic'
+import { SubjectColorDots } from './SubjectColorDots'
 import type { Subject } from './subjectLogic'
 
-type Props = Pick<SubjectsApi, 'subjects' | 'loading' | 'loadError' | 'renameSubject' | 'setArchived' | 'removeSubject'>
+type Props = Pick<SubjectsApi, 'subjects' | 'loading' | 'loadError' | 'renameSubject' | 'setColor' | 'setArchived' | 'removeSubject'>
 
-export function SubjectManager({ subjects, loading, loadError, renameSubject, setArchived, removeSubject }: Props) {
+export function SubjectManager({ subjects, loading, loadError, renameSubject, setColor, setArchived, removeSubject }: Props) {
   const [editing, setEditing] = useState<number | null>(null) // 이름을 고치는 과목
   const [draft, setDraft] = useState('')
   const [confirming, setConfirming] = useState<number | null>(null) // 지우기 확인 중인 과목
+  const [coloring, setColoring] = useState<number | null>(null) // 색 목록을 펴 둔 과목
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -96,8 +99,19 @@ export function SubjectManager({ subjects, loading, loadError, renameSubject, se
         </div>
       )
     }
+    const color = subjectColorOf(subjects, s.id)
     return (
-      <div key={s.id} style={styles.row}>
+      <div key={s.id} style={styles.block}>
+      <div style={styles.row}>
+        <button
+          type="button"
+          style={{ ...styles.swatch, background: color }}
+          aria-label={`${s.name} 색 바꾸기`}
+          title="색 바꾸기"
+          aria-expanded={coloring === s.id}
+          disabled={busy}
+          onClick={() => setColoring(coloring === s.id ? null : s.id)}
+        />
         <span style={{ ...styles.name, ...(archived ? styles.dim : null) }}>{s.name}</span>
         <button type="button" style={styles.small} disabled={busy} onClick={() => startEdit(s)}>
           이름 바꾸기
@@ -117,6 +131,21 @@ export function SubjectManager({ subjects, loading, loadError, renameSubject, se
         >
           지우기
         </button>
+      </div>
+      {coloring === s.id && (
+        <div style={styles.colors}>
+          <SubjectColorDots
+            value={color}
+            used={usedSubjectColors(subjects, s.id)}
+            disabled={busy}
+            onPick={(c) =>
+              void run(() => setColor(s.id, c)).then((message) => {
+                if (message === '') setColoring(null)
+              })
+            }
+          />
+        </div>
+      )}
       </div>
     )
   }
@@ -153,6 +182,9 @@ const styles: Record<string, CSSProperties> = {
   hint: { color: '#aab0bb', fontSize: 12 },
   error: { color: '#f87171', fontSize: 13 },
   row: { display: 'flex', alignItems: 'center', gap: 4 },
+  block: { display: 'flex', flexDirection: 'column', gap: 4 },
+  swatch: { width: 16, height: 16, padding: 0, marginRight: 4, borderRadius: 8, border: '1px solid rgba(255,255,255,.5)', cursor: 'pointer', flexShrink: 0 },
+  colors: { padding: '2px 0 4px 24px' },
   name: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   dim: { color: '#9aa1ab' },
   input: { flex: 1, minWidth: 0, padding: '4px 8px', borderRadius: 6, border: '1px solid #4b5563', background: '#111318', color: '#fff', font: 'inherit' },
