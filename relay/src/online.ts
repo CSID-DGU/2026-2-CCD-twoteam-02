@@ -17,6 +17,10 @@
 //
 // 잠들기·요금은 위치 방(room.ts)과 같다. 상태는 들어올 때와 바뀔 때만 오므로 객체는 대부분 잠들어 있다.
 //
+// 죽은 연결 정리 (#417): 뚜껑을 닫은 노트북은 나간다는 말을 못 하고 연결만 조용해진다.
+// 정리(sweep)를 누가 들어오거나 상태가 바뀔 때만 하면, 조용한 동안 그 사람이 계속 접속 중으로 남는다.
+// 그래서 연결이 하나라도 있는 동안 1분마다 알람(alarm)으로 깨어나 정리한다. 아무도 없으면 알람을 다시 걸지 않는다.
+//
 // 채널 배정 (#481): 채널은 장소를 모두 포함한 세계라 인원을 채널 전체로 센다. 탭마다 올린 채널 번호를 가진 곳이
 // 여기뿐이라 배정도 여기서 한다(POST /assign, index.ts 의 GET /channels 가 넘겨줌).
 // 상태를 올리지 않은 연결은 명단에 넣지 않는다(화면은 연결하자마자 올린다).
@@ -27,7 +31,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import {
   CLOSE_FULL, CLOSE_NOT_TEXT, CLOSE_REPLACED, CLOSE_STALE, CLOSE_TOKEN_EXPIRED, CLOSE_TOO_BIG, CLOSE_TOO_FAST,
-  STALE_CONNECTION_MS, SWEEP_INTERVAL_MS, countMessage, flushDelay,
+  ONLINE_SWEEP_ALARM_MS, STALE_CONNECTION_MS, SWEEP_INTERVAL_MS, countMessage, flushDelay,
 } from './relayLogic'
 import type { RateWindow } from './relayLogic'
 import { assignChannel, AUTO_FILL, CHANNEL_CAPACITY, channelCounts, channelTally, TOTAL_CAPACITY, totalCount } from './relayLogic'
@@ -128,6 +132,7 @@ export class OnlineRoom extends DurableObject<RelayEnv> {
       return respond()
     }
     this.ctx.acceptWebSocket(server)
+    this.ctx.waitUntil(this.ensureAlarm())
 
     const mine = sockets.filter((ws) => this.attachmentOf(ws)?.userId === userId)
     if (mine.length >= ONLINE_MAX_PER_USER) {
@@ -140,6 +145,18 @@ export class OnlineRoom extends DurableObject<RelayEnv> {
     const token = request.headers.get(TOKEN_HEADER)
     if (token) this.ctx.waitUntil(this.loadPeers(userId, token))
     return respond()
+  }
+
+  // 정리 알람이 걸려 있지 않으면 건다 (첫 사람이 들어올 때, 배포로 알람이 끊긴 뒤)
+  private async ensureAlarm() {
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + ONLINE_SWEEP_ALARM_MS)
+  }
+
+  // 1분마다: 소식이 끊긴 연결을 닫아 접속 명단에서 뺀다. 연결이 남아 있으면 다음 알람을 건다
+  async alarm(): Promise<void> {
+    const now = Date.now()
+    this.sweep(now)
+    if (this.ctx.getWebSockets().length > 0) await this.ctx.storage.setAlarm(now + ONLINE_SWEEP_ALARM_MS)
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {

@@ -17,7 +17,13 @@ export const MAX_CONNECTIONS_PER_USER = 3 // 한 사람이 한 방에 동시에 
 export const MAX_MESSAGE_BYTES = 2048 // 메시지 하나의 크기 상한. 걷는 사람의 위치 메시지는 약 200바이트다
 export const SOFT_MESSAGES_PER_SEC = 10 // 연결당 초당 이만큼까지 처리한다. 넘은 메시지는 버린다 (앱은 초당 4회)
 export const HARD_MESSAGES_PER_SEC = 40 // 이만큼 넘게 보내면 연결을 끊는다
-export const STALE_CONNECTION_MS = 120000 // 이 시간 동안 메시지도 ping 도 없는 연결은 죽은 것으로 보고 닫는다 (탭이 숨으면 타이머가 1분에 1번까지 느려진다)
+// 이 시간 동안 메시지도 ping 도 없는 연결은 죽은 것으로 보고 닫는다 (#417).
+// 화면은 25초마다 ping 을 보내고, 숨은 탭에서도 늦어지지 않게 워커 타이머로 보낸다(3번 놓치면 끊김).
+// 예전 화면(일반 타이머)은 숨은 지 5분 뒤 ping 이 1분에 1번까지 느려지므로 60초보다는 넉넉히 둔다.
+export const STALE_CONNECTION_MS = 75000
+// 접속 표시 방이 죽은 연결을 스스로 찾는 간격 (#417). 이 방은 상태가 바뀔 때만 깨어나, 조용하면 뚜껑을 닫은 사람이 계속 접속 중으로 남았다.
+// 알람 1회가 저장소 쓰기 1건이다. 방이 하나뿐이라 하루 최대 1440건(무료 한도 10만). 위치 방은 위치 신호가 계속 와서 쓰지 않는다.
+export const ONLINE_SWEEP_ALARM_MS = 60000
 export const SWEEP_INTERVAL_MS = 15000 // 죽은 연결을 찾는 간격. 내보낼 때 곁들여 하므로 따로 깨우지 않는다
 
 const MAX_SHORT_TEXT = 32 // status·emote 같은 짧은 글자의 길이 상한
