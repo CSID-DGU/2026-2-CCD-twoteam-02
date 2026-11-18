@@ -131,13 +131,23 @@ export function useFavoritePlace() {
   }, [myId])
 
   // 저장(null 이면 지우기). 성공하면 '', 실패하면 안내문
+  // 고른 값을 화면에 먼저 반영하고 DB 답을 기다립니다. 답이 늦으면 목록이 예전 값에 멈춰 있어 여러 번 누르게 되기 때문입니다.
+  // 실패하면 되돌리되, 그 사이 다른 값을 또 골랐으면(cached 가 바뀜) 건드리지 않습니다.
   const save = useCallback(
     async (key: string | null) => {
       if (!myId) return '로그인이 필요합니다.'
-      const { error } = await supabase.from('profiles').update({ favorite_place: key }).eq('id', myId)
-      if (error) return `최애 공간을 저장하지 못했어요: ${error.message}`
-      cached = { userId: myId, favorite: key }
+      const before = cached
+      const mine: Mine = { userId: myId, favorite: key }
+      cached = mine
       emitFav()
+      const { error } = await supabase.from('profiles').update({ favorite_place: key }).eq('id', myId)
+      if (error) {
+        if (cached === mine) {
+          cached = before
+          emitFav()
+        }
+        return `최애 공간을 저장하지 못했어요: ${error.message}`
+      }
       return ''
     },
     [myId],
