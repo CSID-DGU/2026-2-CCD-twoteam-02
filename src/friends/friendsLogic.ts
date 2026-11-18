@@ -4,6 +4,26 @@
 
 export const TAG_LENGTH = 4
 
+// 마지막 접속 글의 구간 (lastSeenLabel)
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+const JUST_NOW_MS = 2 * MINUTE_MS // 접속 신호가 1분마다라, 이 안이면 "방금 전"
+const DATE_AFTER_DAYS = 7 // 이보다 오래됐으면 "N일 전" 대신 날짜
+
+// 접속하지 않은 친구 옆에 보일 글. 기록이 없으면(0073 적용 뒤 접속한 적 없음) "접속 안 함"
+export function lastSeenLabel(lastSeenMs: number | undefined, nowMs: number): string {
+  if (lastSeenMs === undefined || !Number.isFinite(lastSeenMs)) return '접속 안 함'
+  const ago = Math.max(0, nowMs - lastSeenMs)
+  if (ago < JUST_NOW_MS) return '마지막 접속 방금 전'
+  if (ago < HOUR_MS) return `마지막 접속 ${Math.floor(ago / MINUTE_MS)}분 전`
+  if (ago < DAY_MS) return `마지막 접속 ${Math.floor(ago / HOUR_MS)}시간 전`
+  if (ago < DATE_AFTER_DAYS * DAY_MS) return `마지막 접속 ${Math.floor(ago / DAY_MS)}일 전`
+  const d = new Date(lastSeenMs)
+  const year = d.getFullYear() === new Date(nowMs).getFullYear() ? '' : `${d.getFullYear()}년 `
+  return `마지막 접속 ${year}${d.getMonth() + 1}월 ${d.getDate()}일`
+}
+
 export type Friendship = {
   id: number
   requesterId: string

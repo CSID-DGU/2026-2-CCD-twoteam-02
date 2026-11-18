@@ -1,5 +1,6 @@
 // 내 친구 관계를 읽고, 요청·수락·삭제·검색을 합니다.
 // friendships 는 RLS 로 내가 들어간 줄만 보이고(0012), 닉네임은 avatars 뷰에서 읽습니다.
+// 친구의 마지막 접속 시각은 DB 함수 friends_last_seen(0073)으로 읽습니다(수락된 친구만 돌려줌).
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseQuery } from './friendsLogic'
@@ -7,6 +8,7 @@ import type { Friendship } from './friendsLogic'
 
 export type UserCard = { id: string; nickname: string }
 
+type LastSeenRow = { user_id: string; last_seen_at: string }
 type FriendshipRow = { id: number; requester_id: string; addressee_id: string; status: 'pending' | 'accepted' }
 
 const SEARCH_LIMIT = 20
@@ -21,6 +23,7 @@ function toMessage(code: string | undefined, fallback: string) {
 export function useFriends(myId: string | undefined) {
   const [list, setList] = useState<Friendship[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map()) // 계정 번호 → 닉네임
+  const [lastSeen, setLastSeen] = useState<Map<string, number>>(new Map()) // 계정 번호 → 마지막 접속 시각(ms). 기록이 없는 친구는 빠져 있음
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0) // 올리면 다시 읽습니다. (새로고침 버튼, 요청·수락·삭제 뒤)
@@ -53,9 +56,18 @@ export function useFriends(myId: string | undefined) {
         const { data: people } = await supabase.from('avatars').select('id, nickname').in('id', ids)
         for (const p of (people ?? []) as UserCard[]) map.set(p.id, p.nickname)
       }
+      // 마지막 접속 시각. 못 읽어도(0073 실행 전: PGRST202) 목록은 그대로 보여 주고 "접속 안 함"으로 둡니다
+      const seen = new Map<string, number>()
+      const { data: seenRows, error: seenError } = await supabase.rpc('friends_last_seen')
+      if (seenError) console.warn('친구의 마지막 접속 시각을 읽지 못했습니다(0073 마이그레이션 확인):', seenError.message)
+      for (const r of (seenRows ?? []) as LastSeenRow[]) {
+        const ms = Date.parse(r.last_seen_at)
+        if (Number.isFinite(ms)) seen.set(r.user_id, ms)
+      }
       if (cancelled) return
       setList(rows)
       setNames(map)
+      setLastSeen(seen)
       setError('')
       setLoading(false)
     }
@@ -115,5 +127,5 @@ export function useFriends(myId: string | undefined) {
     [reload],
   )
 
-  return { list, names, loading, error, reload, search, request, accept, remove }
+  return { list, names, lastSeen, loading, error, reload, search, request, accept, remove }
 }
