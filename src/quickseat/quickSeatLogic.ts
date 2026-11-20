@@ -5,6 +5,7 @@
 //                 닫힌 지점(레트로카페·흑요 라운지·월넛 바, 0049)은 건물이 없어 빠집니다.
 //                 키오스크 지점(Cam Study Cafe)은 이용권이 있어야 앉으므로 1차에서는 뺍니다(팀 논의 중).
 //   countByPlace  접속 상태(online)에서 공간마다 몇 명이 있는지. 나는 뺍니다.
+//   countByKey    고르는 창의 줄마다 보여 줄 인원. 바깥 공부 자리는 앉은 사람만 셉니다.
 //   choosePlace   어디로 갈지. 최애가 있으면 그곳. 없으면 사람이 있는 공간 중 자리가 남은 곳에서 하나(랜덤),
 //                 그런 곳이 없으면 아무 곳(랜덤). 서비스 취지가 "같이 공부하는 긴장감"이라 아무도 없는 곳보다 사람이 있는 곳을 고릅니다.
 //   pickSpot      빈자리 중 하나를 랜덤으로. 이미 시도해 실패한 자리는 뺍니다.
@@ -19,6 +20,8 @@ export type QuickPlace = {
   place: string // 접속 상태(online)의 "있는 곳" 이름 (인원을 셀 때)
   route: string // 주소 (지점은 /space?branch=slug, 바깥은 월드 주소)
   seats: number // 공부 자리 수
+  // 바깥 공부 자리만: DB 지점 slug 와 이 줄에 속한 DB 좌석 번호. 캠리단길 벤치·캠프파이어는 같은 지점(plaza)의 다른 번호
+  outside?: { slug: string; seatNos: number[] }
 }
 
 // outside: 바깥 공부 자리 목록(앞에 둠). open: 월드에 건물로 서 있는 지점 slug (위층 포함)
@@ -38,13 +41,32 @@ export function countByPlace(entries: Iterable<[string, { place: string }]>, myI
   return counts
 }
 
+// 줄(key)마다 보여 줄 인원. 지점은 그 안에 있는 사람 수(online), 바깥 공부 자리는 그 자리에 앉은 사람 수(DB 좌석)입니다.
+// 바깥 자리를 online 으로 세면 월드를 돌아다니는 사람이 벤치·캠프파이어 줄에 모두 겹쳐 셉니다.
+// occupied: DB 지점 slug → 이용 중인 좌석 번호. 아직 못 읽은 지점은 결과에 넣지 않습니다(화면은 인원을 비워 둠)
+export function countByKey(places: QuickPlace[], online: Map<string, number>, occupied: Record<string, number[]>): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const p of places) {
+    if (!p.outside) {
+      counts.set(p.key, online.get(p.place) ?? 0)
+      continue
+    }
+    const taken = occupied[p.outside.slug]
+    if (!taken) continue
+    const mine = new Set(p.outside.seatNos)
+    counts.set(p.key, taken.filter((no) => mine.has(no)).length)
+  }
+  return counts
+}
+
 const pick = <T>(list: T[], random: () => number): T | null => (list.length === 0 ? null : list[Math.min(list.length - 1, Math.floor(random() * list.length))])
 
+// counts: 줄(key)마다의 인원 (countByKey)
 export function choosePlace(favorite: string | null, places: QuickPlace[], counts: Map<string, number>, random: () => number = Math.random): QuickPlace | null {
   const fav = favorite === null ? undefined : places.find((p) => p.key === favorite)
   if (fav) return fav
   const lively = places.filter((p) => {
-    const n = counts.get(p.place) ?? 0
+    const n = counts.get(p.key) ?? 0
     return n > 0 && n < p.seats
   })
   return pick(lively, random) ?? pick(places, random)

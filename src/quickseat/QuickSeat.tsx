@@ -6,10 +6,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { useOnline } from '../realtime/onlineContext'
-import { choosePlace, countByPlace, isValidPlace } from './quickSeatLogic'
+import { choosePlace, countByKey, countByPlace, isValidPlace } from './quickSeatLogic'
 import type { QuickPlace } from './quickSeatLogic'
-import { useFavoritePlace, useGoQuickSeat } from './useQuickSeat'
-import { PLACES, PLACE_GROUPS } from './places'
+import { useFavoritePlace, useGoQuickSeat, useOutsideSeated } from './useQuickSeat'
+import { OUTSIDE_SLUGS, PLACES, PLACE_GROUPS } from './places'
 
 const FOLDED_KEY = 'dooteum.quickSeatFolded' // 배너를 접어 두었는지 (sessionStorage: 다른 공간으로 옮겨도 접힌 채로, 탭을 닫으면 지워짐)
 
@@ -38,10 +38,13 @@ type Props = {
 
 export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Props) {
   const online = useOnline()
-  const counts = useMemo(() => countByPlace(online, myId), [online, myId])
+  const onlineCounts = useMemo(() => countByPlace(online, myId), [online, myId]) // 있는 곳(월드·지점)마다 접속한 사람 수
   const { favorite, loaded, save } = useFavoritePlace()
   const go = useGoQuickSeat()
   const [open, setOpen] = useState(false)
+  // 줄마다 보여 줄 인원. 바깥 공부 자리는 돌아다니는 사람이 아니라 그 자리에 앉은 사람만 셉니다(창을 열 때 다시 읽음)
+  const seated = useOutsideSeated(OUTSIDE_SLUGS, open)
+  const counts = useMemo(() => countByKey(PLACES, onlineCounts, seated), [onlineCounts, seated])
   const [folded, setFoldedState] = useState(readFolded) // 접어 두었는지 (작은 버튼만 보임)
   const setFolded = (on: boolean) => {
     setFoldedState(on)
@@ -108,7 +111,7 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
             </div>
             {/* 구역(캠리단길·캠빛 대학교·캠빛 해변)별로 묶어 보여 줍니다. 인원은 구역 이름 옆에 합쳐서도 보여 줌 */}
             {PLACE_GROUPS.map((g) => {
-              const total = [...new Set(g.places.map((p) => p.place))].reduce((sum, place) => sum + (counts.get(place) ?? 0), 0) // 벤치·캠프파이어는 같은 장소라 한 번만 셈
+              const total = [...new Set(g.places.map((p) => p.place))].reduce((sum, place) => sum + (onlineCounts.get(place) ?? 0), 0) // 구역 합계는 그 구역에 있는 사람 모두(돌아다니는 사람 포함). 벤치·캠프파이어는 같은 장소라 한 번만 셈
               return (
                 <section key={g.area} style={styles.group}>
                   <div style={styles.groupHead}>
@@ -117,11 +120,11 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
                   </div>
                   <div style={styles.list}>
                     {g.places.map((p) => {
-                      const n = counts.get(p.place) ?? 0
+                      const n = counts.get(p.key) // 바깥 자리는 DB 에서 읽기 전이면 없음 (인원을 비워 둠)
                       return (
                         <button key={p.key} type="button" style={styles.item} onClick={() => choose(p)}>
                           <span>{p.short}</span>
-                          <span style={styles.count}>{n > 0 ? `${n}명` : '비어 있음'}</span>
+                          <span style={styles.count}>{n === undefined ? '' : n > 0 ? `${n}명` : '비어 있음'}</span>
                         </button>
                       )
                     })}
