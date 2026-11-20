@@ -4,6 +4,7 @@
 // 고르는 창·설정에서는 구역(캠리단길·캠빛 대학교·캠빛 해변)별로 묶어 보여 줍니다(PLACE_GROUPS). 위치를 잘 몰라도 고르기 쉽게
 import { BRANCH_LAYOUTS } from '../space/branches'
 import { BEACH_WORLD, CAMPUS_WORLD, PLAZA_WORLD, computedOf } from '../world/worldConfig'
+import { benchSeatNumber } from '../world/worldLogic'
 import { quickPlaces } from './quickSeatLogic'
 import type { QuickPlace } from './quickSeatLogic'
 
@@ -11,11 +12,20 @@ export const PLAZA_CAMPFIRE_KEY = 'plaza-campfire' // 캠리단길 캠프파이�
 
 const WORLDS = [PLAZA_WORLD, CAMPUS_WORLD, BEACH_WORLD]
 const plaza = computedOf(PLAZA_WORLD)
+// 자리 목록 → DB 좌석 번호 (Player 자리 번호에서 BENCH_SEAT_BASE 를 뺀 값). 인원을 앉은 사람으로 셀 때 씁니다
+const seatNosOf = (spots: { no: number }[]) => spots.map((s) => benchSeatNumber(s.no))
+const campfireNos = new Set(seatNosOf(plaza.campfireSpots))
+const benchNos = seatNosOf(plaza.studySpots).filter((no) => !campfireNos.has(no))
 const outside: QuickPlace[] = [
-  { key: PLAZA_WORLD.id, label: `${PLAZA_WORLD.title} ${PLAZA_WORLD.study.label}`, place: PLAZA_WORLD.place, route: PLAZA_WORLD.path, seats: plaza.studySpots.length - plaza.campfireSpots.length },
-  { key: PLAZA_CAMPFIRE_KEY, label: `${PLAZA_WORLD.title} 캠프파이어`, place: PLAZA_WORLD.place, route: PLAZA_WORLD.path, seats: plaza.campfireSpots.length },
-  ...[CAMPUS_WORLD, BEACH_WORLD].map((w) => ({ key: w.id, label: `${w.title} ${w.study.label}`, place: w.place, route: w.path, seats: computedOf(w).studySpots.length })),
+  { key: PLAZA_WORLD.id, label: `${PLAZA_WORLD.title} ${PLAZA_WORLD.study.label}`, place: PLAZA_WORLD.place, route: PLAZA_WORLD.path, seats: benchNos.length, outside: { slug: PLAZA_WORLD.study.slug, seatNos: benchNos } },
+  { key: PLAZA_CAMPFIRE_KEY, label: `${PLAZA_WORLD.title} 캠프파이어`, place: PLAZA_WORLD.place, route: PLAZA_WORLD.path, seats: campfireNos.size, outside: { slug: PLAZA_WORLD.study.slug, seatNos: [...campfireNos] } },
+  ...[CAMPUS_WORLD, BEACH_WORLD].map((w) => {
+    const seatNos = seatNosOf(computedOf(w).studySpots)
+    return { key: w.id, label: `${w.title} ${w.study.label}`, place: w.place, route: w.path, seats: seatNos.length, outside: { slug: w.study.slug, seatNos } }
+  }),
 ]
+// 바깥 공부 자리가 있는 DB 지점 slug (plaza·campus·beach). 앉은 사람 수를 읽을 때 씁니다
+export const OUTSIDE_SLUGS = WORLDS.map((w) => w.study.slug)
 // 월드에 서 있는 건물의 지점(위층 포함). 닫힌 지점은 건물이 없습니다
 const open = new Set(WORLDS.flatMap((w) => computedOf(w).placed.flatMap((b) => b.floors.map((f) => f.slug))))
 

@@ -5,8 +5,9 @@
 //   useQuickSeatArrival  광장·지점 화면이 씁니다. 요청이 이 공간 것이면 빈자리 하나를 골라 DB 에 잡고(claim),
 //                  내 캐릭터를 그 자리로 옮깁니다(Player 의 teleportRef). 자리 앞에 서면 Player 가 E 없이 앉힙니다(sitRef).
 //                  같은 순간 다른 사람이 앉아 거절되면 다른 자리로 몇 번 더 해 봅니다.
+//   useOutsideSeated  바깥 공부 자리(벤치·캠프파이어·빈백·비치체어)에 지금 앉은 좌석 번호를 DB 에서 읽습니다. 고르는 창의 인원 표시용.
 //   useFavoritePlace  내 최애 공간(profiles.favorite_place)을 읽고 바꿉니다. 한 번 읽은 값은 화면을 옮겨도 기억합니다.
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
@@ -14,6 +15,7 @@ import { useSession } from '../auth/useSession'
 import { MAX_SEAT_TRIES, REQUEST_TTL_MS, pickSpot } from './quickSeatLogic'
 import type { QuickPlace } from './quickSeatLogic'
 import type { Teleport } from '../friends/useFollow'
+import { useMyChannel } from '../realtime/myChannel'
 
 // ── 요청 저장소 ─────────────────────────────────────────────
 type Request = { key: string; at: number }
@@ -91,6 +93,51 @@ export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf
       latest.current.onResult(false)
     })()
   }, [req, mine, ready, teleportRef])
+}
+
+// ── 바깥 자리에 앉은 사람 ───────────────────────────────────
+// 접속 상태(online)는 "어느 월드에 있는지"만 알려 줘서, 돌아다니는 사람과 앉은 사람을 구분하지 못합니다.
+// 그래서 바깥 공부 자리의 인원은 DB 의 이용 중인 좌석(occupied_seat_numbers, 0067)으로 셉니다. 좌석은 채널마다 따로라 내 채널 것만 봅니다.
+// slugs: DB 지점 slug (plaza·campus·beach). refresh: 값이 바뀔 때마다 다시 읽습니다(고르는 창을 열 때).
+// 결과는 { slug: 이용 중인 좌석 번호 }. 아직 못 읽었거나 실패한 지점은 빠져 있습니다.
+let outsideIds: Map<string, number> | null = null // slug → 지점 번호. 바뀌지 않으므로 한 번만 읽습니다
+
+export function useOutsideSeated(slugs: string[], refresh: unknown): Record<string, number[]> {
+  const channel = useMyChannel() ?? 1
+  const [seated, setSeated] = useState<Record<string, number[]>>({})
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      if (!outsideIds) {
+        const { data, error } = await supabase.from('branches').select('id, slug').in('slug', slugs)
+        if (error) {
+          console.error('바깥 자리 지점을 불러오지 못했습니다:', error.message)
+          return
+        }
+        outsideIds = new Map((data ?? []).map((b) => [b.slug as string, b.id as number]))
+      }
+      const ids = outsideIds
+      const rows = await Promise.all(
+        slugs.map(async (slug): Promise<[string, number[]] | null> => {
+          const id = ids.get(slug)
+          if (id === undefined) return null
+          const { data, error } = await supabase.rpc('occupied_seat_numbers', { p_branch_id: id, ...(channel > 1 ? { p_channel: channel } : {}) }) // 1채널은 예전 호출 그대로 (KioskScreen 과 같음)
+          if (error) {
+            console.error('바깥 자리 이용 현황을 불러오지 못했습니다:', error.message)
+            return null
+          }
+          return [slug, (data ?? []) as number[]]
+        }),
+      )
+      if (alive) setSeated(Object.fromEntries(rows.filter((r) => r !== null)))
+    })()
+    return () => {
+      alive = false
+    }
+  }, [slugs, channel, refresh])
+
+  return seated
 }
 
 // ── 최애 공간 ───────────────────────────────────────────────
