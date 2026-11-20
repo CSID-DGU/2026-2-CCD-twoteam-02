@@ -123,7 +123,8 @@ function Tent({ t }: { t: Props['tents'][number] }) {
       <mesh position-y={h - 0.1} material={colorMat(t.color)}>
         <boxGeometry args={[S + 0.04, 0.2, S + 0.04]} />
       </mesh>
-      <mesh position={[0, h - 0.1, S / 2 + 0.03]}>
+      {/* 지붕 처마(S/2 + 0.035)보다 앞에 둠: 뒤에 있으면 처마 끝이 간판을 가로질러 글자에 선이 생김 */}
+      <mesh position={[0, h - 0.1, S / 2 + 0.06]}>
         <planeGeometry args={[S - 0.5, (S - 0.5) * (96 / 512) * 0.9]} />
         <meshBasicMaterial map={tentSignTexture(t.text, t.color)} />
       </mesh>
