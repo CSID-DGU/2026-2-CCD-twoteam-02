@@ -18,6 +18,7 @@ export const STORE_PREFIX = "survey:v1:"; // 브라우저 저장소 키 앞부�
 export type Scale =
   | { kind: "likert"; min: number; max: number; labels: Record<number, string> } // 라벨은 양 끝·중간만 있어도 됨
   | { kind: "choice"; options: string[] }
+  | { kind: "number"; unit: string; max: number } // 숫자 입력 (0 ~ max). unit 은 칸 옆에 붙는 단위 (원, 분, 회, 시간)
   | { kind: "text" };
 
 export type Item = {
@@ -28,6 +29,7 @@ export type Item = {
   intro?: string; // 질문 앞에 상자로 따로 보여 줄 설명 (예: 바디더블링 정의). 질문과 섞이지 않게 (팀 피드백 2026-10-26)
   textByPhase?: Partial<Record<Phase, string>>; // 시점별로 다른 문장이 있으면 이것이 우선 (예: B 조건은 상대가 없어 문장을 바꿈)
   phases?: Phase[]; // 적으면 그 시점에만 보여 줍니다. 없으면 모든 시점
+  optional?: boolean; // 비워도 다음으로 넘어갈 수 있는 문항 (해당하지 않는 사람이 있는 문항)
 };
 export type Group = {
   id: string;
@@ -76,9 +78,25 @@ export function upsertAnswer(list: Answer[], a: Answer): Answer[] {
   return next;
 }
 
-// 묶음의 모든 문항에 답했는지. "text" 문항은 비워도 됩니다(메모).
+// 숫자 문항의 답이 맞는 꼴인지: 0 이상 max 이하의 수. 빈칸·글자는 답이 아닙니다.
+export function isNumberAnswer(value: string, max: number): boolean {
+  if (value.trim() === "") return false;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= max;
+}
+
+// 묶음의 모든 문항에 답했는지. "text" 문항과 optional 문항은 비워도 됩니다. 숫자 문항은 범위 안의 수여야 합니다.
+// optional 숫자 문항은 비워도 되지만, 적었다면 범위 안이어야 합니다.
 export function groupComplete(g: Group, answers: Answer[], phase: Phase, attempt: number): boolean {
-  return itemsOf(g, phase).every((it) => it.scale.kind === "text" || answers.some((a) => a.phase === phase && a.attempt === attempt && a.code === it.code));
+  return itemsOf(g, phase).every((it) => {
+    if (it.scale.kind === "text") return true;
+    const a = answers.find((x) => x.phase === phase && x.attempt === attempt && x.code === it.code);
+    if (it.scale.kind === "number") {
+      if (!a || a.value.trim() === "") return !!it.optional;
+      return isNumberAnswer(a.value, it.scale.max);
+    }
+    return !!a || !!it.optional;
+  });
 }
 
 // 지역 시차가 붙은 ISO 시각 (예: 2026-11-10T14:32:10+09:00). UTC로 적으면 실험 기록과 맞춰 보기 불편해서입니다.

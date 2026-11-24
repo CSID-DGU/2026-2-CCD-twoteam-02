@@ -15,6 +15,7 @@ export const PAAS9: Scale = {
 export const ASRS5: Scale = { kind: "likert", min: 0, max: 4, labels: { 0: "전혀 그렇지 않다", 1: "거의 그렇지 않다", 2: "약간 혹은 가끔 그렇다", 3: "자주 그렇다", 4: "매우 자주 그렇다" } };
 const choice = (...options: string[]): Scale => ({ kind: "choice", options });
 const TEXT: Scale = { kind: "text" };
+const num = (unit: string, max: number): Scale => ({ kind: "number", unit, max });
 
 // ── 사전 설문 ──
 const PRE_BASIC: Group = {
@@ -65,6 +66,37 @@ const PRE_ASRS: Group = {
   ],
 };
 
+// 스터디카페 이용 (돈·시간 계산용, 한 번만 묻습니다). 설계: 2026-11-24 네 가지 비교 설계 6-2절. 문장은 초안입니다.
+// 공부 1시간당 비용 = (이용권 + 교통비·음료비 × 방문 횟수) ÷ 공부 시간, 한 번 갈 때 드는 이동 시간을 내는 데 씁니다.
+const PRE_CAFE: Group = {
+  id: "pre_cafe",
+  title: "스터디카페 이용",
+  note: "평소 스터디카페(유료 독서실 포함)를 어떻게 쓰는지 여쭙습니다. 대략이어도 됩니다. 이용하지 않으면 숫자 칸에 0을 적어 주세요.",
+  items: [
+    { code: "PRE_CAFE_PASS", text: "스터디카페에서 주로 쓰는 이용권", scale: choice("시간권 (충전해서 쓰는 것)", "기간권 (정기권)", "당일권 (1회권)", "이용하지 않음") },
+    { code: "PRE_CAFE_MONTHLY", text: "스터디카페 이용권에 한 달에 쓰는 돈", scale: num("원", 1_000_000) },
+    { code: "PRE_CAFE_VISITS", text: "한 주에 스터디카페에 가는 횟수", scale: num("회", 14) },
+    { code: "PRE_CAFE_HOURS", text: "한 번 가면 머무는 시간", scale: num("시간", 24) },
+    { code: "PRE_CAFE_TRAVEL_MIN", text: "집에서 스터디카페까지 다녀오는 데 걸리는 시간 (왕복)", scale: num("분", 600) },
+    { code: "PRE_CAFE_TRAVEL_COST", text: "한 번 다녀올 때 드는 교통비 (왕복. 걸어가면 0)", scale: num("원", 100_000) },
+    { code: "PRE_CAFE_SNACK", text: "한 번 갈 때 쓰는 음료·간식 비용", scale: num("원", 100_000) },
+  ],
+};
+
+// 평소 스터디카페에서의 긴장감 (참고용). 조건 끝 긴장감 4문항(TEN_1~4)과 같은 내용을 "스터디카페에서 공부할 때"로 바꿔 묻습니다.
+// 이용하지 않는 사람은 답할 수 없으므로 비워도 넘어갑니다.
+const PRE_CAFE_TENSION: Group = {
+  id: "pre_cafe_tension",
+  title: "스터디카페에서 공부할 때",
+  note: "평소 스터디카페에서 공부할 때를 떠올려 답해 주세요. 스터디카페를 이용하지 않으면 비워 두고 넘어가세요.",
+  items: [
+    { code: "PRE_TEN_1", optional: true, text: "스터디카페에서 공부할 때는 딴짓(휴대폰, 다른 화면)을 하기가 꺼려진다.", scale: LIKERT7 },
+    { code: "PRE_TEN_2", optional: true, text: "스터디카페에서 공부할 때는 쉬거나 자리를 뜨고 싶어도 참고 계속한다.", scale: LIKERT7 },
+    { code: "PRE_TEN_3", optional: true, text: "스터디카페에서 공부할 때 나는 긴장을 놓지 않고 공부한다.", scale: LIKERT7 },
+    { code: "PRE_TEN_4", optional: true, reverse: true, text: "스터디카페에서는 딴짓을 해도 아무도 모를 것 같다.", scale: LIKERT7 },
+  ],
+};
+
 // ── 조건 끝 설문 ──
 const KSSAS: Group = {
   id: "kssas",
@@ -80,6 +112,21 @@ const KSSAS: Group = {
     { code: "KSSAS_7", text: "지금 이 순간, 나는 다른 이들이 나를 어떻게 생각하는지에 대해 염려한다.", scale: LIKERT7 },
     { code: "KSSAS_8", text: "지금 이 순간, 나는 내 마음 속에 품은 생각들을 잘 알고 있다.", scale: LIKERT7 },
     { code: "KSSAS_9", text: "지금 이 순간, 나는 내 주변의 모든 대상들을 잘 인식하고 있다.", scale: LIKERT7 },
+  ],
+};
+
+// 긴장감 4문항 [자작, 2026-11-24 결정]. "남이 있어서 딴짓을 덜 하게 되고 풀어지지 않는 느낌"을 묻습니다.
+// 혼자 조건에서도 같은 문장으로 물어야 세 조건을 비교할 수 있어 "다른 사람이 있어서"라는 말을 넣지 않았습니다.
+// 점수는 4문항 평균(4번은 8 − 응답). 근거는 네 가지 비교 설계 문서 6-1절.
+const TENSION: Group = {
+  id: "tension",
+  title: "방금 끝난 세션에서",
+  note: "방금 끝난 세션에 대해 여쭙습니다. 정답은 없습니다. 느낀 대로 답해 주세요.",
+  items: [
+    { code: "TEN_1", text: "이번 세션에서 딴짓(휴대폰, 다른 화면)을 하기가 꺼려졌다.", scale: LIKERT7 },
+    { code: "TEN_2", text: "이번 세션에서 쉬거나 자리를 뜨고 싶을 때 참고 계속했다.", scale: LIKERT7 },
+    { code: "TEN_3", text: "이번 세션에서 나는 긴장을 놓지 않고 공부했다.", scale: LIKERT7 },
+    { code: "TEN_4", reverse: true, text: "이번 세션에서는 딴짓을 해도 아무도 모를 것 같았다.", scale: LIKERT7 },
   ],
 };
 
@@ -167,10 +214,10 @@ const FINAL: Group = {
   ],
 };
 
-const CONDITION_END: Group[] = [KSSAS, FOCUS, EFFORT, CAMERA, COPRESENCE]; // 순서 고정: 상태 척도 먼저, 공존감 마지막
+const CONDITION_END: Group[] = [KSSAS, TENSION, FOCUS, EFFORT, CAMERA, COPRESENCE]; // 순서 고정: 상태 척도 먼저, 공존감 마지막
 
 export const GROUPS_BY_PHASE: Record<Phase, Group[]> = {
-  pre: [PRE_BASIC, PRE_BODY_DOUBLING, PRE_ASRS, KSSAS],
+  pre: [PRE_BASIC, PRE_CAFE, PRE_CAFE_TENSION, PRE_BODY_DOUBLING, PRE_ASRS, KSSAS],
   A: CONDITION_END,
   B: CONDITION_END,
   C: CONDITION_END,

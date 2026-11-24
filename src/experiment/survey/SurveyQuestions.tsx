@@ -2,7 +2,7 @@
 // 묶음 하나가 한 페이지. 답할 때마다 브라우저 저장소에 쌓고, 마지막 묶음을 제출하면 onFinish 를 부릅니다.
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { fillPlace, groupComplete, itemsOf, loadAnswers, localIso, noteOf, saveAnswers, saveProgress, textOf, upsertAnswer } from "./surveyLogic";
+import { fillPlace, groupComplete, isNumberAnswer, itemsOf, loadAnswers, localIso, noteOf, saveAnswers, saveProgress, textOf, upsertAnswer } from "./surveyLogic";
 import type { Answer, Item, Phase, Progress } from "./surveyLogic";
 import { GROUPS_BY_PHASE } from "./surveyItems";
 import { browserStore } from "./surveyBrowser";
@@ -101,6 +101,16 @@ function ItemBlock({ index, item, phase, value, onAnswer }: { index: number; ite
           ))}
         </div>
       )}
+      {scale.kind === "number" && (
+        <label style={styles.radio}>
+          <input
+            type="number" inputMode="decimal" min={0} max={scale.max} style={styles.number}
+            value={value ?? ""} onChange={(e) => onAnswer(e.target.value)}
+          />
+          {scale.unit}
+          {value !== undefined && value !== "" && !isNumberAnswer(value, scale.max) && <span style={styles.warn}>0~{scale.max} 사이의 숫자</span>}
+        </label>
+      )}
       {scale.kind === "text" && (
         <textarea style={styles.textarea} rows={3} value={value ?? ""} onChange={(e) => onAnswer(e.target.value)} />
       )}
@@ -118,6 +128,7 @@ const styles: Record<string, CSSProperties> = {
   intro: { background: "#fffbeb", borderLeft: "4px solid #f59e0b", borderRadius: 6, padding: "8px 12px", margin: 0, fontSize: 15 }, // 질문 앞 설명 상자
   footer: { color: "#888", fontSize: 12, margin: 0 }, // 저작권 고지 등 바닥글
   radio: { display: "flex", gap: 6, alignItems: "center" },
+  number: { font: "inherit", padding: "6px 8px", border: "1px solid #bbb", borderRadius: 6, width: 140 },
   textarea: { font: "inherit", padding: "6px 8px", border: "1px solid #bbb", borderRadius: 6, width: "100%", boxSizing: "border-box" },
   primary: { font: "inherit", padding: "10px 20px", border: "none", borderRadius: 8, background: "#2563eb", color: "#fff", cursor: "pointer", justifySelf: "start" },
   bar: { display: "flex", justifyContent: "space-between", color: "#444", fontSize: 14 },
