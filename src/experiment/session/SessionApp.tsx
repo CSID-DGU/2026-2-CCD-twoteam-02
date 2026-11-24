@@ -17,6 +17,7 @@ import {
 import type { Condition, SessionMode, SessionProgress, Step } from "./sessionLogic";
 import { useNow } from "./useNow";
 import { CANDIDATE_LABEL, setFor, taskCsv } from "../task/taskLogic";
+import { focusCsvName, loadSpans, ratioOf, spansCsv, summarize, summaryCsv, taskWindows } from "../focusSpans/focusSpanLogic";
 import type { AnswerRow, Candidate, TaskRow } from "../task/taskLogic";
 import { TaskPanel } from "../task/TaskPanel";
 
@@ -296,6 +297,9 @@ function DoneScreen({ session, onHome }: { session: SessionProgress; onHome: () 
   const answers = loadAnswers(browserStore, session.participant);
   const events = loadEvents(browserStore, session.participant);
   const taskRows = (["A", "B", "C"] as Condition[]).flatMap((c) => loadTaskRows(browserStore, session.participant, c));
+  // 초록불·빨간불 구간 (좌석 화면이 같은 브라우저에 남긴 것). 조건별 과제 시간으로 잘라 요약합니다.
+  const spans = loadSpans(browserStore);
+  const windows = taskWindows(events);
   return (
     <main style={styles.page}>
       <p style={styles.staff}>진행자용</p>
@@ -311,8 +315,27 @@ function DoneScreen({ session, onHome }: { session: SessionProgress; onHome: () 
         <button type="button" style={styles.button} onClick={() => downloadText(eventsCsv(events), eventsCsvName(session.participant, new Date()))}>
           진행 기록 CSV ({events.length}행)
         </button>
+        <button type="button" style={styles.button} onClick={() => downloadText(summaryCsv(session.participant, session.order, spans, windows), focusCsvName(session.participant, "summary", new Date()))}>
+          표시등 요약 CSV ({windows.length}행)
+        </button>
+        <button type="button" style={styles.button} onClick={() => downloadText(spansCsv(session.participant, spans, windows), focusCsvName(session.participant, "spans", new Date()))}>
+          표시등 구간 CSV
+        </button>
         <button type="button" style={styles.button} onClick={onHome}>시작 화면으로</button>
       </div>
+      <p style={styles.muted}>
+        표시등 기록:{" "}
+        {windows.length === 0
+          ? "과제 시간 기록이 없습니다"
+          : windows
+              .map((w) => {
+                const s = summarize(spans, w.from, w.to);
+                const green = ratioOf(s, "green");
+                return `조건 ${w.condition} ${Math.round(s.recordedMs / 1000)}초 기록${green === null ? "" : `, 초록불 ${Math.round(green * 100)}%`}`;
+              })
+              .join(" · ")}
+        . 화상 화면 조건은 트래킹을 돌리지 않아 기록이 0초입니다.
+      </p>
       <p style={styles.muted}>
         시점: {(["pre", "A", "B", "C", "final"] as const).map((p) => `${PHASE_LABEL[p]} ${answers.filter((a) => a.phase === p).length}행`).join(" · ")}
       </p>
