@@ -14,6 +14,7 @@ import type { StudyChoice } from './StartStudyDialog'
 import type { StudyCondition } from './condition'
 import type { Baseline } from '../focus/calibration'
 import type { PhoneState, PoseState } from '../tracking/useTracking'
+import { useFocusSpanRecorder } from '../experiment/focusSpans/useFocusSpanRecorder'
 
 // 빨강 = 기준을 넘겨 시간이 안 올라감, 노랑 = 아직 올라가는 중 (표시등 색과 같은 규칙, space/status.ts)
 const LABEL: Record<FocusStatus, { color: string; text: string }> = {
@@ -54,6 +55,8 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
   useEffect(() => {
     onStatus(hold ? 'hold' : focus.status)
   }, [focus.status, hold, onStatus])
+  // 실험용: 초록불·노란불·빨간불 구간을 이 브라우저에 남깁니다. 진행 화면이 조건별 과제 시간으로 잘라 비율을 냅니다.
+  const spanSaveFailed = useFocusSpanRecorder(userId, focus.status, hold)
 
   // 5분 저장 때 보류 중(노란불)이면 자르기를 미룹니다(canCutChunk). 보류가 끝나면 그때 자릅니다.
   const pendingNow = useRef(0)
@@ -126,6 +129,7 @@ export function StudyRunner({ face, pose, phone, baseline, onRecalibrate, choice
       <span style={styles.time}>{formatDuration(shownStudyMs(focus))}</span>
       <span style={{ color }}>{text}</span>
       {saveError && <span style={{ color: '#f87171' }}>{saveError}</span>}
+      {spanSaveFailed && <span style={{ color: '#f87171' }}>구간 기록 저장 실패</span>}
       <button type="button" style={styles.button} onClick={onRecalibrate}>
         다시 맞추기
       </button>
