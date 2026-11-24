@@ -3,7 +3,7 @@
 //
 // 진행자가 보는 화면(시작, 조건 시작 안내, 휴식, 마무리 입력, 끝)과 참가자가 보는 화면(설문, 과제)이 번갈아 나옵니다.
 // 참가자 화면에는 조건 이름(A/B/C)을 띄우지 않습니다. 진행자 화면에만 작게 표시합니다.
-// 과제 자리는 아직 비어 있습니다. 과제 창(#191)이 정해지면 TaskPlaceholder 자리에 끼웁니다.
+// 과제 자리: 자기 공부 방식은 목표 카드(../goals), 단순 과제 방식은 계산·오탈자 과제 창(../task).
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { PHASE_LABEL, csvName, isOrder, isParticipant, loadAnswers, loadProgress, localIso, nextProgress, saveProgress } from "../survey/surveyLogic";
@@ -11,7 +11,7 @@ import type { Progress } from "../survey/surveyLogic";
 import { SurveyQuestions } from "../survey/SurveyQuestions";
 import { browserStore, downloadCsv, downloadText } from "../survey/surveyBrowser";
 import {
-  CONDITION_INTRO, MODE_LABEL, REST_SECONDS, TASK_INTRO, TASK_SECONDS_OPTIONS, appendEvent, compareDefaultKinds, eventOfStep, eventsCsv, eventsCsvName,
+  CONDITION_INTRO, MODE_LABEL, REST_SECONDS, STUDY_INTRO, TASK_INTRO, TASK_SECONDS_OPTIONS, appendEvent, compareDefaultKinds, eventOfStep, eventsCsv, eventsCsvName,
   kindForPosition, loadEvents, loadSession, loadTaskRows, phaseOfStep, saveSession, saveTaskRows, secondsLeft, stepLabel, stepsOf, taskCsvName,
 } from "./sessionLogic";
 import type { Condition, SessionMode, SessionProgress, Step } from "./sessionLogic";
@@ -20,6 +20,9 @@ import { CANDIDATE_LABEL, setFor, taskCsv } from "../task/taskLogic";
 import { focusCsvName, loadSpans, ratioOf, spansCsv, summarize, summaryCsv, taskWindows } from "../focusSpans/focusSpanLogic";
 import type { AnswerRow, Candidate, TaskRow } from "../task/taskLogic";
 import { TaskPanel } from "../task/TaskPanel";
+import { CARD_NAME, cleanCards, goalsCsv, goalsCsvName, loadGoals, meanAchieved, saveGoals } from "../goals/goalLogic";
+import type { GoalData } from "../goals/goalLogic";
+import { AchieveScreen, GoalWriteScreen, StudyPanel } from "../goals/GoalScreens";
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -34,13 +37,13 @@ function StartScreen({ onStart }: { onStart: (s: SessionProgress) => void }) {
   const q = new URLSearchParams(location.search);
   const [participant, setParticipant] = useState((q.get("participant") ?? "").toUpperCase());
   const [order, setOrder] = useState((q.get("order") ?? "").toUpperCase());
-  const [mode, setMode] = useState<SessionMode>(q.get("mode") === "compare" ? "compare" : "experiment");
+  const [mode, setMode] = useState<SessionMode>(q.get("mode") === "compare" ? "compare" : q.get("mode") === "experiment" ? "experiment" : "study");
   const [taskKind, setTaskKind] = useState<Candidate>(q.get("task") === "typo" ? "typo" : "calc");
   const [taskSeconds, setTaskSeconds] = useState(TASK_SECONDS_OPTIONS[0]);
   const okP = isParticipant(participant);
   const okO = isOrder(order);
   const prev = okP ? loadSession(browserStore, participant) : null;
-  const steps = okO ? stepsOf(order) : [];
+  const steps = okO ? stepsOf(order, mode) : [];
 
   const start = () => {
     const now = new Date();
@@ -96,7 +99,7 @@ function StartScreen({ onStart }: { onStart: (s: SessionProgress) => void }) {
         </fieldset>
       )}
       <fieldset style={styles.fieldset}>
-        <legend>과제 시간</legend>
+        <legend>{mode === "study" ? "공부 시간 (조건마다)" : "과제 시간"}</legend>
         {TASK_SECONDS_OPTIONS.map((sec) => (
           <label key={sec} style={styles.radio}>
             <input type="radio" checked={taskSeconds === sec} onChange={() => setTaskSeconds(sec)} disabled={!!prev} />
@@ -106,8 +109,8 @@ function StartScreen({ onStart }: { onStart: (s: SessionProgress) => void }) {
       </fieldset>
       {prev && (
         <p style={styles.notice}>
-          이 참가자는 진행 중이던 기록이 있습니다. {prev.order} 순서, {prev.mode === "compare" ? "과제 비교" : CANDIDATE_LABEL[prev.taskKind]} {prev.taskSeconds / 60}분,
-          "{stepLabel(stepsOf(prev.order)[prev.stepIndex])}" 단계부터 이어 갑니다.
+          이 참가자는 진행 중이던 기록이 있습니다. {prev.order} 순서, {prev.mode === "compare" ? "과제 비교" : prev.mode === "study" ? "자기 공부" : CANDIDATE_LABEL[prev.taskKind]} {prev.taskSeconds / 60}분,
+          "{stepLabel(stepsOf(prev.order, prev.mode)[prev.stepIndex])}" 단계부터 이어 갑니다.
           {prev.order !== order && order !== "" && " (입력한 순서는 무시되고 저장된 순서를 씁니다.)"}
         </p>
       )}
@@ -123,7 +126,7 @@ function StartScreen({ onStart }: { onStart: (s: SessionProgress) => void }) {
 
 // ── 단계 진행 ──
 function Runner({ session, onUpdate, onHome }: { session: SessionProgress; onUpdate: (s: SessionProgress) => void; onHome: () => void }) {
-  const steps = stepsOf(session.order);
+  const steps = stepsOf(session.order, session.mode);
   const step = steps[Math.min(session.stepIndex, steps.length - 1)];
 
   // 단계가 끝나면 사건을 적고 다음 단계로. 다음 단계의 시작 사건도 적고, 과제·휴식이면 그 시작 시각을 남깁니다.
@@ -153,9 +156,14 @@ function Runner({ session, onUpdate, onHome }: { session: SessionProgress; onUpd
     case "survey":
     case "final":
       return <SurveyStep session={session} step={step} onDone={() => advance(Date.now())} />;
+    case "goals":
+      return <GoalsStep session={session} onDone={() => advance(Date.now())} />;
+    case "achieve":
+      return <AchieveStep session={session} index={step.index} onDone={() => advance(Date.now())} />;
     case "ready":
       return <ReadyStep session={session} step={step} onUpdate={onUpdate} onStart={() => advance(Date.now())} />;
     case "task":
+      if (session.mode === "study") return <StudyStep session={session} index={step.index} onUpdate={onUpdate} onDone={advance} />;
       return <TaskStep session={session} condition={step.condition} onUpdate={onUpdate} onDone={() => advance(Date.now())} />;
     case "rest":
       return (
@@ -186,7 +194,7 @@ function ReadyStep({ session, step, onUpdate, onStart }: { session: SessionProgr
   };
   return (
     <main style={styles.page}>
-      <p style={styles.staff}>진행자용 · 조건 {step.index}/3 ({step.condition}){kind ? ` · ${CANDIDATE_LABEL[kind]}` : ""}</p>
+      <p style={styles.staff}>진행자용 · 조건 {step.index}/3 ({step.condition}){kind && session.mode !== "study" ? ` · ${CANDIDATE_LABEL[kind]}` : ""}</p>
       <h1 style={styles.h1}>시작 안내</h1>
       {session.mode === "compare" && position === 2 && (
         <fieldset style={styles.fieldset}>
@@ -202,9 +210,10 @@ function ReadyStep({ session, step, onUpdate, onStart }: { session: SessionProgr
       )}
       {/* 진행자 지시문("참가자에게 그대로 읽어 주세요")은 참가자도 같은 화면을 보므로 뺐습니다(팀 피드백 2026-10-26). 절차는 문서 3절에. */}
       <blockquote style={styles.quote}>{CONDITION_INTRO[step.condition]}</blockquote>
-      <blockquote style={styles.quote}>{TASK_INTRO}</blockquote>
+      <blockquote style={styles.quote}>{session.mode === "study" ? STUDY_INTRO : TASK_INTRO}</blockquote>
+      {session.mode === "study" && <p style={styles.muted}>이번 카드: {CARD_NAME[position]} 카드. 공부 자료를 펴고 준비되면 시작합니다.</p>}
       <button type="button" style={styles.primary} disabled={needChoice} onClick={onStart}>
-        {needChoice ? "과제를 먼저 고르세요" : "과제 시작"}
+        {needChoice ? "과제를 먼저 고르세요" : session.mode === "study" ? "공부 시작" : "과제 시작"}
       </button>
     </main>
   );
@@ -287,6 +296,87 @@ function TaskStep({ session, condition, onUpdate, onDone }: { session: SessionPr
   );
 }
 
+// ── 자기 공부 방식 (목표 카드) ──
+// 카드 3장 쓰기. 고칠 때마다 저장해 새로고침해도 쓰던 내용이 남습니다. 내면 빈 줄을 지우고 시각을 적습니다.
+function GoalsStep({ session, onDone }: { session: SessionProgress; onDone: () => void }) {
+  const [data, setData] = useState<GoalData>(() => loadGoals(browserStore, session.participant));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const store = (next: GoalData) => {
+    setData(next);
+    setSaveFailed(!saveGoals(browserStore, session.participant, next));
+  };
+  return (
+    <>
+      {saveFailed && <p style={{ ...styles.warn, textAlign: "center", margin: "8px 0 0" }}>⚠ 저장 실패 — 진행자에게 알려 주세요</p>}
+      <GoalWriteScreen
+        cards={data.cards}
+        minutes={Math.round(session.taskSeconds / 60)}
+        onChange={(cards) => store({ ...data, cards })}
+        onSubmit={() => {
+          store({ ...data, cards: cleanCards(data.cards), writtenAt: localIso(new Date()) });
+          onDone();
+        }}
+      />
+    </>
+  );
+}
+
+// 공부 시간. 끝나는 시각(시작 + 공부 시간)을 그대로 task_end 로 남깁니다.
+function StudyStep({ session, index, onUpdate, onDone }: { session: SessionProgress; index: number; onUpdate: (s: SessionProgress) => void; onDone: (nowMs: number) => void }) {
+  const [data] = useState<GoalData>(() => loadGoals(browserStore, session.participant));
+  // 새로고침 뒤 시작 시각이 없으면 지금 정합니다 (ready 화면을 거치지 않은 경우)
+  useEffect(() => {
+    if (!session.taskStartedAt) {
+      const s = { ...session, taskStartedAt: Date.now() };
+      saveSession(browserStore, s);
+      onUpdate(s);
+    }
+  }, [session, onUpdate]);
+  if (!session.taskStartedAt) return null;
+  return (
+    <StudyPanel
+      seconds={session.taskSeconds}
+      startedAt={session.taskStartedAt}
+      index={index - 1}
+      goals={data.cards[index - 1] ?? []}
+      onFinish={onDone}
+      onAbort={() => {
+        if (window.confirm("공부 시간을 지금 끝내고 달성률 입력으로 넘어갈까요? (본 실험에서는 쓰지 않습니다)")) onDone(Date.now());
+      }}
+    />
+  );
+}
+
+// 달성률 입력. 적으면 저장하고, 여기까지의 목표 CSV를 내려받아 둡니다(중간에 컴퓨터가 꺼져도 남게).
+function AchieveStep({ session, index, onDone }: { session: SessionProgress; index: number; onDone: () => void }) {
+  const [data] = useState<GoalData>(() => loadGoals(browserStore, session.participant));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const position = index - 1;
+  return (
+    <>
+      {saveFailed && <p style={{ ...styles.warn, textAlign: "center", margin: "8px 0 0" }}>⚠ 저장 실패 — 진행자에게 알려 주세요</p>}
+      <AchieveScreen
+        index={position}
+        goals={data.cards[position] ?? []}
+        onSubmit={(values) => {
+          const now = new Date();
+          const next: GoalData = {
+            ...data,
+            achieved: data.achieved.map((v, i) => (i === position ? values : v)),
+            achievedAt: data.achievedAt.map((v, i) => (i === position ? localIso(now) : v)),
+          };
+          if (!saveGoals(browserStore, session.participant, next)) {
+            setSaveFailed(true); // 저장이 안 되면 넘어가지 않습니다 (답이 사라지므로)
+            return;
+          }
+          downloadText(goalsCsv(session.participant, session.order, next), goalsCsvName(session.participant, now));
+          onDone();
+        }}
+      />
+    </>
+  );
+}
+
 function RestTimer({ startedAt }: { startedAt: number | undefined }) {
   const now = useNow();
   return <p style={styles.timer}>{mmss(startedAt ? secondsLeft(startedAt, now, REST_SECONDS) : REST_SECONDS)}</p>;
@@ -300,6 +390,7 @@ function DoneScreen({ session, onHome }: { session: SessionProgress; onHome: () 
   // 초록불·빨간불 구간 (좌석 화면이 같은 브라우저에 남긴 것). 조건별 과제 시간으로 잘라 요약합니다.
   const spans = loadSpans(browserStore);
   const windows = taskWindows(events);
+  const goals = loadGoals(browserStore, session.participant);
   return (
     <main style={styles.page}>
       <p style={styles.staff}>진행자용</p>
@@ -312,6 +403,11 @@ function DoneScreen({ session, onHome }: { session: SessionProgress; onHome: () 
         <button type="button" style={styles.button} onClick={() => downloadText(taskCsv(taskRows), taskCsvName(session.participant, "all", new Date()))}>
           과제 전체 CSV ({taskRows.length}행)
         </button>
+        {session.mode === "study" && (
+          <button type="button" style={styles.button} onClick={() => downloadText(goalsCsv(session.participant, session.order, goals), goalsCsvName(session.participant, new Date()))}>
+            목표 카드 CSV ({goals.cards.flat().length}행)
+          </button>
+        )}
         <button type="button" style={styles.button} onClick={() => downloadText(eventsCsv(events), eventsCsvName(session.participant, new Date()))}>
           진행 기록 CSV ({events.length}행)
         </button>
@@ -336,6 +432,17 @@ function DoneScreen({ session, onHome }: { session: SessionProgress; onHome: () 
               .join(" · ")}
         . 화상 화면 조건은 트래킹을 돌리지 않아 기록이 0초입니다.
       </p>
+      {session.mode === "study" && (
+        <p style={styles.muted}>
+          목표 달성률:{" "}
+          {goals.cards
+            .map((_, i) => {
+              const m = meanAchieved(goals.achieved[i]);
+              return `조건 ${session.order[i]} ${m === null ? "기록 없음" : `${Math.round(m)}%`}`;
+            })
+            .join(" · ")}
+        </p>
+      )}
       <p style={styles.muted}>
         시점: {(["pre", "A", "B", "C", "final"] as const).map((p) => `${PHASE_LABEL[p]} ${answers.filter((a) => a.phase === p).length}행`).join(" · ")}
       </p>

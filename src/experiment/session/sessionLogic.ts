@@ -17,25 +17,34 @@ export const CONDITION_INTRO: Record<Condition, string> = {
   B: "지금부터 20분, 혼자 공부하는 방입니다. 다른 사람은 없고, 당신도 누구에게도 보이지 않습니다.",
   C: "지금부터 20분, 다른 방의 세 사람과 같은 열람실에 앉습니다. 서로 캐릭터로만 보입니다. 서로 말이나 채팅은 하지 않습니다.",
 };
+// 자기 공부 방식의 안내 (세 조건 동일). 문장은 초안입니다.
+export const STUDY_INTRO = "이번 목표 카드에 적은 공부를 평소처럼 해 주세요. 시간이 끝나면 목표를 얼마나 했는지 여쭙니다.";
 export const TASK_INTRO = "할 수 있는 만큼 풀어 주세요. 정확하게, 그러나 서두르거나 쉬지 말고 평소 속도로."; // 과제 안내 (세 조건 동일)
 
 export type Step =
   | { kind: "pre" }
+  | { kind: "goals" } // 목표 카드 3장 쓰기 (자기 공부 방식만)
   | { kind: "ready"; condition: Condition; index: number } // index: 몇 번째 조건(1~3)
   | { kind: "task"; condition: Condition; index: number }
+  | { kind: "achieve"; condition: Condition; index: number } // 목표 달성률 입력 (자기 공부 방식만)
   | { kind: "survey"; condition: Condition; index: number }
   | { kind: "rest"; index: number }
   | { kind: "final" }
   | { kind: "done" };
 
 // 순서 문자열(예 "CBA")로 단계 목록을 만듭니다. 마지막 조건 뒤에는 휴식 대신 바로 마무리.
-export function stepsOf(order: string): Step[] {
+// 자기 공부 방식(study)은 사전 설문 뒤에 목표 카드 쓰기, 조건마다 과제 뒤에 달성률 입력이 더 들어갑니다.
+export function stepsOf(order: string, mode: SessionMode = "experiment"): Step[] {
   if (!isOrder(order)) throw new Error(`조건 순서가 아닙니다: ${order}`);
+  const study = mode === "study";
   const steps: Step[] = [{ kind: "pre" }];
+  if (study) steps.push({ kind: "goals" });
   [...order].forEach((c, i) => {
     const condition = c as Condition;
     const index = i + 1;
-    steps.push({ kind: "ready", condition, index }, { kind: "task", condition, index }, { kind: "survey", condition, index });
+    steps.push({ kind: "ready", condition, index }, { kind: "task", condition, index });
+    if (study) steps.push({ kind: "achieve", condition, index });
+    steps.push({ kind: "survey", condition, index });
     if (index < 3) steps.push({ kind: "rest", index });
   });
   steps.push({ kind: "final" }, { kind: "done" });
@@ -45,8 +54,10 @@ export function stepsOf(order: string): Step[] {
 export const stepLabel = (s: Step): string => {
   switch (s.kind) {
     case "pre": return "사전 설문";
+    case "goals": return "목표 카드 쓰기";
     case "ready": return `조건 ${s.index} 시작 안내`;
     case "task": return `조건 ${s.index} 과제`;
+    case "achieve": return `조건 ${s.index} 달성률`;
     case "survey": return `조건 ${s.index} 설문`;
     case "rest": return `휴식 ${s.index}`;
     case "final": return "마무리";
@@ -58,9 +69,14 @@ export const stepLabel = (s: Step): string => {
 export const phaseOfStep = (s: Step): Phase | null => (s.kind === "pre" ? "pre" : s.kind === "survey" ? s.condition : s.kind === "final" ? "final" : null);
 
 // 진행 상태: 어느 단계까지 왔는지. 새로고침해도 그 단계부터 이어 갑니다.
-// 실험 방식. experiment = 본 실험(한 과제로 세 조건 모두), compare = 팀 피드백용 과제 비교(1·2번은 계산·오탈자 한 번씩, 3번은 고름 — 2026-10-23 사용자 결정).
-export type SessionMode = "experiment" | "compare";
-export const MODE_LABEL: Record<SessionMode, string> = { experiment: "본 실험 (한 과제로 세 번)", compare: "과제 비교 (팀 피드백용: 1·2번 한 번씩, 3번은 고름)" };
+// 실험 방식. study = 자기 공부 + 목표 카드(2026-11-24 네 가지 비교 설계), experiment = 단순 과제 하나로 세 조건(예전 설계),
+// compare = 팀 피드백용 과제 비교(1·2번은 계산·오탈자 한 번씩, 3번은 고름 — 2026-10-23 사용자 결정).
+export type SessionMode = "study" | "experiment" | "compare";
+export const MODE_LABEL: Record<SessionMode, string> = {
+  study: "자기 공부 + 목표 카드 (네 가지 비교 설계)",
+  experiment: "단순 과제 (계산·오탈자 하나로 세 번, 예전 설계)",
+  compare: "과제 비교 (팀 피드백용: 1·2번 한 번씩, 3번은 고름)",
+};
 
 // 과제 비교 방식의 1·2번 과제 순서. 참가자 번호 홀수는 계산 먼저, 짝수는 오탈자 먼저(순서 치우침을 줄이려고).
 export const compareDefaultKinds = (participantNumber: number): Candidate[] => (participantNumber % 2 === 1 ? ["calc", "typo"] : ["typo", "calc"]);
@@ -98,6 +114,8 @@ export function eventsCsvName(participant: string, at: Date): string {
 export function eventOfStep(s: Step, when: "start" | "end"): { event: string; condition: string } | null {
   switch (s.kind) {
     case "pre": return { event: `pre_${when}`, condition: "" };
+    case "goals": return { event: `goals_${when}`, condition: "" };
+    case "achieve": return { event: `achieve_${when}`, condition: s.condition };
     case "ready": return when === "start" ? { event: "ready", condition: s.condition } : null;
     case "task": return { event: `task_${when}`, condition: s.condition };
     case "survey": return { event: `survey_${when}`, condition: s.condition };
@@ -149,7 +167,7 @@ export function appendEvent(store: Store, e: SessionEvent): SessionEvent[] {
 
 // k번째 조건(0부터)의 과제 종류. 비교 방식에서 아직 안 골랐으면 null.
 export function kindForPosition(p: SessionProgress, position: number): Candidate | null {
-  if (p.mode === "experiment") return p.taskKind;
+  if (p.mode !== "compare") return p.taskKind;
   return p.kindsByPosition?.[position] ?? null;
 }
 
