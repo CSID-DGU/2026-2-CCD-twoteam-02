@@ -73,7 +73,7 @@ export function InfoPanel({ initial, myId, onClose, invite, here }: Props) {
         {view.kind === 'friends' && (
           <FriendsView onOpenProfile={(userId) => open({ kind: 'profile', userId })} invite={invite} />
         )}
-        {view.kind === 'settings' && <SettingsView myId={myId} onOpen={open} />}
+        {view.kind === 'settings' && <SettingsView />}
         {view.kind === 'map' && <WorldMap here={here} />}
         {view.kind === 'report' && <ReportPanel myId={myId} />}
         {view.kind === 'reports' && <ReportsPanel myId={myId} />}

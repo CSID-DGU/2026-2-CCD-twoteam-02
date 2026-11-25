@@ -55,3 +55,13 @@ export function envLabel(): '서비스' | '운영' | '실험' | '로컬' {
   const ref = /^https:\/\/([a-z0-9]+)\.supabase\.co/.exec(url)?.[1] ?? ''
   return PROJECTS[ref] ?? '로컬'
 }
+
+// 최근 로그인한 사람 (#612). DB 함수 ops_recent_logins 가 팀인지 확인하고, 봇은 빼고 돌려줍니다 (0078)
+export type RecentLogin = { id: string; nickname: string; last_sign_in_at: string; created_at: string; is_guest: boolean }
+export async function fetchRecentLogins(range: RangeKey): Promise<{ rows: RecentLogin[]; from: number }> {
+  const ms = RANGES.find((r) => r.key === range)?.ms ?? RANGES[1].ms
+  const from = Date.now() - ms
+  const { data, error } = await supabase.rpc('ops_recent_logins', { p_since: new Date(from).toISOString() })
+  if (error) throw new Error(error.message)
+  return { rows: (data ?? []) as RecentLogin[], from }
+}
