@@ -160,6 +160,12 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
         <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'report' })}>
           신고하기
         </button>
+        {/* 팀에게만: 관리자 대시보드 (접속자·최근 로그인·봇·에러·FPS, #590·#612). 볼 수 있는지는 DB 함수가 다시 확인합니다 */}
+        {team && (
+          <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'ops' })}>
+            관리자 대시보드
+          </button>
+        )}
         {/* 팀에게만: 모인 신고를 보는 창. 팀인지는 team_members 에 내 행이 있는지로 정합니다. */}
         {team && (
           <button type="button" style={menuRowMinor} onClick={() => onOpen({ kind: 'reports' })}>

@@ -1,6 +1,7 @@
-// 관리자 운영 대시보드 (#590). 설정 → 관리자 탭 → "관리자 대시보드 열기"로 넓은 창에 뜹니다(팀만).
+// 관리자 운영 대시보드 (#590). 오른쪽 위 메뉴의 "관리자 대시보드"로 넓은 창에 뜹니다(팀만, #612).
 //
-// 위에서부터: 어느 DB 인지·기간, 요약 숫자, 에러 그래프, FPS 그래프, 많이 난 에러(누르면 진단과 AI 프롬프트), FPS 이상치 구간.
+// 위에서부터: 어느 DB 인지·기간, 같이 공부하는 봇 켜고 끄기(#50), 지금 접속 중·최근 로그인(#612),
+// 요약 숫자, 에러 그래프, FPS 그래프, 많이 난 에러(누르면 진단과 AI 프롬프트), FPS 이상치 구간.
 // 열려 있는 동안 1분마다 다시 받습니다. 데이터는 DB 함수 ops_dashboard 가 팀인지 확인하고 돌려줍니다.
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -11,6 +12,8 @@ import { KIND_COLOR, KIND_LABEL } from './opsColors'
 import { buildPrompt, diagnose } from './diagnosis'
 import type { TopError } from './diagnosis'
 import { FLUSH_MS } from './opsLogic'
+import { OpsPeople } from './OpsPeople'
+import { BotSwitch } from '../bots/BotSwitch'
 
 const REFRESH_MS = FLUSH_MS
 
@@ -77,6 +80,11 @@ export function OpsDashboard() {
           {busy ? '불러오는 중…' : '↻ 새로고침'}
         </button>
       </div>
+
+      <section style={styles.card}>
+        <BotSwitch />
+      </section>
+      <OpsPeople range={range} rangeLabel={RANGES.find((r) => r.key === range)?.label ?? ''} tick={tick} />
 
       {error && <div style={styles.card}>{/권한|팀만/.test(error) ? '팀만 볼 수 있어요.' : `불러오지 못했어요: ${error}`}</div>}
       {!d && !error && <div style={styles.card}>불러오는 중…</div>}

@@ -60,3 +60,19 @@ export function listFieldsChanged(prev: PresenceState, next: PresenceState): boo
     prev.sync !== next.sync
   )
 }
+
+// 두 곳의 최신 상태를 하나처럼 읽습니다. 실제 참여자(useParticipants)와 같이 공부하는 봇(bots/useBotPeers, #50)을
+// 한 목록으로 그릴 때 씁니다. 계정 번호가 겹치지 않으므로 먼저 찾은 쪽 값을 씁니다.
+export function mergeLiveStates(a: LiveStates, b: LiveStates): LiveStates {
+  return {
+    get: (userId) => a.get(userId) ?? b.get(userId),
+    subscribe(userId, onChange) {
+      const offA = a.subscribe(userId, onChange)
+      const offB = b.subscribe(userId, onChange)
+      return () => {
+        offA()
+        offB()
+      }
+    },
+  }
+}

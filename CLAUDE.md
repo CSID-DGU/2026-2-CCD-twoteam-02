@@ -63,8 +63,9 @@ src/
   meeting/             회의실 (문 앞 회의 목록·만들기 창, 회의 화면. meetingLogic.ts는 원형 테이블 자리 계산 순수 로직)
   profile/             프로필(공부 기록 요약)과 공개 범위, 지점에서 캐릭터를 누르면 뜨는 프로필 창
   ranking/             공부 시간 순위 (광장 순위 게시판에서 E로 여는 창, DB 함수 study_ranking. rankingLogic.ts는 순수 로직)
+  bots/                같이 공부하는 봇 (#50, 0075~0077). DB 의 진짜 계정(60개)을 예약 작업(bot_tick)이 1분마다 움직이고, 화면은 bot_presence() 를 읽어 실제 참여자처럼 그림. 켜고 끄기·목표 인원은 관리자 대시보드(팀만). botLogic.ts는 순수 로직
   report/              오판·버그 신고 (메뉴 "신고하기", 최근 30초 판정 수치 첨부)와 팀용 신고 목록 (recentSamples.ts·reportLogic.ts는 순수 로직)
-  ops/                 운영 대시보드 (화면 에러·FPS 1분 기록, 설정 → 관리자 탭(팀만), #590. opsLogic.ts·diagnosis.ts는 순수 로직)
+  ops/                 운영 대시보드 (화면 에러·FPS 1분 기록, 오른쪽 위 메뉴 "관리자 대시보드"(팀만), 지금 접속 중·최근 로그인(봇 구별), #590·#612. opsLogic.ts·diagnosis.ts는 순수 로직)
   lib/supabase.ts      Supabase 연결 (화면에서는 이 파일만 가져다 쓴다)
 relay/                 위치 중계 Worker (Cloudflare. 자체 package.json과 tsc를 쓰고, 화면 빌드에 들어가지 않는다)
 supabase/migrations/   DB 스키마 변경 이력 (번호 순서대로 Supabase SQL Editor에서 실행)

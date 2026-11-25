@@ -25,7 +25,7 @@
 // 빈 자리에서 E 를 누르면 카페처럼 DB 에 자리를 잡고(useCafeSeat) 앉아, 지점과 똑같이 좌석 공부(SeatCamera·SeatedStudy)를 한다.
 // 일어나거나 광장을 떠나면 자리를 놓는다. 다른 사람에게는 앉은 모습과 공부 상태 표시등이 보인다.
 // 캠퍼스의 벤치는 DB 자리가 없어 앉지 않는다(보기만).
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useLocation, useNavigate } from 'react-router'
 import { Player } from '../space/Player'
@@ -69,6 +69,8 @@ import { FirstCharacterDialog } from '../profile/FirstCharacterDialog'
 import { passageOf } from '../space/passage'
 import { useWalkView } from '../space/useWalkView'
 import { useParticipants } from '../realtime/useParticipants'
+import { mergeLiveStates } from '../realtime/liveStates'
+import { useBotPeers } from '../bots/useBotPeers'
 import { useChannel } from '../realtime/useChannel'
 import { useChannelUi } from '../realtime/useChannelUi'
 import { OtherParticipants } from '../realtime/OtherParticipants'
@@ -81,7 +83,7 @@ import { useOnline, useOnlinePlace } from '../realtime/onlineContext'
 import { ChatOverlay } from '../chat/ChatOverlay'
 import { EmoteControls } from '../space/EmoteControls'
 import { newEmoteState } from '../space/emotes'
-import { BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCrossed, gateViewSpan, spotKindOf, toBranchHeading } from './worldLogic'
+import { BENCH_SEAT_BASE, BOARD_NO, REST_NO_BASE, WORLD_FROM, arrivalOf, benchSeatNumber, gateCrossed, gateViewSpan, spotKindOf, toBranchHeading } from './worldLogic'
 import { PLAZA_WORLD, computedOf, worldOf } from './worldConfig'
 import type { WorldConfig } from './worldConfig'
 import { topic, toward } from '../lib/josa'
@@ -288,7 +290,17 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const suspendLook = useRef(false) // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const sitSpots = [...REST_SPOTS, ...BENCH_SPOTS] // 앉은 친구의 자리 위치 (React 컴파일러가 바뀔 때만 새로 만듦)
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }) // 딱밤 신호 통로 (#304)
-  const { others, live } = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
+  const [condition] = useState(() => currentCondition(location.search))
+  const real = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef, playRef)
+  // 같이 공부하는 봇 (#50): DB 가 자리를 잡은 봇을 실제 참여자 목록에 이어 붙입니다. 봇은 1채널에만 앉습니다.
+  // 그래서 빈자리·접속 인원·프로필 창·조준·딱밤이 사람과 똑같이 봇에도 적용됩니다.
+  const bots = useBotPeers({
+    enabled: condition === 'visible' && channel.no === 1,
+    slug: world.study.slug,
+    spotOf: (seatNumber) => BENCH_SPOTS.find((s) => s.no === BENCH_SEAT_BASE + seatNumber),
+  })
+  const others = useMemo(() => (bots.others.length === 0 ? real.others : [...real.others, ...bots.others]), [real.others, bots.others])
+  const live = useMemo(() => mergeLiveStates(real.live, bots.live), [real.live, bots.live])
   // 다른 사람들의 지금 위치 (감정표현 카메라가 사람 뒤로 가서 내가 가려지지 않게). 위치는 live 에서 그때그때 읽음
   const otherSpots = useCallback(() => others.flatMap((o) => live.get(o.userId) ?? []), [others, live])
   // 벤치에서 공부하는 집중 상태가 바뀌면 화면 그리기를 기다리지 않고 바로 보낼 상태에 넣습니다(지점 화면과 같음).
@@ -304,7 +316,6 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
   const teleport = useRef<Teleport | null>(null)
   const chat = useChat()
   const stand = useStandConfirm() // 벤치 등에서 공부 중 E로 일어나면 "공부를 끝낼까요?" (#558)
-  const [condition] = useState(() => currentCondition(location.search))
   // 채널 표시·입장 대기·친구 채널 창과 따라가기 설정 (#442, #481. 카페 화면과 같이 씀)
   const channelUi = useChannelUi({ channel, place: world.place, seated: seat !== null, count: others.length + 1, showBadge: condition === 'visible' })
   useFollowArrival({

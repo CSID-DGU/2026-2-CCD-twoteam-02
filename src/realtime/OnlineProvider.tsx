@@ -31,6 +31,8 @@ import { relayUrl } from './relayLink'
 import { openOnlineLink, REPLACED_STATUS } from './onlineLink'
 import type { OnlineLink } from './onlineLink'
 import { useMyChannel } from './myChannel'
+import { useBotPresence } from '../bots/botStore'
+import { withBots } from '../bots/botLogic'
 import type { ChatIncoming, ChatPort, OnlineEntry } from './onlineContext'
 
 type Meta = { place?: string; studying?: boolean; quiet?: boolean; channel?: number } & TabMeta
@@ -234,7 +236,10 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     if (subscribed.current) void channelRef.current?.track(mine.current).then((r) => dbg('내 상태 보냄', JSON.stringify(mine.current), r))
   }, [place, studying, quiet, chan, tab, myId])
 
-  const people = result && result.myId === myId ? result.people : EMPTY
+  const realPeople = result && result.myId === myId ? result.people : EMPTY
+  // 같이 공부하는 봇 (#50): 접속 중인 봇도 접속 목록에 넣어 접속 인원·장소별 인원·지도에 사람처럼 보이게 합니다 (1채널)
+  const botPresence = useBotPresence(Boolean(myId))
+  const people = useMemo(() => withBots(realPeople, botPresence, (b): OnlineEntry => b), [realPeople, botPresence])
   // 여기서 계속하기 (#347): 양보를 풀면 App 이 장면을 다시 열고, 장면에 들어오며 이 탭이 순서를 새로 잡아 다른 탭이 양보합니다.
   const takeOver = useCallback(() => setYielded(false), [])
   return (
