@@ -32,6 +32,8 @@ import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
 import { useParticipants } from "../realtime/useParticipants";
+import { mergeLiveStates } from "../realtime/liveStates";
+import { useBotPeers } from "../bots/useBotPeers";
 import { OtherParticipants } from "../realtime/OtherParticipants";
 import { useLocation, useNavigate } from "react-router";
 import { passageOf } from "./passage";
@@ -317,7 +319,21 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const emote = useRef(newEmoteState());
   const suspendLook = useRef(false); // 감정표현 바퀴를 고르는 동안 마우스로 시점이 돌지 않게
   const flickPort = useRef<FlickPort>({ receive: () => {}, send: null }); // 딱밤 신호 통로 (#304)
-  const { others, live } = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef); // 같은 지점·같은 채널의 다른 참여자 (실시간)
+  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
+  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
+  const { search } = useLocation();
+  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
+  const real = useParticipants(channel.room, me, false, undefined, undefined, undefined, flickPort, channel.fullRef); // 같은 지점·같은 채널의 다른 참여자 (실시간)
+  // 같이 공부하는 봇 (#50): DB 가 자리를 잡은 봇을 실제 참여자 목록에 이어 붙입니다. 카페 지점의 1채널에만 앉고, 입구로 들고 납니다.
+  // 그래서 빈자리·접속 인원·프로필 창·조준·딱밤이 사람과 똑같이 봇에도 적용됩니다.
+  const bots = useBotPeers({
+    enabled: condition === "visible" && isCafe && !isRest && channel.no === 1,
+    slug: branch.id,
+    spotOf: (seatNumber) => spots.find((s) => s.no === seatNumber),
+    exit: branch.spawn,
+  });
+  const others = useMemo(() => (bots.others.length === 0 ? real.others : [...real.others, ...bots.others]), [real.others, bots.others]);
+  const live = useMemo(() => mergeLiveStates(real.live, bots.live), [real.live, bots.live]);
   // 다른 사람들의 지금 위치 (감정표현 카메라가 사람 뒤로 가서 내가 가려지지 않게). 위치는 live 에서 그때그때 읽음
   const otherSpots = useCallback(() => others.flatMap((o) => live.get(o.userId) ?? []), [others, live]);
   // 집중 상태가 바뀌면 화면 그리기(handleMove)를 기다리지 않고 바로 보낼 상태에 넣습니다.
@@ -330,10 +346,6 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   const teleport = useRef<Teleport | null>(null);
   const chat = useChat();
   const stand = useStandConfirm(); // 공부 중 E로 일어나면 "공부를 끝낼까요?" (#558)
-  // 사용자 실험 조건. hidden(캐릭터 숨김 모드)이면 다른 참여자를 그리지 않고 접속 인원 수만 보여 줍니다.
-  // 실시간 연결·좌석 점유·내 트래킹·타이머·기록은 그대로 동작합니다.
-  const { search } = useLocation();
-  const [condition] = useState(() => currentCondition(search)); // 지점에 들어올 때 한 번 정합니다.
   // 채널 표시·입장 대기·친구 채널 창과 따라가기 설정 (#481. 광장 화면과 같이 씀)
   const channelUi = useChannelUi({ channel, place: branch.id, seated: seat !== null, count: others.length + 1, showBadge: condition === "visible" });
   useFollowArrival({
