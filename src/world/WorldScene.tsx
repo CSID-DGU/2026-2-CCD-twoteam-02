@@ -59,6 +59,7 @@ import { SceneMenu } from '../menu/SceneMenu'
 import { QuickSeatControl } from '../quickseat/QuickSeat'
 import { useQuickSeatArrival } from '../quickseat/useQuickSeat'
 import { PLAZA_CAMPFIRE_KEY } from '../quickseat/places'
+import { EXPIRED_NOTE } from '../quickseat/quickSeatLogic'
 import type { PanelView } from '../menu/panelTypes'
 import { panelKey } from '../menu/panelTypes'
 import { useMenuShortcuts } from '../menu/useMenuShortcuts'
@@ -474,6 +475,7 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     onResult: (ok) => {
       if (!ok) setMessage(`${world.study.label} 자리가 모두 찼어요. 다른 곳을 골라 주세요.`)
     },
+    onExpired: () => setMessage(EXPIRED_NOTE),
   })
   const acts = (no: number) => canEnter(no) || no === BOARD_NO || (spotKindOf(no) === 'bench' && !touch && plazaId !== null)
   const blockedEnter = (no: number) => {

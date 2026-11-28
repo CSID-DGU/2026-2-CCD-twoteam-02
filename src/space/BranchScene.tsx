@@ -28,7 +28,7 @@ import { floorSeatHint, noSeatHint } from "../kiosk/floorLogic";
 import type { KioskFloor } from "../kiosk/floorLogic";
 import { useCafeSeat } from "./useCafeSeat";
 import { useQuickKioskArrival, useQuickSeatArrival } from "../quickseat/useQuickSeat";
-import { kioskFront } from "../quickseat/quickSeatLogic";
+import { EXPIRED_NOTE, kioskFront } from "../quickseat/quickSeatLogic";
 import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
@@ -450,10 +450,11 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
     onResult: (ok) => {
       if (!ok) setQuickNote("빈자리가 없어요. 다른 곳을 골라 주세요.");
     },
+    onExpired: () => setQuickNote(EXPIRED_NOTE),
   });
   // 키오스크 지점(Cam Study Cafe)이면 키오스크 앞에 세웁니다. 이용권은 직접 받고 앉습니다
   const kioskFrontSpot = useMemo(() => (branch.kiosk ? kioskFront(branch.kiosk) : null), [branch.kiosk]);
-  useQuickKioskArrival({ key: branch.id, front: kioskFrontSpot, ready: !isCafe && !touch, teleportRef: teleport });
+  useQuickKioskArrival({ key: branch.id, front: kioskFrontSpot, ready: !isCafe && !touch, teleportRef: teleport, onExpired: () => setQuickNote(EXPIRED_NOTE) });
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();

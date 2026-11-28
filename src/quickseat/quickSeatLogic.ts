@@ -13,6 +13,7 @@
 import type { BranchLayout } from '../space/layout'
 
 export const REQUEST_TTL_MS = 30_000 // 이만큼 지난 요청은 버림 (도착한 화면이 늦게 떠도 엉뚱한 때 앉지 않게)
+export const EXPIRED_NOTE = '바로 앉기가 늦어져 취소됐어요. 다시 눌러 주세요.' // 버렸을 때 안내 (#546). 말없이 서 있지 않게
 export const MAX_SEAT_TRIES = 4 // 자리 잡기를 몇 번까지 다시 해 볼지 (같은 순간 다른 사람이 앉으면 DB 가 거절함)
 export const KIOSK_FRONT = 0.7 // 키오스크 중심에서 앞으로 떨어져 설 거리(m). 키오스크를 쓸 수 있는 거리(Player 의 KIOSK_RANGE 1m) 안
 
