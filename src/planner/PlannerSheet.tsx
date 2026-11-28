@@ -3,7 +3,7 @@
 // 칸을 누르면 고른 형광펜으로 직접 칠할 수 있습니다(같은 색으로 다시 누르면 지움). marker 가 null 이면(앞날) 칠하지 못함.
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import { HOURS, MARKERS, ddayText, focusCells, formatHM, weekdayOf } from './plannerLogic'
+import { HOURS, MARKERS, ddayText, focusCells, formatMsHM, weekdayOf } from './plannerLogic'
 import type { PlannerData } from './plannerLogic'
 import type { SegmentKind } from '../study/segmentLogic'
 import { HAND, INK, LINE, PRINT, handInput, handSize, paperSurface, printLabel } from './paperStyle'
@@ -59,7 +59,7 @@ export function PlannerSheet({ day, dayStart, data, segs, marker, colorOf, updat
         </div>
         <div style={{ ...box, flex: 1 }}>
           <span style={corner}>TOTAL</span>
-          <span style={{ position: 'absolute', right: 12, bottom: 2, fontFamily: HAND, color: INK, fontSize: handSize(28) }}>{formatHM(total)}</span>
+          <span style={{ position: 'absolute', right: 12, bottom: 2, fontFamily: HAND, color: INK, fontSize: handSize(28) }}>{formatMsHM(total)}</span>
         </div>
         <div style={{ ...box, flex: 0.62, padding: '2px 6px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
