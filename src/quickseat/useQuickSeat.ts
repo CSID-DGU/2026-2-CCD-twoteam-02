@@ -5,6 +5,7 @@
 //   useQuickSeatArrival  광장·지점 화면이 씁니다. 요청이 이 공간 것이면 빈자리 하나를 골라 DB 에 잡고(claim),
 //                  내 캐릭터를 그 자리로 옮깁니다(Player 의 teleportRef). 자리 앞에 서면 Player 가 E 없이 앉힙니다(sitRef).
 //                  같은 순간 다른 사람이 앉아 거절되면 다른 자리로 몇 번 더 해 봅니다.
+//   useQuickKioskArrival  키오스크 지점 화면이 씁니다. 요청이 이 지점 것이면 앉히지 않고 키오스크 앞에 세웁니다(이용권은 직접 받음).
 //   useOutsideSeated  바깥 공부 자리(벤치·캠프파이어·빈백·비치체어)에 지금 앉은 좌석 번호를 DB 에서 읽습니다. 고르는 창의 인원 표시용.
 //   useFavoritePlace  내 최애 공간(profiles.favorite_place)을 읽고 바꿉니다. 한 번 읽은 값은 화면을 옮겨도 기억합니다.
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -93,6 +94,18 @@ export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf
       latest.current.onResult(false)
     })()
   }, [req, mine, ready, teleportRef])
+}
+
+// ── 키오스크 앞에 서기 ──────────────────────────────────────
+// key: 이 지점 slug. front: 설 자리 (kioskFront). 키오스크가 없는 지점이면 null 이라 아무것도 하지 않습니다
+export function useQuickKioskArrival({ key, front, ready, teleportRef }: { key: string; front: Teleport | null; ready: boolean; teleportRef: RefObject<Teleport | null> }) {
+  const req = useQuickSeatRequest()
+  useEffect(() => {
+    if (!req || req.key !== key || !front || !ready) return
+    takeQuickSeat()
+    if (Date.now() - req.at > REQUEST_TTL_MS) return
+    teleportRef.current = front // Player 가 다음 프레임에 옮김. 키오스크 거리 안이라 "키오스크 · E 사용하기" 안내가 뜸
+  }, [req, key, front, ready, teleportRef])
 }
 
 // ── 바깥 자리에 앉은 사람 ───────────────────────────────────
