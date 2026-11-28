@@ -1,5 +1,5 @@
 // 바로 앉기 (#116) 화면 조각.
-//   QuickSeatControl  광장 화면이 씁니다. 바깥 공간(캠리단길·캠빛 대학교·캠빛 해변)에 서 있는 동안 화면 아래에 큰 버튼(배너)을 늘 보여 줍니다. ▾ 로 접으면 작은 버튼만 남고, 누르면 다시 펴집니다. 메뉴의 "바로 앉기"로도 엽니다.
+//   QuickSeatControl  광장 화면이 씁니다. 바깥 공간(캠리단길·캠빛 대학교·캠빛 해변)에 서 있는 동안 화면 아래에 큰 버튼(배너)을 늘 보여 줍니다. "접기"로 접으면 작은 버튼만 남고, 누르면 다시 펴집니다. 메뉴의 "바로 앉기"로도 엽니다.
 //                     누르면: 최애 공간이 있으면 바로 그곳으로, 없으면 공간 고르는 창. 창에서 "다음부터 이 공간으로"를 켜면 계정에 저장됩니다.
 //   FavoritePlaceSetting  최애 공간을 고르고 지우는 목록. 배너의 안내 글 뒤와 설정 창(화면·마우스 탭)에 같이 씁니다.
 // 이동과 앉기는 useQuickSeat.ts(요청 → 도착한 화면이 빈자리에 앉힘), 고르는 규칙은 quickSeatLogic.ts.
@@ -10,6 +10,20 @@ import { choosePlace, countByKey, countByPlace, isValidPlace } from './quickSeat
 import type { QuickPlace } from './quickSeatLogic'
 import { useFavoritePlace, useGoQuickSeat, useOutsideSeated } from './useQuickSeat'
 import { OUTSIDE_SLUGS, PLACES, PLACE_GROUPS } from './places'
+
+// 꺾쇠 화살표(⌄·⌃)를 글자 대신 선으로 그립니다. 글자 화살표는 글꼴·OS마다 모양과 굵기가 달라서 (#616)
+const CHEVRON_PATH = 'M3 5.5l4 4 4-4' // 14×14 칸 안의 아래쪽 꺾쇠
+function Chevron({ up = false, color = 'currentColor' }: { up?: boolean; color?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" style={{ display: 'block', transform: up ? 'rotate(180deg)' : undefined }}>
+      <path d={CHEVRON_PATH} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+// <select> 오른쪽에 깔 같은 모양의 꺾쇠 (CSS 배경 그림이라 SVG 를 글자로 넣음)
+const SELECT_CHEVRON = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'><path d='${CHEVRON_PATH}' fill='none' stroke='#aab0bb' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>`,
+)}")`
 
 const FOLDED_KEY = 'dooteum.quickSeatFolded' // 배너를 접어 두었는지 (sessionStorage: 다른 공간으로 옮겨도 접힌 채로, 탭을 닫으면 지워짐)
 
@@ -84,19 +98,20 @@ export function QuickSeatControl({ myId, startRef, banner, onDialogChange }: Pro
     <>
       {banner && !open && folded && (
         <button type="button" style={styles.folded} aria-label="바로 앉기 펴기" onClick={() => setFolded(false)}>
-          🪑 바로 앉기 ▴
+          바로 앉기 <Chevron up />
         </button>
       )}
       {banner && !open && !folded && (
         <div style={styles.banner}>
           <button type="button" style={styles.bigButton} onClick={start}>
-            🪑 바로 앉기
+            바로 앉기
           </button>
           <span style={styles.bannerText}>최애 공간의 빈자리에 앉아 바로 공부를 시작해요</span>
           {/* 최애 공간을 설정까지 가지 않고 여기서 바로 고릅니다. 고르기만 하고, 앉는 것은 "바로 앉기"를 눌러야 합니다 */}
           <FavoritePlaceSetting />
-          <button type="button" style={styles.dismiss} aria-label="접기" title="접기" onClick={() => setFolded(true)}>
-            ▾
+          {/* 접기: 옆의 최애 공간 고르기(⌄)와 헷갈리지 않게 화살표 대신 글자 버튼 (#616) */}
+          <button type="button" style={styles.fold} title="배너 접기" onClick={() => setFolded(true)}>
+            접기
           </button>
         </div>
       )}
@@ -189,17 +204,24 @@ const styles: Record<string, CSSProperties> = {
   banner: {
     position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 12,
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px 10px 10px', borderRadius: 14,
+    // 좁은 화면(폰)에서는 줄을 바꿔, 안내 글이 한 글자 폭으로 눌려 세로로 늘어서지 않게 합니다 (#616)
+    flexWrap: 'wrap', justifyContent: 'center', width: 'max-content', maxWidth: 'calc(100vw - 24px)', boxSizing: 'border-box',
     background: 'rgba(32,35,42,.92)', color: '#fff', font: '14px system-ui, sans-serif', boxShadow: '0 8px 24px rgba(0,0,0,.35)',
   },
   bigButton: {
     padding: '12px 22px', borderRadius: 10, border: 'none', background: '#a78bfa', color: '#1b1e24',
-    font: '700 17px system-ui, sans-serif', cursor: 'pointer',
+    font: '700 17px system-ui, sans-serif', cursor: 'pointer', whiteSpace: 'nowrap',
   },
-  bannerText: { color: '#d1d5db' },
+  bannerText: { color: '#d1d5db', flex: '1 1 160px' },
   folded: {
     position: 'fixed', bottom: 96, left: '50%', transform: 'translateX(-50%)', zIndex: 12,
     padding: '6px 14px', borderRadius: 999, border: 'none', background: 'rgba(32,35,42,.92)', color: '#c4b5fd',
     font: '700 13px system-ui, sans-serif', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+    display: 'flex', alignItems: 'center', gap: 6,
+  },
+  fold: {
+    height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #4b5563', background: 'transparent', color: '#d1d5db',
+    font: '13px system-ui, sans-serif', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
   },
   dismiss: { border: 'none', background: 'transparent', color: '#aab0bb', cursor: 'pointer', font: '16px system-ui, sans-serif', padding: '4px 6px' },
   backdrop: { position: 'fixed', inset: 0, zIndex: 20, background: 'rgba(0,0,0,.45)', display: 'grid', placeItems: 'center' },
@@ -223,8 +245,10 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer', font: 'inherit',
   },
   settingRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  // 브라우저 기본 화살표를 숨기고(appearance: none) 오른쪽에 같은 꺾쇠를 그려 넣습니다 (#616)
   select: {
-    padding: '4px 8px', borderRadius: 6, border: '1px solid #4b5563', background: '#16181d', color: '#fff',
-    font: 'inherit', fontSize: 13, cursor: 'pointer', maxWidth: 220,
+    appearance: 'none', WebkitAppearance: 'none', height: 32, padding: '0 30px 0 10px', borderRadius: 8,
+    border: '1px solid #4b5563', backgroundColor: '#16181d', backgroundImage: SELECT_CHEVRON, backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 10px center', color: '#fff', font: 'inherit', fontSize: 13, cursor: 'pointer', maxWidth: 220,
   },
 }

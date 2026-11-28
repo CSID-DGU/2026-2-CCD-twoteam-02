@@ -1,7 +1,7 @@
 // 로비·지점 오른쪽 위 메뉴 (#70, #208).
 //   위 상자: 자주 쓰는 것. 내 기록·친구·내 프로필(누르면 페이지를 옮기지 않고 창), 로비로(지점만)
 //   아래 상자: 가끔 쓰는 것. 설정(#222), 트래킹 검증(지점만), 로그아웃
-// 키보드로도 엽니다(R·F·P·L·O·T, #205). 버튼 앞에 키를 키캡 모양으로 적습니다. 키는 설정에서 바꾼 대로 보입니다(#250).
+// 키보드로도 엽니다(Z·G·R·F·P·L·O·T, #205). 버튼 앞에 키를 키캡 모양으로 적습니다. 키는 설정에서 바꾼 대로 보입니다(#250).
 import LogoutButton from '../auth/LogoutButton'
 import { keyCap, menuBox, menuDivider, menuRow, menuRowMinor, menuStack } from './cornerStyle'
 import type { PanelView } from './panelTypes'
@@ -116,7 +116,7 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
         </div>
       )}
       <nav style={menuBox}>
-        {/* 바로 앉기 (#116): 최애 공간의 빈자리에 앉아 바로 공부 시작. 단축키 없음 */}
+        {/* 바로 앉기 (#116): 최애 공간의 빈자리에 앉아 바로 공부 시작. 키는 광장 화면(WorldScene)이 받습니다 */}
         {onQuickSeat && (
           <button
             type="button"
@@ -126,7 +126,8 @@ export function SceneMenu({ myId, onOpen: openPanel, onLobby, onTracking, onSkyT
               onQuickSeat()
             }}
           >
-            🪑 바로 앉기
+            <span style={keyCap}>{keyLabel(keys.quickSeat)}</span>
+            바로 앉기
           </button>
         )}
         {PANEL_KEYS.filter((it) => it.action !== 'settings').map((it) => (
