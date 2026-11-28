@@ -24,10 +24,15 @@ export const BANNED_WORDS = [
 // 비교용: 공백을 빼고 소문자로
 export const normalizeNickname = (name: string) => name.replace(/\s+/g, '').toLowerCase()
 
+// 글자 수: DB 의 char_length 처럼 문자(코드 포인트) 단위로 셉니다 (#539).
+// .length 는 UTF-16 단위라 이모지 하나를 2로 세어, 이모지 1개 + 글자 1개 닉네임이 화면은 통과하고 DB 에서 막혔습니다.
+export const nicknameLength = (name: string) => [...name].length
+
 // 쓸 수 있으면 '', 아니면 안내문
 export function checkNickname(raw: string): string {
   const name = raw.trim()
-  if (name.length < NICKNAME_MIN || name.length > NICKNAME_MAX) return `닉네임은 ${NICKNAME_MIN}~${NICKNAME_MAX}자로 정해 주세요.`
+  const length = nicknameLength(name)
+  if (length < NICKNAME_MIN || length > NICKNAME_MAX) return `닉네임은 ${NICKNAME_MIN}~${NICKNAME_MAX}자로 정해 주세요.`
   const flat = normalizeNickname(name)
   if (BANNED_WORDS.some((w) => flat.includes(w))) return '쓸 수 없는 낱말이 들어 있어요. 다른 닉네임을 정해 주세요.'
   return ''
