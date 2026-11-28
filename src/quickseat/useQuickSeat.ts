@@ -58,14 +58,15 @@ type Arrival<T extends SpotLike> = {
   claim: (seatNo: number, spotNo: number) => Promise<boolean> // DB 에 자리 잡기 (useCafeSeat.claim)
   teleportRef: RefObject<Teleport | null>
   onResult: (ok: boolean) => void // 앉았으면 true, 빈자리를 못 잡았으면 false (안내용)
+  onExpired: () => void // 화면이 늦게 떠 요청이 오래돼 버렸을 때 (안내용, #546)
 }
 
-export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf, claim, teleportRef, onResult }: Arrival<T>) {
+export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf, claim, teleportRef, onResult, onExpired }: Arrival<T>) {
   const req = useQuickSeatRequest()
   // 매 렌더 바뀌는 값은 ref 로 들고, 요청·준비 상태가 바뀔 때만 움직입니다.
-  const latest = useRef({ spots, seatNoOf, claim, onResult })
+  const latest = useRef({ spots, seatNoOf, claim, onResult, onExpired })
   useEffect(() => {
-    latest.current = { spots, seatNoOf, claim, onResult }
+    latest.current = { spots, seatNoOf, claim, onResult, onExpired }
   })
   const busy = useRef(false)
   const mine = req !== null && req.key in spots // 이 화면이 받는 요청인지
@@ -73,7 +74,10 @@ export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf
   useEffect(() => {
     if (!req || !mine || !ready || busy.current) return
     takeQuickSeat()
-    if (Date.now() - req.at > REQUEST_TTL_MS) return
+    if (Date.now() - req.at > REQUEST_TTL_MS) {
+      latest.current.onExpired()
+      return
+    }
     busy.current = true
     const free = latest.current.spots[req.key] ?? []
     void (async () => {
@@ -98,12 +102,20 @@ export function useQuickSeatArrival<T extends SpotLike>({ spots, ready, seatNoOf
 
 // ── 키오스크 앞에 서기 ──────────────────────────────────────
 // key: 이 지점 slug. front: 설 자리 (kioskFront). 키오스크가 없는 지점이면 null 이라 아무것도 하지 않습니다
-export function useQuickKioskArrival({ key, front, ready, teleportRef }: { key: string; front: Teleport | null; ready: boolean; teleportRef: RefObject<Teleport | null> }) {
+type KioskArrival = { key: string; front: Teleport | null; ready: boolean; teleportRef: RefObject<Teleport | null>; onExpired: () => void }
+export function useQuickKioskArrival({ key, front, ready, teleportRef, onExpired }: KioskArrival) {
   const req = useQuickSeatRequest()
+  const expired = useRef(onExpired) // 매 렌더 바뀌는 함수라 ref 로 들고, 요청이 바뀔 때만 움직입니다
+  useEffect(() => {
+    expired.current = onExpired
+  })
   useEffect(() => {
     if (!req || req.key !== key || !front || !ready) return
     takeQuickSeat()
-    if (Date.now() - req.at > REQUEST_TTL_MS) return
+    if (Date.now() - req.at > REQUEST_TTL_MS) {
+      expired.current()
+      return
+    }
     teleportRef.current = front // Player 가 다음 프레임에 옮김. 키오스크 거리 안이라 "키오스크 · E 사용하기" 안내가 뜸
   }, [req, key, front, ready, teleportRef])
 }
