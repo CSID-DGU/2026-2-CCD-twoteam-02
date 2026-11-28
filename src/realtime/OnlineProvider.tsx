@@ -94,14 +94,13 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     if (!myId) return
     let closing = false // 정리 중이거나 이미 다시 들어가기로 했으면 true
     const timers: ReturnType<typeof setTimeout>[] = []
-    const rejoin = (why: string) => {
+    const rejoin = () => {
       if (closing) return
       closing = true
-      dbg('다시 들어감', why)
       setJoinCount((c) => c + 1)
     }
     let link: Link | null = null
-    const read = (event: string) => {
+    const read = () => {
       if (!link) return
       // 한 번에 한 탭만 쓰기 (#347): 같은 계정의 탭들을 보고 순서를 다시 잡거나 양보합니다.
       const state = link.presenceState()
@@ -126,7 +125,6 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
           quiet: metas.some((m) => m.quiet), // 어느 탭에서든 방해금지면 방해금지
         })
       }
-      dbg('받음', event, '보이는 사람', people.size, [...people.keys()].map(short).join(','), '나 포함', people.has(myId))
       setResult({ myId, people })
     }
     // 중계 서버 주소가 있으면 Worker 의 접속 표시 방(#473), 없으면(실험 배포) Supabase Presence 방
@@ -135,10 +133,9 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
     const relay = relayUrl()
     if (relay) {
       const online = openOnlineLink<Meta>(relay, {
-        onSync: () => read('sync'),
+        onSync: read,
         onChat: (m) => chatListeners.current.forEach((fn) => fn(m)),
         onStatus: (status) => {
-          dbg('연결 상태(중계)', status)
           if (status === 'SUBSCRIBED') {
             subscribed.current = true
             void online.track(mine.current)
@@ -148,7 +145,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
           subscribed.current = false
           // 같은 계정의 탭이 너무 많아 서버가 이 탭을 닫았다. 다시 들어가면 다른 탭을 밀어내 서로 밀어내기만 하므로 그대로 둔다
           if (status === REPLACED_STATUS) return
-          timers.push(setTimeout(() => rejoin(status), RETRY_MS))
+          timers.push(setTimeout(rejoin, RETRY_MS))
         },
       })
       link = online
@@ -161,25 +158,23 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       online.open()
     } else {
       const channel = supabase.channel(ONLINE_CHANNEL, { config: { presence: { key: myId } } })
-      dbg('채널 만듦', '나', short(myId), '채널 상태', channel.state)
       link = { track: (meta) => channel.track(meta), presenceState: () => channel.presenceState<Meta>() }
       isStuck = () => channel.state !== 'joined' || waitingForList(channel)
       stop = () => void channel.unsubscribe()
       channel
-        .on('presence', { event: 'sync' }, () => read('sync'))
-        .on('presence', { event: 'join' }, ({ key }) => read(`join ${short(key)}`))
-        .on('presence', { event: 'leave' }, ({ key }) => read(`leave ${short(key)}`))
-        .subscribe((status, err) => {
-          dbg('연결 상태', status, err?.message ?? '')
+        .on('presence', { event: 'sync' }, read)
+        .on('presence', { event: 'join' }, read)
+        .on('presence', { event: 'leave' }, read)
+        .subscribe((status) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             if (closing) return // 화면이 정리하며 스스로 나간 것
             subscribed.current = false
-            timers.push(setTimeout(() => rejoin(status), RETRY_MS))
+            timers.push(setTimeout(rejoin, RETRY_MS))
             return
           }
           if (status !== 'SUBSCRIBED') return
           subscribed.current = true
-          void channel.track(mine.current).then((r) => dbg('내 상태 보냄(연결 직후)', JSON.stringify(mine.current), r))
+          void channel.track(mine.current)
         })
     }
     channelRef.current = link
@@ -192,7 +187,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         return
       }
       stuckSince ??= Date.now()
-      if (Date.now() - stuckSince >= STUCK_MS) rejoin('명단 못 받음')
+      if (Date.now() - stuckSince >= STUCK_MS) rejoin()
     }, WATCH_MS)
 
     // 오래 가려져 있던 창이 다시 보이거나, 인터넷이 다시 연결되면 다시 들어갑니다.
@@ -202,15 +197,14 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
         hiddenAt = Date.now()
         return
       }
-      if (hiddenAt !== null && Date.now() - hiddenAt >= HIDDEN_REJOIN_MS) rejoin('오래 가려졌던 창으로 돌아옴')
+      if (hiddenAt !== null && Date.now() - hiddenAt >= HIDDEN_REJOIN_MS) rejoin()
       hiddenAt = null
     }
-    const onOnline = () => rejoin('인터넷 다시 연결됨')
+    const onOnline = rejoin
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('online', onOnline)
 
     return () => {
-      dbg('채널 정리', short(myId))
       closing = true
       timers.forEach(clearTimeout)
       clearInterval(watch)
@@ -233,7 +227,7 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
       reclaimOnSync.current = !subscribed.current
     }
     mine.current = { place, studying, quiet, tab, since: since.current, scene, ...(chan === null ? {} : { channel: chan }) }
-    if (subscribed.current) void channelRef.current?.track(mine.current).then((r) => dbg('내 상태 보냄', JSON.stringify(mine.current), r))
+    if (subscribed.current) void channelRef.current?.track(mine.current)
   }, [place, studying, quiet, chan, tab, myId])
 
   const realPeople = result && result.myId === myId ? result.people : EMPTY
@@ -251,7 +245,3 @@ export function OnlineProvider({ children }: { children: ReactNode }) {
 }
 
 const EMPTY = new Map<string, OnlineEntry>()
-
-// [임시 진단] 접속 상태가 친구 탭에 반영되지 않는 문제를 찾기 위한 기록. 원인을 찾으면 지웁니다.
-const short = (id: string) => id.slice(0, 4)
-const dbg = (...args: unknown[]) => console.info('[접속진단]', new Date().toISOString().slice(11, 23), ...args)

@@ -79,7 +79,8 @@ export function focusCells(segments: Seg[], dayStart: number): FocusCell[] {
 
 export const totalFocusMs = (segments: Seg[], dayStart: number) => focusCells(segments, dayStart).reduce((a, c) => a + c.ms, 0)
 
-export function formatHM(ms: number): string {
+// ms → "3:12" (시:분). 내 기록 화면의 formatHM(초 → "3시간 12분")과 단위·모양이 달라 이름을 나눔 (#541)
+export function formatMsHM(ms: number): string {
   const m = Math.floor(ms / MIN)
   return `${Math.floor(m / 60)}:${pad(m % 60)}`
 }
