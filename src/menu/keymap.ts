@@ -5,7 +5,7 @@
 // 화면들은 누른 순간 getKeymap() 으로 지금 키를 읽고, 키 표시(키캡·안내 문구)는 useKeymap() 으로 바뀌면 다시 그립니다.
 import { useSyncExternalStore } from 'react'
 
-export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'flick' | 'recenter' | 'mic' | 'map' | 'bag' | 'eat' | 'sand'
+export type KeyAction = 'records' | 'friends' | 'profile' | 'settings' | 'lobby' | 'tracking' | 'view' | 'emoteWheel' | 'interact' | 'flick' | 'recenter' | 'mic' | 'map' | 'bag' | 'eat' | 'sand' | 'quickSeat'
 export type Keymap = Record<KeyAction, string>
 
 // 설정 창에 보이는 순서와 이름
@@ -15,6 +15,7 @@ export const KEY_ACTIONS: { action: KeyAction; label: string }[] = [
   { action: 'view', label: '시점 바꾸기 (1인칭·위에서)' },
   { action: 'recenter', label: '정면 보기 (앉았을 때) · 점프 (서 있을 때)' },
   { action: 'emoteWheel', label: '감정표현 바퀴' },
+  { action: 'quickSeat', label: '바로 앉기 (바깥 공간에 서 있을 때)' },
   { action: 'map', label: '전체 지도' },
   { action: 'bag', label: '가방 (스터디 플래너·메모장)' },
   { action: 'eat', label: '먹기·마시기 (카페 음료·빵, 마시멜로)' },
@@ -45,6 +46,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   bag: 'KeyB', // 가방: 스터디 플래너·메모장
   eat: 'KeyC', // 들고 있는 음료·빵·마시멜로 먹기
   sand: 'KeyN', // 해변 모래에 글씨·그림
+  quickSeat: 'KeyZ', // 바로 앉기 (#116). 마우스를 쥔 채 왼손으로 누르기 쉬운 빈 키
 }
 
 // 바꿀 수 없는 키: 이동(WASD), 둘러보기(방향키. 위에서 볼 때는 이동), 달리기(Shift), 채팅(Enter), 창 닫기(Esc), 감정표현(1~8), 그 밖의 조작 키

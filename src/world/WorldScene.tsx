@@ -63,6 +63,7 @@ import type { PanelView } from '../menu/panelTypes'
 import { panelKey } from '../menu/panelTypes'
 import { useMenuShortcuts } from '../menu/useMenuShortcuts'
 import { getKeymap, keyLabel, useKeymap } from '../menu/keymap'
+import { isShortcut } from '../menu/shortcuts'
 import { supabase } from '../lib/supabase'
 import { useMyAvatar } from '../profile/useMyAvatar'
 import { FirstCharacterDialog } from '../profile/FirstCharacterDialog'
@@ -360,6 +361,18 @@ export default function WorldScene({ onEnter, world = PLAZA_WORLD }: Props) {
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
   }, [setView, seat])
+
+  // 바로 앉기 키 (#116, 기본 Z). 메뉴의 "바로 앉기"와 같은 조건(컴퓨터, 서 있음, 다른 창 없음)에서만
+  useEffect(() => {
+    if (touch || seat !== null) return
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== getKeymap().quickSeat || !isShortcut(e) || panelRef.current) return
+      if (document.pointerLockElement) document.exitPointerLock() // 최애 공간이 없으면 고르는 창이 뜨므로 커서를 보이게
+      quickStart.current?.()
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [touch, seat])
 
   const loadBranches = useCallback(async () => {
     const { data, error } = await fetchOpenBranches()
