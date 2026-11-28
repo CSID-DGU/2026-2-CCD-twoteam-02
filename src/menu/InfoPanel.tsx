@@ -99,7 +99,7 @@ const styles: Record<string, CSSProperties> = {
   wide: { width: 'min(1100px, calc(100vw - 32px))' }, // 전체 지도·관리자 대시보드는 넓게
   header: { display: 'flex', alignItems: 'center', gap: 8 },
   card: { padding: 16, borderRadius: 12, background: '#20232a' },
-  title: { margin: 0, fontSize: 18, flex: 1, color: '#fff' }, // 전역 h2 색(index.css)이 라이트 모드에서 검정이라 직접 지정
+  title: { margin: 0, fontSize: 18, flex: 1, color: '#fff' },
   ghost: {
     padding: '4px 10px', borderRadius: 6, border: '1px solid #4b5563', background: 'transparent',
     color: '#fff', cursor: 'pointer', font: 'inherit',
