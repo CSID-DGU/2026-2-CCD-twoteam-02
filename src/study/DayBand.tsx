@@ -328,7 +328,7 @@ const styles: Record<string, CSSProperties> = {
     position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4,
     color: '#0b0d10', fontSize: 12, fontWeight: 700, transition: 'margin .08s', overflow: 'hidden',
   },
-  detailTitle: { margin: 0, fontSize: 20, color: '#fff', fontVariantNumeric: 'tabular-nums' }, // 전역 h2 색이 라이트 모드에서 검정
+  detailTitle: { margin: 0, fontSize: 20, color: '#fff', fontVariantNumeric: 'tabular-nums' },
   card: { padding: 16, borderRadius: 12, background: '#20232a' },
   back: {
     flex: 'none', width: 36, height: 36, borderRadius: 8, border: '1px solid #4b5563', fontSize: 18,

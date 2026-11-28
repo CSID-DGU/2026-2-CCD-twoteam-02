@@ -217,7 +217,7 @@ const styles: Record<string, CSSProperties> = {
   page: { minHeight: '100vh', background: '#16181d', color: '#fff', font: '14px/1.6 system-ui, sans-serif' },
   container: { maxWidth: 720, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  title: { margin: 0, fontSize: 22, color: '#fff' }, // 전역 h1 색(index.css)이 라이트 모드에서 검정이라 직접 지정
+  title: { margin: 0, fontSize: 22, color: '#fff' },
   link: { color: '#fff', padding: '6px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,.08)', cursor: 'pointer', font: 'inherit' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   tabs: { display: 'flex', gap: 4, padding: 3, borderRadius: 8, background: '#20232a' },
