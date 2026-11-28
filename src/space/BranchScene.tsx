@@ -27,7 +27,8 @@ import { useOtherFloorSeat } from "./useOtherFloorSeat";
 import { floorSeatHint, noSeatHint } from "../kiosk/floorLogic";
 import type { KioskFloor } from "../kiosk/floorLogic";
 import { useCafeSeat } from "./useCafeSeat";
-import { useQuickSeatArrival } from "../quickseat/useQuickSeat";
+import { useQuickKioskArrival, useQuickSeatArrival } from "../quickseat/useQuickSeat";
+import { kioskFront } from "../quickseat/quickSeatLogic";
 import { CafeConflictDialog } from "./CafeConflictDialog";
 import { useSession } from "../auth/useSession";
 import { useMyAvatar } from "../profile/useMyAvatar";
@@ -434,7 +435,7 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
   // ── 카페: 빈자리에 앉으면 내 자리, 일어나면 놓기 (#44, useCafeSeat) ──
   const cafe = useCafeSeat(isCafe ? BRANCH_ID : null, seat !== null, setMySeat, "all", channel.no);
   const { conflict, message: cafeMessage } = cafe;
-  // 바로 앉기 (#116): 요청을 들고 왔으면 빈자리 하나에 바로 앉습니다. 카페형 지점만(키오스크 지점은 이용권이 있어야 해서 아직 제외)
+  // 바로 앉기 (#116): 요청을 들고 왔으면 빈자리 하나에 바로 앉습니다. 카페형 지점만(키오스크 지점은 이용권이 있어야 해서 아래에서 키오스크 앞에 세움)
   const [quickNote, setQuickNote] = useState("");
   useEffect(() => {
     if (!quickNote) return;
@@ -450,6 +451,9 @@ function BranchSpace({ branch, info }: { branch: BranchLayout; info: BranchInfo 
       if (!ok) setQuickNote("빈자리가 없어요. 다른 곳을 골라 주세요.");
     },
   });
+  // 키오스크 지점(Cam Study Cafe)이면 키오스크 앞에 세웁니다. 이용권은 직접 받고 앉습니다
+  const kioskFrontSpot = useMemo(() => (branch.kiosk ? kioskFront(branch.kiosk) : null), [branch.kiosk]);
+  useQuickKioskArrival({ key: branch.id, front: kioskFrontSpot, ready: !isCafe && !touch, teleportRef: teleport });
 
   const handleSeat = (no: number | null) => {
     if (no !== null) seatedAt.current = performance.now();
