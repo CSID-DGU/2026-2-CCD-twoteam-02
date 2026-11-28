@@ -47,12 +47,6 @@ function FriendsBody({ onOpenProfile, invite }: ViewProps) {
   // 접속 중인 친구를 위로 올리고, 있는 곳을 같이 보여 줍니다. (#176, 채팅 #49 는 접속 중인 친구에게만)
   const online = useOnline()
   const friends = [...friendRows].sort((a, b) => Number(online.has(otherOf(b, myId))) - Number(online.has(otherOf(a, myId))))
-  // [임시 진단] 친구 탭이 보는 접속 목록과 친구 계정 번호. 원인을 찾으면 지웁니다.
-  const onlineKeys = [...online.keys()].map((k) => k.slice(0, 4)).join(',')
-  const friendKeys = friendRows.map((f) => otherOf(f, myId).slice(0, 4)).join(',')
-  useEffect(() => {
-    console.info('[접속진단] 친구 탭', '접속 목록', onlineKeys || '(없음)', '/ 친구', friendKeys || '(없음)')
-  }, [onlineKeys, friendKeys])
   // 마지막 접속 글("3분 전")의 기준 시각. 목록을 읽을 때와 1분마다 새로 잡습니다
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
